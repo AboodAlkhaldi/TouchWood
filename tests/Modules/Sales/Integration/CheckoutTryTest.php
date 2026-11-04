@@ -1364,6 +1364,14 @@ describe('test mode', function () {
         expect(Cx::place(Cx::start($address)->id)->number)->toBe('SA-0001');
     });
 
+    it('never counts a test order toward a customer\'s waiting limit', function () {
+        ['address' => $address, 'customer' => $customer] = triesReady('TEST');
+        Cx::place(Cx::start($address)->id);
+
+        expect(DB::table('sales.orders')->where('status', 'PENDING_APPROVAL')->where('is_test', true)->count())->toBe(1)
+            ->and(app(Orders::class)->waitingCount(Fx::storeId('sa'), $customer))->toBe(0);
+    });
+
     it('leaves test orders out of every figure', function () {
         ['address' => $address, 'fake' => $fake] = triesReady('TEST');
         $quote = triesQuote($address);

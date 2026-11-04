@@ -27,6 +27,7 @@ The module was built in seven steps (the execution plan, approved 2026-10-17) �
 | 6b — the other reads | `ListSegments`, `ListSegmentMembers`, `ListGiftLevels`; the customer's `ViewMyCoupons` | below |
 | 7 — the module's pass | One whole-module review; a coupon's brands read in bulk (catalog.md amendment 27); a list entry Catalog removed while a coupon is saved answered as `rules`, never a database error; every refusable attribute named in both languages; the spec's stale lines | below |
 | Gift stock (2026-10-20) | The gift dialog's tick box (owner, Q11 (c)): `GiftLevelFields::makeStockDependent`, Create/ChangeGiftLevel calling Inventory's `makeStockDependent` last in the level's own save, under Inventory's `inventory.stock.manage` too; `GiftLevelRow::stockDependent`/`wired`; `SearchGiftSizes` (20 at most, the same facts); the edge Promotions → Inventory | below |
+| Stage 7 step 7 (2026-10-31) | A coupon reserved while the customer pays online (promotions.md §9.5, §9.6): `PromotionsApi::reserveCoupon` (every check `useCoupon` makes, in the same order, under the coupon's lock; `CouponRefused`, `CouponChanged`), `confirmCoupon` (the paid try's hold becomes the order's use, recorded with its number and never checked again) and `releaseCoupon` (the hold goes, nothing counted); table `promotions.coupon_reservations`, one hold per future order id; migration `2026_10_31_100000` | below |
 
 ## What is here
 
@@ -143,6 +144,14 @@ The module was built in seven steps (the execution plan, approved 2026-10-17) �
   `Infrastructure/Eloquent/DatabaseMarketingQueries`, one query per page (the gift levels through
   `DatabaseGiftLevels::ofStore`), keyset indexes in `…_index_marketing_reads` and
   `…_index_segments_list`.
+- **Holds for an online payment** (stage 7 step 7; `Application/Command/{ReserveCoupon,ConfirmCoupon,ReleaseCoupon}`,
+  the same `CallerCheck` as Sales's other writes; `Public/Dto/{ReserveCoupon,SettleReservation}`). A hold counts toward
+  the coupon's limits, in total and per customer (`CouponUsage::$heldTotal`, `$heldByCustomer`, read by
+  `CouponRules::refusalNow`), wherever a coupon is quoted or taken, so two buyers never both take the last use. Staff
+  may change or delete a coupon under a hold: a confirm records the use even past a limit lowered meanwhile ("100 of
+  99" - `coupons_uses` now only requires `uses_total >= 0`, and `ChangeCoupon` accepts a total limit unchanged below
+  the uses), and a coupon deleted under a hold takes the hold with it, the confirm then recording nothing. Staff see
+  uses, never holds. The same try again does nothing; a different coupon on one try is `CouponRefused::anotherCoupon()`.
 - **`Infrastructure/Eloquent/PromotionsCatalogUsage`** — registered with Catalog's `CatalogUsages`:
   every coupon whose include or exclude list names a product, category or brand Catalog is about to
   delete, and every gift level giving a variant it is about to delete, in one query; Catalog then
@@ -151,7 +160,7 @@ The module was built in seven steps (the execution plan, approved 2026-10-17) �
 Tests: `tests/Modules/Promotions/Unit/CouponRulesTest` (the rules and the room, every number of §8);
 `tests/Modules/Promotions/Integration` — `AssignmentsTest`, `SegmentsTest`, `SegmentTablesTest`, `CouponManageTest` (staff's commands), `GiftLevelsTest` (gift levels, their read and table), `GiftLevelRaceTest`, `CouponReadsTest`, `MarketingReadsTest`, `PromotionsCatalogUsageTest`, `ApplyCouponTest`, `CouponWritesTest`, `CouponRaceTest` (two
 orders at once on the last use; outside RefreshDatabase, skipped under --parallel), `CouponTablesTest`,
-`PromotionsPermissionsTest`, `PromotionsSchemaTest`, `PromotionsErrorMessagesTest`,
+`CouponHoldsTest` (the holds, the limits they count toward, confirm and release), `PromotionsPermissionsTest`, `PromotionsSchemaTest`, `PromotionsErrorMessagesTest`,
 `PromotionsMenuSectionTest`.
 
 ## For Ops (promotions.md §2.1, §6; 2026-10-28)

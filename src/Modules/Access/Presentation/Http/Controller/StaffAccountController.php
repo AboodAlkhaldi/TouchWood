@@ -7,7 +7,6 @@ namespace Modules\Access\Presentation\Http\Controller;
 use App\Http\FormErrors;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
 use Modules\Access\Application\Command\ChangeOwnStaffPassword\ChangeOwnStaffPassword;
 use Modules\Access\Application\Command\ChangeOwnStaffPassword\ChangeOwnStaffPasswordHandler;
 use Modules\Access\Application\Command\RequestStaffPasswordReset\RequestStaffPasswordReset;
@@ -29,10 +28,9 @@ final readonly class StaffAccountController
     public function signOut(Request $request, SignOutStaffHandler $handler): RedirectResponse
     {
         $handler->handle(new SignOutStaff);
-        // The pages this browser kept in its history - an account, a QR code - are not there to go
-        // Back to once signed out (review of amendment 91).
-        Inertia::clearHistory();
 
+        // The sign-in screen, drawn for nobody, makes the pages this browser kept in its history unreadable
+        // (KeepNoCopy; frontend.md §1.12).
         return redirect('/admin/sign-in')->with('status', __('access::auth.signed_out'));
     }
 

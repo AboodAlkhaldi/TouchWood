@@ -49,7 +49,7 @@ final readonly class TellCatalogOfStock
         // After the other module's change committed: a failure here is reported, never thrown back at
         // that change - the repair (inventory:orderable:rebuild) tells Catalog again.
         // No store lock: the rows are read locked in size-id order (StockFacts), as a hold does, so the
-        // other module's change takes no lock of Inventory's.
+        // other module's change takes no lock of Inventory's; a row made meanwhile StockFacts reads again.
         try {
             $this->db->transaction(fn () => $work($store), 3);
         } catch (Throwable $error) {

@@ -110,7 +110,7 @@ final readonly class MoneyRecording
             $now = CarbonImmutable::now();
             $id = strtolower((string) Str::ulid());
             try {
-                $this->records->add(new MoneyRecord($kind, $id, $order->id, $order->storeId, $order->currencyCode, $money->minorUnits, $way, $reference, $note, $day, $request, $staffId, $now));
+                $this->records->add(new MoneyRecord($kind, $id, $order->id, $order->storeId, $order->currencyCode, $money->minorUnits, $way, $reference, $note, $day, $request, $staffId, $now, false, $order->isTest));
             } catch (QueryException $taken) {
                 // The same form id sent for another order at the same moment: the unique index decided.
                 throw $taken->getCode() === '23505' && str_contains($taken->getMessage(), '_request') ? new InvalidSalesAttribute('request', 'a form of another order') : $taken;

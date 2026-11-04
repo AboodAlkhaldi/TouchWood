@@ -136,6 +136,7 @@ function catalogRowsArray(mixed $value): array
 function catalogRowsChoose(string $store, string $productId, bool $active = true, ?array $variantIds = null): void
 {
     Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId($store), $productId, $active, $variantIds)));
+    Px::onSale($store, $productId);
 }
 
 /**
@@ -220,7 +221,7 @@ describe('a row', function () {
                 ->and($row->card_media_id)->toBe($gallery[0])
                 ->and(json_decode((string) $row->card_photo, true))->toEqual(app(PlatformApi::class)->mediaUrls($gallery[0])?->variants)
                 ->and($row->orderable)->toBeTrue()
-                ->and($row->price_minor)->toBeNull()
+                ->and($row->price_minor)->toBe(10_00)
                 ->and($row->sales_rank)->toBeNull()
                 ->and($row->search_text)->toBe(SearchTerms::canonical($name)."\n".SearchTerms::canonical($other));
         }

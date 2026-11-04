@@ -89,7 +89,10 @@ final class StorefrontArea
      * They lose nothing: this page lists countries and offers no account, and anybody with a
      * remembered store is sent into it before it draws.
      *
+     * So it is a page for nobody, and throws the history's key away as one (KeepNoCopy; frontend.md §1.12):
+     * it is where leaving a view of a switched-off store lands.
+     *
      * @var list<string>
      */
-    public const array MIDDLEWARE_WITHOUT_STORE = [self::SESSION, 'web', self::SHOP];
+    public const array MIDDLEWARE_WITHOUT_STORE = [self::SESSION, 'web', self::SHOP, KeepNoCopy::ALIAS];
 }

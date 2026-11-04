@@ -6,7 +6,8 @@ namespace Modules\Catalog\Application\Query\Shop;
 
 /**
  * A brand's page (catalog.md §4.5): its logo, name and description, its slug here and in the other
- * language (P19), and its products as a category page shows them.
+ * language (P19), and its products as a category page shows them. **`soldOut`** (amendment 39): it
+ * has none for this viewer only for want of stock or a price, which its sentence then says.
  */
 final readonly class BrandPage
 {
@@ -21,5 +22,6 @@ final readonly class BrandPage
         public CardPage $products,
         public ?string $otherSlug = null,
         public array $description = [],
+        public bool $soldOut = false,
     ) {}
 }

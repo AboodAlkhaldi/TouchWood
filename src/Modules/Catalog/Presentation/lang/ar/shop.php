@@ -42,6 +42,7 @@ return [
     // A card's Save heart (feedback.md §4.1 F7; amendment 32).
     'card_save' => ['add' => 'حفظ :name', 'remove' => 'إزالة :name من المحفوظات'],
     'empty' => 'لا شيء معروض هنا بعد.',
+    'nothing_now' => 'لا يتوفر شيء هنا الآن.',
     // The shop's prices, without VAT (amendment 35; sales.md §4.1 S1).
     'price' => ['from' => 'ابتداءً من', 'wholesale_from' => 'الجملة ابتداءً من', 'was' => 'كان', 'off' => '−:percent%'],
     'product' => [
@@ -66,6 +67,7 @@ return [
         'not_available' => 'غير متاح',
         'not_available_text' => 'لا يمكن طلب هذا المنتج هنا الآن.',
         'unavailable_value' => ':name، غير متاح',
+        'other_option_value' => ':name، متوفر بخيار آخر',
     ],
     'search' => [
         'title' => 'البحث',

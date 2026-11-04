@@ -21,6 +21,7 @@ The module was built in six steps (the execution plan, 2026-10-10), every one me
 | 4b — settlements on the ledger | Those settlements written, Sales's four calls, four more database rules (answer 19) | below |
 | 5 — the reads | A customer's own points; a customer's points for staff, with each change by hand's admin and reason; a store's redemptions | below |
 | 6 — the module's pass | The spec swept against the code by one whole-module review; its fixes; this file completed | — |
+| Stage 7 step 7 (2026-10-31) | Points reserved while the customer pays online (loyalty.md §9.6, §9.7): `LoyaltyApi::reserveRedemption`, `confirmRedemption` and `releaseRedemption`; table `loyalty.redemption_holds`, one hold per future order id; `PointsBalanceDto::$heldPoints`; the error `PointsHeld`; migration `2026_10_31_100000` | below |
 
 Not built here, by design: events (nothing listens yet, §6). The screens came after, built by the
 stage 6 screens session (below).
@@ -131,6 +132,17 @@ Nothing is written. Tests: `LoyaltyReadsTest`.
     PostgreSQL's default isolation, READ COMMITTED, so the read under the lock sees the first call.
   - **The reads** — `earningPreview`, `quoteRedemption`, `balance` (`Application/Points/SalesReads`) —
     check no permission of their own (spec §3) and write nothing.
+- **Holds for an online payment** (stage 7 step 7; `Application/Command/{ReserveRedemption,ConfirmRedemption,ReleaseRedemption}`,
+  `Public/Dto/{ReservePoints,SettlePointsHold}`, `Domain/Repository/RedemptionHolds`, `Infrastructure/Eloquent/{DatabaseRedemptionHolds,HeldLots}`).
+  A reserve makes every check `redeem` makes, on the **free points** (the live balance less other holds), refused or
+  changed exactly as `redeem` is; the hold moves no lot and writes no ledger entry. **Each hold keeps exactly the points
+  its confirm will spend** (`HeldLots`: from the lots live when it was made, the one expiring first first, after the
+  holds before it); those points are spent, deducted, expired and used to cover by nothing else, so a deduction by hand
+  into them is refused as `PointsHeld` (no number shown) and a cancelled or returned order's covers see each lot less
+  what holds keep. A confirm drops its hold and records the redemption as `redeem` would, **never checked again** (the
+  programme switched off meanwhile still confirms); a release frees the points with their own dates, and the next lock
+  of the account expires whatever passed. Each call is once per order. `PointsView::$held` shows it on the shop's
+  Points tab and on staff's customer-points page as "held for a payment in progress" (part of the balance, never on top).
 - **`Domain/Service/RedemptionRules`** (spec §1.7) — a redemption worked out, in the spec's order;
   the same rules for a quote and for placing it. `Domain/Model/Programme` is a store's programme as
   it reads now (`Application/Points/ProgrammeReader`).
@@ -209,7 +221,7 @@ own rows and empties the test database with `migrate:fresh` before and after its
 alone. Step 4: `Unit/SettlementTest` the rules on an in-memory book (`Support/PointsBook`) — the
 owner's examples both ways, the third-order case pinned, answer 16, a three-part return, edits, and
 40 random histories that never go below 0 or lose a point; `LoyaltySettlementsTest` the same on the
-ledger through `LoyaltyApi`, every lot equal to its movements and the balance to its lots.
+ledger through `LoyaltyApi`, every lot equal to its movements and the balance to its lots. Stage 7 step 7: `LoyaltyHoldsTest` (reserve, confirm, release, free points, `PointsHeld`, expiry during a hold, a second try); `Feature/LoyaltyScreensTest` the held points on both pages.
 
 ## For Ops (loyalty.md §2.1, §6; 2026-10-28)
 

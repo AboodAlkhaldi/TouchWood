@@ -701,7 +701,7 @@ interface PaymentsApi
 | `ListPayments` (all online attempts, by state — owner, 2026-10-27 P26), `ViewAttempt` (its transactions and calls — P15) | **`payments.payment.view`** (the permission catalog takes three parts — step 8, my pick) — given wherever `sales.order.view` is (accepted, 2026-10-28) | That store |
 | `CheckAttempt` (staff's "Ask the gateway now") | **`payments.payment.view`** | That store |
 | ~~`ReleaseTryByHand`~~ — **not built**: the hold limit releases every try first (§1.7, §9.8 #3) | ~~`payments.attempts.release`~~ | — |
-| `CheckAttempt` (each attempt's booked checks), `HourlyBackstop` (owner, 2026-10-28), `PrunePaymentLog` | System (reserved) | — |
+| `CheckAttempt` (each attempt's booked checks), `HourlyBackstop` (owner, 2026-10-28), `PrunePaymentLog` | System: jobs with no staff behind them, so no permission is declared for them | — |
 
 Every change of a gateway is audited — never a key or a secret, only "changed" and the last 6
 characters. The permissions sit in a new **Payments** group in the role editor.
@@ -895,7 +895,7 @@ account's three, moved from B2B (`payments.bank.iban`, `payments.bank.name`, `pa
 |---|---|---|
 | `StoreCreated` | Platform | Nothing: a new store has no gateway |
 | `OrderCancelled` | Sales | The order's open request is withdrawn (§1.5); a payment already in progress on it is still answered and recorded — a refund due, Sales's to show. **Sales's listener calls `withdrawForCancelled`** (§9.14 #4): Payments depends on nothing of Sales |
-| `CustomerAnonymized` | Access | The customer's name, email and phone cleared from attempts, calls and notices (rule 13) |
+| `CustomerAnonymized` | Access | The customer's name, email and phone cleared from attempts; calls and notices never hold them (rule 13, §9.11 #6) |
 
 Published: §2.2.
 
@@ -1073,7 +1073,7 @@ account before going live (§9.3 #6).
    been pressed" — the built `useCoupon` keeps every use for good and needs the order's number).
 4. **Loyalty** (loyalty.md §9.6) — **points reserved for a try**, confirmed with the order's number when
    it is paid, and released when it is not (the built `redeem` needs the order's number).
-5. **Platform** — serving MyFatoorah's Apple Pay file at `/.well-known/…` (§1.2), and letting the few
+5. **Platform** — ~~serving MyFatoorah's Apple Pay file~~ (it is a plain file in `public/.well-known/`, §9.9 #6), and letting the few
    addresses that finish a try answer for an off store (§1.10).
 6. **B2B** — the bank account and its settings line move to Payments (b2b.md §2.3, amendment).
 7. **Access** — a **Payments** permission group and the Payment problems topic (amendment 78).

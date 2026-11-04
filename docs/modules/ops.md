@@ -1300,9 +1300,41 @@ silently, and where it ends depends on the path:
 | C18, security messages (`OpsSecurityMessages`) | Never queued: the row is recorded `FAILED` and the error goes to the caller, who offers "send again". It also alerts the Super Admins (S10, S10b) | `SecurityMessagesTest`, `SecurityFailureAlertTest` |
 | S10, S10b, the alert itself (`SecurityFailureAlert`) | Reported and swallowed, never reaching the person's request; the claim of the hour goes with the failed write, so the next failure tries again. Giving up after 250 ms on another's claim is not a failure: they are telling them | `SecurityFailureAlertTest`, `SecurityFailureAlertRaceTest` |
 | The newsletter's confirmation (`NewsletterSignUps`) | Never queued: recorded `FAILED`, the failure reported to the logs, answered as `ops.newsletter_unavailable` 503 (§4.9); the person may try again | `NewsletterTest`, `ScreensReadsTest` |
-| The provider's lists (`SyncSubscriberJob`, `RemoveNewsletterContactJob`) | Retried; after the last attempt the job waits on the failed jobs screen | `BrevoNewsletterListTest` (the adapter's refusals) |
-| The daily report's email (`DeliverDailyReportJob`) | Tried again, then left in the failed jobs; the report itself is made once | No test of the retries by name |
+| The provider's lists (`SyncSubscriberJob`, `RemoveNewsletterContactJob`) | Retried; after the last attempt the job waits on the failed jobs screen | `BrevoNewsletterListTest` (the adapter's refusals), `BrevoFailuresTest` |
+| The daily report's email (`DeliverDailyReportJob`) | Tried again, then left in the failed jobs; the report itself is made once | `BrevoFailuresTest` |
 | The daily report's making (`SendDailyReportEmailJob`), any failure, not only a provider's | One try, then the failed jobs; retrying makes that moment's report once (§1.11) | `DailyReportEmailTest` |
+
+**Every way Brevo can fail** (2026-11-03, checked against developers.brevo.com; `BrevoFailuresTest`). "Queued" is an event's, a
+notice's, a message's and the daily report's email, and the two list jobs; a call waits at most 3 s to connect and 10 s in all
+(30 s with the daily report's PDF, about 50 to 104 KB as measured). `ProviderFailureRules` and `BrevoAnswers` hold the rules.
+
+| Failure | What the person sees | Retried | Where it shows |
+|---|---|---|---|
+| No connection, DNS, a timeout, a 5xx, a 408 or 425, 400 `duplicate_request`, a proxy's page in a 2xx, a 4xx without Brevo's JSON | Queued: nothing, it arrives late. A security email: amendment 93's words, and they ask again. The newsletter box: its 503 | Queued: 5 failures over about 36 minutes (`$maxExceptions`). A person's own request: no | The row `QUEUED`, then `FAILED`; the failed jobs after the last; the log. A security email: its row `FAILED` and S10 |
+| 429 | The same | Queued: back after Brevo's `x-sib-ratelimit-reset` (5 s to an hour; 60 s if unreadable), **no attempt spent**, up to 300 runs | The same, only if it never lifts |
+| Brevo refuses everybody: 401 (key, IP), 402 (credit), 403, a sender refused, any other refusal in Brevo's JSON. No key, a key holding a space or what no key has, no sender, no list folder (Brevo is not called) | The same | Queued: **a long wait**, one call a step: 5, 15, 30 minutes, 1, 2, 4, 8, 8 hours, about a day. Mended in that time it goes by itself, a broadcast too; nothing drains. Then the failed jobs | The row stays `QUEUED`; each refusal in the log; **no bell yet** (§9.6). A security email: its row `FAILED` and S10 |
+| One address refused: `invalid_parameter` whose message speaks of an email, not of a sender or a list | The same | Queued: **no**, to the failed jobs at once. Nobody else is held up. In a notice, `failed_count` once, however often it is retried | The row `FAILED`; the failed jobs with Brevo's status and code; the log. A security email: its row `FAILED` and S10, whose words announce no outage (one may be one bad address) and name nothing |
+| After the attempts run out | Nothing | From the failed jobs screen, or `php artisan queue:retry all`: what went stays `SENT` and is not sent again; what did not goes once; one with nothing left to send (a customer who withdrew) is removed, and no longer counted | The row moves to `SENT` or goes, `failed_count` back down |
+| Brevo's 201 or 202 with an odd body, no `messageId`, or one too long to keep | Nothing | No: sending again would double it | `SENT`, no provider id |
+| A crash between Brevo's yes and the row | Maybe the email twice: **at least once**, never lost (§1.11; the event and broadcast jobs' rule) | Yes | `SENT` |
+| An outage, for the lists | Nothing: consent is our own, and the links work at once | As the rows above; retried, the list catches up. Any later change to the row syncs it too | The row keeps what the provider holds; the failed jobs |
+| A contact or list gone, when taking away (404; 400 `document_not_found`, `Contact email not found`; a proxy's 404 page is not this) | Nothing | No: done | Nothing |
+| A contact deleted at Brevo by hand | Nothing | No: the next add makes it again | Nothing |
+| A list deleted at Brevo by hand: adding a contact answers `document_not_found` (inferred: Brevo's reference names no code for it) | Nothing | Yes: the kept id is forgotten and the next try makes a new list. Who was on the old one is not put back | The log |
+| The webhook: wrong or no secret | Brevo throws the call away, by its own rule | No | 401 |
+| The webhook: our side breaks | Nothing | Yes: **429**, the one answer Brevo retries, at about 10 minutes, 1, 2 and 8 hours (any 5xx it throws away) | The log |
+| The webhook: the site in maintenance | Nothing | No need: this address alone is still served | Nothing |
+| The webhook: an unknown email, a replay | Nothing | No: 204, nothing changes. A replay **older than the row's joining** (`ts_event` before its `confirmed_at`) leaves the row: Brevo trying again never undoes a newer opt-in. With no `ts_event` it counts, the safe way round | Nothing |
+| The webhook: what it cannot read (not JSON, batched, no email) | Nothing | No: 204 | A line in the log, naming nothing of the body |
+| The webhook: our app down altogether | Nothing | No answer is retried by Brevo; a proxy's 502 or 503 is **thrown away, and that unsubscribe is lost** to us (§9.6) | Brevo's event log only |
+
+**A production server that cannot deliver does not serve:** a web request or a queue worker refuses to boot on a `log` driver, or with no usable key or sender, naming every problem at once. A missing list folder or webhook secret is a critical log line, at most once an hour, until the owner says otherwise (§9.6; `OpsServiceProvider::ONLY_LOGGED` is the one line). No other console command is stopped, or nobody could mend it: `migrate`, `config:clear`, `package:discover`, `ops:brevo:check`. Only `APP_ENV=production` is guarded.
+
+**After changing the Brevo key, run `php artisan queue:restart`:** running workers hold the old configuration.
+
+The key never reaches a log, an exception or a job: it is a `SensitiveParameter`, and a refusal's text is Brevo's status and a
+code that is plain words. So are addresses, phones and tokens where a stack trace would carry them, since the failed jobs table
+keeps the trace. `php artisan ops:brevo:check` reads the account, the senders, the lists' folder and the domains with the key set, and sends nothing.
 
 ## 8 · Test scenarios
 
@@ -1467,3 +1499,17 @@ Ops' side is built, on assumptions these decide. Nothing here blocks Ops; each i
    the email (2026-11-03), for approval with the full review of the words.
 4. **Where the tie is kept.** `noticeId` comes from Content, and nothing may depend on Ops (handoff §4.4), so Content cannot list the
    notices to choose from. Content's spec has to settle how staff pick one.
+
+### 9.6 Brevo's failures: open for the owner (2026-11-03)
+
+Left as they are, each needing the owner's decision; §7's table says what happens today.
+
+| # | Question | Recommended |
+|---|---|---|
+| 1 | An unsubscribe Brevo threw away (a proxy's 5xx while our app is down) or gave up on leaves the customer's consent on with us; Brevo offers no replay of a lost event (help centre). The contact is blacklisted at Brevo, but a notice goes through the transactional API. Should a nightly job read Brevo's contacts changed since yesterday (`GET /v3/contacts?modifiedSince`, each with `emailBlacklisted`) and withdraw those? | Yes |
+| 2 | In an outage, queued mail and list changes stop after about 36 minutes and wait for a person on the failed jobs screen; a contact who withdrew stays on Brevo's list until then. Should the attempts last longer (say a day), so that a long outage mends itself? | Yes, for the list jobs at least |
+| 3 | A bad key or no credit tells the Super Admins only when a *security* email fails (S10). Queued mail now waits up to a day in silence, its rows `QUEUED`, so nobody may look until it is nearly over. Should a queued email refused the same way raise the bell too? It needs a new kind and words | Yes, more than before |
+| 6 | Should a missing list folder or webhook secret stop a production server, or only log? Today: a critical log line (`OpsServiceProvider::ONLY_LOGGED`, one line to change); the key and the sender refuse | The log line |
+| 7 | What is staging's `APP_ENV`? The guard acts only on `production`: on anything else it is silent, and `log` drivers and an empty key start | `production`, so staging proves the guard |
+| 4 | The newsletter's sync holds the subscriber's row while it calls Brevo, so a person's unsubscribe link for that very row, at that very moment, waits up to 10 s in a hung Brevo. Worth rebuilding the sync for it? | No |
+| 5 | Brevo documents an idempotency key for a send, with a TTL of 30 minutes or 15 (its pages differ) and casing that differs too, answering a repeat with an error of no stated status. Taken as "sent", a first attempt that failed but held the key would lose an email, against the rule of at least once. Use it? | No |

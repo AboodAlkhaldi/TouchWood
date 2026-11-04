@@ -10,6 +10,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
+use Modules\Ops\Application\Messages\FailureKind;
 use Modules\Ops\Application\Messages\NewsletterList;
 use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Infrastructure\Eloquent\Moment;
@@ -40,7 +41,9 @@ use Shared\Domain\ValueObject\StoreId;
  *   when there is no such contact - already gone.
  *
  * The key is the server's (`BREVO_API_KEY`), never a setting or a table. What is sent is never logged
- * here, and a refusal's message names only Brevo's status and error code, never the email.
+ * here, and a refusal's message names only Brevo's status and error code, never the email; an address is a
+ * `SensitiveParameter`, so it stays out of an exception's stack trace in the failed jobs table too. What each
+ * failure means, and how long a call may take: BrevoAnswers.
  */
 final readonly class BrevoNewsletterList implements NewsletterList
 {
@@ -50,11 +53,21 @@ final readonly class BrevoNewsletterList implements NewsletterList
         private Factory $http,
         private ConnectionInterface $db,
         private PlatformApi $platform,
-        private string $apiKey,
+        #[\SensitiveParameter] private string $apiKey,
         private ?int $folderId,
     ) {}
 
-    public function add(string $email, StoreId $store, string $locale): void
+    public function ready(StoreId $store, string $locale): void
+    {
+        $this->listId($store, $locale, create: true);
+    }
+
+    public function forgetList(StoreId $store, string $locale): void
+    {
+        $this->db->table('ops.newsletter_lists')->where('store_id', $store->value)->where('locale', $locale)->delete();
+    }
+
+    public function add(#[\SensitiveParameter] string $email, StoreId $store, string $locale): void
     {
         $listId = $this->listId($store, $locale, create: true);
 
@@ -64,12 +77,16 @@ final readonly class BrevoNewsletterList implements NewsletterList
             'updateEnabled' => true,
         ]));
 
-        if (! $response->successful()) {
-            throw self::refused('the contact', $response);
+        if (BrevoAnswers::listGone($response)) {
+            throw new ProviderFailed('Brevo: the contact\'s list is gone: HTTP '.$response->status().' (document_not_found).', FailureKind::ListGone);
+        }
+
+        if (! BrevoAnswers::isBrevos($response)) {
+            throw BrevoAnswers::refused('the contact', $response);
         }
     }
 
-    public function remove(string $email, StoreId $store, string $locale): void
+    public function remove(#[\SensitiveParameter] string $email, StoreId $store, string $locale): void
     {
         $listId = $this->listId($store, $locale, create: false);
 
@@ -82,28 +99,28 @@ final readonly class BrevoNewsletterList implements NewsletterList
             'emails' => [$email],
         ]));
 
-        if (! $response->successful() && $response->status() !== 404) {
-            throw self::refused('the removal from a list', $response);
+        if (! BrevoAnswers::isBrevos($response) && ! BrevoAnswers::alreadyGone($response)) {
+            throw BrevoAnswers::refused('the removal from a list', $response);
         }
     }
 
-    public function allow(string $email): void
+    public function allow(#[\SensitiveParameter] string $email): void
     {
         $response = $this->call(fn (PendingRequest $brevo): Response => $brevo->put(self::BASE.'/contacts/'.rawurlencode($email), [
             'emailBlacklisted' => false,
         ]));
 
-        if (! $response->successful() && $response->status() !== 404) {
-            throw self::refused('the contact\'s update', $response);
+        if (! BrevoAnswers::isBrevos($response) && ! BrevoAnswers::alreadyGone($response)) {
+            throw BrevoAnswers::refused('the contact\'s update', $response);
         }
     }
 
-    public function forget(string $email): void
+    public function forget(#[\SensitiveParameter] string $email): void
     {
         $response = $this->call(fn (PendingRequest $brevo): Response => $brevo->delete(self::BASE.'/contacts/'.rawurlencode($email)));
 
-        if (! $response->successful() && $response->status() !== 404) {
-            throw self::refused('the deletion of a contact', $response);
+        if (! BrevoAnswers::isBrevos($response) && ! BrevoAnswers::alreadyGone($response)) {
+            throw BrevoAnswers::refused('the deletion of a contact', $response);
         }
     }
 
@@ -124,7 +141,7 @@ final readonly class BrevoNewsletterList implements NewsletterList
         }
 
         if ($this->folderId === null || $this->folderId < 1) {
-            throw new ProviderFailed('Brevo: no folder is set for the newsletter lists (BREVO_NEWSLETTER_FOLDER_ID).');
+            throw new ProviderFailed('Brevo: no folder is set for the newsletter lists (BREVO_NEWSLETTER_FOLDER_ID).', FailureKind::WaitsForPerson);
         }
 
         return $this->db->transaction(function () use ($store, $locale): int {
@@ -143,7 +160,7 @@ final readonly class BrevoNewsletterList implements NewsletterList
             $id = $response->json('id');
 
             if ($response->status() !== 201 || ! is_int($id) || $id < 1) {
-                throw self::refused('the new list', $response);
+                throw BrevoAnswers::refused('the new list', $response);
             }
 
             $this->db->table('ops.newsletter_lists')->insert([
@@ -171,21 +188,12 @@ final readonly class BrevoNewsletterList implements NewsletterList
      */
     private function call(callable $request): Response
     {
-        if (trim($this->apiKey) === '') {
-            throw new ProviderFailed('Brevo: no API key is set (BREVO_API_KEY).');
-        }
+        $key = BrevoAnswers::key($this->apiKey);
 
         try {
-            return $request($this->http->withHeaders(['api-key' => $this->apiKey])->acceptJson()->asJson()->connectTimeout(5)->timeout(15));
+            return $request($this->http->withHeaders(['api-key' => $key])->acceptJson()->asJson()->connectTimeout(BrevoAnswers::CONNECT_SECONDS)->timeout(BrevoAnswers::SECONDS));
         } catch (ConnectionException) {
             throw new ProviderFailed('Brevo: the API could not be reached.');
         }
-    }
-
-    private static function refused(string $what, Response $response): ProviderFailed
-    {
-        $code = $response->json('code');
-
-        return new ProviderFailed("Brevo refused {$what}: HTTP ".$response->status().(is_string($code) ? " ({$code})" : '').'.');
     }
 }

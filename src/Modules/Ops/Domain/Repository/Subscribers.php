@@ -17,7 +17,7 @@ interface Subscribers
 
     public function lock(string $id): ?Subscriber;
 
-    public function lockByEmail(StoreId $store, string $email): ?Subscriber;
+    public function lockByEmail(StoreId $store, #[\SensitiveParameter] string $email): ?Subscriber;
 
     public function lockByTokenHash(string $tokenHash): ?Subscriber;
 
@@ -28,7 +28,7 @@ interface Subscribers
      *
      * @return list<Subscriber>
      */
-    public function withEmail(string $email): array;
+    public function withEmail(#[\SensitiveParameter] string $email): array;
 
     /** Adds the row, or writes it over the one of the same id. */
     public function save(Subscriber $subscriber): void;

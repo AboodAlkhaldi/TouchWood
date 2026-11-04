@@ -14,8 +14,9 @@ use Shared\Domain\ValueObject\StoreId;
  * `after[{module}.{key}]`, every section's, so a module reading its sections together reads them
  * once), so "Show more" is the same page asked again. And **which side the viewer buys on**
  * (amendment 35): an individual, a company, or a guest — who sees both, as the page does (§4.5) — and
- * the page's sizes this viewer can buy wholesale, in the product's order, as the page read them. And
- * every size the page shows (amendment 36: the sizes on sale here, in the product's order), so a
+ * the sizes the page offers this viewer wholesale, in the product's order, as the page read them. And
+ * every size the page offers (amendment 36: the sizes on sale here that can be ordered now, in the
+ * product's order; a sold-out or unpriced one is drawn greyed and never offered, amendment 39), so a
  * section about the sizes reads no page of its own.
  */
 final readonly class ShopProductVisitDto

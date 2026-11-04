@@ -638,7 +638,7 @@ describe('the owner\'s answers and the review (2026-10-31)', function () {
             ->and(AdminBrowser::flashed($after, '_token'))->not->toBe($before[1]);
     });
 
-    it('keeps the QR code and the recovery codes in the history only encrypted, and clears the history once set up and on sign-out', function () {
+    it('keeps the QR code and the recovery codes in the history under a key of their own, and clears the history on sign-out', function () {
         App::methods(sms: false, authenticator: true);
         $browser = new AdminBrowser;
         authenticatorSignInBySms($browser, Fx::staff());
@@ -654,13 +654,34 @@ describe('the owner\'s answers and the review (2026-10-31)', function () {
         $browser->post('/admin/authenticator/setup', ['current_password' => Fx::STAFF_PASSWORD]);
         $setup = $browser->get('/admin/authenticator/setup');
         $key = str_replace(' ', '', (string) authenticatorProp($setup, 'manualKey'));
-        expect($history($setup))->toBe(['encryptHistory' => true]);
+        // Its own key: what came before loses it, and the next page starts another.
+        expect($history($setup))->toBe(['encryptHistory' => true, 'clearHistory' => true]);
 
         $browser->post('/admin/authenticator/setup/code', ['code' => App::code($key)])->assertRedirect('/admin/authenticator/recovery-codes');
         expect($history($browser->get('/admin/authenticator/recovery-codes')))->toBe(['encryptHistory' => true, 'clearHistory' => true]);
+        expect($history($browser->get('/admin')))->toBe(['encryptHistory' => true, 'clearHistory' => true]);
+        expect($history($browser->get('/admin')))->toBe(['encryptHistory' => true]);
+
+        // New codes, the same: on the way in and on the page after.
+        $browser->post('/admin/account/authenticator/recovery-codes', ['current_password' => Fx::STAFF_PASSWORD])->assertRedirect('/admin/authenticator/recovery-codes');
+        expect($history($browser->get('/admin/authenticator/recovery-codes')))->toBe(['encryptHistory' => true, 'clearHistory' => true]);
+        expect($history($browser->get('/admin')))->toBe(['encryptHistory' => true, 'clearHistory' => true]);
 
         $browser->post('/admin/sign-out');
         expect($history($browser->get('/admin/sign-in')))->toBe(['clearHistory' => true]);
+    });
+
+    it('encrypts the secret pages whatever the address looks like: behind an untrusted proxy it is https all the same', function () {
+        App::methods(sms: true, authenticator: true);
+        $browser = new AdminBrowser;
+        authenticatorSignInBySms($browser, Fx::staff());
+
+        $browser->get('http://shop.example.test/admin/authenticator/setup')->assertInertia(function (AssertableInertia $page): void {
+            expect($page->toArray())->toHaveKey('encryptHistory', true);
+        });
+        $browser->get('http://shop.example.test/admin/account')->assertInertia(function (AssertableInertia $page): void {
+            expect($page->toArray())->not->toHaveKey('encryptHistory');
+        });
     });
 
     it('signs the person out everywhere and forgets their trusted browsers when a Super Admin resets their app', function () {

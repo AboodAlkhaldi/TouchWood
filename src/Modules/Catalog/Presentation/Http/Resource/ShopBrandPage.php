@@ -9,7 +9,7 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
 /**
  * A brand's page in the shop (catalog.md §4.5): its logo, name and description, then its products
- * as a category page shows them.
+ * as a category page shows them. `soldOut`: it has none only for want of stock or a price (amendment 39).
  */
 #[TypeScript]
 final class ShopBrandPage extends Data
@@ -29,5 +29,6 @@ final class ShopBrandPage extends Data
         public ?string $next,
         public ShopAddressData $address,
         public array $cardFacts = [],
+        public bool $soldOut = false,
     ) {}
 }

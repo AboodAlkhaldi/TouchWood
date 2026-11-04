@@ -49,6 +49,13 @@ $this->app->make(SettingsRegistry::class)->define('loyalty',
 // implementing SettingsSectionLine, resolved only when the page is shown. Payments' says whether
 // online payment and bank transfer are on.
 $this->app->make(SettingsSectionLines::class)->register('payments', PaymentsSettingsLine::class);
+
+// A setting changed on its own module's screen is declared with onSettingsPage: false, so Platform's
+// Settings page does not list it (Payments' timers, Shipping's free-above amount and padding).
+
+// A banner over every admin page (payments.md §4.2): a class implementing AdminBanner, which runs on every
+// panel page and must cost next to nothing when it has nothing to say. Payments' tells staff a store is in test.
+$this->app->make(AdminBanners::class)->register(GatewayBanners::class);
 ```
 
 ```php
@@ -109,6 +116,7 @@ $store = $choices->chosen($code, B2BPermissions::COMPANY_VIEW);
 $countries = $this->platform->addressCountries('ar');          // list<AddressCountryDto>, with hasPlaces
 $cities    = $this->platform->cities($regionId, 'ar');          // list<PlaceDto>
 $all       = $this->platform->citiesOf('SA', 'en');             // every city, for "Select all"
+$every     = $this->platform->placesOf('SA');                   // list<PlaceDto>, every place of the country, in no order
 $places    = $this->platform->place([$cityId, $districtId]);    // array<id, PlaceDto>
 
 // Each store's ship-to countries: its own always among them; a country in one store at most.
@@ -117,7 +125,7 @@ $store = $this->platform->countryStore('EG');                    // ?StoreDto, a
 
 // A module that must keep a country on a store's list registers a guard (Shipping, while the store
 // has a carrier there), asked inside the removal's transaction; throwing a DomainError refuses it.
-$this->app->make(ShipToCountryGuards::class)->register(CarriersThereGuard::class);
+$this->app->make(ShipToCountryGuards::class)->register(CarriersHoldCountry::class);
 ```
 
 Listen to `Public/Events/*` (`StoreUpdated`, `SettingChanged`, `MediaVariantsReady`…). They carry
@@ -129,7 +137,7 @@ ids only and are dispatched after the transaction commits.
 
 | Folder | Contents |
 |---|---|
-| `Public/` | The contract other modules use: `PlatformApi`, `SettingsRegistry`, `ReservedPaths`, `MediaUsages` and `MediaUsage`, `AdminMenu` and `MenuCount`, `HomeCards` and `HomeCard` (the admin home's cards), `StoreChoices` (the stores a panel screen's filter offers), `OffStoreViewers` and `OffStoreViewer` (who may see an off store in the shop), `SettingsSectionLines` and `SettingsSectionLine`, DTOs, enums, events, and `PlatformPermissions` — the permissions Platform checks, which Access puts in its catalog (names in `platform::permissions`). |
+| `Public/` | The contract other modules use: `PlatformApi`, `SettingsRegistry`, `ReservedPaths`, `MediaUsages` and `MediaUsage`, `AdminMenu` and `MenuCount`, `HomeCards` and `HomeCard` (the admin home's cards), `StoreChoices` (the stores a panel screen's filter offers), `OffStoreViewers` and `OffStoreViewer` (who may see an off store in the shop), `SettingsSectionLines` and `SettingsSectionLine`, `AdminBanners` and `AdminBanner` (banners over the panel), `ShipToCountryGuards` and `ShipToCountryGuard`, DTOs, enums, events, and `PlatformPermissions` — the permissions Platform checks, which Access puts in its catalog (names in `platform::permissions`). |
 | `Domain/Model` | `Store`, `Currency`, `Media`, `AddressCountry`, `Place`: plain PHP classes holding the rules, with no Laravel inside. |
 | `Domain/ValueObject` | `StoreCode`, `CountryCode`, `CurrencyCode`, `TaxRate`, `Timezone`, `TranslatedText`. Each validates itself when created. `IsoCountries`: the ISO countries PHP knows, and their names. |
 | `Domain/Exception` | Every expected error, all extending `PlatformError` → `DomainError`. |
@@ -142,8 +150,8 @@ ids only and are dispatched after the transaction commits.
 | `Application/Query` | The read sides: `StoreDirectory` (stores and currencies, cached), `MediaReader`, and `AuthorizedStoreChoices` (`StoreChoices`: a screen's stores, from the Authorizer's reach). |
 | `Application/FailedJobs` | `FailedJobs`, the queue's failed work as an interface (a page of summaries, read, lock, whether it can be retried, requeue, forget), `FailedJob`, `FailedJobSummary`, and `FailedJobsCount`, the menu's count. |
 | `Application/Home` | `InMemoryHomeCards`, the admin home's cards and who may see each. |
-| `Infrastructure/` | Eloquent and query-builder repositories, caching, the audit writer, Laravel disks, Intervention Image, the queued job, migrations and the service provider. |
-| `Presentation/` | The `store` middleware, the country-choice page, a placeholder store home page, Platform's own home card (`Home/StoresAndSystemCard`), console commands, Arabic and English translations. |
+| `Infrastructure/` | Eloquent and query-builder repositories, caching, the audit writer, Laravel disks, Intervention Image, the queued job, migrations and the service provider. The place lists of Saudi Arabia, Egypt, the Emirates, Qatar and Bahrain are loaded once by a migration from the files in `Infrastructure/Persistence/Places` (sources and licences in its README). |
+| `Presentation/` | The `store` middleware, the country-choice page, the Places pages (`PlacesController`, `platform.admin.places*`) and a store's ship-to countries (`StoreCountriesController`), a placeholder store home page, Platform's own home card (`Home/StoresAndSystemCard`), console commands, Arabic and English translations. |
 
 ---
 

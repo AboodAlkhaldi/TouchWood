@@ -24,7 +24,7 @@ final readonly class QueuedNewsletter implements NewsletterQueue
         $this->jobs->dispatch((new SyncSubscriberJob(strtolower($subscriberId)))->beforeCommit());
     }
 
-    public function remove(string $email, StoreId $store, string $locale, bool $forget = false): void
+    public function remove(#[\SensitiveParameter] string $email, StoreId $store, string $locale, bool $forget = false): void
     {
         $this->jobs->dispatch((new RemoveNewsletterContactJob($email, $store->value, $locale, $forget))->beforeCommit());
     }

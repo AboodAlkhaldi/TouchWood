@@ -51,7 +51,7 @@ final readonly class WrittenEmails
     }
 
     /** The guest's confirmation: its link, and the signed link that takes them off again later (§3). */
-    public function newsletterConfirmation(string $email, string $locale, StoreDto $store, string $link, string $leave): OutgoingEmail
+    public function newsletterConfirmation(#[\SensitiveParameter] string $email, string $locale, StoreDto $store, #[\SensitiveParameter] string $link, #[\SensitiveParameter] string $leave): OutgoingEmail
     {
         $locale = self::locale($locale);
 
@@ -74,7 +74,7 @@ final readonly class WrittenEmails
      * @param  array<string, string>  $values
      * @param  array<string, string>  $headers
      */
-    private function email(MessageKind $kind, array $values, string $locale, StoreDto $store, string $to, ?string $toName, ?string $link, ?string $unsubscribe, string $leaveWords = 'ops::messages.unsubscribe', array $headers = []): OutgoingEmail
+    private function email(MessageKind $kind, array $values, string $locale, StoreDto $store, #[\SensitiveParameter] string $to, ?string $toName, ?string $link, ?string $unsubscribe, string $leaveWords = 'ops::messages.unsubscribe', array $headers = []): OutgoingEmail
     {
         $lines = array_values(array_map(
             static fn (mixed $line): string => (string) $line,
