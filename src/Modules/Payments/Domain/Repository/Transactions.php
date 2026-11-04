@@ -27,4 +27,11 @@ interface Transactions
 
     /** One transaction as other modules read it; null when there is no such thing. */
     public function dto(string $id): ?PaymentDto;
+
+    /**
+     * The ids of an order's successful transactions that may enter it.
+     *
+     * @return list<string>
+     */
+    public function acceptedOfOrder(string $orderId): array;
 }

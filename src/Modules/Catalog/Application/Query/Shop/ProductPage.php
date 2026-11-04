@@ -7,7 +7,9 @@ namespace Modules\Catalog\Application\Query\Shop;
 /**
  * A product's page in a store (catalog.md §1.4, §4.5). **Available** while this viewer can find it
  * there — listed, or left in an inactive category and so reachable; otherwise **one "Not available
- * now" page**: its name, photos and description, nothing to order, hidden from search engines (P18).
+ * now" page**: its name, photos and description, nothing to order, hidden from search engines (P18) —
+ * but for **`soldOut`**, a product only out of stock or unpriced for this viewer, which stays listed there
+ * (owner, 2026-11-03, amendment 39).
  * Never a code (amendment 5(d)), never a price or stock until their stages bring them.
  */
 final readonly class ProductPage
@@ -35,11 +37,12 @@ final readonly class ProductPage
         public array $choices = [],
         public ?ShopWarranty $warranty = null,
         public ?SellingTerms $selling = null,
+        public bool $soldOut = false,
     ) {}
 
-    /** Kept out of search engines: a page with nothing to order (§1.4). */
+    /** Kept out of search engines: a page with nothing to order, unless only stock or a price is missing (§1.4). */
     public function noindex(): bool
     {
-        return ! $this->available;
+        return ! $this->available && ! $this->soldOut;
     }
 }

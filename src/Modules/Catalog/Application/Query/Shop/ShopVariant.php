@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace Modules\Catalog\Application\Query\Shop;
 
 /**
- * A variant a shopper can order in this store — **never its code** (amendment 5(d)) — with what its
- * page shows once it is chosen (catalog.md §4.5): its own photos, its details, its weight and size,
- * how it is sold here, and **"Last pieces"** while it is ending soon and can be ordered now
- * (amendment 16(h)). **Its price** (amendment 35): what one piece costs now, and the price before only
- * while now is lower, in the store's smallest unit, without VAT — none until Pricing pushes one.
+ * A variant on sale in this store — **never its code** (amendment 5(d)) — with what its page shows
+ * once it is chosen (catalog.md §4.5): its own photos, its details, its weight and size, how it is sold
+ * here, and **"Last pieces"** while it is ending soon and can be ordered now (amendment 16(h)). **Its
+ * price** (amendment 35): what one piece costs now, and the price before only while now is lower, in the
+ * store's smallest unit, without VAT — none until Pricing pushes one. **`orderable` false: sold out or
+ * unpriced** (amendment 39): the page draws it greyed and never offers it. Never how many there are.
  */
 final readonly class ShopVariant
 {
@@ -32,5 +33,6 @@ final readonly class ShopVariant
         public ?int $heightMm = null,
         public ?int $priceMinor = null,
         public ?int $priceBeforeMinor = null,
+        public bool $orderable = true,
     ) {}
 }

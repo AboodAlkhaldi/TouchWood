@@ -43,6 +43,7 @@ return [
     // A card's Save heart (feedback.md §4.1 F7; amendment 32).
     'card_save' => ['add' => 'Save :name', 'remove' => 'Remove :name from saved'],
     'empty' => 'Nothing is listed here yet.',
+    'nothing_now' => 'Nothing here is available right now.',
     // The shop's prices, without VAT (amendment 35; sales.md §4.1 S1).
     'price' => ['from' => 'From', 'wholesale_from' => 'Wholesale from', 'was' => 'Was', 'off' => '−:percent%'],
     'product' => [
@@ -67,6 +68,7 @@ return [
         'not_available' => 'Not Available',
         'not_available_text' => 'This product cannot be ordered here now.',
         'unavailable_value' => ':name, not available',
+        'other_option_value' => ':name, available in another option',
     ],
     'search' => [
         'title' => 'Search',

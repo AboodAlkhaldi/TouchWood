@@ -220,8 +220,8 @@ it('refuses a store that does not exist, and a past day that is not one', functi
 
     expect(fn () => dailyMake('sa', $day))->toThrow(InvalidOpsInput::class);
 })->with([
-    'today' => [CarbonImmutable::now('Asia/Riyadh')->format('Y-m-d')],
-    'tomorrow' => [CarbonImmutable::now('Asia/Riyadh')->addDay()->format('Y-m-d')],
+    'today' => [fn (): string => CarbonImmutable::now('Asia/Riyadh')->format('Y-m-d')],
+    'tomorrow' => [fn (): string => CarbonImmutable::now('Asia/Riyadh')->addDay()->format('Y-m-d')],
     'not a date' => ['2026-02-30'],
     'another form' => ['30/10/2026'],
 ]);
@@ -369,6 +369,8 @@ it('writes people\'s text escaped, and prints "{nbpg}", "{nb}" and "{PAGENO}" in
     Dx::aDay();
     DB::table('catalog.products')->update(['name_en' => '<img src=x onerror=alert(1)> {PAGENO}']);
     app(SearchLog::class)->record(Fx::storeId('sa'), 'en', '{nbpg} {nb} <b>door</b>', 0);
+    // Its time is the database's own clock, which no test freezes.
+    DB::table('catalog.search_log')->update(['searched_at' => CarbonImmutable::now()]);
 
     $report = app(DailyReportReader::class)->store(dailyStore('sa'), CarbonImmutable::now()->addSecond()->toDateTimeImmutable(), null);
     $daily = new DailyReport(CarbonImmutable::now()->toDateTimeImmutable(), 'Asia/Riyadh', false, [$report], []);

@@ -11,6 +11,7 @@ use Illuminate\Support\Str;
 use Illuminate\Testing\PendingCommand;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
+use Modules\Catalog\Public\Contracts\ListingFacts;
 use Modules\Inventory\Application\Command\RebuildOrderable\RebuildOrderable;
 use Modules\Inventory\Application\Command\RebuildOrderable\RebuildOrderableHandler;
 use Modules\Inventory\Application\Command\SetEndingSoon\SetEndingSoon;
@@ -21,6 +22,7 @@ use Modules\Inventory\Application\Command\SetStockDependent\SetStockDependent;
 use Modules\Inventory\Application\Command\SetStockDependent\SetStockDependentHandler;
 use Modules\Inventory\Application\InventoryPermissions;
 use Modules\Inventory\Application\InventorySettings;
+use Modules\Inventory\Application\Stock\StockFacts;
 use Modules\Inventory\Presentation\Console\RebuildOrderableCommand;
 use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Inventory\Public\Dto\HoldLineDto;
@@ -174,6 +176,64 @@ it('in a wired store tells an ordinary product orderable at 0, and a stock-depen
 
     expect(inventoryFactsTold($ordinary))->toBe([true, false])
         ->and(inventoryFactsTold($dependent))->toBe([true, true]);
+});
+
+it('never leaves a size told 0 for having no row once a count made its row meanwhile', function () {
+    ['product' => $product, 'variants' => [$size]] = Px::ready();
+    Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Ix::storeId('sa'), $product, true)));
+    expect(inventoryFactsTold($size))->toBe([false, false])
+        ->and(Ix::stock('sa', $size))->toBeNull();
+
+    // The race, in the order that loses: the repair read no row; a count made the row, told Catalog and
+    // committed; only then does the repair's "0" reach Catalog.
+    $real = app(ListingFacts::class);
+    $meanwhile = new class($real, static fn () => Ix::count('sa', [$size => 3])) implements ListingFacts
+    {
+        private bool $done = false;
+
+        public function __construct(private ListingFacts $real, private Closure $count) {}
+
+        public function orderable(StoreId $store, array $variantIds, bool $orderable): void
+        {
+            if (! $this->done && ! $orderable) {
+                $this->done = true;
+                ($this->count)();
+            }
+
+            $this->real->orderable($store, $variantIds, $orderable);
+        }
+
+        public function endingSoon(StoreId $store, array $variantIds, bool $endingSoon): void
+        {
+            $this->real->endingSoon($store, $variantIds, $endingSoon);
+        }
+
+        public function prices(StoreId $store, array $prices): void
+        {
+            $this->real->prices($store, $prices);
+        }
+
+        public function salesRanks(StoreId $store, array $ranks): void
+        {
+            $this->real->salesRanks($store, $ranks);
+        }
+
+        public function ratings(array $ratings): void
+        {
+            $this->real->ratings($ratings);
+        }
+
+        public function ratingsShown(StoreId $store, bool $shown): void
+        {
+            $this->real->ratingsShown($store, $shown);
+        }
+    };
+    app()->instance(ListingFacts::class, $meanwhile);
+
+    DB::transaction(fn () => app(StockFacts::class)->refresh(StoreId::fromString(Ix::storeId('sa')), [$size], all: true));
+
+    expect(Ix::stock('sa', $size)?->in_stock)->toBe(3)
+        ->and(inventoryFactsTold($size))->toBe([true, false]);
 });
 
 describe('the repair (§8 #5)', function () {

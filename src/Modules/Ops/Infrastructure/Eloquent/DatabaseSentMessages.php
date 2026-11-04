@@ -53,6 +53,7 @@ final readonly class DatabaseSentMessages implements SentMessages
 
     public function forget(string $id): void
     {
-        $this->db->table('ops.sent_messages')->where('id', strtolower($id))->where('status', SendStatus::Queued->value)->delete();
+        // FAILED too: a job retried from the failed jobs screen that finds nothing left to send.
+        $this->db->table('ops.sent_messages')->where('id', strtolower($id))->where('status', '<>', SendStatus::Sent->value)->delete();
     }
 }

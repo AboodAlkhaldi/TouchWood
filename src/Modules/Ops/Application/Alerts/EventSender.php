@@ -149,7 +149,7 @@ final readonly class EventSender
         return false;
     }
 
-    private function email(MessageText $text, StoreDto $store, string $locale, string $to, string $toName): OutgoingEmail
+    private function email(MessageText $text, StoreDto $store, string $locale, #[\SensitiveParameter] string $to, string $toName): OutgoingEmail
     {
         $locale = $locale === 'ar' ? 'ar' : 'en';
         $brand = $store->name->in($locale);

@@ -50,6 +50,7 @@ final readonly class MoneyRecording
         private PlatformApi $platform,
         private ConnectionInterface $db,
         private Outbox $outbox,
+        private OrderRequests $requests,
     ) {}
 
     /**
@@ -83,6 +84,12 @@ final readonly class MoneyRecording
                 return $made->orderId === $order->id ? $made->id : throw new InvalidSalesAttribute('request', 'a form of another order');
             }
 
+            // A payment by hand waits for one in progress, and ends the order's open request (payments.md §1.5).
+            if ($kind === MoneyRecord::PAYMENT) {
+                $this->requests->free($order->id);
+                $this->requests->withdrawn($order->id);
+            }
+
             $currency = $this->platform->currency($order->currencyCode) ?? throw new LogicException("The order's currency {$order->currencyCode} is not known.");
             $day = self::day($happenedOn, $this->platform->store(StoreId::fromString($order->storeId))->timezone ?? 'UTC');
             // A payment: the whole balance still owed, worked out under the lock; nothing owed, nothing to record.
@@ -103,7 +110,7 @@ final readonly class MoneyRecording
             $now = CarbonImmutable::now();
             $id = strtolower((string) Str::ulid());
             try {
-                $this->records->add(new MoneyRecord($kind, $id, $order->id, $order->storeId, $order->currencyCode, $money->minorUnits, $way, $reference, $note, $day, $request, $staffId, $now));
+                $this->records->add(new MoneyRecord($kind, $id, $order->id, $order->storeId, $order->currencyCode, $money->minorUnits, $way, $reference, $note, $day, $request, $staffId, $now, false, $order->isTest));
             } catch (QueryException $taken) {
                 // The same form id sent for another order at the same moment: the unique index decided.
                 throw $taken->getCode() === '23505' && str_contains($taken->getMessage(), '_request') ? new InvalidSalesAttribute('request', 'a form of another order') : $taken;

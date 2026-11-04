@@ -12,6 +12,9 @@ use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
 use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNow;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNowHandler;
+use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Feedback\Application\Command\SaveToWishlist\SaveToWishlist;
+use Modules\Feedback\Application\Command\SaveToWishlist\SaveToWishlistHandler;
 use Modules\Feedback\Application\FeedbackPermissions;
 use Modules\Feedback\Application\Query\ListFavourites\ListFavourites;
 use Modules\Feedback\Application\Query\ListFavourites\ListFavouritesHandler;
@@ -42,6 +45,8 @@ use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Feedback\Support\FeedbackFixtures as Fb;
+use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
+use Tests\Modules\Pricing\Support\PricingFixtures as Rx;
 
 use function Pest\Laravel\seed;
 
@@ -155,6 +160,42 @@ describe('my reviews and questions', function () {
 });
 
 describe('my wishlist', function () {
+    it('keeps a sold-out or unpriced saved product in the list, marked, and still lets it be saved (catalog.md amendment 39)', function () {
+        ['product' => $product, 'variants' => $sizes] = Fb::sold();
+        $sara = Fx::customer('sara@example.test', 'sa', 'individual');
+        readsWishlist($sara, $product, 'sa', '2026-10-01 10:00:00+00');
+        $row = static function () use ($sara, $product) {
+            Fx::actAsCustomer($sara);
+            $rows = array_filter(app(ViewMyWishlistHandler::class)->handle(new ViewMyWishlist('en'))[0]->items, static fn ($item): bool => $item->product->productId === $product);
+
+            return array_values($rows)[0];
+        };
+
+        expect($row()->unavailable)->toBeFalse();
+
+        // Sold out: in the list, marked; the store still sells it, so saving and asking stand.
+        Ix::count('sa', array_fill_keys($sizes, 0));
+        expect($row()->unavailable)->toBeTrue()
+            ->and($row()->product->productId)->toBe($product)
+            ->and($row()->product->sold)->toBeTrue()
+            ->and(app(CatalogApi::class)->productsSoldIn(StoreId::fromString(Fx::storeId('sa')), [$product]))->toBe([$product]);
+
+        ['product' => $saved, 'variants' => $others] = Fb::sold();
+        Ix::count('sa', array_fill_keys($others, 0));
+        Fx::actAsCustomer($sara);
+        app(SaveToWishlistHandler::class)->handle(new SaveToWishlist(Fx::storeId('sa'), $saved));
+        expect(DB::table('feedback.wishlist_items')->where('customer_id', $sara)->where('product_id', $saved)->exists())->toBeTrue();
+
+        // Back in stock: the mark goes.
+        Ix::count('sa', array_fill_keys($sizes, 5));
+        expect($row()->unavailable)->toBeFalse();
+
+        // Unpriced: marked the same.
+        Rx::remove('sa', $sizes);
+        expect($row()->unavailable)->toBeTrue()
+            ->and($row()->product->sold)->toBeTrue();
+    });
+
     it('groups my items by the store they were saved in, unavailable judged there', function () {
         ['product' => $sold] = Fb::sold(['sa', 'ae', 'eg']);
         ['product' => $paused] = Fb::sold(['sa']);

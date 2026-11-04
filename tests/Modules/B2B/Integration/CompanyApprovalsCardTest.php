@@ -14,6 +14,7 @@ use Modules\Platform\Public\Dto\HomeScope;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\B2B\Support\B2BFixtures;
+use Tests\TestCase;
 
 use function Pest\Laravel\seed;
 
@@ -69,7 +70,7 @@ it('counts the companies of the scope by status, and names those waiting, the ol
     CarbonImmutable::setTestNow('2026-10-02 09:00:00');
     [$newer] = B2BFixtures::sent(B2BFixtures::verifiedCompanyAccount(), 'eg');
     B2BFixtures::approved(B2BFixtures::verifiedCompanyAccount());
-    CarbonImmutable::setTestNow();
+    CarbonImmutable::setTestNow(TestCase::FROZEN_AT);
 
     $ksa = approvalsData(approvalsStore('sa'));
     $all = approvalsData(HomeScope::allStores());
@@ -106,7 +107,7 @@ it('names the five waiting the longest, and counts them all', function () {
         CarbonImmutable::setTestNow("2026-10-0{$day} 09:00:00");
         B2BFixtures::sent(B2BFixtures::verifiedCompanyAccount());
     }
-    CarbonImmutable::setTestNow();
+    CarbonImmutable::setTestNow(TestCase::FROZEN_AT);
 
     $data = approvalsData(HomeScope::allStores());
 

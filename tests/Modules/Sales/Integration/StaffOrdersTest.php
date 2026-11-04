@@ -308,6 +308,8 @@ it('reads a list and an order in the same number of queries however many rows', 
     // Measured 2026-10-30: one more each, 3 and 12 - the SMS countries list, read once with the customers
     // (access.md amendment 90). 13 with stage 7 step 6: the store's boxes, for the box suggestion worked out
     // live (gap 5.1; no choice — never stored).
+    // 16 with stage 7 step 12, for an order still missing money: the open request, whether a payment is open, and the
+    // attempts (payments.md §4.2).
     expect([$count($list), $count($view)])->toBe([$oneRow, $oneMoney])
-        ->and([$oneRow, $oneMoney])->toBe([3, 13]);
+        ->and([$oneRow, $oneMoney])->toBe([3, 16]);
 });

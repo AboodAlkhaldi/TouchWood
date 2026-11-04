@@ -37,6 +37,18 @@ return [
         'title' => 'Sign In to Use a Coupon',
         'detail' => 'Sign in or create an account to use a coupon.',
     ],
+    'payment_being_confirmed' => [
+        'title' => 'Payment Being Confirmed',
+        'detail' => 'A payment is being confirmed. Try again once it is answered.',
+    ],
+    'payment_link_ended' => [
+        'title' => 'Payment Link Ended',
+        'detail' => 'This payment link has ended.',
+    ],
+    'payment_request_not_allowed' => [
+        'title' => 'Payment Request Not Available',
+        'detail' => "A payment request needs an individual's order in a store taking online payment in the order's own mode.",
+    ],
     'payment_in_progress' => [
         'title' => 'Payment In Progress',
         'detail' => 'A payment is already in progress in another window.',

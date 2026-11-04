@@ -268,9 +268,16 @@ archived and not "Not available now". **A hidden product is inactive** (amendmen
 holds the name and slug in its language, the brand and whether it shows in default listings, the
 category and every id above it, the filter values (the product's and those of the variants on sale
 there), the labels, the card photo (the first ready one, its addresses asked of Platform as the row
-is written) and the search's text. **Never a code** (amendment 5(d)). Until stage 5 every row is
-orderable, with no price and no rank (§2.2) — and since every change writes a product's rows again
-from Catalog's own tables, stage 5 keeps what it pushes in a table the writer reads.
+is written) and the search's text. **Never a code** (amendment 5(d)). Since every change writes a
+product's rows again from Catalog's own tables, what the modules push is kept in a table the writer
+reads. **Out of stock and unpriced are never shown** (amendment 39): a size Inventory told not orderable,
+or with no price, counts for nothing on a row — filters, sides, card, prices — and a product with none
+left keeps its row with `orderable` false, which every list leaves out, so a flip changes it in place. On
+its page such a size beside others stays, greyed, never chosen (`ShopVariantData.orderable`); with none
+left the page is "Not available now", without `noindex` when only stock or a price is missing
+(`ShopReader::onlySoldOut`). A category so emptied keeps its page with a sentence, out of the menu; a brand
+says the same. A size never told is orderable (§1.3). `CatalogApi::productsOrderableNow` marks a wishlist's
+items.
 
 **Written inside every change that alters it** (`ListingRows::refresh`, §9.3 #20), under the
 products' lock: the product changes that touch a row (details, a variant's values, the gallery,

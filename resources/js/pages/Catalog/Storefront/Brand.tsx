@@ -16,11 +16,11 @@ import type { ShopBrandPage, ShopCardData } from '@/types/generated/Modules/Cata
 | design has no brand page: drawn from its look (frontend.md §2.1).
 */
 
-export default function Brand({ name, slug, logo, description, products, next, address, cardFacts }: ShopBrandPage) {
+export default function Brand({ name, slug, logo, description, products, next, address, cardFacts, soldOut }: ShopBrandPage) {
     const t = useTranslator();
     const link = useLink();
-    const list = useLoadMore<ShopCardData>(products, (card) => card.productId);
-    const facts = useCardFacts(cardFacts);
+    const facts = useCardFacts(cardFacts, products[0]?.productId);
+    const list = useLoadMore<ShopCardData>(products, (card) => card.productId, facts);
 
     return (
         <StorefrontLayout title={name} address={address}>
@@ -35,7 +35,7 @@ export default function Brand({ name, slug, logo, description, products, next, a
                 {list.rows.length === 0 ? (
                     <Empty className="py-12">
                         <EmptyHeader>
-                            <EmptyDescription className="text-copy-14 text-ink-muted">{t('catalog::shop.empty')}</EmptyDescription>
+                            <EmptyDescription className="text-copy-14 text-ink-muted">{t(soldOut ? 'catalog::shop.nothing_now' : 'catalog::shop.empty')}</EmptyDescription>
                         </EmptyHeader>
                     </Empty>
                 ) : (

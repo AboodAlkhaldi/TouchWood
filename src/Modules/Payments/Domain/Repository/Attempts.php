@@ -6,6 +6,7 @@ namespace Modules\Payments\Domain\Repository;
 
 use DateTimeImmutable;
 use Modules\Payments\Domain\Model\Attempt;
+use Modules\Payments\Public\Dto\PaymentAttemptDto;
 use Modules\Payments\Public\Enums\PaymentMode;
 
 interface Attempts
@@ -22,6 +23,16 @@ interface Attempts
 
     /** The owner's attempt still open (rule 3's unique index allows one), or null. */
     public function openOf(string $ownerId): ?Attempt;
+
+    /** Any attempt still open on this order, its try's or a request's (§1.5). */
+    public function openOfOrder(string $orderId): ?Attempt;
+
+    /**
+     * The attempts on an order, oldest first (§4.2).
+     *
+     * @return list<PaymentAttemptDto>
+     */
+    public function ofOrder(string $orderId): array;
 
     /** The owner's newest attempt, or null. */
     public function latestOf(string $ownerId): ?Attempt;

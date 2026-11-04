@@ -31,6 +31,7 @@ use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\Ops\Support\CapturedEmails;
 use Tests\Modules\Ops\Support\WrittenFixtures as Wx;
+use Tests\TestCase;
 
 use function Pest\Laravel\seed;
 
@@ -236,7 +237,7 @@ describe('the notice a campaign carries (§1.7)', function () {
         event(campaignEventsLive($id));
 
         $row = campaignEventsRow($id);
-        CarbonImmutable::setTestNow();
+        CarbonImmutable::setTestNow(TestCase::FROZEN_AT);
 
         expect($row->status)->toBe('SENT')
             ->and($row->started_at)->not->toBeNull()
@@ -259,7 +260,7 @@ describe('the notice a campaign carries (§1.7)', function () {
 
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addDays(2));
         app()->call([new StartDueNoticesJob, 'handle']);
-        CarbonImmutable::setTestNow();
+        CarbonImmutable::setTestNow(TestCase::FROZEN_AT);
 
         expect(campaignEventsNoticeBells())->toBe(1)
             ->and(CapturedEmails::installed()->sent)->toHaveCount(1)

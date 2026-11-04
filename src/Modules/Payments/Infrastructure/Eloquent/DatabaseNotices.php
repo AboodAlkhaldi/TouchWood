@@ -59,6 +59,11 @@ final readonly class DatabaseNotices implements Notices
         $this->db->table('payments.notices')->where('id', $id)->update(['handled_at' => $now]);
     }
 
+    public function deleteBefore(DateTimeImmutable $before): void
+    {
+        $this->db->table('payments.notices')->where('received_at', '<', $before)->delete();
+    }
+
     public function unhandled(DateTimeImmutable $since, DateTimeImmutable $before, int $most): array
     {
         $ids = [];

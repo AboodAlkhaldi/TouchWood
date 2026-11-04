@@ -302,5 +302,5 @@ it('reads the sections in the same number of queries for one review as for ten, 
     // statement, the authors' names 1, the sizes bought 2 (Catalog's variants and their values) and
     // the stores' names 1; since 2026-10-27, Sales's Add to Cart 6 for a guest (catalog.md amendment 36) -
     // the limits a target, not a cap (owner, 2026-10-19).
-    expect([$one, $count()])->toBe([17, 17]);
+    expect([$one, $count()])->toBe([18, 18]);
 });

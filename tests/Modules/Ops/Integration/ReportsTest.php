@@ -552,7 +552,7 @@ it('refuses years before 2020 or after next year, more than five years, and more
     expect($refused)->toBe(['attribute' => $rule === 'years' && $from === '2019-12-31' ? 'from' : 'to', 'rule' => $rule]);
 })->with([
     'before 2020' => ['revenue', '2019-12-31', '2020-01-02', 'years'],
-    'after next year' => ['revenue', 'NEXT-12-01', ((string) ((int) date('Y') + 2)).'-01-01', 'years'],
+    'after next year' => ['revenue', 'NEXT-12-01', fn (): string => ((string) ((int) CarbonImmutable::now()->format('Y') + 2)).'-01-01', 'years'],
     'over five years' => ['product-sales', '2020-01-01', '2025-01-01', 'too_long'],
     'over twelve months of searches' => ['searches', '2025-01-01', '2026-01-01', 'searches_too_long'],
 ]);

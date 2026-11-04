@@ -26,6 +26,7 @@ use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Promotions\Support\PromotionsFixtures as Pr;
+use Tests\TestCase;
 
 use function Pest\Laravel\seed;
 
@@ -253,7 +254,7 @@ describe('its uses and assignments', function () {
             CarbonImmutable::setTestNow($now->subMinutes($minutesAgo));
             Pr::used($coupon, $customer, discountMinor: $discount);
         }
-        CarbonImmutable::setTestNow();
+        CarbonImmutable::setTestNow(TestCase::FROZEN_AT);
         DB::table('access.customers')->where('id', $omar)->update(['anonymized_at' => now()]);
         couponReader();
 

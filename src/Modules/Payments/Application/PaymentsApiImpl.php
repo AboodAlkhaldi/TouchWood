@@ -7,14 +7,18 @@ namespace Modules\Payments\Application;
 use Modules\Payments\Application\Attempt\AttemptCharge;
 use Modules\Payments\Application\Attempt\AttemptChecks;
 use Modules\Payments\Application\Attempt\AttemptPreparation;
+use Modules\Payments\Application\Request\OrderPaymentRequests;
 use Modules\Payments\Application\Session\OpenPaymentSession;
 use Modules\Payments\Application\Settings\StoreBankAccount;
+use Modules\Payments\Domain\Repository\Attempts;
 use Modules\Payments\Domain\Repository\Gateways;
 use Modules\Payments\Domain\Repository\Transactions;
 use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Payments\Public\Dto\BankAccountDto;
 use Modules\Payments\Public\Dto\OnlinePaymentDto;
 use Modules\Payments\Public\Dto\PaymentDto;
+use Modules\Payments\Public\Dto\PaymentRequestDto;
+use Modules\Payments\Public\Dto\PaymentRequestStateDto;
 use Modules\Payments\Public\Dto\PaymentSessionDto;
 use Modules\Payments\Public\Dto\PaymentStartDto;
 use Modules\Payments\Public\Dto\PaymentStateDto;
@@ -38,6 +42,8 @@ final readonly class PaymentsApiImpl implements PaymentsApi
         private AttemptCharge $charges,
         private AttemptChecks $checks,
         private Transactions $transactions,
+        private OrderPaymentRequests $requests,
+        private Attempts $attempts,
     ) {}
 
     /**
@@ -131,6 +137,46 @@ final readonly class PaymentsApiImpl implements PaymentsApi
     public function needsAttention(string $attemptId): void
     {
         $this->preparation->markForAttention($attemptId);
+    }
+
+    public function requestPayment(PaymentRequestDto $request, string $staffId): PaymentRequestStateDto
+    {
+        return $this->requests->request($request, $staffId);
+    }
+
+    public function withdraw(string $orderId): bool
+    {
+        return $this->requests->withdraw($orderId);
+    }
+
+    public function withdrawForCancelled(string $orderId): void
+    {
+        $this->requests->orderCancelled($orderId);
+    }
+
+    public function openRequest(string $orderId): ?PaymentRequestStateDto
+    {
+        return $this->requests->open($orderId);
+    }
+
+    public function openRequests(array $orderIds): array
+    {
+        return $this->requests->openOfOrders($orderIds);
+    }
+
+    public function paymentOpen(string $orderId): bool
+    {
+        return $this->attempts->openOfOrder($orderId) !== null;
+    }
+
+    public function successes(string $orderId): array
+    {
+        return $this->transactions->acceptedOfOrder($orderId);
+    }
+
+    public function attempts(string $orderId): array
+    {
+        return $this->attempts->ofOrder($orderId);
     }
 
     public function payment(string $paymentId): ?PaymentDto

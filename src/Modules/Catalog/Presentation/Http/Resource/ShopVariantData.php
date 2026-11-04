@@ -12,6 +12,7 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
  * A variant on sale here for this viewer, as its page shows it once chosen (catalog.md §4.5).
  * Matched in the browser for display only; Sales resolves the variant on the server. Its `price` — one
  * piece now — and `priceBefore` (only while now is lower), without VAT (amendment 35); none: not priced.
+ * `orderable` false: sold out, drawn greyed and never offered (amendment 39); never how many there are.
  */
 #[TypeScript]
 final class ShopVariantData extends Data
@@ -35,5 +36,6 @@ final class ShopVariantData extends Data
         public ?int $heightMm,
         public ?MoneyData $price = null,
         public ?MoneyData $priceBefore = null,
+        public bool $orderable = true,
     ) {}
 }

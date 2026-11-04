@@ -97,6 +97,7 @@ function catalogAudiencesProduct(string $categoryId, array $sizes = ['60 cm'], a
 
     foreach ($stores as $store) {
         Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId($store), $p['product'], true)));
+        Px::onSale($store, $p['product']);
     }
 
     return $p;
@@ -298,6 +299,7 @@ describe('the switches', function () {
         Fx::asSystem(fn () => app(CreateStoreHandler::class)->handle(new CreateStore('kw', 'الكويت', 'Kuwait', 'KW', '', 1500, 'Asia/Kuwait', 4, new CreateCurrency('KWD', 3, 'دينار كويتي', 'Kuwaiti dinar', 'د.ك', 'KWD', null))));
         $kw = (string) DB::table('platform.stores')->where('code', 'kw')->value('id');
         Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore($kw, $p['product'], true)));
+        Px::onSale('kw', $p['product']);
         $row = DB::table('catalog.listing')->where('store_id', $kw)->where('locale', 'en')->where('product_id', $p['product'])->first(['for_individuals', 'for_companies']);
 
         expect(DB::table('catalog.store_category_audiences')->where('store_id', $kw)->count())->toBe(0)

@@ -252,6 +252,7 @@ describe('F8 · The account\'s pages', function () {
         }
 
         expect($counts())->toBe($one)
-            ->and($one)->toBe([6, 4, 4]);
+            // The wishlist two more of its own since 2026-11-03 (catalog.md amendment 39): which of its items can be ordered now, a read per store, and who is looking, the customer read the frame shares.
+            ->and($one)->toBe([6, 4, 6]);
     });
 });

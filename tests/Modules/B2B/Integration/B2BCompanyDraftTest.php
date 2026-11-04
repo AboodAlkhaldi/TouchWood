@@ -44,6 +44,7 @@ use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\B2B\Support\B2BFixtures;
+use Tests\TestCase;
 
 use function Pest\Laravel\seed;
 
@@ -596,7 +597,7 @@ it('records when each paper was uploaded (§1.4)', function () {
 
     expect(array_values(companyDraftOpen($customerId)->documents())[0]->uploadedAt->format('Y-m-d H:i'))->toBe('2026-09-29 10:00');
 
-    CarbonImmutable::setTestNow();
+    CarbonImmutable::setTestNow(TestCase::FROZEN_AT);
 });
 
 it('writes nothing of its own to the audit log when it starts, uploads, answers or removes (amendment 4)', function () {

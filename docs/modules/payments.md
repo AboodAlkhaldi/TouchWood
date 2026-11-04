@@ -591,8 +591,17 @@ interface PaymentsApi
     /** Withdraws an order's open request (§1.5); false while a payment on it is open. */
     public function withdraw(string $orderId): bool;
 
+    /** The order was cancelled (§6): its open request goes whatever is open on it; a payment in progress is still answered. */
+    public function withdrawForCancelled(string $orderId): void;
+
     /** The order's open request, for its page (§1.5); null when none. */
     public function openRequest(string $orderId): ?PaymentRequestStateDto;
+
+    /** The open requests of these orders, for one page of My Orders (§4.2, §9.14 #14): one read, writing nothing. */
+    public function openRequests(array $orderIds): array; // array<string, PaymentRequestStateDto>, by order id
+
+    /** Whether any payment on this order is open (§1.5, §9.14 #1): staff's edits, hand recording and the customer's cancel wait. */
+    public function paymentOpen(string $orderId): bool;
 
     /** One successful (or refused) transaction as Payments recorded it — read by Sales when an event arrives with ids only. */
     public function payment(string $paymentId): ?PaymentDto;
@@ -603,8 +612,11 @@ interface PaymentsApi
     /** The same answer as last known, the gateway not asked: for a page load, since asking can take 100 s when it is away (the screens' review, 2026-11-03). */
     public function lastKnown(string $ownerId): PaymentStateDto;
 
-    /** The attempts of a try or an order and their calls, for staff (§1.1 rule 13). */
-    public function attempts(string $ownerId): array; // list<PaymentAttemptDto>
+    /** The attempts on an order, oldest first, for staff's Online Payments block (§4.2, §9.14 #2). */
+    public function attempts(string $orderId): array; // list<PaymentAttemptDto>
+
+    /** The order's successful transactions that may enter it: Sales waits until it has recorded them (§1.5). */
+    public function successes(string $orderId): array; // list<string>
 
     /** The store's bank account, null while bank transfer is off (§1.9 — from B2B). */
     public function bankAccount(StoreId $store): ?BankAccountDto;
@@ -637,7 +649,9 @@ interface PaymentsApi
 - **`PaymentRequestDto`**: `orderId`, `orderNumber`, `storeId`, `amount`, `customerId`, `mode` (the
   order's — a TEST order is `TEST`; refused when it is not the gateway's, §1.5).
   **`PaymentRequestStateDto`**: `requestId`, `orderId`, `amount`, `expiresAt`, `state` (`OPEN`, `PAID`,
-  `EXPIRED`, `WITHDRAWN`), `requestedBy`.
+  `EXPIRED`, `WITHDRAWN`, `NOT_ACCEPTED`), `requestedBy`, `mode` (§9.14 #3).
+- **`PaymentAttemptDto`** (§9.14 #2): `attemptId`, `ownerId`, `ownerKind`, `orderId`, `state` (the attempt's own, §4), `amount`,
+  `mode`, `method` (its successful transaction's, null with none), `needsAttention`, `createdAt`.
 - **`PaymentDto`** — **one transaction**, not one attempt (rule 6): `paymentId` (our transaction's id),
   `attemptId`, `ownerId`, `ownerKind`, `orderId`, `amount` (what was really paid), `expected`, `method`
   (as the gateway names it — Mada, Visa, Apple Pay, STC Pay…), `reference` (the gateway's payment id),
@@ -687,7 +701,7 @@ interface PaymentsApi
 | `ListPayments` (all online attempts, by state — owner, 2026-10-27 P26), `ViewAttempt` (its transactions and calls — P15) | **`payments.payment.view`** (the permission catalog takes three parts — step 8, my pick) — given wherever `sales.order.view` is (accepted, 2026-10-28) | That store |
 | `CheckAttempt` (staff's "Ask the gateway now") | **`payments.payment.view`** | That store |
 | ~~`ReleaseTryByHand`~~ — **not built**: the hold limit releases every try first (§1.7, §9.8 #3) | ~~`payments.attempts.release`~~ | — |
-| `CheckAttempt` (each attempt's booked checks), `HourlyBackstop` (owner, 2026-10-28), `PrunePaymentLog` | System (reserved) | — |
+| `CheckAttempt` (each attempt's booked checks), `HourlyBackstop` (owner, 2026-10-28), `PrunePaymentLog` | System: jobs with no staff behind them, so no permission is declared for them | — |
 
 Every change of a gateway is audited — never a key or a secret, only "changed" and the last 6
 characters. The permissions sit in a new **Payments** group in the role editor.
@@ -880,8 +894,8 @@ account's three, moved from B2B (`payments.bank.iban`, `payments.bank.name`, `pa
 | Consumed | From | Payments |
 |---|---|---|
 | `StoreCreated` | Platform | Nothing: a new store has no gateway |
-| `OrderCancelled` | Sales | The order's open request is withdrawn (§1.5); a payment already in progress on it is still answered and recorded — a refund due, Sales's to show |
-| `CustomerAnonymized` | Access | The customer's name, email and phone cleared from attempts, calls and notices (rule 13) |
+| `OrderCancelled` | Sales | The order's open request is withdrawn (§1.5); a payment already in progress on it is still answered and recorded — a refund due, Sales's to show. **Sales's listener calls `withdrawForCancelled`** (§9.14 #4): Payments depends on nothing of Sales |
+| `CustomerAnonymized` | Access | The customer's name, email and phone cleared from attempts; calls and notices never hold them (rule 13, §9.11 #6) |
 
 Published: §2.2.
 
@@ -1059,7 +1073,7 @@ account before going live (§9.3 #6).
    been pressed" — the built `useCoupon` keeps every use for good and needs the order's number).
 4. **Loyalty** (loyalty.md §9.6) — **points reserved for a try**, confirmed with the order's number when
    it is paid, and released when it is not (the built `redeem` needs the order's number).
-5. **Platform** — serving MyFatoorah's Apple Pay file at `/.well-known/…` (§1.2), and letting the few
+5. **Platform** — ~~serving MyFatoorah's Apple Pay file~~ (it is a plain file in `public/.well-known/`, §9.9 #6), and letting the few
    addresses that finish a try answer for an off store (§1.10).
 6. **B2B** — the bank account and its settings line move to Payments (b2b.md §2.3, amendment).
 7. **Access** — a **Payments** permission group and the Payment problems topic (amendment 78).
@@ -1456,3 +1470,36 @@ The owner answered **(a) for all twenty-two** (2026-11-01: "All as recommended")
     use up tries, and a time limit stays in the job, so a retry from the failed jobs screen (which pushes it back as it was,
     platform.md §5.6) would fail at once. Three failures end it (`$maxExceptions`), a timeout counting as one; the hourly look
     mends anything lost.
+
+### 9.14 The build's own picks (step 12, 2026-11-03 — simple, taken as recommended under the owner's rule)
+
+1. **`paymentOpen(orderId)` added to the contract.** sales.md §9.5 #8 says `PaymentsApi::refresh` tells whether a payment is in
+   progress, but `refresh` takes an owner and calls the gateway. Waiting staff need a plain read by order, with no call.
+2. **`attempts` takes the order's id**, not an owner's (§2.1 said owner): the Online Payments block is an order's, and an order
+   may have several requests. Oldest first. `PaymentAttemptDto` has the fields in §2.1.
+3. **`mode` on `PaymentRequestStateDto`**, so the request's page can tell a request whose mode the gateway has since left.
+4. **`OrderCancelled` is heard by Sales**, not Payments: `deptrac.yaml` keeps Payments free of Sales ("takes an order id and an
+   amount, nothing more"), and the dependency cannot run both ways. Sales's `WithdrawRequestWhenCancelled` calls
+   `withdrawForCancelled`. Unlike `withdraw`, that one goes even with a payment open, as §6 says: its answer is still recorded,
+   and a cancelled order must not keep a link to pay. §4's "never while an attempt is open" holds for staff's withdrawal only.
+5. **The order's number in the Payments list comes from Sales through a port**: `Public/Contracts/PaymentOrderNumbers`, bound in
+   Sales, for the same reason. Attempts hold no number: a try's order has none until it is paid.
+6. **A request whose mode is not the gateway's** is refused as `NoOnlinePayment` when asked, and `RequestNotOpen` when paid. A
+   request with an amount other than `prepare`'s is `AmountChanged`.
+7. **Two requests at the same instant, past the order's lock**: the one-open index keeps one and the other is answered from it, the
+   same way as if it had come later, with no second `PaymentRequested`.
+8. **A request's time ends when it is next looked at** (`openRequest`, `requestPayment`), with no scheduled job: nothing shows it
+   past its time, and `prepare` refuses it whether or not its row has been marked.
+9. **`PaymentRow::reasons`** words why an attempt needs attention: `CURRENCY_REFUSED`, `MISMATCH`, `PAID_TWICE`, `PAID_NO_ORDER`,
+   `LATE_SUCCESS`, `NO_ANSWER`. They are worked out from the row and the order's number, for the screen to say in full. No reason is
+   stored, so the two "paid" ones are told apart by whether an order exists.
+10. **The needing-attention block is the newest 50, with the whole count**, on the first page. Filters apply to it. The rest leave
+    those rows out and go 50 at a time, the cursor being the last attempt's id. No store filter means every store the staff member
+    holds.
+11. **The customer's email, phone and name on an attempt's page** need `access.customer.view` in that store (§4.2 "for staff who may
+    read them"). Payments asks the `Authorizer`, naming the permission as a word only. The list shows the name, as orders do.
+12. **`PrunePaymentLog` runs daily at 03:45**, after Sales's 03:30 clean-up: notices past 90 days, calls past a year.
+13. **Retired keys are not deleted yet** (§5, rule 14): `attempts.key_id` is required and points at the key with `RESTRICT`, and
+    attempts are kept for good, so the key could never go unless that key is changed. Left for the owner's decision.
+14. **`openRequests(orderIds)`, asked by Sales for My Orders' "Payment requested"** (§4.2): one read for a page, by order id, writing
+    nothing. One past its time with no payment open is left out, though its row still says `OPEN` until it is next looked at (#8).

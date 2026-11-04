@@ -133,6 +133,7 @@ function carriersScreenMenu(TestResponse $response): array
  */
 function carriersScreenQueries(AdminBrowser $browser, string $uri): int
 {
+    $clock = CarbonImmutable::getTestNow();
     CarbonImmutable::setTestNow(CarbonImmutable::now());
 
     try {
@@ -143,7 +144,7 @@ function carriersScreenQueries(AdminBrowser $browser, string $uri): int
         $count = count(DB::getQueryLog());
         DB::disableQueryLog();
     } finally {
-        CarbonImmutable::setTestNow();
+        CarbonImmutable::setTestNow($clock);
     }
 
     return $count;

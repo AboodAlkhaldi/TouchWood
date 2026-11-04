@@ -163,6 +163,7 @@ function placesScreenQueries(Closure $read): int
 {
     // One clock for both reads: the staff pass writes its last-seen time once a minute, and a minute
     // turning between them (a slow CI run) would count that write against the page.
+    $clock = CarbonImmutable::getTestNow();
     CarbonImmutable::setTestNow(CarbonImmutable::now());
 
     try {
@@ -173,7 +174,7 @@ function placesScreenQueries(Closure $read): int
         $count = count(DB::getQueryLog());
         DB::disableQueryLog();
     } finally {
-        CarbonImmutable::setTestNow();
+        CarbonImmutable::setTestNow($clock);
     }
 
     return $count;

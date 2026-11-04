@@ -9,10 +9,13 @@ use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Str;
 use Modules\Payments\Application\PaymentsSettings;
+use Modules\Payments\Application\Request\OrderPaymentRequests;
+use Modules\Payments\Domain\Exception\AmountChanged;
 use Modules\Payments\Domain\Exception\AttemptNotFound;
 use Modules\Payments\Domain\Exception\InvalidPaymentsInput;
 use Modules\Payments\Domain\Exception\NoOnlinePayment;
 use Modules\Payments\Domain\Exception\PaymentInProgress;
+use Modules\Payments\Domain\Exception\RequestNotOpen;
 use Modules\Payments\Domain\Exception\SessionNotUsable;
 use Modules\Payments\Domain\Model\Attempt;
 use Modules\Payments\Domain\Model\AttemptState;
@@ -36,11 +39,12 @@ final readonly class AttemptPreparation
         private Sessions $sessions,
         private Attempts $attempts,
         private AttemptSettlement $settlement,
+        private OrderPaymentRequests $requests,
         private ConnectionInterface $db,
     ) {}
 
     /**
-     * @throws NoOnlinePayment|SessionNotUsable|PaymentInProgress|InvalidPaymentsInput
+     * @throws NoOnlinePayment|SessionNotUsable|PaymentInProgress|InvalidPaymentsInput|RequestNotOpen|AmountChanged
      */
     public function prepare(PayRequestDto $request): string
     {
@@ -55,6 +59,10 @@ final readonly class AttemptPreparation
 
             if ($gateway === null || ! $gateway->active || $key === null || $key->rejected) {
                 throw new NoOnlinePayment;
+            }
+
+            if ($request->ownerKind === PaymentOwnerKind::Request) {
+                $this->requests->preparing($request, $gateway->mode, CarbonImmutable::now()->toDateTimeImmutable());
             }
 
             // A double click on the same session gets the same attempt; another session is another payment.

@@ -92,6 +92,7 @@ function shopPagesProduct(string $categoryId, array $sizes = ['60 cm'], array $s
 
     foreach ($stores as $store) {
         Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId($store), $p['product'], true)));
+        Px::onSale($store, $p['product']);
     }
 
     return $p;
@@ -223,8 +224,8 @@ describe('a product\'s page', function () {
             ->where('selling.retailMinimum', 1)
             ->where('address.noindex', false)
             ->has('photos', 1)
-            // Not priced in the store yet: no price (amendment 35; ShopPricesTest shows them priced).
-            ->where('variants.0.price', null)
+            // Its price, no sale (amendment 35; ShopPricesTest shows the rest; unpriced, it is not on sale, amendment 39).
+            ->where('variants.0.price.minor', 10_00)
             ->where('variants.0.priceBefore', null)
         );
 
@@ -461,8 +462,9 @@ describe('the budget (P21)', function () {
         // Catalog's sizes in the store 1, Inventory's stock 4 (the wiring, the counts, ending soon, the
         // low-stock setting) and, for a guest, whether companies may buy the product 1; the owner chose the
         // exact check over the cheaper one regardless of the count. The limits are a target, not a cap
-        // (owner, 2026-10-19).
-        expect($counts)->toBe(['category' => 6, 'brand' => 6, 'product' => 13, 'search' => 7, 'suggest' => 4, 'sign-in' => 6]);
+        // (owner, 2026-10-19). A product in stock, as a listed one now always is (amendment 39), one more than
+        // the 13 measured with no stock rows: Inventory's ending-soon switches, read only once a size has a row.
+        expect($counts)->toBe(['category' => 6, 'brand' => 6, 'product' => 14, 'search' => 7, 'suggest' => 4, 'sign-in' => 6]);
     });
 
     it('records each page as production serves it - the session in the database - for a guest, an individual and a company', function () {
@@ -521,11 +523,12 @@ describe('the budget (P21)', function () {
             // reads it shares with the page (the cart's lines one of them). Signed in, every page one more
             // since 2026-10-27 (sales.md §4.1 S3, §4.2 B13): the header's count of the pieces in the cart -
             // none for a guest, whose count is read from the cart's cookie only when there is one. Signed in,
-            // every page one more since 2026-11-02 (ops.md §4.15 O2, Q7): the bell's number; none for a guest.
+            // every page one more since 2026-11-02 (ops.md §4.15 O2, Q7): the bell's number; none for a guest. A
+            // product in stock, as a listed one now always is (amendment 39), one more: Inventory's ending-soon switches.
         ])->toBe([
-            'guest' => ['category' => 8, 'brand' => 8, 'product' => 15, 'search' => 9],
-            'individual' => ['category' => 17, 'brand' => 17, 'product' => 22, 'search' => 18],
-            'company' => ['category' => 17, 'brand' => 17, 'product' => 22, 'search' => 18],
+            'guest' => ['category' => 8, 'brand' => 8, 'product' => 16, 'search' => 9],
+            'individual' => ['category' => 17, 'brand' => 17, 'product' => 23, 'search' => 18],
+            'company' => ['category' => 17, 'brand' => 17, 'product' => 23, 'search' => 18],
         ]);
     });
 });
@@ -916,8 +919,8 @@ describe('the other language\'s slug (amendment 38: a notice carries one link)',
             expect($reads())->toBe(0);
         }
 
-        // The English pages' counts are the budget's above, held since before amendment 38.
-        expect(array_map(shopPagesQueries(...), $pages))->toBe(['category en' => 6, 'category ar' => 6, 'brand en' => 6, 'brand ar' => 6, 'product en' => 13, 'product ar' => 13]);
+        // The English pages' counts are the budget's above, held since before amendment 38 (a product in stock, amendment 39).
+        expect(array_map(shopPagesQueries(...), $pages))->toBe(['category en' => 6, 'category ar' => 6, 'brand en' => 6, 'brand ar' => 6, 'product en' => 14, 'product ar' => 14]);
 
         foreach (['products', 'categories', 'brands'] as $path) {
             app()->forgetScopedInstances();
@@ -929,7 +932,8 @@ describe('the other language\'s slug (amendment 38: a notice carries one link)',
         }
 
         // A slug no one holds: this language's read and the other's, 2. One the other language holds: a
-        // third, checking its address, whichever way it then answers.
+        // third, checking its address, whichever way it then answers; for a category listing nothing, a fourth:
+        // whether only stock or a price emptied it (amendment 39). A page shown asks neither.
         $queries = static function (string $url): int {
             app()->forgetScopedInstances();
             DB::flushQueryLog();
@@ -952,7 +956,7 @@ describe('the other language\'s slug (amendment 38: a notice carries one link)',
             $queries("/sa/en/{$path}/no-such-page");
             $unknown = $queries("/sa/en/{$path}/no-such-page");
 
-            expect($queries("/sa/en/{$path}/".rawurlencode($slug)))->toBe($unknown + 1);
+            expect($queries("/sa/en/{$path}/".rawurlencode($slug)))->toBe($unknown + ($path === 'categories' ? 2 : 1));
         }
     });
 });

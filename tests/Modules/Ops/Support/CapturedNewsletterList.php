@@ -40,6 +40,10 @@ final class CapturedNewsletterList implements NewsletterList
         return $this->calls[count($this->calls) - 1] ?? throw new LogicException('No call was made.');
     }
 
+    public function ready(StoreId $store, string $locale): void {}
+
+    public function forgetList(StoreId $store, string $locale): void {}
+
     public function add(string $email, StoreId $store, string $locale): void
     {
         $this->call("add {$email} {$store->value} {$locale}");

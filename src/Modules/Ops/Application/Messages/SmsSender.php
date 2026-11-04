@@ -12,9 +12,11 @@ namespace Modules\Ops\Application\Messages;
 interface SmsSender
 {
     /**
+     * An attribute is not inherited: every adapter marks both parameters itself (BrevoFailuresTest reads them).
+     *
      * @return string|null the provider's id for the message, when it gives one
      *
      * @throws ProviderFailed when the provider did not take it
      */
-    public function send(string $phone, #[\SensitiveParameter] string $message): ?string;
+    public function send(#[\SensitiveParameter] string $phone, #[\SensitiveParameter] string $message): ?string;
 }
