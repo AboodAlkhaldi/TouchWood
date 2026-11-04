@@ -14,6 +14,7 @@ return [
         'state' => 'State',
         'joined' => 'Joined',
         'confirmed' => 'Confirmed',
+        'actions' => 'Actions',
     ],
     'language' => [
         'ar' => 'Arabic',

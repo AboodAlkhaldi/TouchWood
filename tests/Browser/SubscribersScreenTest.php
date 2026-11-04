@@ -16,7 +16,8 @@ use function Pest\Laravel\seed;
 | O7, Subscribers in a real browser (ops.md §4.15): the columns' words, a customer's hidden email and its reason, a guest
 | removed with Keep and Remove, a customer with no menu, a row kept after a removal below Show More, Arabic and a phone.
 |
-| Deliberately no RefreshDatabase, as the other browser tests. Each run's rows are its own, and newest first.
+| Deliberately no RefreshDatabase, as the other browser tests. The list is oldest first (§4.5 sets no order; `ORDER BY id`), so
+| each test starts with `ae`'s list empty: another run's rows would push this one's off the page.
 */
 
 beforeEach(function () {
@@ -24,6 +25,7 @@ beforeEach(function () {
     seed(PlatformSeeder::class);
     FakeBreachList::install();
     RecordingSecurityMessages::install();
+    DB::table('ops.subscribers')->where('store_id', Fx::storeId('ae'))->delete();
 });
 
 /**
@@ -79,7 +81,8 @@ it('shows each kind in words, hides a customer\'s email saying why, and removes 
 
     // This reader may not view the store's customers: the email stays hidden, and the reason is there to read.
     expect((string) $page->script("document.querySelector('[data-test=\"subscriber-{$customer}\"] [data-test=\"email\"]').textContent"))->toBe('Hidden');
-    $page->hover("[data-test=\"subscriber-{$customer}\"] [data-test=\"hidden-email\"]");
+    // By keyboard, not only the mouse: the word can take the focus.
+    $page->script("(() => { document.querySelector('[data-test=\"subscriber-{$customer}\"] [data-test=\"hidden-email\"]').focus(); })()");
     expect(browserSoon($page, "[...document.querySelectorAll('[role=\"tooltip\"]')].some((tip) => tip.textContent.includes('You may not view this store'))"))->toBeTrue();
 
     // A customer's own switch decides: no menu on their row.
@@ -87,7 +90,7 @@ it('shows each kind in words, hides a customer\'s email saying why, and removes 
 
     // Keep leaves the guest; Remove takes them off.
     $page->click("[data-test=\"more-{$guest}\"]")->click('[data-test="remove"]');
-    expect(browserSoon($page, "document.body.textContent.includes('Remove guest{$run}@example.test from the newsletter?')"))->toBeTrue();
+    expect(browserSoon($page, "document.body.textContent.replace(/[\\u2068\\u2069]/g, '').includes('Remove guest{$run}@example.test from the newsletter?')"))->toBeTrue();
     $page->click('[data-test="modal-cancel"]');
     expect(browserSoon($page, "document.querySelector('[role=\"alertdialog\"]') === null"))->toBeTrue()
         ->and(DB::table('ops.subscribers')->where('id', $guest)->exists())->toBeTrue();
@@ -119,29 +122,53 @@ it('keeps the rows shown with Show More when a guest below them is removed', fun
     $page->navigate('/admin/newsletter/subscribers?store=ae', BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "{$rows}.length === 50"))->toBeTrue();
     $page->click('[data-test="more"]');
-    // The first written is the last of the newest 55: on the second page.
-    expect(browserSoon($page, "document.querySelector('[data-test=\"more-{$ids[0]}\"]') !== null"))->toBeTrue();
-    $shown = (int) $page->script("{$rows}.length");
-    $next = $ids[1];
+    // Oldest first: the last written are on the second page.
+    $deep = $ids[50];
+    $next = $ids[51];
+    $gone = $ids[52];
+    expect(browserSoon($page, "document.querySelector('[data-test=\"more-{$deep}\"]') !== null"))->toBeTrue()
+        ->and((int) $page->script("{$rows}.length"))->toBe(55);
 
-    $page->script("(() => { document.querySelector('[data-test=\"more-{$ids[0]}\"]').scrollIntoView({ block: 'center' }); })()");
-    $page->click("[data-test=\"more-{$ids[0]}\"]")->click('[data-test="remove"]');
+    $page->script("(() => { document.querySelector('[data-test=\"more-{$deep}\"]').scrollIntoView({ block: 'center' }); })()");
+    expect(browserSoon($page, 'window.scrollY > 0'))->toBeTrue();
+    $place = (int) $page->script('Math.round(window.scrollY)');
+    $page->click("[data-test=\"more-{$deep}\"]")->click('[data-test="remove"]');
     expect(browserSoon($page, "document.querySelector('[data-test=\"confirm-remove\"]') !== null"))->toBeTrue();
     $page->click('[data-test="confirm-remove"]');
 
-    expect(browserSoon($page, "document.querySelector('[data-test=\"subscriber-{$ids[0]}\"]') === null && document.querySelector('[data-test=\"subscriber-{$next}\"]') !== null && {$rows}.length === ".($shown - 1)))->toBeTrue("{$page->script("{$rows}.length")} rows of {$shown}");
+    // The row goes, every other row stays, and the place stays, but for the one row the page is now shorter by.
+    expect(browserSoon($page, "document.querySelector('[data-test=\"subscriber-{$deep}\"]') === null && document.querySelector('[data-test=\"subscriber-{$next}\"]') !== null && {$rows}.length === 54"))->toBeTrue("{$page->script("{$rows}.length")} rows of 54")
+        ->and(browserSoon($page, "window.scrollY > {$place} - 60", 5))->toBeTrue("scrolled to {$page->script('Math.round(window.scrollY)')}, was {$place}");
+
+    // A refusal at this depth keeps its words on the page once the rows are back: another's removal got there first.
+    DB::table('ops.subscribers')->where('id', $gone)->delete();
+    $page->script("(() => { document.querySelector('[data-test=\"more-{$gone}\"]').scrollIntoView({ block: 'center' }); })()");
+    $page->click("[data-test=\"more-{$gone}\"]")->click('[data-test="remove"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"confirm-remove\"]') !== null"))->toBeTrue();
+    $page->click('[data-test="confirm-remove"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"subscriber-{$gone}\"]') === null && document.querySelector('[data-test=\"subscriber-{$next}\"]') !== null"))->toBeTrue();
+    usleep(500_000);
+    expect((bool) $page->script("document.querySelector('main').textContent.includes('This subscriber isn')"))->toBeTrue();
     $page->assertNoJavaScriptErrors();
 });
 
 it('draws right to left in Arabic, in Latin digits, and fits a phone', function () {
     $run = substr((string) hrtime(true), -10);
-    subscribersBrowserRow("phone{$run}@example.test");
+    $long = 'a-very-long-address-with-no-break-in-it-'.$run.'@example.test';
+    $guest = subscribersBrowserRow($long);
     $page = subscribersBrowser(['ops.newsletter.manage'], 'ar');
     $page->resize(375, 812);
 
     $page->navigate('/admin/newsletter/subscribers?store=ae', BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.documentElement.dir === 'rtl' && document.querySelector('[data-test^=\"subscriber-\"]') !== null"))->toBeTrue()
         ->and((bool) $page->script('/[٠-٩]/.test(document.body.textContent)'))->toBeFalse()
+        ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+
+    // The question with a long address fits the phone too, wrapped inside its dialog.
+    $page->script("(() => { document.querySelector('[data-test=\"more-{$guest}\"]').scrollIntoView({ block: 'center' }); })()");
+    $page->click("[data-test=\"more-{$guest}\"]")->click('[data-test="remove"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"confirm-remove\"]') !== null"))->toBeTrue()
+        ->and(browserSoon($page, "(() => { const box = document.querySelector('[role=\"alertdialog\"] h2'); return box !== null && box.scrollWidth <= box.clientWidth; })()"))->toBeTrue()
         ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
     $page->assertNoJavaScriptErrors();
 });

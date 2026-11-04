@@ -52,6 +52,7 @@ final readonly class SubscribersController
             $page->next,
             StoreChoiceData::listOf($choices->forJobs(OpsPermissions::NEWSLETTER_MANAGE)),
             $store->code,
+            $store->timezone,
         ))->toArray(), self::WORDS);
     }
 

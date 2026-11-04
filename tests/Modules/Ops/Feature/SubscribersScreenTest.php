@@ -21,7 +21,7 @@ use function Pest\Laravel\seed;
 
 /*
 | O7, the Subscribers page (ops.md §4.15): a plain visit gets the page and JSON stays for whoever asks; a removal the
-| page sends goes back with its words. ScreensReadsTest and WrittenRoutesTest keep the JSON answers.
+| page sends goes back with its words. ScreensReadsTest keeps the removal's JSON answers.
 |
 | Every helper here is named after this file's subject: a Pest file's functions are global.
 */
@@ -88,6 +88,7 @@ it('gives a plain visit the page, and JSON to whoever asks', function () {
     $browser->get('/admin/newsletter/subscribers?store=sa')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         ->component('Ops/Admin/Subscribers')
         ->where('storeCode', 'sa')
+        ->where('storeTimezone', 'Asia/Riyadh')
         ->has('stores', 2)
         ->has('subscribers', 1)
         ->where('subscribers.0.id', $guest)
@@ -95,6 +96,21 @@ it('gives a plain visit the page, and JSON to whoever asks', function () {
         ->where('translations', fn (Collection $words): bool => $words->has('ops::admin_subscribers.title') && $words->has('ops::errors.subscriber_not_found.detail')));
 
     expect(array_keys($browser->get('/admin/newsletter/subscribers?store=sa', ['HTTP_ACCEPT' => 'application/json'])->assertOk()->json()))->toBe(['subscribers', 'next']);
+});
+
+it('hides a customer\'s email from a reader who may not view the store\'s customers, on the page and in the JSON', function () {
+    $email = 'customer@example.test';
+    DB::table('ops.subscribers')->insert([
+        'id' => strtolower((string) Str::ulid()), 'store_id' => Fx::storeId('sa'), 'email' => $email, 'locale' => 'en', 'kind' => 'CUSTOMER',
+        'customer_id' => Fx::customer($email), 'token_hash' => null, 'created_at' => now(), 'confirmed_at' => now(),
+    ]);
+
+    $hidden = subscribersScreenStaff(Fx::staffWith(['ops.newsletter.manage'], ['sa'], RoleLevel::Admin));
+    $hidden->get('/admin/newsletter/subscribers?store=sa')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('subscribers.0.email', null));
+    expect($hidden->get('/admin/newsletter/subscribers?store=sa', ['HTTP_ACCEPT' => 'application/json'])->assertOk()->json('subscribers.0.email'))->toBeNull();
+
+    $shown = subscribersScreenStaff(Fx::staffWith(['ops.newsletter.manage', 'access.customer.view'], ['sa'], RoleLevel::Admin));
+    $shown->get('/admin/newsletter/subscribers?store=sa')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('subscribers.0.email', $email));
 });
 
 it('refuses the page to someone without ops.newsletter.manage', function () {

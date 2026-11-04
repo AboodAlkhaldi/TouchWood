@@ -12,6 +12,7 @@ import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { AdminLayout } from '@/layouts/AdminLayout';
+import { isolate } from '@/lib/bidi';
 import { useKeptDepth } from '@/lib/kept-depth';
 import { useTranslator } from '@/lib/t';
 import { useLoadMore } from '@/lib/use-load-more';
@@ -29,7 +30,8 @@ export default function Subscribers({ subscribers, next, stores, storeCode }: Su
     const list = useLoadMore<SubscriberData>(subscribers, (subscriber) => subscriber.id);
     const more = (cursor: string) => list.more(LIST, { store: storeCode, after: cursor }, ['subscribers', 'next']);
     // A removal sends back the first page: the rows shown with Show More are asked for again.
-    useKeptDepth(list, next, more);
+    const restoring = useKeptDepth(list, next, more);
+    const table = useRef<HTMLDivElement>(null);
     const [removing, setRemoving] = useState<SubscriberData | null>(null);
     const [busy, setBusy] = useState(false);
     const opener = useRef<HTMLElement | null>(null);
@@ -48,7 +50,7 @@ export default function Subscribers({ subscribers, next, stores, storeCode }: Su
                     </Empty>
                 ) : (
                     <>
-                        <div className="material-base max-w-full overflow-x-auto">
+                        <div ref={table} tabIndex={-1} className="material-base max-w-full overflow-x-auto">
                             <Table>
                                 <TableCaption className="sr-only">{t('ops::admin_subscribers.title')}</TableCaption>
                                 <TableHeader className="bg-surface-sunken">
@@ -59,7 +61,9 @@ export default function Subscribers({ subscribers, next, stores, storeCode }: Su
                                         <TableHead>{t('ops::admin_subscribers.columns.state')}</TableHead>
                                         <TableHead>{t('ops::admin_subscribers.columns.joined')}</TableHead>
                                         <TableHead>{t('ops::admin_subscribers.columns.confirmed')}</TableHead>
-                                        <TableHead className="w-10" />
+                                        <TableHead className="w-10">
+                                            <span className="sr-only">{t('ops::admin_subscribers.columns.actions')}</span>
+                                        </TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -87,9 +91,9 @@ export default function Subscribers({ subscribers, next, stores, storeCode }: Su
                                                 {subscriber.confirmed ? t('ops::admin_subscribers.state.confirmed') : t('ops::admin_subscribers.state.waiting')}
                                             </TableCell>
                                             <TableCell className="whitespace-nowrap text-ink-muted">
-                                                <Time value={subscriber.createdAt} mode="absolute" />
+                                                <Time value={subscriber.createdAt} />
                                             </TableCell>
-                                            <TableCell className="whitespace-nowrap text-ink-muted">{subscriber.confirmedAt === null ? <span className="text-ink-subtle">—</span> : <Time value={subscriber.confirmedAt} mode="absolute" />}</TableCell>
+                                            <TableCell className="whitespace-nowrap text-ink-muted">{subscriber.confirmedAt === null ? <span className="text-ink-subtle">—</span> : <Time value={subscriber.confirmedAt} />}</TableCell>
                                             <TableCell className="text-end">
                                                 {subscriber.kind === 'GUEST' ? (
                                                     <RowActions
@@ -106,7 +110,7 @@ export default function Subscribers({ subscribers, next, stores, storeCode }: Su
                                 </TableBody>
                             </Table>
                         </div>
-                        {next !== null ? <LoadMoreButton loading={list.loading} onClick={() => more(next)} /> : null}
+                        {next !== null ? <LoadMoreButton loading={list.loading || restoring} onClick={() => more(next)} /> : null}
                     </>
                 )}
             </div>
@@ -117,7 +121,7 @@ export default function Subscribers({ subscribers, next, stores, storeCode }: Su
                     open
                     onOpenChange={(open) => (open ? undefined : setRemoving(null))}
                     returnFocusTo={opener}
-                    title={t('ops::admin_subscribers.remove.title', { email: removing.email ?? '' })}
+                    title={t('ops::admin_subscribers.remove.title', { email: isolate(removing.email ?? '') })}
                     description={t('ops::admin_subscribers.remove.body')}
                     busy={busy}
                     cancelLabel={t('ops::admin_subscribers.remove.keep')}
@@ -134,6 +138,10 @@ export default function Subscribers({ subscribers, next, stores, storeCode }: Su
                                         // Without it the page starts over, and the rows shown with Show More can't be asked for again.
                                         preserveState: true,
                                         onStart: () => setBusy(true),
+                                        // The row's ⋯ button goes with the row: the focus goes back to the table.
+                                        onSuccess: () => {
+                                            opener.current = table.current;
+                                        },
                                         onFinish: () => {
                                             setBusy(false);
                                             setRemoving(null);

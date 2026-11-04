@@ -20,5 +20,7 @@ final class SubscribersListPageData extends Data
         public ?string $next,
         public array $stores,
         public string $storeCode,
+        /** The store's zone, which the list's moments are written in. */
+        public string $storeTimezone,
     ) {}
 }

@@ -62,12 +62,12 @@ export function PanelDialog({
         <div className="grid max-h-[70vh] gap-4 overflow-y-auto p-6">
             {destructive ? (
                 <AlertDialogHeader>
-                    <AlertDialogTitle className="text-heading-20 text-ink">{title}</AlertDialogTitle>
+                    <AlertDialogTitle className="text-heading-20 wrap-anywhere text-ink">{title}</AlertDialogTitle>
                     <AlertDialogDescription className="text-copy-14 text-ink-muted">{description}</AlertDialogDescription>
                 </AlertDialogHeader>
             ) : (
                 <DialogHeader>
-                    <DialogTitle className="text-heading-20 text-ink">{title}</DialogTitle>
+                    <DialogTitle className="text-heading-20 wrap-anywhere text-ink">{title}</DialogTitle>
                     <DialogDescription className="text-copy-14 text-ink-muted">{description}</DialogDescription>
                 </DialogHeader>
             )}

@@ -198,6 +198,7 @@ subscribers: SubscriberData[],
 next: string | null,
 stores: StoreChoiceData[],
 storeCode: string,
+storeTimezone: string,
 };
 export type SubscribersPageData = {
 subscribers: SubscriberData[],
