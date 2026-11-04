@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Ops\Domain\ValueObject;
 
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
+use Shared\Domain\Text\LatinDigits;
 
 /**
  * What staff write to customers (ops.md §1.7, §1.8): a title and a line in both languages - the bell's
@@ -38,10 +39,10 @@ final readonly class WrittenText
     public static function of(string $titleAr, string $titleEn, string $bodyAr, string $bodyEn, ?string $link = null): self
     {
         $texts = [
-            'title_ar' => [trim($titleAr), self::TITLE_MAX],
-            'title_en' => [trim($titleEn), self::TITLE_MAX],
-            'body_ar' => [trim($bodyAr), self::BODY_MAX],
-            'body_en' => [trim($bodyEn), self::BODY_MAX],
+            'title_ar' => [LatinDigits::of(trim($titleAr)), self::TITLE_MAX],
+            'title_en' => [LatinDigits::of(trim($titleEn)), self::TITLE_MAX],
+            'body_ar' => [LatinDigits::of(trim($bodyAr)), self::BODY_MAX],
+            'body_en' => [LatinDigits::of(trim($bodyEn)), self::BODY_MAX],
         ];
 
         foreach ($texts as $field => [$text, $max]) {
