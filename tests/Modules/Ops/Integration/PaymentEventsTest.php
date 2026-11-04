@@ -36,12 +36,16 @@ use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
+use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
+use Modules\Sales\Application\Command\ApproveOrder\ApproveOrderHandler;
 use Modules\Sales\Application\Command\CancelOrder\CancelOrder;
 use Modules\Sales\Application\Command\CancelOrder\CancelOrderHandler;
 use Modules\Sales\Application\Command\FollowCheckoutPayment\FollowCheckoutPayment;
 use Modules\Sales\Application\Command\FollowCheckoutPayment\FollowCheckoutPaymentHandler;
 use Modules\Sales\Application\Command\FollowRequestPayment\FollowRequestPayment;
 use Modules\Sales\Application\Command\FollowRequestPayment\FollowRequestPaymentHandler;
+use Modules\Sales\Application\Command\MarkCameBack\MarkCameBack;
+use Modules\Sales\Application\Command\MarkCameBack\MarkCameBackHandler;
 use Modules\Sales\Application\Command\OpenCheckoutPayment\OpenCheckoutPayment;
 use Modules\Sales\Application\Command\OpenCheckoutPayment\OpenCheckoutPaymentHandler;
 use Modules\Sales\Application\Command\OpenRequestPayment\OpenRequestPayment;
@@ -58,6 +62,8 @@ use Modules\Sales\Application\Command\RejectOrder\RejectOrder;
 use Modules\Sales\Application\Command\RejectOrder\RejectOrderHandler;
 use Modules\Sales\Application\Command\RequestOrderPayment\RequestOrderPayment;
 use Modules\Sales\Application\Command\RequestOrderPayment\RequestOrderPaymentHandler;
+use Modules\Sales\Application\Command\ShipOrder\ShipOrder;
+use Modules\Sales\Application\Command\ShipOrder\ShipOrderHandler;
 use Modules\Sales\Application\Command\UploadTransferDocument\UploadTransferDocument;
 use Modules\Sales\Application\Command\UploadTransferDocument\UploadTransferDocumentHandler;
 use Modules\Sales\Application\Command\WithdrawOrderRequest\WithdrawOrderRequest;
@@ -174,6 +180,18 @@ function paymentEventsPayRequest(FakeMyFatoorah $fake, string $number, string $r
     app(PayOrderRequestHandler::class)->handle(new PayOrderRequest($store, $number, $session, 'en', 'https://shop.example.test/return'));
     $fake->paid(number_format($minor / 100, 2, '.', ''));
     app(FollowRequestPaymentHandler::class)->handle(new FollowRequestPayment($store, $number, $requestId));
+}
+
+/** The order approved, shipped and come back, by staff: UNDELIVERED. */
+function paymentEventsCameBack(string $order): void
+{
+    Cx::asSuperAdmin(static function () use ($order): void {
+        app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
+        DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor')]);
+        app(ShipOrderHandler::class)->handle(new ShipOrder($order, otherCarrier: 'SMSA', trackingNumber: 'T-100'));
+        app(MarkCameBackHandler::class)->handle(new MarkCameBack($order, []));
+    });
+    expect(DB::table('sales.orders')->where('id', $order)->value('status'))->toBe('UNDELIVERED');
 }
 
 function paymentEventsEmailOf(string $customer): string
@@ -352,7 +370,7 @@ describe('C11: pay the remaining amount', function () {
             return $event;
         }],
         'the order came back' => [function (PaymentRequested $event, string $order): PaymentRequested {
-            DB::table('sales.orders')->where('id', $order)->update(['status' => 'UNDELIVERED', 'shipment_status' => 'CAME_BACK', 'came_back_at' => CarbonImmutable::now(), 'came_back_id' => Fx::staff(), 'due_minor' => 0]);
+            paymentEventsCameBack($order);
 
             return $event;
         }],
@@ -658,7 +676,7 @@ describe('S6: a transfer overdue', function () {
             return new TransferOverdue((string) Str::uuid(), $order, Fx::storeId('sa'), CarbonImmutable::now());
         }],
         'came back since' => [function (string $order): TransferOverdue {
-            DB::table('sales.orders')->where('id', $order)->update(['status' => 'UNDELIVERED', 'shipment_status' => 'CAME_BACK', 'came_back_at' => CarbonImmutable::now(), 'came_back_id' => Fx::staff(), 'due_minor' => 0]);
+            paymentEventsCameBack($order);
 
             return new TransferOverdue((string) Str::uuid(), $order, Fx::storeId('sa'), CarbonImmutable::now());
         }],
