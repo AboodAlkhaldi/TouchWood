@@ -68,6 +68,7 @@ final readonly class StaffMessagesController
             $page->next,
             StoreChoiceData::listOf($choices->forJobs(OpsPermissions::MESSAGE_SEND_ONE, OpsPermissions::MESSAGE_SEND_MANY)),
             $store->code,
+            $store->timezone,
         ))->toArray(), self::WORDS);
     }
 

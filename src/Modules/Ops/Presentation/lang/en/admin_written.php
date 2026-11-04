@@ -141,6 +141,7 @@ return [
             'sends' => 'Sends',
             'reached' => 'Reached',
             'written_by' => 'Written By',
+            'actions' => 'Actions',
         ],
         'sent' => 'Sent',
         'menu' => [

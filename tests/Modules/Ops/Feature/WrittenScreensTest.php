@@ -107,6 +107,7 @@ it('gives a plain visit the messages page, and JSON to whoever asks', function (
     $browser->get('/admin/messages?store=ae')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         ->component('Ops/Admin/Messages/Index')
         ->where('storeCode', 'ae')
+        ->has('storeTimezone')
         ->has('stores', 2)
         ->has('messages', 0)
         ->where('next', null)
@@ -121,7 +122,7 @@ it('gives a plain visit the notices page with the store\'s zone, and JSON to who
     $browser->get('/admin/notices')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         ->component('Ops/Admin/Notices/Index')
         ->where('storeCode', 'sa')
-        ->where('timezone', 'Asia/Riyadh')
+        ->where('storeTimezone', 'Asia/Riyadh')
         ->has('stores', 1)
         ->has('notices', 0));
 

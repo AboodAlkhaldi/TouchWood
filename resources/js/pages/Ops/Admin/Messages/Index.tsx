@@ -4,6 +4,7 @@ import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { channelWords, Reached, ReadBackDialog, ReadBackLine, RefreshWhileSending, SentAt, WrittenStatus, type ReadBack } from '@/components/ops/written-list';
 import { FormError } from '@/components/FormError';
 import { StoreFilter } from '@/components/StoreFilter';
+import { Time } from '@/components/Time';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyContent, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -127,7 +128,7 @@ export default function Index({ messages, next, stores, storeCode }: MessagesLis
                                             </TableCell>
                                             <TableCell className="text-ink-muted">{message.sentBy}</TableCell>
                                             <TableCell className="whitespace-nowrap text-ink-muted">
-                                                <SentAt value={message.createdAt} />
+                                                <Time value={message.createdAt} />
                                             </TableCell>
                                         </TableRow>
                                     ))}

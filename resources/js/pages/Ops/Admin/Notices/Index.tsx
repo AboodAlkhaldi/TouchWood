@@ -27,14 +27,15 @@ import type { SharedProps } from '@/types/page';
 
 const LIST = '/admin/notices';
 
-export default function Index({ notices, next, stores, storeCode, timezone }: NoticesListPageData) {
+export default function Index({ notices, next, stores, storeCode, storeTimezone }: NoticesListPageData) {
     const t = useTranslator();
     const inLanguage = useInLanguage();
     const { locale } = usePage<SharedProps>().props;
     const list = useLoadMore<NoticeData>(notices, (notice) => notice.id);
     const more = (cursor: string) => list.more(LIST, { store: storeCode, after: cursor }, ['notices', 'next']);
     // A cancel sends back the first page: the rows shown with Show More are asked for again, so the row stays, Cancelled.
-    useKeptDepth(list, next, more);
+    const restoring = useKeptDepth(list, next, more);
+    const table = useRef<HTMLDivElement>(null);
     const [open, setOpen] = useState<NoticeData | null>(null);
     const [cancelling, setCancelling] = useState<NoticeData | null>(null);
     const [busy, setBusy] = useState(false);
@@ -65,7 +66,7 @@ export default function Index({ notices, next, stores, storeCode, timezone }: No
                     )}
                 </ReadBackLine>
                 <ReadBackLine label={t('ops::admin_written.read_back.sends')}>
-                    {when(notice)} <span className="text-copy-13 text-ink-muted">{zoneName(timezone, locale)}</span>
+                    {when(notice)} <span className="text-copy-13 text-ink-muted">{zoneName(storeTimezone, locale)}</span>
                 </ReadBackLine>
                 <ReadBackLine label={t('ops::admin_written.read_back.written_by')}>{notice.writtenBy}</ReadBackLine>
                 {notice.startedAt === null ? null : (
@@ -107,7 +108,7 @@ export default function Index({ notices, next, stores, storeCode, timezone }: No
                     </Empty>
                 ) : (
                     <>
-                        <div className="material-base max-w-full overflow-x-auto">
+                        <div ref={table} tabIndex={-1} className="material-base max-w-full overflow-x-auto">
                             <Table>
                                 <TableCaption className="sr-only">{t('ops::admin_written.notices.title')}</TableCaption>
                                 <TableHeader className="bg-surface-sunken">
@@ -119,7 +120,9 @@ export default function Index({ notices, next, stores, storeCode, timezone }: No
                                         <TableHead>{t('ops::admin_written.notices.columns.sends')}</TableHead>
                                         <TableHead>{t('ops::admin_written.notices.columns.reached')}</TableHead>
                                         <TableHead>{t('ops::admin_written.notices.columns.written_by')}</TableHead>
-                                        <TableHead className="w-10" />
+                                        <TableHead className="w-10">
+                                            <span className="sr-only">{t('ops::admin_written.notices.columns.actions')}</span>
+                                        </TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -170,7 +173,7 @@ export default function Index({ notices, next, stores, storeCode, timezone }: No
                                 </TableBody>
                             </Table>
                         </div>
-                        {next !== null ? <LoadMoreButton loading={list.loading} onClick={() => more(next)} /> : null}
+                        {next !== null ? <LoadMoreButton loading={list.loading || restoring} onClick={() => more(next)} /> : null}
                     </>
                 )}
             </div>
@@ -200,6 +203,10 @@ export default function Index({ notices, next, stores, storeCode, timezone }: No
                                         // Without it the page starts over, and the rows shown with Show More can't be asked for again.
                                         preserveState: true,
                                         onStart: () => setBusy(true),
+                                        // The row's ⋯ button goes when it is cancelled: the focus goes back to the table.
+                                        onSuccess: () => {
+                                            opener.current = table.current;
+                                        },
                                         onFinish: () => {
                                             setBusy(false);
                                             setCancelling(null);

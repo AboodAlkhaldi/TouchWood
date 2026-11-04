@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { router } from '@inertiajs/react';
 
 /*
@@ -12,7 +12,7 @@ import { router } from '@inertiajs/react';
 | partial reload (Show More itself, the drawer) leaves it as it is.
 */
 
-type List = { pages: number; loading: boolean };
+type List = { pages: number; loading: boolean; failed: number };
 
 /**
  * @param more  asks for the page after `next`, appended to the list
@@ -23,8 +23,14 @@ export function useKeptDepth(list: List, next: string | null, more: (cursor: str
     // A change has gone out, and its first page hasn't replaced the list yet. The answer's `next` arrives a render
     // before the list's page count falls: without this, that render took the depth as reached and forgot it.
     const waiting = useRef(false);
+    // Where the page was when the change went out: on the short first page the browser cuts the place down.
+    const place = useRef<number | null>(null);
     const shown = useRef(list.pages);
     shown.current = list.pages;
+    const failures = useRef(list.failed);
+    failures.current = list.failed;
+    const failedBefore = useRef(list.failed);
+    const [, redraw] = useState(0);
 
     useEffect(
         () =>
@@ -34,9 +40,12 @@ export function useKeptDepth(list: List, next: string | null, more: (cursor: str
                 if (visit.method !== 'get') {
                     wanted.current = Math.max(wanted.current, shown.current);
                     waiting.current = true;
+                    failedBefore.current = failures.current;
+                    place.current = wanted.current > 1 ? window.scrollY : null;
                 } else if (visit.only.length === 0 && !visit.prefetch) {
                     wanted.current = 1;
                     waiting.current = false;
+                    place.current = null;
                 }
             }),
         [],
@@ -48,6 +57,11 @@ export function useKeptDepth(list: List, next: string | null, more: (cursor: str
         if (!restoring) {
             if (!waiting.current) {
                 wanted.current = 1;
+
+                if (place.current !== null) {
+                    window.scrollTo(window.scrollX, place.current);
+                    place.current = null;
+                }
             }
 
             return;
@@ -55,12 +69,20 @@ export function useKeptDepth(list: List, next: string | null, more: (cursor: str
 
         waiting.current = false;
 
+        // A page that never came is not asked for again and again: the list stays as deep as it got.
+        if (list.failed !== failedBefore.current) {
+            wanted.current = list.pages;
+            redraw((count) => count + 1);
+
+            return;
+        }
+
         if (!list.loading && next !== null) {
             more(next);
         }
         // Each page that arrives asks for the next one.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [list.pages, list.loading, next, restoring]);
+    }, [list.pages, list.loading, list.failed, next, restoring]);
 
     return restoring;
 }

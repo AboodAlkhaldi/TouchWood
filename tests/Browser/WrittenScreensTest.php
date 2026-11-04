@@ -284,7 +284,7 @@ it('lists a segment with no members but offers it to nobody, and asks naming the
     $page->click("[data-test=\"segment-{$held}\"]");
     writtenBrowserBoxes($page, "Segment {$run}");
     $page->click('[data-test="send"]');
-    expect(browserSoon($page, "document.querySelector('[role=\"dialog\"] h2')?.textContent === 'Send to Held {$run} (1 member)?'"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[role=\"dialog\"] h2')?.textContent.replace(/[\u2068\u2069]/g, '') === 'Send to Held {$run} (1 member)?'"))->toBeTrue();
     $page->click('[data-test="confirm-send"]');
 
     expect(browserSoon($page, "window.location.pathname === '/admin/messages' && document.querySelector('[data-test=\"to\"]')?.textContent.includes('Held {$run}')"))->toBeTrue()
@@ -398,13 +398,28 @@ it('keeps a row reached with Show More in the list when it is cancelled, saying 
     $shown = (int) $page->script("{$rows}.length");
 
     $page->script("(() => { document.querySelector('[data-test=\"more-{$deep}\"]').scrollIntoView({ block: 'center' }); })()");
+    expect(browserSoon($page, 'window.scrollY > 0'))->toBeTrue();
+    $place = (int) $page->script('Math.round(window.scrollY)');
     $page->click("[data-test=\"more-{$deep}\"]")->click('[data-test="cancel-notice"]');
     expect(browserSoon($page, "document.body.textContent.includes('Cancel this notice?')"))->toBeTrue();
     $page->click('[data-test="confirm-cancel-notice"]');
 
     expect(browserSoon($page, "document.querySelector('[data-test=\"notice-{$deep}\"] [data-test=\"status\"]')?.textContent === 'Cancelled'"))->toBeTrue(
         'saved as '.DB::table('ops.notices')->where('id', $deep)->value('status').", {$page->script("{$rows}.length")} rows of {$shown}",
-    )->and((int) $page->script("{$rows}.length"))->toBe($shown);
+    )->and((int) $page->script("{$rows}.length"))->toBe($shown)
+        // The place stays: the browser cuts it down while the first page alone is drawn.
+        ->and(browserSoon($page, "Math.abs(window.scrollY - {$place}) < 5", 5))->toBeTrue("scrolled to {$page->script('Math.round(window.scrollY)')}, was {$place}");
+
+    // A refusal at this depth keeps its words on the page once the rows are back.
+    $other = $ids[1];
+    DB::table('ops.notices')->where('id', $other)->update(['status' => 'SENT', 'started_at' => now(), 'finished_at' => now()]);
+    $page->script("(() => { document.querySelector('[data-test=\"more-{$other}\"]').scrollIntoView({ block: 'center' }); })()");
+    $page->click("[data-test=\"more-{$other}\"]")->click('[data-test="cancel-notice"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"confirm-cancel-notice\"]') !== null"))->toBeTrue();
+    $page->click('[data-test="confirm-cancel-notice"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"notice-{$other}\"] [data-test=\"status\"]')?.textContent === 'Sent' && {$rows}.length === {$shown}"))->toBeTrue();
+    usleep(500_000);
+    expect((bool) $page->script("document.querySelector('main').textContent.includes('has started sending')"))->toBeTrue();
     $page->assertNoJavaScriptErrors();
 });
 
@@ -429,7 +444,7 @@ it('keeps a live segment on Edit, and asks before Send Now', function () {
     $page->click('[data-test="when-none"]');
     expect(browserSoon($page, "document.querySelector('[data-test=\"send\"]').textContent.includes('Send Now')"))->toBeTrue();
     $page->click('[data-test="send"]');
-    expect(browserSoon($page, "document.querySelector('[role=\"dialog\"] h2')?.textContent === 'Send to Kept {$run} (1 member)?'"))->toBeTrue()
+    expect(browserSoon($page, "document.querySelector('[role=\"dialog\"] h2')?.textContent.replace(/[\u2068\u2069]/g, '') === 'Send to Kept {$run} (1 member)?'"))->toBeTrue()
         ->and(DB::table('ops.notices')->where('id', $notice)->value('status'))->toBe('SCHEDULED');
     $page->click('[data-test="confirm-send"]');
     expect(browserSoon($page, "window.location.pathname === '/admin/notices' && document.body.textContent.includes('Notice on its way.')"))->toBeTrue();

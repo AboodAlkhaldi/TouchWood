@@ -61,6 +61,7 @@ messages: StaffMessageData[],
 next: string | null,
 stores: StoreChoiceData[],
 storeCode: string,
+storeTimezone: string,
 };
 export type NoticeData = {
 id: string,
@@ -104,7 +105,7 @@ notices: NoticeData[],
 next: string | null,
 stores: StoreChoiceData[],
 storeCode: string,
-timezone: string,
+storeTimezone: string,
 };
 export type NoticesPageData = {
 notices: NoticeData[],

@@ -21,6 +21,6 @@ final class NoticesListPageData extends Data
         public array $stores,
         public string $storeCode,
         /** The store's zone, named beside the moments its notices show. */
-        public string $timezone,
+        public string $storeTimezone,
     ) {}
 }

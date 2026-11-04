@@ -10,6 +10,7 @@ import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@
 import { Field, FieldDescription, FieldError, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Spinner } from '@/components/ui/spinner';
+import { isolate } from '@/lib/bidi';
 import { figure, toLatinDigits } from '@/lib/digits';
 import { useInLanguage } from '@/lib/in-language';
 import { readJson, useLiveRead } from '@/lib/live-read';
@@ -422,7 +423,7 @@ export function SendToManyDialog({
         };
     }, [segment, store.code, attempt]);
 
-    const values = { count: figure(locale, count ?? 0), store: store.name, segment: segment === null ? '' : inLanguage(segment.nameAr, segment.nameEn) };
+    const values = { count: figure(locale, count ?? 0), store: isolate(store.name), segment: segment === null ? '' : isolate(inLanguage(segment.nameAr, segment.nameEn)) };
     const asked = (many: string, one: string) => t(count === 1 ? one : many, values);
     const title =
         count === null
