@@ -36,6 +36,9 @@ final class FakeMyFatoorah
 
     public ?string $invoiceId = self::INVOICE_ID;
 
+    /** A page of this site to send the bank's step to, for a real browser; read when the charge is answered, inside the request. */
+    public ?string $framePath = null;
+
     public string $status = 'INPROGRESS';
 
     public string $invoiceStatus = 'PENDING';
@@ -119,7 +122,7 @@ final class FakeMyFatoorah
         $this->sessionUsed = true;
 
         return Http::response(['IsSuccess' => true, 'Message' => '', 'ValidationErrors' => null, 'Data' => [
-            'InvoiceId' => $this->invoiceId, 'PaymentId' => self::PAYMENT_ID, 'PaymentURL' => self::FRAME_URL, 'PaymentCompleted' => false, 'TransactionDetails' => null,
+            'InvoiceId' => $this->invoiceId, 'PaymentId' => self::PAYMENT_ID, 'PaymentURL' => $this->framePath === null ? self::FRAME_URL : url($this->framePath), 'PaymentCompleted' => false, 'TransactionDetails' => null,
             'Card' => ['Number' => '446404xxxxxx0007', 'Brand' => 'Visa'],
         ]], 201);
     }

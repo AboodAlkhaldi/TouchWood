@@ -122,6 +122,11 @@ describe('the admin menu', function () {
             'marketing/coupons',
             'marketing/segments',
             'marketing/gift_levels',
+            // Ops' notices and messages (ops.md §4.15).
+            'marketing/notices',
+            'marketing/messages',
+            // Ops' Subscribers (ops.md §4.15).
+            'marketing/subscribers',
             'support/reviews',
             'support/questions',
             'support/reasons',

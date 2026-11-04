@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
 import { Minus, Plus, X } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
@@ -7,6 +7,7 @@ import { FormError } from '@/components/FormError';
 import { Money } from '@/components/Money';
 import { type CardFacts, ProductCards, useCardFacts } from '@/components/shop/ProductCards';
 import { ShopPhoto, type PhotoSizes } from '@/components/shop/ShopPhoto';
+import { ClosedStore, PaymentInTheWay } from '@/components/sales/payment/lazy';
 import { C, plural, Price, useLocale } from '@/components/sales/shop';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -19,7 +20,7 @@ import { figure } from '@/lib/digits';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import type { ShopCardData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
-import type { BuyAgainSkippedData, CartLineData, CartPage } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
+import type { BuyAgainSkippedData, CartLineData, CartPage, CheckoutTryData } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
 
 /*
@@ -40,12 +41,26 @@ export default function Cart(cart: CartPage) {
     const link = useLink();
     const { shop } = usePage<SharedProps>().props;
     const home = shop ? `/${shop.code}/${locale}` : '/';
+    const [closed, setClosed] = useState<CheckoutTryData | null>(null);
+
+    if (closed !== null) {
+        return (
+            <Suspense fallback={null}>
+                <ClosedStore view={closed} />
+            </Suspense>
+        );
+    }
 
     return (
         <StorefrontLayout title={t(`${C}.title`)}>
             <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
                 <h1 className="text-heading-24 text-ink">{t(`${C}.title`)}</h1>
                 <FormError />
+                {cart.payment === null ? null : (
+                    <Suspense fallback={null}>
+                        <PaymentInTheWay payment={cart.payment} onClosed={setClosed} />
+                    </Suspense>
+                )}
                 {cart.notice.length > 0 ? <Notice cart={cart} /> : null}
                 {cart.skipped.length > 0 ? <Skipped lines={cart.skipped as unknown as BuyAgainSkippedData[]} /> : null}
 

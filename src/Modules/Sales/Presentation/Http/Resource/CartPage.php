@@ -50,5 +50,7 @@ final class CartPage extends Data
         public int $pointsToEarn = 0,
         public array $bestSellers = [],
         public array $cardFacts = [],
+        /** A try that can still go through, on coming back (payments.md §4.2, Q8). */
+        public ?CheckoutTryData $payment = null,
     ) {}
 }

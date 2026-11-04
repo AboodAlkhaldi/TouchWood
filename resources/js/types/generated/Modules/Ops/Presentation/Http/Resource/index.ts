@@ -51,6 +51,18 @@ entries: InboxEntryData[],
 next: string | null,
 unread: number,
 };
+export type MessageFormPageData = {
+toOne: StoreChoiceData[],
+toMany: StoreChoiceData[],
+storeCode: string,
+};
+export type MessagesListPageData = {
+messages: StaffMessageData[],
+next: string | null,
+stores: StoreChoiceData[],
+storeCode: string,
+storeTimezone: string,
+};
 export type NoticeData = {
 id: string,
 storeCode: string,
@@ -76,6 +88,24 @@ segmentMemberCount: number | null,
 writtenBy: string,
 startedAt: string | null,
 finishedAt: string | null,
+};
+export type NoticeFormPageData = {
+stores: NoticeStoreData[],
+storeCode: string,
+notice: NoticeData | null,
+};
+export type NoticeStoreData = {
+code: string,
+name: string,
+isOn: boolean,
+timezone: string,
+};
+export type NoticesListPageData = {
+notices: NoticeData[],
+next: string | null,
+stores: StoreChoiceData[],
+storeCode: string,
+storeTimezone: string,
 };
 export type NoticesPageData = {
 notices: NoticeData[],
@@ -192,6 +222,13 @@ kind: string,
 confirmed: boolean,
 createdAt: string,
 confirmedAt: string | null,
+};
+export type SubscribersListPageData = {
+subscribers: SubscriberData[],
+next: string | null,
+stores: StoreChoiceData[],
+storeCode: string,
+storeTimezone: string,
 };
 export type SubscribersPageData = {
 subscribers: SubscriberData[],

@@ -5,6 +5,7 @@ import { ActionButton } from '@/components/ActionButton';
 import { Button } from '@/components/ui/button';
 import { SelectField, TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
+import { Note } from '@/components/Note';
 import { Money } from '@/components/Money';
 import { PanelDialog } from '@/components/PanelDialog';
 import { Time, useMoments } from '@/components/Time';
@@ -45,6 +46,7 @@ export default function Order(order: OwnOrderPage) {
         <AccountLayout title={t(`${O}.order.title`, { number: order.number })} page="sales.orders">
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-4">
                 <FormError />
+                {order.isTest ? <Note variant="warning" data-test="order-test-note">{t(`${O}.test_note`)}</Note> : null}
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <span className="flex flex-wrap items-center gap-2 text-copy-14 text-ink-muted">
                         <OrderStatus status={order.status} label={t(`${O}.status.${order.status}`)} />

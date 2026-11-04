@@ -961,7 +961,7 @@ reads the screens needed were added; what stays is what the code cannot give yet
 
 1. **No pages.** No Inertia page, `AdminMenu` entry, Home card or account tab exists for Ops, and the bell is in no
    frame. The three links emails carry (§4.10, §4.11) open JSON until those pages exist. A stop-email page for an off
-   store cannot use the shop's frame (§4.11). **Specified in §4.15 (owner, 2026-11-02); leaves this list as each is built.** Built: SMS Countries (#322), the two bells and their full pages.
+   store cannot use the shop's frame (§4.11). **Specified in §4.15 (owner, 2026-11-02); leaves this list as each is built.** Built: SMS Countries (#322), the two bells and their full pages (#325), Customer Messages and Offer Notices with their forms (#346), Subscribers. Left: Reports, Daily Reports, the newsletter box, the consent switch and box, and the confirm, leave and unsubscribe pages.
    The Home card goes with the Home dashboard job (§9.4 Q5).
 2. **The consent box is on no page.** Outside the generated types, `resources/js` holds neither `marketingConsent` nor
    `marketing_consent`: the account's switch and the registration box have routes and no screen. **§4.15, O12.**
@@ -992,6 +992,20 @@ Refusals: `ops.sms_country_not_found` 404, a country not listed. `ops.sms_countr
 
 **[ACCEPTED by the owner, 2026-11-02.]** §4.1 to §4.14 say what the server gives; this section says what each page does
 with it. Every choice marked Qn or Rn is the owner's answer in §9.4.
+
+**Where the build stands (2026-11-04).** One short branch and PR per job; the owner decides each merge. Everything the pages
+need from the backend is in main (Q14, Q17, Q21, R1). How to carry on: `src/Modules/Ops/README.md`, "Continuing the screens".
+
+| Page | State |
+|---|---|
+| O1, O2 the two bells and their full pages | Built, #325 |
+| O3 to O6 Customer Messages, Offer Notices and their forms | Built, #346 |
+| O7 Subscribers | Built, `feat/ops-subscribers` |
+| O10 SMS Countries | Built, #322 |
+| O8 Reports, with the menu's `reports` section | **Not built** |
+| O9 Daily Reports | **Not built** |
+| O11 the newsletter box, O12 the consent switch and box, O13 the confirm, leave and unsubscribe pages | **Not built** |
+| The Home card (Q5) | Not in this work: it goes with the Home dashboard job |
 
 #### What holds for every page
 
@@ -1128,7 +1142,7 @@ Columns: Title · Audience ("Every customer", the segment, "Deleted segment") ·
 - **When:** `DateTimeField` with **Now**, in the store's clock with the zone named, `send_at` sent as `YYYY-MM-DD HH:MM`. New opens on Now. Edit opens on its `sendAtLocal`. A past time is said under the box.
 - **The button:** **Send Notice** with Now, **Schedule Notice** with a time; on Edit **Save Changes** with a time, **Send Now** with Now.
 - **Now asks first (Q12):** as O4's dialog, naming the store or segment and the count, a whole store in the same two wordings: "Send to :count customers of :store?" with Bell ticked, "Send by email to those of the :count customers of :store who agreed to receive it?" by email alone (owner, 2026-11-02). A scheduled save doesn't ask, and tells in the toast when it goes.
-- **Edit replaces the whole notice** (§4.4): the form always sends every field, `send_at` included, so nothing starts sending by accident. A notice that started while the form was open answers 409: the words show, and the page offers the way back to the list.
+- **Edit replaces the whole notice** (§4.4): the form always sends every field, `send_at` included, so nothing starts sending by accident. A notice that started while the form was open answers 409: the words show, what was typed stays, and the page offers the way back to the list. Opening the Edit address of one that has already started goes to the list, with the same words.
 
 #### O7 · Subscribers
 
@@ -1383,7 +1397,7 @@ Each with where it is tested, in `tests/Modules/Ops` unless named.
   answer `ContentApi` with a stand-in.
 - Over HTTP: `ops.admin.subscribers` (its handler is tested in `NewsletterTest`); the staff's
   `ops.admin.bell.unread` and `ops.admin.bell.read-all`; the box's limit by address; a signed-in customer at the box.
-- No browser test: there are no screens yet (§4.13).
+- No browser test for the pages not built yet (§4.15, "Where the build stands"). Each page built has its own under `tests/Browser`.
 
 ## 9 · Open questions and answers
 

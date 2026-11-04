@@ -35,8 +35,10 @@ Route::prefix(AdminArea::PREFIX)
 
         Route::get('notices', [NoticesController::class, 'index'])->name('ops.admin.notices');
         Route::post('notices', [NoticesController::class, 'store'])->name('ops.admin.notices.store');
-        // The form's segments, named before one notice's own route takes the word.
+        // The form and its segments, named before one notice's own route takes the word.
+        Route::get('notices/new', [NoticesController::class, 'create'])->name('ops.admin.notices.new');
         Route::get('notices/segments', [NoticesController::class, 'segments'])->name('ops.admin.notices.segments');
+        Route::get('notices/{notice}/edit', [NoticesController::class, 'edit'])->name('ops.admin.notices.edit');
         Route::get('notices/{notice}', [NoticesController::class, 'show'])->name('ops.admin.notices.show');
         Route::post('notices/{notice}', [NoticesController::class, 'update'])->name('ops.admin.notices.update');
         Route::post('notices/{notice}/cancel', [NoticesController::class, 'cancel'])->name('ops.admin.notices.cancel');
@@ -45,6 +47,7 @@ Route::prefix(AdminArea::PREFIX)
         Route::get('reports/{report}', [ReportsController::class, 'show'])->name('ops.admin.reports.show');
         Route::get('reports/{report}/download', [ReportsController::class, 'download'])->name('ops.admin.reports.download');
 
+        Route::get('messages/new', [StaffMessagesController::class, 'create'])->name('ops.admin.messages.new');
         Route::get('messages/customers', [StaffMessagesController::class, 'customers'])->name('ops.admin.messages.customers');
         Route::get('messages/segments', [StaffMessagesController::class, 'segments'])->name('ops.admin.messages.segments');
         Route::get('messages', [StaffMessagesController::class, 'index'])->name('ops.admin.messages');
