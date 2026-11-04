@@ -109,7 +109,7 @@ and Egypt live, one test address.
 
 - The Payments list, an attempt's page and the request's pages have their reads (`ListPayments`, `ViewAttempt`) and no
   routes; only the Gateway page (`payments.admin.gateway`, `Presentation/admin-routes.php`) is built.
-- Ops has no listener for `PaymentRequested`, so no customer is sent a request's link yet (ops.md C11).
+- Ops sends a request's link by bell and email (ops.md C11, 2026-11-03), and it opens the request's page: a 404 until that route lands.
 - Not proven on a real server (payments.md §9.13 #20, §9.11 #13): amounts arriving as text, `ExternalIdentifier` in status
   answers, the charge's body, `Idempotency-Key` on a retried charge, the notice's signature and Apple Pay's registration.
   They are for the staging run.
@@ -130,14 +130,13 @@ No test calls MyFatoorah: `Support/FakeMyFatoorah` stands in.
    own claim lasts 320 s, and the queue's `retry_after` must be longer than both or a second worker picks a running job up.
    `config/queue.php` reads it for the default `database` connection (`env('DB_QUEUE_RETRY_AFTER', 90)`); `.env.example`
    does not set it, so it is 90 until hosting sets it.
-2. Ops must have its `TransferOverdue` listener before this goes live: Sales marks an order told when it fires the event,
-   so an order marked while nobody listens is never told again (sales.md §9.9 #13). Today Ops has the kind and its words
-   (`MessageKind::TransferOverdue`) and no listener.
+2. Done (2026-11-03): Ops listens to `TransferOverdue` (`AlertStaff`, ops.md S6). Sales marks an order told when it fires the
+   event, so an order marked while nobody listened would never be told again (sales.md §9.9 #13).
 3. The KSA MyFatoorah key, and one real-money test: only a Kuwait test key exists today (the owner's note; nothing in the
    code can show which keys exist). The live addresses are `api-sa.myfatoorah.com` and `sa.myfatoorah.com`.
 4. Trusted proxies, so a recorded IP is the visitor's, not the proxy's (HANDOFF §15.4, "Decided when hosting is chosen").
    No trusted-proxy setting is in `bootstrap`, `app`, `config` or `src` today.
 5. MyFatoorah's Apple Pay file in `public/.well-known/`, committed when they send it (payments.md §9.9 #6). It isn't there
    yet, and Apple Pay stays off until it is and the domain is registered.
-6. Ops must have its `PaymentRequested` listener (ops.md C11): until then a customer gets no bell or email for a payment request, only the note on their order.
+6. Done (2026-11-03): Ops listens to `PaymentRequested` (ops.md C11). The link it sends needs the request's page, which has no route yet (above).
 7. Cancel every open test order before the staging database becomes the real one (§1.6): a test order can't ship, so its stock stays held and its coupon and points stay used until it is cancelled.
