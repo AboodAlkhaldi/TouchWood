@@ -38,6 +38,12 @@ export async function readJson<T>(path: string, params: Record<string, string | 
     try {
         const response = await fetch(`${path}?${query.toString()}`, { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin', signal });
 
+        // The panel's session is gone: the page the server answers next asks them to sign in, and drops the
+        // history's key (frontend.md §1.12).
+        if (response.status === 401) {
+            window.location.reload();
+        }
+
         return response.ok ? ((await response.json()) as T) : null;
     } catch {
         return null;

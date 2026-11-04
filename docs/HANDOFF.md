@@ -1745,7 +1745,11 @@ Decide these when the owning module is reached; do not design them now.
 - **Database users for the audit log.** A restricted user for the app, allowed only to insert and
   read audit entries, and a separate owner for migrations, so nobody using the app's credentials can
   alter history. Today one user owns everything.
-- **Trusted proxies**, so a staff member's recorded IP is theirs, not the CDN's — and so the staff
+- **Trusted proxies: none needed on the owner's hosting.** Tested on the real Namecheap shared hosting
+  (owner, 2026-11-03): `HTTPS` is on, `SERVER_PORT` 443, `REMOTE_ADDR` the visitor's own address,
+  `X-Forwarded-Proto: https`, no Via, no Cloudflare, so `secure()` is true and the recorded IP is the
+  visitor's with no proxy setup, and `trustProxies` is not added. **Only if a CDN or Cloudflare is added
+  later** does it become needed, so a staff member's recorded IP is theirs, not the CDN's — and so the staff
   sign-in limit per IP address sees each visitor: behind an untrusted proxy every request shares one
   address, and 10 wrong passwords from anyone would make every staff member wait 15 minutes (owner,
   2026-09-19: settled with the hosting).
@@ -1761,6 +1765,14 @@ Decide these when the owning module is reached; do not design them now.
   staff member views from the panel (it may be a store that is off), so a shared computer
   keeps no copy of somebody's data — guests' shop pages keep the browser's instant Back (owner's
   choice). HSTS waits for the hosting, like the proxies.
+- **The browser's history is a copy too** (owner, 2026-11-03; frontend.md §1.12; access.md amendment 96):
+  Inertia keeps each page's props in its history entry, where `no-store` does not reach. A page for someone
+  signed in is kept there encrypted, and a page for nobody throws the key away, so Back after any end of a
+  session asks the server. **It needs HTTPS, the only way the owner hosts (2026-11-03)**, and on that hosting
+  `secure()` is true with no proxy setup. A CDN or Cloudflare added later would need trusting first: until
+  then it is off on ordinary pages and Back still shows the rows. The QR code's page and the recovery codes'
+  are encrypted regardless, under a key of their own. Check on a host: a signed-in page's `data-page` JSON
+  says `"encryptHistory":true`.
 - Both of the above are **hardening today and a broken flow tomorrow**: Laravel checks a signed URL
   against the scheme and host of the request, while Access signs its links on `APP_URL`. Behind a
   TLS-terminating proxy that is not trusted, every request looks like `http`, so every customer

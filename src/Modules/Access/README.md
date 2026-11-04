@@ -527,8 +527,9 @@ Every number here is a setting (`StaffSecuritySettings`), except the 15 minutes 
   development). Session rows hold, for a moment, what the authenticator's pages need - the ten
   recovery codes travel in the session's flash to the one page that shows them - and an encrypted row
   is unreadable to a copy of the `access.admin_sessions` table. The QR code's page and the recovery
-  codes' page are also kept in the browser's history only encrypted (`Inertia::encryptHistory()`), and
-  that history is cleared on sign-out and once the app is set up.
+  codes' page are also kept in the browser's history only encrypted, whatever the request looks like, under
+  a key of their own: each clears the history on the way in and again on the next page, and every page for
+  nobody clears it too (`StaffAuthenticatorController::secret`, `KeepNoCopy`, amendment 96).
 
 ### The staff view: from the panel to the shop, as themselves
 
