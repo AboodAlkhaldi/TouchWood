@@ -639,7 +639,8 @@ describe('S6: a transfer overdue', function () {
 
         expect($bell($paymentOnly)->link)->toBeNull()
             ->and($bell($paymentOnly)->title_en)->toBe("Transfer to check for order {$number}")
-            ->and($email($paymentOnly)->text)->toContain("order {$number}")->not->toContain('/admin/orders/')
+            ->and($email($paymentOnly)->text)->toContain("order {$number}")
+            ->and($email($paymentOnly)->text)->not->toContain('/admin/orders/')
             ->and($email($paymentOnly)->html)->not->toContain('/admin/orders/')
             ->and($bell($both)->link)->toBe('/admin/orders/'.$order)
             ->and($email($both)->text)->toContain('/admin/orders/'.$order);
