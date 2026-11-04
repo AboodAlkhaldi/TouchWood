@@ -189,7 +189,7 @@ it('goes to a staff row\'s link, opening the bell after going Back corrects the 
     $page->assertNoJavaScriptErrors();
 });
 
-it('brings back the first page, never the last alone, when a row is marked after Show More and the list is gone back to', function () {
+it('brings back every row, never the last page alone, when a row is marked after Show More and the list is gone back to', function () {
     $staffId = Fx::staffWith([Platform::AUDIT_VIEW], ['sa']);
 
     foreach (range(1, 22) as $ignored) {
@@ -213,7 +213,7 @@ it('brings back the first page, never the last alone, when a row is marked after
 
     $page->script('(() => { history.back(); })()');
     expect(browserSoon($page, "location.pathname === '/admin/notifications' && document.querySelector('[data-test=\"bell-page\"] [data-test=\"bell-row\"]') !== null"))->toBeTrue();
-    expect($page->script("document.querySelectorAll('[data-test=\"bell-page\"] [data-test=\"bell-row\"]').length"))->toBe(20);
+    expect($page->script("document.querySelectorAll('[data-test=\"bell-page\"] [data-test=\"bell-row\"]').length"))->toBe(22);
     $page->assertNoJavaScriptErrors();
 });
 

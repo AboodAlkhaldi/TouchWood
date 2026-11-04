@@ -8,6 +8,7 @@ import { figure, intlLocale } from '@/lib/digits';
 import { ShopPhoto } from '@/components/shop/ShopPhoto';
 import { CardPrice } from '@/components/shop/ShopPrice';
 import { useLink } from '@/lib/routes';
+import { keptBeside } from '@/lib/use-load-more';
 import { useTranslator } from '@/lib/t';
 import { tone, type Tone } from '@/lib/tones';
 import type { ShopCardData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
@@ -29,18 +30,36 @@ import type { SharedProps } from '@/types/page';
 /** `cardFacts` as the pages carry them: product id => `{module}.{key}` => what it adds; an empty map arrives as []. */
 export type CardFacts = Record<string, Record<string, Record<string, unknown>>>;
 
+const HEART_PRESSED = 'shop:heart-pressed';
+
 /**
  * A list's facts as Show More adds pages: each answer covers its own cards only, so they are kept and
- * merged, the newest over the older.
+ * merged, the newest over the older. A list keeps them beside its rows, so going Back brings them too
+ * (`firstRow`: the first card of the page these facts came with; lib/use-load-more.ts).
  */
-export function useCardFacts(facts: CardFacts | unknown[] | undefined): CardFacts {
-    const [all, setAll] = useState<CardFacts>(() => (Array.isArray(facts) || facts === undefined ? {} : facts));
+export function useCardFacts(facts: CardFacts | unknown[] | undefined, firstRow?: string): CardFacts {
+    const { url } = usePage();
+    const kept = () => keptBeside(url, firstRow) as CardFacts | undefined;
+    const [all, setAll] = useState<CardFacts>(() => ({ ...kept(), ...(Array.isArray(facts) ? {} : facts) }));
 
     useEffect(() => {
         if (!Array.isArray(facts) && facts !== undefined) {
-            setAll((before) => ({ ...before, ...facts }));
+            setAll((before) => ({ ...kept(), ...before, ...facts }));
         }
+        // Only a new answer changes them.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [facts]);
+
+    // A press's answer covers the first page's cards only: the card pressed says its own.
+    useEffect(() => {
+        const pressed = (event: Event) => {
+            const { productId, saved } = (event as CustomEvent<{ productId: string; saved: boolean }>).detail;
+            setAll((before) => ({ ...before, [productId]: { ...before[productId], 'feedback.saved': { saved } } }));
+        };
+        window.addEventListener(HEART_PRESSED, pressed);
+
+        return () => window.removeEventListener(HEART_PRESSED, pressed);
+    }, []);
 
     return all;
 }
@@ -119,12 +138,15 @@ function CardHeart({ productId, name, saved }: { productId: string; name: string
             {
                 only: ['cardFacts'],
                 preserveScroll: true,
+                // Without it the page starts over, and a list shown with Show More keeps only its last page.
+                preserveState: true,
                 onStart: () => setBusy(true),
                 onFinish: () => setBusy(false),
                 onSuccess: () => {
                     // A guest has gone to sign in; a customer's press is done.
                     if (shopper) {
                         setOn(!on);
+                        window.dispatchEvent(new CustomEvent(HEART_PRESSED, { detail: { productId, saved: !on } }));
                     }
                 },
             },

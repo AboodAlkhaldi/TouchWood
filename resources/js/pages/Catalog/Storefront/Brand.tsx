@@ -19,8 +19,8 @@ import type { ShopBrandPage, ShopCardData } from '@/types/generated/Modules/Cata
 export default function Brand({ name, slug, logo, description, products, next, address, cardFacts }: ShopBrandPage) {
     const t = useTranslator();
     const link = useLink();
-    const list = useLoadMore<ShopCardData>(products, (card) => card.productId);
-    const facts = useCardFacts(cardFacts);
+    const facts = useCardFacts(cardFacts, products[0]?.productId);
+    const list = useLoadMore<ShopCardData>(products, (card) => card.productId, facts);
 
     return (
         <StorefrontLayout title={name} address={address}>
