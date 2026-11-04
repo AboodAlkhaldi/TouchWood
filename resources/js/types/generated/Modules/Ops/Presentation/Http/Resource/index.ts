@@ -193,6 +193,12 @@ confirmed: boolean,
 createdAt: string,
 confirmedAt: string | null,
 };
+export type SubscribersListPageData = {
+subscribers: SubscriberData[],
+next: string | null,
+stores: StoreChoiceData[],
+storeCode: string,
+};
 export type SubscribersPageData = {
 subscribers: SubscriberData[],
 next: string | null,
