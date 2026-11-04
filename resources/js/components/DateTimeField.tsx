@@ -49,6 +49,8 @@ type Props = {
     /** The server's refusal, for a form without checks. */
     error?: string;
     disabled?: boolean;
+    /** A start the server refuses once it has passed, rather than taking it as now: the field doesn't promise it will. */
+    refusesPast?: boolean;
 };
 
 /** A plain day as day-picker's local date, or undefined when the text is not one. */
@@ -77,7 +79,7 @@ function useNow(): number {
     return now;
 }
 
-export function DateTimeField({ id, label, kind, value, onChange, zone, after = null, check, error, disabled = false }: Props) {
+export function DateTimeField({ id, label, kind, value, onChange, zone, after = null, check, error, disabled = false, refusesPast = false }: Props) {
     const { locale } = usePage<SharedProps>().props;
     const t = useTranslator();
     const now = useNow();
@@ -89,7 +91,7 @@ export function DateTimeField({ id, label, kind, value, onChange, zone, after = 
     const day = asDate(value.date);
     const timeId = `${id}-time`;
     const zoneId = `${id}-zone`;
-    const passed = kind === 'start' && !value.none && !shown && hasPassed(value, zone, now);
+    const passed = kind === 'start' && !refusesPast && !value.none && !shown && hasPassed(value, zone, now);
     // The control at fault is marked: the date button while no day is chosen, else the time box. Both
     // are described by the message, which is about the moment as a whole.
     const onDate = dateWrong(value);

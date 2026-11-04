@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Ops\Presentation\Http\Resource;
 
+use Modules\Platform\Public\Dto\StoreDto;
 use Spatie\LaravelData\Data;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
@@ -20,4 +21,15 @@ final class StoreChoiceData extends Data
         public string $name,
         public bool $isOn,
     ) {}
+
+    /**
+     * @param  list<StoreDto>  $stores
+     * @return list<self>
+     */
+    public static function listOf(array $stores): array
+    {
+        $locale = app()->getLocale();
+
+        return array_map(static fn (StoreDto $store): self => new self($store->id, $store->code, $store->name->in($locale), $store->isActive), $stores);
+    }
 }

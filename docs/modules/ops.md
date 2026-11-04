@@ -961,7 +961,7 @@ reads the screens needed were added; what stays is what the code cannot give yet
 
 1. **No pages.** No Inertia page, `AdminMenu` entry, Home card or account tab exists for Ops, and the bell is in no
    frame. The three links emails carry (§4.10, §4.11) open JSON until those pages exist. A stop-email page for an off
-   store cannot use the shop's frame (§4.11). **Specified in §4.15 (owner, 2026-11-02); leaves this list as each is built.** Built: SMS Countries (#322), the two bells and their full pages.
+   store cannot use the shop's frame (§4.11). **Specified in §4.15 (owner, 2026-11-02); leaves this list as each is built.** Built: SMS Countries (#322), the two bells and their full pages, Customer Messages and Offer Notices with their forms.
    The Home card goes with the Home dashboard job (§9.4 Q5).
 2. **The consent box is on no page.** Outside the generated types, `resources/js` holds neither `marketingConsent` nor
    `marketing_consent`: the account's switch and the registration box have routes and no screen. **§4.15, O12.**
@@ -1128,7 +1128,7 @@ Columns: Title · Audience ("Every customer", the segment, "Deleted segment") ·
 - **When:** `DateTimeField` with **Now**, in the store's clock with the zone named, `send_at` sent as `YYYY-MM-DD HH:MM`. New opens on Now. Edit opens on its `sendAtLocal`. A past time is said under the box.
 - **The button:** **Send Notice** with Now, **Schedule Notice** with a time; on Edit **Save Changes** with a time, **Send Now** with Now.
 - **Now asks first (Q12):** as O4's dialog, naming the store or segment and the count, a whole store in the same two wordings: "Send to :count customers of :store?" with Bell ticked, "Send by email to those of the :count customers of :store who agreed to receive it?" by email alone (owner, 2026-11-02). A scheduled save doesn't ask, and tells in the toast when it goes.
-- **Edit replaces the whole notice** (§4.4): the form always sends every field, `send_at` included, so nothing starts sending by accident. A notice that started while the form was open answers 409: the words show, and the page offers the way back to the list.
+- **Edit replaces the whole notice** (§4.4): the form always sends every field, `send_at` included, so nothing starts sending by accident. A notice that started while the form was open answers 409: the words show, what was typed stays, and the page offers the way back to the list. Opening the Edit address of one that has already started goes to the list, with the same words.
 
 #### O7 · Subscribers
 
