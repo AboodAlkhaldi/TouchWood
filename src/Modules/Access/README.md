@@ -118,7 +118,7 @@ $this->app->make(ShopperLines::class)->register(CompanyShopperLine::class);
 |---|---|
 | `Public/` | Contracts `PermissionCatalog`, `AccessApi`, `SecurityMessages`; DTOs `PermissionDefinitionDto`, `StaffDto`, `CustomerDto`, `StaffNotificationPreferenceDto`; enums `PermissionAudience`, `PermissionKind`, `AccessLevel`, `StaffStatus`, `CustomerStatus`, `AccountType`, `StaffNotificationTopic`; events `StaffActivated`, `StaffDisabled`, `CustomerRegistered`, `CustomerEmailVerified`, `CustomerPhoneVerified`, `GuestBecameCustomer`, `CustomerBlocked`, `CustomerUnblocked`, `CustomerDeletionScheduled`, `CustomerDeletionCancelled`, `CustomerAnonymized`; `AddressDto` for the addresses Sales and Shipping read.; `Contracts/GuestIdentity` — the guest this browser is (amendment 74) |
 | `Domain/Model` | `Role` (saved or personal, admin or staff level, at least one action), `RoleAssignment` (a staff member's one role, their store row, and each action's own stores), `StaffUser` (invited → active ⇄ disabled, or invited → cancelled; profile, phone, email, language, Super Admin, who invited them, session version), `Customer` (one account for every store: email, account type and home store fixed; verifications only move forward), `StaffInvitation`, `StaffEmailChange`, `PhoneCode`, `CustomerPhoneCode`, `StaffPasswordReset`, `CustomerPasswordReset`, `TrustedBrowser`, `Address` (one customer, one store, never moved), `AddressPlaces` (its country and the places picked, amendment 76), `StoreAddressFormat` (a country's fields and how an address is printed). |
-| `Domain/ValueObject` | `RoleName`, `StoreChoice` (all stores, or at least one chosen store), `RoleKind`, `RoleLevel`, `EmailAddress`, `PhoneNumber` (E.164, any country), `CountryCode` (the 249 ISO countries), `Language` (ar/en), `StaffProfile`, `PhoneCodePurpose`, `CustomerPhoneCodePurpose`, `AddressField`, `MapPin` (both coordinates or neither). |
+| `Domain/ValueObject` | `RoleName`, `StoreChoice` (all stores, or at least one chosen store), `RoleKind`, `RoleLevel`, `EmailAddress`, `PhoneNumber` (E.164, any country, by Shared's `PhoneNumbers` rule, which Shipping's carriers use too), `CountryCode` (the 249 ISO countries), `Language` (ar/en), `StaffProfile`, `PhoneCodePurpose`, `CustomerPhoneCodePurpose`, `AddressField`, `MapPin` (both coordinates or neither). |
 | `Domain/Exception` | `AccessError` and its subclasses, with messages in `Presentation/lang/{ar,en}/errors.php`. |
 | `Application/Permission` | `InMemoryPermissionCatalog` (declarations, renames, removals, checked at boot), `AccessPermissions` (Access's list, and which actions are admin-only), `InvalidPermissionDefinition` (a declaration that contradicts itself, refused at boot). |
 | `Application/Authorization` | `RoleAuthorizer` (the real `Authorizer`), `GrantRules` (who may grant what to whom, who may manage whom, console-only), `StaffGrants` + `GrantsReader` (a staff member's permissions, cached), `Author`, `InvalidPermissionCheck` (a per-store permission checked without a store, or the other way round). |
@@ -240,6 +240,13 @@ guest; outside one (the console, a queue worker), the system. `IdentifyRequestAc
 web request, so no route can act as the system, and `RoleAuthorizer` lets the system do anything.
 Platform's wrapper still makes a queued job the system acting for whoever queued it. Customers act
 from step 4; integrations hold nothing yet.
+
+**Shipping and Payments have their own groups** in the role editor, right after Orders (`PermissionGroup::Shipping`,
+`PermissionGroup::Payments`; amendments 77 and 78), and staff have a notification topic, **Payment problems**
+(`StaffNotificationTopic::PaymentProblems`; migration `2026_10_28_200000_add_payment_problems_topic`): the gateway's key
+is about to expire or was refused. Shipping and Payments take from Access only to declare their permissions
+(`ShippingAccessUseTest`, `PaymentsAccessUseTest`), and Payments also hears `CustomerAnonymized`. `ShareAdminPage` shares the panel's banners
+(Platform's `AdminBanners`, e.g. a store in test mode) with signed-in staff.
 
 ### Renamed, removed and copied permissions
 
@@ -607,6 +614,11 @@ sign in ───▶ email + password ──▶ signed in, in the store they sig
   the picked places' names fill `administrative_area`, `city` and `district` in the page's language,
   which the address keeps. A place retired since stays while left as it was; a typed address in a
   country that has a list since is incomplete. `AddressDto.formatted` ends with the country's name.
+- **The customer's address form reads its lists as it is used** (`storefront.account.address-form`: the address
+  countries, the store's own first, and the own country's regions; `storefront.account.places`: a country's regions, a
+  region's cities or a city's districts, as the customer picks), in `CustomerOwnAccountController`. **A store's form keeps the region, city
+  and district fields, each taking at least 100 characters** (`AddressFormatNeedsPlaces`, raised by
+  `UpdateStoreAddressFormat`), because the picked places' names fill them.
 - **Each store owns its form** (`access.store_address_formats`): the fields it asks for, their
   names in both languages, how long each may be, their order, and a display template. Changing one
   country's form leaves the others exactly as they were.

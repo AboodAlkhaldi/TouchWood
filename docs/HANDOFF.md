@@ -143,6 +143,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-10-28 | §13.3, §17 | **Ops' rules** (`docs/modules/ops.md`, draft for acceptance): Ops is specified before Content; email by **Brevo**, SMS by an adapter (provider not chosen) and **only for codes and the gateway key's critical alerts to super admins**; staff messages to customers by bell and email (not SMS); besides queued listeners, Ops runs scheduled jobs (points expiring, the daily report's email); marketing email only with the customer's consent (access.md amendments 79–84); newsletters designed in Brevo; reports in Excel and a **daily report** in PDF; revenue = what the customer pays for goods after coupon and points, without VAT or shipping; no visitor counting | Owner decision |
 | 2026-11-01 | §4.4 | **B2B → Payments**, for a store's bank account alone: the account moved to Payments, and B2B's company page reads it from there (b2b.md amendment 33, payments.md §9.10 #4) | Stage 7 step 8b, the owner's acceptance of amendment 33 |
 | 2026-11-02 | §14 | **Ops' menu:** the five reports are one Reports entry with the kinds as tabs, beside Daily Reports; Marketing gains Offer Notices and Customer Messages; SMS Countries goes under Store Settings (ops.md §4.15, §9.4) | Owner, Ops screens round 1 |
+| 2026-11-03 | §4.4, §10.2, §12.5 | **Shipping and Payments as built (stage 7)**: neither depends on Sales, and Sales reaches them through their Public contracts alone (§4.4); the shipping fee in the canonical amounts is the chosen carrier's price for the place, 0 once free shipping applies, or "to be set" by staff and left out of the total until set, and an online payment takes `order_total` while a payment request asks for exactly what an order is missing (§10.2); carriers, price groups, free shipping and the optional boxes as built (§12.5) | Stage 7 wrap-up, from the code (`docs/modules/shipping.md`, `docs/modules/payments.md`) |
 
 ---
 
@@ -389,6 +390,13 @@ legitimately needs price, stock, discount, points, shipping and payment in one f
 and gets the discounts back. Promotions gets the order facts it needs (a coupon used, an order
 placed — for per-customer limits and segments; a cancellation changes neither, owner 2026-10-08) from
 Sales calling it inside the checkout transaction, so a one-time coupon can never be used twice.
+
+**Neither Payments nor Shipping depends on Sales** (stage 7). Sales calls them: `PaymentsApi` for the session, the attempt, the
+request and the bank account, `ShippingApi` for the quote, the carriers, the tracking link and the box suggestion; it hears
+Payments' events (`PaymentSucceeded`, `PaymentFailed`, `PaymentNotTaken`, `PaymentNotAccepted`) and tells Payments about a
+cancelled order itself, by calling `withdrawForCancelled`. What Payments needs from Sales it is handed (an order id and an
+amount) or asks through a port Sales binds (`PaymentOrderNumbers`, the order's number for Payments' list). Shipping publishes no
+event and listens to none. Ops hears Payments' key events and `PaymentNotAccepted`.
 
 ### 4.5 Communication — three channels
 
@@ -1152,7 +1160,8 @@ net_subtotal    = Σ (effective unit price × qty)
 coupon_discount
 points_discount
 goods_total     = net_subtotal − coupon_discount − points_discount
-shipping
+shipping                                       the chosen carrier's price for the place, 0 once free shipping applies (§12.5);
+                                               "to be set" by staff, and 0 in the total, when no carrier serves the place
 taxable_base    = goods_total                  no VAT on shipping (owner, 2026-10-27)
 vat             = taxable_base × store.tax_percentage
 order_total     = goods_total + vat + shipping
@@ -1161,12 +1170,14 @@ order_total     = goods_total + vat + shipping
 | Threshold | Binds to |
 |---|---|
 | Coupon minimum | `net_subtotal` |
-| Free shipping | `goods_total` |
+| Free shipping | `goods_total` (the amount reached, equal included; the store-wide amount overrides each carrier's own) |
 | Gift eligibility | `goods_total` |
 | Points earning base | `goods_total` |
 | Max points redemption % | `net_subtotal` |
 | Discount ceiling | `gross_subtotal` |
 | VAT | `taxable_base` (the goods only: 1,000 + 150 VAT + 30 shipping = 1,180) |
+| An online payment at checkout | `order_total` of the quote shown, in the store's currency; Payments is given the amount by Sales, never by the page |
+| A payment request | What the order is missing: its due less what it holds (paid less refunded) |
 
 ### 10.3 Tax
 
@@ -1499,16 +1510,22 @@ to confirm with Payments.
 ### 12.5 Shipping
 
 Carriers are **fixed-rate tables** defined by staff, priced by place (a region, a city or a district — the
-most specific wins). **No live carrier rate APIs.** **No VAT on shipping** (§10.2). A store may ship to
-several countries, each country belonging to one store; an address no carrier serves is placed with the
-fee **to be set by staff** and paid through staff only; another store's country is refused (shipping.md
-§1.2, sales.md §9.5). Tracking is a URL template rendered with the tracking number, or a link staff type;
-the full link is stored on the order when it ships. Free-shipping threshold per carrier, and one per store
-that overrides them all. **[AMENDED 2026-10-30, stage 7 step 6]**
+most specific wins). **No live carrier rate APIs.** **No VAT on shipping** (§10.2). A carrier belongs to one
+store and to one of the countries that store ships to; a place has one price in a carrier, and a carrier has
+one group of places per amount. A store may ship to several countries, each country belonging to one store;
+the customer picks a carrier when two or more serve the place (the cheapest first). An address no carrier
+serves, or in a country none of our stores ships to, is placed with the fee **to be set by staff** and paid
+through staff only; another store's country is refused (shipping.md §1.2, sales.md §9.5). Tracking is a URL
+template rendered with the tracking number, or a link staff type; the full link is stored on the order when it
+ships. Free-shipping threshold per carrier, and one per store that overrides them all; it compares
+`goods_total` (§10.2), equal included. **[AMENDED 2026-10-30, stage 7 step 6; 2026-11-03, as built]**
 
-**Packaging engine.** Products are auto or manual. Auto compares weight and three
-dimensions against box maxima with admin-set padding and picks the smallest fit. Manual
-bypasses the engine entirely and flags the order for staff. **No 3D bin packing.**
+**Packaging engine.** Optional: a store with no box switched on shows nothing and nothing waits. A store's box
+list (inner sizes and the weight each takes) and an admin-set padding (default 10 mm) feed a suggestion only:
+each size is auto or manual **per store**; auto picks the smallest switched-on box (by inner volume) that takes every
+piece by its sizes, weight and volume added up; manual, or a size with no weight or sizes in Catalog, bypasses the
+engine and flags the order "pack by hand". It is worked out when the staff order page or the packing slip is
+shown, never stored, and changes no price. **No 3D bin packing.**
 
 **Returns.** Window is admin-configurable per store — **14 days from delivery** by default, staff
 marking the order delivered (owner, 2026-10-09/10); return shipping is paid by the
