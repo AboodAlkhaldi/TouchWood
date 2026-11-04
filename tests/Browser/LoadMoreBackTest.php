@@ -75,6 +75,8 @@ it('comes back to the same row of a long list, with every row there and no reque
     $page->script("(() => { {$row80}.scrollIntoView({ block: 'center' }); })()");
     expect(browserSoon($page, 'window.scrollY > 0'))->toBeTrue();
     $place = (int) $page->script('Math.round(window.scrollY)');
+    // Inertia writes the place 100 ms after the scrolling stops; a person is slower than that.
+    expect(browserSoon($page, "Math.abs((history.state?.documentScrollPosition?.top ?? 0) - {$place}) < 5"))->toBeTrue();
     $reads = "performance.getEntriesByType('resource').filter((entry) => entry.name.includes('/admin/coupons?')).length";
     $page->script("(() => { {$row80}.querySelector('a').click(); })()");
     expect(browserSoon($page, "location.pathname.startsWith('/admin/coupons/')"))->toBeTrue();
@@ -106,6 +108,32 @@ it('comes back to the same row of a long list, with every row there and no reque
     // A refresh starts the list again.
     $page->script('(() => { location.reload(); })()');
     expect(browserSoon($page, "{$rows}.length === 50"))->toBeTrue();
+    $page->assertNoJavaScriptErrors();
+});
+
+it('opens the list afresh from a link, even after coming Back to it first', function () {
+    $prefix = loadMoreBackCoupons();
+    $page = loadMoreBackPanel();
+    $rows = "document.querySelectorAll('[data-test^=\"coupon-{$prefix}\"]')";
+
+    $page->navigate('/admin/coupons', BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "{$rows}.length === 50"))->toBeTrue();
+    $page->click('[data-test="more"]');
+    expect(browserSoon($page, "{$rows}.length === 100"))->toBeTrue();
+
+    // Into a row and Back: the kept rows come back.
+    $page->script("(() => { {$rows}[79].querySelector('a').click(); })()");
+    expect(browserSoon($page, "location.pathname.startsWith('/admin/coupons/')"))->toBeTrue();
+    $page->script('(() => { history.back(); })()');
+    expect(browserSoon($page, "location.pathname === '/admin/coupons' && {$rows}.length === 100"))->toBeTrue();
+
+    // Into a row again, then the menu's link to this same address: going somewhere is not going Back.
+    $page->script("(() => { {$rows}[0].querySelector('a').click(); })()");
+    expect(browserSoon($page, "location.pathname.startsWith('/admin/coupons/')"))->toBeTrue();
+    $page->script("(() => { document.querySelector('a[href\$=\"/admin/coupons\"]').click(); })()");
+    expect(browserSoon($page, "location.pathname === '/admin/coupons' && {$rows}.length > 0"))->toBeTrue();
+    usleep(500_000);
+    expect((int) $page->script("{$rows}.length"))->toBe(50);
     $page->assertNoJavaScriptErrors();
 });
 
@@ -175,6 +203,8 @@ it('keeps a customer\'s hearts through Show More and Back, on every page of the 
     foreach (range(1, 26) as $ignored) {
         $product = Cx::ready(['60 cm'], $category)['product'];
         Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $product, true)));
+        // In stock and priced, or it is off the shop's lists (catalog.md amendment 39).
+        Cx::onSale('sa', $product);
     }
 
     $email = strtolower((string) Str::ulid()).'@example.test';
