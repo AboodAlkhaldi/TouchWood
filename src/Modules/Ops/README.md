@@ -230,6 +230,7 @@ before, or it opens raw JSON. Before touching `AdminMenu`, `AdminLayout` or `Sto
 - `$page->script()` calls a value that is a function, so wrap statements in `(() => { ... })()`. A click's selector must match one
   element. `assertSeeIn` has missed Arabic text; read it with `script()`.
 - Every test checks a phone at 375 × 812, with `browserSoon` so the width is read after the page settles (#333).
+- The test clock is frozen (#335): read `CarbonImmutable::now()`, never `time()`, `date()` or `microtime()`, against anything the app stamped, and never write an unbounded loop. One such loop hung CI for hours (#348).
 - A Pest file's functions are global: name each helper after the file's subject.
 - The panel opens in English in tests. Read a form's refusal with `AdminBrowser::flashed`.
 - `checked()` doesn't wire `onChange`: a hand-built `InputGroup` calls `check.onType()` itself (`SmsCountries.tsx`).
