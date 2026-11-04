@@ -961,7 +961,7 @@ reads the screens needed were added; what stays is what the code cannot give yet
 
 1. **No pages.** No Inertia page, `AdminMenu` entry, Home card or account tab exists for Ops, and the bell is in no
    frame. The three links emails carry (§4.10, §4.11) open JSON until those pages exist. A stop-email page for an off
-   store cannot use the shop's frame (§4.11). **Specified in §4.15 (owner, 2026-11-02); leaves this list as each is built.** Built: SMS Countries (#322), the two bells and their full pages, Customer Messages and Offer Notices with their forms.
+   store cannot use the shop's frame (§4.11). **Specified in §4.15 (owner, 2026-11-02); leaves this list as each is built.** Built: SMS Countries (#322), the two bells and their full pages (#325), Customer Messages and Offer Notices with their forms (#346), Subscribers. Left: Reports, Daily Reports, the newsletter box, the consent switch and box, and the confirm, leave and unsubscribe pages.
    The Home card goes with the Home dashboard job (§9.4 Q5).
 2. **The consent box is on no page.** Outside the generated types, `resources/js` holds neither `marketingConsent` nor
    `marketing_consent`: the account's switch and the registration box have routes and no screen. **§4.15, O12.**
@@ -992,6 +992,20 @@ Refusals: `ops.sms_country_not_found` 404, a country not listed. `ops.sms_countr
 
 **[ACCEPTED by the owner, 2026-11-02.]** §4.1 to §4.14 say what the server gives; this section says what each page does
 with it. Every choice marked Qn or Rn is the owner's answer in §9.4.
+
+**Where the build stands (2026-11-04).** One short branch and PR per job; the owner decides each merge. Everything the pages
+need from the backend is in main (Q14, Q17, Q21, R1). How to carry on: `src/Modules/Ops/README.md`, "Continuing the screens".
+
+| Page | State |
+|---|---|
+| O1, O2 the two bells and their full pages | Built, #325 |
+| O3 to O6 Customer Messages, Offer Notices and their forms | Built, #346 |
+| O7 Subscribers | Built, `feat/ops-subscribers` |
+| O10 SMS Countries | Built, #322 |
+| O8 Reports, with the menu's `reports` section | **Not built** |
+| O9 Daily Reports | **Not built** |
+| O11 the newsletter box, O12 the consent switch and box, O13 the confirm, leave and unsubscribe pages | **Not built** |
+| The Home card (Q5) | Not in this work: it goes with the Home dashboard job |
 
 #### What holds for every page
 
@@ -1383,7 +1397,7 @@ Each with where it is tested, in `tests/Modules/Ops` unless named.
   answer `ContentApi` with a stand-in.
 - Over HTTP: `ops.admin.subscribers` (its handler is tested in `NewsletterTest`); the staff's
   `ops.admin.bell.unread` and `ops.admin.bell.read-all`; the box's limit by address; a signed-in customer at the box.
-- No browser test: there are no screens yet (§4.13).
+- No browser test for the pages not built yet (§4.15, "Where the build stands"). Each page built has its own under `tests/Browser`.
 
 ## 9 · Open questions and answers
 

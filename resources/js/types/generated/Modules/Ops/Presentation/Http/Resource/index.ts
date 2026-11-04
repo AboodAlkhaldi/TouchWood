@@ -223,6 +223,13 @@ confirmed: boolean,
 createdAt: string,
 confirmedAt: string | null,
 };
+export type SubscribersListPageData = {
+subscribers: SubscriberData[],
+next: string | null,
+stores: StoreChoiceData[],
+storeCode: string,
+storeTimezone: string,
+};
 export type SubscribersPageData = {
 subscribers: SubscriberData[],
 next: string | null,

@@ -6,5 +6,6 @@ declare(strict_types=1);
 return [
     'notices' => 'إشعارات العروض',
     'messages' => 'رسائل العملاء',
+    'subscribers' => 'المشتركون',
     'sms_countries' => 'دول الرسائل النصية',
 ];
