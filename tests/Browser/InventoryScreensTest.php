@@ -373,3 +373,102 @@ it('draws Stock right to left in Arabic', function () {
     $page->resize(375, 812);
     expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 });
+
+/**
+ * A list at its second page, the page at its last row: that row's id, the row above it, how many are shown, and the place.
+ *
+ * @return array{id: string, other: string, shown: int, place: int}
+ */
+function inventoryBrowserDeep(mixed $page, string $address, string $prefix): array
+{
+    $rows = "document.querySelectorAll('[data-test^=\"{$prefix}\"]')";
+    $page->navigate($address, BROWSER_SLOW_PAGE_LOAD);
+    expect(browserSoon($page, "{$rows}.length === 50"))->toBeTrue();
+    $page->script("(() => { document.querySelector('[data-test=\"more\"]').click(); })()");
+    expect(browserSoon($page, "{$rows}.length > 50"))->toBeTrue();
+    // Settled: the page's last answer is drawn.
+    usleep(300_000);
+
+    $found = $page->script("(() => { const all = [...{$rows}]; all[all.length - 2].scrollIntoView({ block: 'center' }); return [all[all.length - 2].dataset.test, all[all.length - 3].dataset.test, all.length]; })()");
+    expect(browserSoon($page, 'window.scrollY > 0'))->toBeTrue();
+    usleep(300_000);
+
+    return ['id' => substr((string) $found[0], strlen($prefix)), 'other' => substr((string) $found[1], strlen($prefix)), 'shown' => (int) $found[2], 'place' => (int) $page->script('Math.round(window.scrollY)')];
+}
+
+/** Every row still there, and the page where it was. */
+function inventoryBrowserKept(mixed $page, string $prefix, array $deep, string $what): void
+{
+    $rows = "document.querySelectorAll('[data-test^=\"{$prefix}\"]')";
+
+    expect(browserSoon($page, "document.querySelector('[data-test=\"{$prefix}{$deep['id']}\"]') !== null && {$rows}.length === {$deep['shown']}"))->toBeTrue("{$what}: {$page->script("{$rows}.length")} rows of {$deep['shown']}")
+        ->and(browserSoon($page, "Math.abs(window.scrollY - {$deep['place']}) < 5", 5))->toBeTrue("{$what}: scrolled to {$page->script('Math.round(window.scrollY)')}, was {$deep['place']}");
+}
+
+it('keeps every row shown with Show More, and the place, through each save on Stock', function () {
+    // Enough sizes for a second page, whatever other runs left.
+    foreach (range(1, 28) as $product) {
+        inventoryBrowserCount('sa', array_fill_keys(inventoryBrowserProduct()['sizes'], 30));
+    }
+
+    $page = inventoryBrowser();
+    $prefix = 'stock-actions-';
+    $deep = inventoryBrowserDeep($page, '/admin/stock', $prefix);
+
+    // Add or Remove Stock.
+    $before = (int) $page->script("document.getElementById('count-{$deep['id']}').value");
+    $page->click("[data-test=\"{$prefix}{$deep['id']}\"]")->click('[data-test="adjust-stock"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"adjust-dialog\"]') !== null"))->toBeTrue();
+    $page->click('[data-test="adjust-add"]')->type('#adjust-quantity', '4');
+    expect(browserSoon($page, "document.getElementById('adjust-reason-RECEIVED') !== null"))->toBeTrue();
+    $page->click('#adjust-reason-RECEIVED')->click('[data-test="confirm-adjust"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"adjust-dialog\"]') === null && document.body.textContent.includes('Stock added')"))->toBeTrue();
+    inventoryBrowserKept($page, $prefix, $deep, 'after adding stock');
+    // What the server says now, not an old copy of the row: the 4 added are there.
+    $after = $before + 4;
+    expect(browserSoon($page, "document.getElementById('count-{$deep['id']}')?.value === '{$after}'", 5))->toBeTrue("the box says {$page->script("document.getElementById('count-{$deep['id']}')?.value")}, was {$before}");
+
+    // One threshold for the selected rows: the selection goes, as it did.
+    $page->click("[data-test=\"select-{$deep['id']}\"]");
+    expect(browserSoon($page, "document.querySelector('[data-test=\"selection\"]') !== null"))->toBeTrue();
+    $page->click('[data-test="threshold-selected"]');
+    expect(browserSoon($page, "document.getElementById('threshold-value') !== null"))->toBeTrue();
+    $page->type('#threshold-value', '3')->click('[data-test="confirm-threshold"]');
+    expect(browserSoon($page, "document.getElementById('threshold-value') === null && document.querySelector('[data-test=\"selection\"]') === null"))->toBeTrue();
+    // Pressing the threshold's button, above the table, scrolled the page up: only the rows are asked of this one.
+    expect(browserSoon($page, "document.querySelectorAll('[data-test^=\"{$prefix}\"]').length === {$deep['shown']}"))->toBeTrue('after a threshold');
+    $page->script("(() => { document.querySelector('[data-test=\"{$prefix}{$deep['id']}\"]').scrollIntoView({ block: 'center' }); })()");
+    usleep(300_000);
+    $deep['place'] = (int) $page->script('Math.round(window.scrollY)');
+
+    // Last Pieces, from the row's menu.
+    $page->click("[data-test=\"{$prefix}{$deep['id']}\"]")->click('[data-test="last-pieces"]');
+    expect(browserSoon($page, "document.querySelector('[role=\"menu\"]') === null"))->toBeTrue();
+    usleep(500_000);
+    inventoryBrowserKept($page, $prefix, $deep, 'after Last Pieces');
+    $page->assertNoJavaScriptErrors();
+
+    $page->resize(375, 812);
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+});
+
+it('keeps every row shown with Show More through a save on Low Stock', function () {
+    foreach (range(1, 28) as $product) {
+        inventoryBrowserCount('sa', array_fill_keys(inventoryBrowserProduct()['sizes'], 1));
+    }
+
+    $page = inventoryBrowser();
+    $prefix = 'low-actions-';
+    $deep = inventoryBrowserDeep($page, '/admin/low-stock', $prefix);
+
+    $page->click("[data-test=\"{$prefix}{$deep['id']}\"]")->click('[data-test="adjust-stock"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"adjust-dialog\"]') !== null"))->toBeTrue();
+    $page->click('[data-test="adjust-remove"]')->type('#adjust-quantity', '1');
+    expect(browserSoon($page, "document.querySelector('[id^=\"adjust-reason-\"]') !== null"))->toBeTrue();
+    $page->script("(() => { document.querySelector('[id^=\"adjust-reason-\"]').click(); })()");
+    $page->click('[data-test="confirm-adjust"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"adjust-dialog\"]') === null"))->toBeTrue();
+    // Still low at 0, so it stays: every row is there.
+    inventoryBrowserKept($page, $prefix, $deep, 'after removing stock');
+    $page->assertNoJavaScriptErrors();
+});
