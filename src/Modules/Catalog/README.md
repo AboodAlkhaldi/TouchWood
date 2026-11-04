@@ -277,7 +277,7 @@ its page such a size beside others stays, greyed, never chosen (`ShopVariantData
 left the page is "Not available now", without `noindex` when only stock or a price is missing
 (`ShopReader::onlySoldOut`). A category so emptied keeps its page with a sentence, out of the menu; a brand
 says the same. A size never told is orderable (§1.3). `CatalogApi::productsOrderableNow` marks a wishlist's
-items.
+items. Reviews and questions stay on a page only sold out or unpriced (`register(evenSoldOut: true)`).
 
 **Written inside every change that alters it** (`ListingRows::refresh`, §9.3 #20), under the
 products' lock: the product changes that touch a row (details, a variant's values, the gallery,
