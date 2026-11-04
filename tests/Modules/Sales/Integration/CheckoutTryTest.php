@@ -93,6 +93,7 @@ use Modules\Sales\Infrastructure\Listener\ReleaseTryWhenNotAccepted;
 use Modules\Sales\Infrastructure\Listener\ReleaseTryWhenNotPaid;
 use Modules\Sales\Public\Contracts\SalesReports;
 use Modules\Sales\Public\Enums\WayToPay;
+use Modules\Sales\Public\Events\LatePaymentRefundDue;
 use Modules\Sales\Public\Events\OrderPlaced;
 use Modules\Sales\Public\Events\PaymentRecorded;
 use Shared\Domain\ValueObject\StoreId;
@@ -798,7 +799,9 @@ describe('paid', function () {
 
         expect(DB::table('sales.payments')->where('order_id', $orderId)->count())->toBe(2)
             ->and(DB::table('sales.orders')->count())->toBe(1)
-            ->and(triesRow($paid->tryId)->refund_due_minor)->toBeNull();
+            ->and(triesRow($paid->tryId)->refund_due_minor)->toBeNull()
+            // A second payment on an order that exists is on that order: no refund-due alert of this kind.
+            ->and(triesOutbox(LatePaymentRefundDue::class))->toBe(0);
     });
 
     it('confirms the coupon and the points with the number taken now', function () {
@@ -1009,8 +1012,13 @@ describe('not paid', function () {
 
         // The page's own answer records nothing: only the event does, once.
         triesFollow($paid->tryId);
+        expect(triesOutbox(LatePaymentRefundDue::class))->toBe(0);
         app(CompleteTryWhenPaid::class)->handle($event);
         app(CompleteTryWhenPaid::class)->handle($event);
+
+        expect(triesOutbox(LatePaymentRefundDue::class))->toBe(1);
+        $told = json_decode((string) DB::table('public.outbox_messages')->where('type', LatePaymentRefundDue::class)->value('payload'), true);
+        expect($told)->toMatchArray(['tryId' => $paid->tryId, 'attemptId' => (string) triesRow($paid->tryId)->attempt_id, 'orderId' => $orderId, 'storeId' => Fx::storeId('sa')]);
 
         $try = triesRow($paid->tryId);
         expect($try->state)->toBe('RELEASED')
