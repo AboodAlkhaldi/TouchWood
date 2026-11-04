@@ -37,6 +37,7 @@ use Modules\Sales\Domain\Repository\OrderNumbers;
 use Modules\Sales\Domain\Repository\Orders;
 use Modules\Sales\Domain\Repository\Quotes;
 use Modules\Sales\Public\Enums\WayToPay;
+use Modules\Sales\Public\Events\LatePaymentRefundDue;
 use Modules\Sales\Public\Events\OrderPlaced;
 use Shared\Domain\ValueObject\StoreId;
 use Shared\Infrastructure\Outbox\Outbox;
@@ -120,7 +121,15 @@ final readonly class TryCompletion
                 return;
             }
 
-            $try->state === CheckoutTry::PAID ? $this->money->record($try->orderId, $payment) : $this->tries->addRefundDue($try->id, $payment->amount->minorUnits);
+            if ($try->state === CheckoutTry::PAID) {
+                $this->money->record($try->orderId, $payment);
+
+                return;
+            }
+
+            $this->tries->addRefundDue($try->id, $payment->amount->minorUnits);
+            // Nobody is on the page by now: staff are told, or the money sits until someone opens the list.
+            $this->outbox->record(new LatePaymentRefundDue((string) Str::uuid(), $try->id, $payment->attemptId, $try->orderId, $try->storeId, CarbonImmutable::now()));
         }, self::ATTEMPTS);
     }
 

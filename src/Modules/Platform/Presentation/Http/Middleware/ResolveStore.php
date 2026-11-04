@@ -48,12 +48,12 @@ final readonly class ResolveStore
         private StorefrontLanguage $languages,
     ) {}
 
-    public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, Closure $next, ?string $finishing = null): Response
     {
         $route = $request->route();
         $code = $route instanceof Route ? $route->parameter('store') : null;
         $locale = $route instanceof Route ? $route->parameter('locale') : null;
-        $store = is_string($code) ? $this->store($code, $request) : null;
+        $store = is_string($code) ? $this->store($code, $request, $finishing !== null) : null;
 
         if (! $route instanceof Route || $store === null || ! is_string($locale) || ! $this->languages->isSupported($locale)) {
             abort(404);
@@ -78,12 +78,15 @@ final readonly class ResolveStore
      * The store a code names, as PlatformApi::storeByCode() answers it - but for a viewer of an off
      * one, **to look only**: a request that reads (GET, HEAD). A form sent into a closed store would
      * write into it - a customer registered in a store nobody can open (the review of P6).
+     *
+     * `finishing`: the few addresses that finish what was already under way when the store closed (a payment,
+     * payments.md §1.10). Each handler answers only for what is the visitor's own.
      */
-    private function store(string $code, Request $request): ?StoreDto
+    private function store(string $code, Request $request, bool $finishing = false): ?StoreDto
     {
         $store = $this->directory->storeByCode($code);
 
-        if ($store === null || $store->isActive) {
+        if ($store === null || $store->isActive || $finishing) {
             return $store;
         }
 

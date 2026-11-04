@@ -102,6 +102,7 @@ final readonly class OwnPages
             $this->zone($order->storeId),
             $order->shippingDetail?->trackingLink,
             $order->shippingDetail->feePending ?? false,
+            $order->isTest,
         );
     }
 

@@ -1,10 +1,12 @@
-import { useState, type ReactNode } from 'react';
+import { Suspense, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Link, router } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { Money } from '@/components/Money';
+import { Note } from '@/components/Note';
 import { CopyButton } from '@/components/geist-only/CopyButton';
+import { ClosedStore, PaymentBlock, PaymentInTheWay } from '@/components/sales/payment/lazy';
 import { plural, useLocale } from '@/components/sales/shop';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +18,7 @@ import { isolate } from '@/lib/bidi';
 import { figure, toLatinDigits } from '@/lib/digits';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
-import type { CheckoutCarrierData, CheckoutPage } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
+import type { CheckoutCarrierData, CheckoutPage, CheckoutTryData } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
 import type { MoneyData } from '@/types/generated/Modules/Platform/Public/Dto';
 
 /*
@@ -28,22 +30,30 @@ import type { MoneyData } from '@/types/generated/Modules/Platform/Public/Dto';
 | the points earned and, once, that prices exclude VAT (R2-1). Place Order sends the quote; pressed twice it
 | places once (§1.3). A changed quote comes back here with its new totals and why (R1-21, R1-22). Delivery (§4.3):
 | the carriers serving the address, the cheapest first; none serving it, a fee staff confirm; another store's
-| country, a way there and no quote.
+| country, a way there and no quote. Paying online (payments.md §4.2): its form in the Payment card, Pay where Place
+| Order is, everything else locked from Pay until the answer; loaded only on a page that pays, for the page's budget.
 */
 
 const W = 'sales::shop_checkout';
+const P = 'sales::shop_payment';
+
+type Online = { ready: boolean; locked: boolean; failed: boolean };
 
 type Choice = { address?: string | null; points?: boolean; asked?: number | null; way?: string | null; carrier?: string | null };
 
 export default function Checkout(page: CheckoutPage) {
     const t = useTranslator();
     const link = useLink();
-    const [busy, setBusy] = useState(false);
+    const [choosing, setBusy] = useState(false);
+    const [online, setOnline] = useState<Online>({ ready: false, locked: false, failed: false });
+    const [closed, setClosed] = useState<CheckoutTryData | null>(null);
+    const pressPay = useRef<(() => void) | null>(null);
+    const busy = choosing || online.locked;
     // Each choice worked out again by the server, kept in the address so a reload keeps it.
     const choose = (next: Choice) => {
         // The carrier the customer asked for, not the cheapest picked for them: it stays while it serves the address (E4).
         const carrier = page.carrierChanged ? null : new URLSearchParams(window.location.search).get('carrier');
-        const now = { address: page.addressId, points: page.usePoints, asked: page.pointsAsked, way: page.way, carrier, ...next };
+        const now = { address: page.addressId, points: page.usePoints, asked: page.pointsAsked, way: page.ways.length > 1 ? page.way : null, carrier, ...next };
         const query: Record<string, string> = {};
 
         if (now.address) query.address = now.address;
@@ -55,23 +65,44 @@ export default function Checkout(page: CheckoutPage) {
         router.get(link('storefront.sales.checkout'), query, { preserveScroll: true, replace: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) });
     };
 
+    if (closed !== null) {
+        return (
+            <Suspense fallback={null}>
+                <ClosedStore view={closed} />
+            </Suspense>
+        );
+    }
+
     return (
         <StorefrontLayout title={t(`${W}.title`)}>
             <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
                 <h1 className="text-heading-24 text-ink">{t(`${W}.title`)}</h1>
                 <FormError />
+                {page.testMode ? (
+                    <Note variant="warning" label={t(`${P}.test_label`)} data-test="payment-test-note">
+                        {t(`${P}.test_note`)}
+                    </Note>
+                ) : null}
+                {page.payment === null ? null : (
+                    <Suspense fallback={null}>
+                        <PaymentInTheWay payment={page.payment} onClosed={setClosed} />
+                    </Suspense>
+                )}
                 <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
                     <div className="grid min-w-0 content-start gap-4">
-                        <Addresses page={page} busy={busy} choose={choose} />
-                        {page.quoteId === null ? null : (
-                            <>
-                                <Delivery page={page} busy={busy} choose={choose} />
-                                <CouponAndPoints page={page} busy={busy} choose={choose} />
-                                <WayToPay page={page} busy={busy} choose={choose} />
-                            </>
-                        )}
+                        {/* Locked from Pay until the answer (Q3), so nothing can leave the page or change the quote. */}
+                        <div inert={online.locked} className="grid min-w-0 content-start gap-4">
+                            <Addresses page={page} busy={busy} choose={choose} />
+                            {page.quoteId === null ? null : (
+                                <>
+                                    <Delivery page={page} busy={busy} choose={choose} />
+                                    <CouponAndPoints page={page} busy={busy} choose={choose} />
+                                </>
+                            )}
+                        </div>
+                        {page.quoteId === null ? null : <WayToPay page={page} busy={busy} choose={choose} press={pressPay} onOnline={setOnline} onClosed={setClosed} />}
                     </div>
-                    {page.quoteId === null ? null : <Summary page={page} busy={busy} />}
+                    {page.quoteId === null ? null : <Summary page={page} busy={choosing} online={online} press={pressPay} />}
                 </div>
             </div>
         </StorefrontLayout>
@@ -271,7 +302,7 @@ function CouponAndPoints({ page, busy, choose }: Part) {
     );
 }
 
-function WayToPay({ page, busy, choose }: Part) {
+function WayToPay({ page, busy, choose, press, onOnline, onClosed }: Part & { press: RefObject<(() => void) | null>; onOnline: (online: Online) => void; onClosed: (view: CheckoutTryData) => void }) {
     const t = useTranslator();
 
     return (
@@ -289,6 +320,11 @@ function WayToPay({ page, busy, choose }: Part) {
                 </RadioGroup>
             )}
             {page.way === 'BANK_TRANSFER' && page.bank !== null ? <Bank bank={page.bank} /> : null}
+            {page.way === 'ONLINE' && page.payment === null && page.quoteId !== null ? (
+                <Suspense fallback={<p className="text-copy-14 text-ink-muted">{t(`${P}.loading`)}</p>}>
+                    <PaymentBlock quoteId={page.quoteId} press={press} onState={onOnline} onClosed={onClosed} />
+                </Suspense>
+            ) : null}
         </Section>
     );
 }
@@ -321,7 +357,7 @@ export function Bank({ bank }: { bank: NonNullable<CheckoutPage['bank']> }) {
     );
 }
 
-function Summary({ page, busy }: { page: CheckoutPage; busy: boolean }) {
+function Summary({ page, busy, online, press }: { page: CheckoutPage; busy: boolean; online: Online; press: RefObject<(() => void) | null> }) {
     const t = useTranslator();
     const locale = useLocale();
     const link = useLink();
@@ -337,7 +373,17 @@ function Summary({ page, busy }: { page: CheckoutPage; busy: boolean }) {
         [t(`${W}.summary.shipping`), page.shippingPending ? t(`${W}.summary.shipping_pending`) : free, false],
         [t(`${W}.summary.vat`, { rate: figure(locale, page.vatRateBasisPoints / 100) }), page.vat, false],
     ];
-    const reason = page.addressId === null ? t(`${W}.summary.choose_address`) : page.way === null ? t(`${W}.summary.choose_way`) : undefined;
+    const paying = page.way === 'ONLINE';
+    const reason =
+        page.addressId === null
+            ? t(`${W}.summary.choose_address`)
+            : page.way === null
+              ? t(`${W}.summary.choose_way`)
+              : page.payment !== null
+                ? t(`${P}.pay_later`)
+                : paying && !online.ready && !online.locked
+                  ? t(online.failed ? `${P}.form_failed` : `${P}.loading`)
+                  : undefined;
 
     return (
         <Card className="material-base h-fit gap-3 border-0 py-4 lg:sticky lg:top-4" data-test="checkout-summary">
@@ -382,16 +428,18 @@ function Summary({ page, busy }: { page: CheckoutPage; busy: boolean }) {
                 <p className="text-copy-13 text-ink-muted">{t(`${W}.summary.vat_note`)}</p>
                 <ActionButton
                     size="lg"
-                    loading={placing || busy}
+                    loading={placing || busy || online.locked}
                     disabledReason={reason}
                     onClick={() =>
-                        // The quote's id only, never an amount (handoff §2); the server places it once however often it is sent.
-                        router.post(link('storefront.sales.place'), { quote: page.quoteId } as never, { preserveScroll: true, onStart: () => setPlacing(true), onFinish: () => setPlacing(false) })
+                        paying
+                            ? press.current?.()
+                            : // The quote's id only, never an amount (handoff §2); the server places it once however often it is sent.
+                              router.post(link('storefront.sales.place'), { quote: page.quoteId } as never, { preserveScroll: true, onStart: () => setPlacing(true), onFinish: () => setPlacing(false) })
                     }
-                    data-test="place-order"
+                    data-test={paying ? 'pay' : 'place-order'}
                 >
                     {/* The total isn't final while the fee is to be set (E6). */}
-                    {page.shippingPending ? t(`${W}.summary.place_pending`) : t(`${W}.summary.place`, { total: page.total?.text ?? '' })}
+                    {paying ? t(`${P}.pay`, { total: page.total?.text ?? '' }) : page.shippingPending ? t(`${W}.summary.place_pending`) : t(`${W}.summary.place`, { total: page.total?.text ?? '' })}
                 </ActionButton>
             </CardContent>
         </Card>
