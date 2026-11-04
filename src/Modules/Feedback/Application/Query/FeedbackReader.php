@@ -9,11 +9,11 @@ use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Dto\ProductCardDto;
 use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Platform\Public\Contracts\PlatformApi;
-use Modules\Platform\Public\Contracts\ShopperType;
 use Modules\Platform\Public\Contracts\StaffNames;
 use Modules\Platform\Public\Dto\MediaUrlsDto;
 use Modules\Platform\Public\Dto\StaffNameDto;
 use Modules\Platform\Public\Dto\StoreDto;
+use Modules\Platform\Public\Enums\ShopperKind;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -27,19 +27,17 @@ final readonly class FeedbackReader
         private PlatformApi $platform,
         private AccessApi $access,
         private StaffNames $staffNames,
-        private ShopperType $shopper,
     ) {}
 
     /**
-     * Which of these products the person looking can order now, store by store (catalog.md amendment 39):
+     * Which of these products this kind of shopper can order now, store by store (catalog.md amendment 39(k)):
      * one read a store.
      *
      * @param  array<string, list<string>>  $productIdsByStore
      * @return array<string, array<string, true>> store => product => true
      */
-    public function orderableNowByStore(array $productIdsByStore): array
+    public function orderableNowByStore(ShopperKind $viewer, array $productIdsByStore): array
     {
-        $viewer = $this->shopper->current();
         $orderable = [];
 
         foreach ($productIdsByStore as $storeId => $productIds) {

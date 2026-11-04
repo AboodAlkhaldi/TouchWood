@@ -30,7 +30,8 @@ import type { ShopCartData } from '@/types/generated/Modules/Sales/Presentation/
 | wholesale bands with it. The variant is matched here from the list the server sent, for display only - Sales resolves
 | it on the server when there is a cart (handoff §9.1).
 |
-| Not available now (P18): its name, photos and description, a Note, nothing to choose.
+| Not available now (P18): its name, photos and description, a Note, nothing to choose; only sold out or
+| unpriced, its rating, reviews and questions stay, with no Add to Cart (amendment 40(a)).
 |
 | Other modules' sections (amendment 26(b)) are drawn in their slots: Feedback's rating under the name,
 | its Save heart after the choices - on a "Not available now" page too (amendment 34) - its reviews and

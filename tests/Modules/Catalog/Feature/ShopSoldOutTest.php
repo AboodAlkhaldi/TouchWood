@@ -16,6 +16,8 @@ use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
 use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
+use Modules\Catalog\Application\Command\DeactivateCategory\DeactivateCategory;
+use Modules\Catalog\Application\Command\DeactivateCategory\DeactivateCategoryHandler;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNow;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNowHandler;
 use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiences;
@@ -674,7 +676,49 @@ describe('until it is priced (owner, 2026-11-03)', function () {
 });
 
 describe('what only stock or a price empties (owner, 2026-11-03)', function () {
-    it('leaves an inactive category, and one with nothing at all for this viewer, as they were', function () {
+    it('answers 404 for a category switched off, holding what is sold out and what is unpriced', function (string $fate) {
+        $category = Px::category('Hinges');
+        $soldOut = shopSoldOutProduct($category, ['60 cm']);
+        $unpriced = Px::ready(['80 cm'], $category);
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $unpriced['product'], true)));
+        Ix::count('sa', [$unpriced['variants'][0] => 5]);
+        shopSoldOutByOrder($soldOut['variants'][0]);
+        $url = '/sa/en/categories/'.shopSoldOutSlug('category', $category);
+
+        expect(shopSoldOutProps($url)['soldOut'])->toBeTrue();
+
+        Fx::asSystem(fn () => app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($category, $fate)));
+
+        foreach ([ShopperKind::Guest, ShopperKind::Individual, ShopperKind::Company] as $viewer) {
+            shopSoldOutViewer($viewer);
+            get($url)->assertNotFound();
+        }
+    })->with(['its products hidden' => ['HIDE'], 'its products left' => ['LEAVE']]);
+
+    it('gives an emptied sub-category the way up to the categories above it, each answering', function () {
+        $top = Px::category('Kitchens');
+        $middle = Px::category('Drawers', $top);
+        $emptied = Px::category('Runners', $middle);
+        $sibling = Px::category('Handles', $middle);
+        $gone = shopSoldOutProduct($emptied, ['60 cm']);
+        shopSoldOutProduct($sibling, ['80 cm']);
+        shopSoldOutByOrder($gone['variants'][0]);
+        $page = shopSoldOutProps('/sa/en/categories/'.shopSoldOutSlug('category', $emptied));
+
+        expect($page['soldOut'])->toBeTrue()
+            ->and(array_column($page['path'], 'slug'))->toBe([shopSoldOutSlug('category', $top), shopSoldOutSlug('category', $middle)]);
+
+        foreach ($page['path'] as $step) {
+            app()->forgetScopedInstances();
+            get('/sa/en/categories/'.$step['slug'])->assertOk();
+        }
+
+        // In Arabic, in Arabic; a category still listing draws its path from the menu, as before.
+        expect(array_column(shopSoldOutProps('/sa/ar/categories/'.rawurlencode(shopSoldOutSlug('category', $emptied, 'ar')))['path'], 'slug'))->toBe([shopSoldOutSlug('category', $top, 'ar'), shopSoldOutSlug('category', $middle, 'ar')])
+            ->and(array_column(shopSoldOutProps('/sa/en/categories/'.shopSoldOutSlug('category', $sibling))['path'], 'slug'))->toBe([shopSoldOutSlug('category', $top), shopSoldOutSlug('category', $middle)]);
+    });
+
+    it('leaves a category with nothing at all for this viewer as it was', function () {
         $none = Px::category('Hinges');
         get('/sa/en/categories/'.shopSoldOutSlug('category', $none))->assertNotFound();
 

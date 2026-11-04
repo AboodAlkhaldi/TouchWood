@@ -10,6 +10,7 @@ use Modules\Feedback\Application\Query\ReadInputs;
 use Modules\Feedback\Application\Query\WishlistGroup;
 use Modules\Feedback\Application\Query\WishlistGroups;
 use Modules\Feedback\Domain\Exception\InvalidFeedbackAttribute;
+use Modules\Platform\Public\Contracts\ShopperType;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
@@ -28,6 +29,7 @@ final readonly class ViewMyWishlistHandler
         private ReadInputs $inputs,
         private FeedbackQueries $queries,
         private WishlistGroups $groups,
+        private ShopperType $shopper,
     ) {}
 
     /**
@@ -40,6 +42,6 @@ final readonly class ViewMyWishlistHandler
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $customerId = $this->inputs->customer(self::PERMISSION);
 
-        return $this->groups->of($this->queries->wishlistOf($customerId, null), ReadInputs::locale($query->locale));
+        return $this->groups->of($this->queries->wishlistOf($customerId, null), ReadInputs::locale($query->locale), $this->shopper->current());
     }
 }

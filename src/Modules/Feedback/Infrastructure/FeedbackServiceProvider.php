@@ -79,9 +79,10 @@ final class FeedbackServiceProvider extends ServiceProvider
         $this->app->make(SettingsRegistry::class)->define('feedback', ...FeedbackSettings::definitions());
         // What its reviews name of Catalog's, asked before Catalog deletes it (catalog.md amendment 19).
         $this->app->make(CatalogUsages::class)->register('feedback', FeedbackCatalogUsage::class);
-        // Its parts of a product's page in the shop (§2.3; catalog.md amendment 26(b)).
-        $this->app->make(ShopProductSections::class)->register('feedback.reviews', ReviewsSection::class, ['feedback::shop', 'feedback::errors']);
-        $this->app->make(ShopProductSections::class)->register('feedback.questions', QuestionsSection::class);
+        // Its parts of a product's page in the shop (§2.3; catalog.md amendment 26(b)). Reviews and questions stay
+        // on a page only sold out or unpriced (catalog.md amendment 40(a)): the store still sells it (§9.1b #19).
+        $this->app->make(ShopProductSections::class)->register('feedback.reviews', ReviewsSection::class, ['feedback::shop', 'feedback::errors'], evenSoldOut: true);
+        $this->app->make(ShopProductSections::class)->register('feedback.questions', QuestionsSection::class, evenSoldOut: true);
         $this->app->make(ShopProductSections::class)->register('feedback.wishlist', WishlistSection::class, evenUnavailable: true);
         // The Save heart on every product card (§2.4 B5; catalog.md amendment 32).
         $this->app->make(ShopCardFacts::class)->register('feedback.saved', SavedCardFact::class);

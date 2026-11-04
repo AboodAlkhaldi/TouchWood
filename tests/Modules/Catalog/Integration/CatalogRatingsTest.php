@@ -19,6 +19,7 @@ use Modules\Platform\Public\Enums\ShopperKind;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
+use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
 
 use function Pest\Laravel\seed;
 
@@ -213,6 +214,25 @@ it('treats a product whose last review was unpublished as one without reviews', 
 
     expect($cards[$emptied]->rating)->toBeNull()
         ->and(ratedIds(categoryOf($category, sort: ShopFilters::RATING)))->toBe([$rated, $newest, $emptied]);
+});
+
+it('does not move a store\'s average when a product sells out: stock does not count (feedback.md §1.2, answer 19)', function () {
+    $category = Px::category('Doors');
+    $one = ratedProduct($category);
+    $five = ratedProduct($category);
+    $best = ratedProduct($category);
+    rate($one, 4, 1);
+    rate($five, 20, 5);
+    // Nearly every review the store has, near 5: the average pulls the single 4★ above the five 4★s. Left out
+    // of it, the average would be 4, the two would tie, and the newer would come first.
+    rate($best, 1000, 200);
+    $sizes = DB::table('catalog.variants')->where('product_id', $best)->pluck('id')->map(strval(...))->all();
+
+    expect(ratedIds(categoryOf($category, sort: ShopFilters::RATING)))->toBe([$best, $one, $five]);
+
+    Ix::count('sa', array_fill_keys($sizes, 0));
+
+    expect(ratedIds(categoryOf($category, sort: ShopFilters::RATING)))->toBe([$one, $five]);
 });
 
 it('counts only what the store sells in its average', function () {

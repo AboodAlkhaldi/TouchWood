@@ -127,6 +127,19 @@ final readonly class ShopCatalog
     }
 
     /**
+     * The categories above this one, from the top, for an emptied category's way up (amendment 40(d)): not in
+     * the menu, it cannot draw it from there. Asked only of such a page.
+     *
+     * @return list<ShopLink>
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function trail(string $locale, string $categoryId): array
+    {
+        return $this->reader->categoryTrail(ShopLocale::of($locale), $categoryId);
+    }
+
+    /**
      * A brand's page (§1.4, §1.6, §4.5): everything of it a shopper can order here. An inactive brand
      * has none; an active one always has its page, a secondary one too (amendment 5(m)).
      *
