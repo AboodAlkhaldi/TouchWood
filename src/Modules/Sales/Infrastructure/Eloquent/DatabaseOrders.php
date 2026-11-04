@@ -200,7 +200,8 @@ final readonly class DatabaseOrders implements Orders
     public function waitingCount(string $storeId, string $customerId): int
     {
         return $this->db->table('sales.orders')->where('customer_id', strtolower($customerId))->where('store_id', strtolower($storeId))
-            ->where('status', OrderState::PENDING_APPROVAL)->count();
+            // A test order never fills a real customer's limit (§9.5 #14).
+            ->where('status', OrderState::PENDING_APPROVAL)->where('is_test', false)->count();
     }
 
     public function piecesSold(string $storeId, DateTimeImmutable $since): array

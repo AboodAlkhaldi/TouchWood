@@ -570,6 +570,22 @@ describe('paying', function () {
             ->and((int) DB::table('sales.orders')->where('id', $order)->value('paid_minor'))->toBe($total * 2);
     });
 
+    it('marks money recorded by hand on a test order as test money', function () {
+        ['order' => $order] = orderPayReady('TEST');
+
+        orderPayRecordByHand($order);
+
+        expect(DB::table('sales.payments')->where('order_id', $order)->sole()->is_test)->toBeTrue();
+    });
+
+    it('marks money recorded by hand on a real order as real', function () {
+        ['order' => $order] = orderPayReady();
+
+        orderPayRecordByHand($order);
+
+        expect(DB::table('sales.payments')->where('order_id', $order)->sole()->is_test)->toBeFalse();
+    });
+
     it('treats a request on an order a try made as the request\'s: told once, no refund due on the try', function () {
         ['order' => $order, 'number' => $number, 'total' => $total, 'fake' => $fake] = orderPayReady();
         $try = orderPayPaidTry($order);
