@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\Sales\Presentation\Http\Controller\ShopCartController;
 use Modules\Sales\Presentation\Http\Controller\ShopCheckoutController;
 use Modules\Sales\Presentation\Http\Controller\ShopOrdersController;
+use Modules\Sales\Presentation\Http\Controller\ShopPaymentController;
 
 /*
 | Sales in the shop (sales.md §4.1 S2–S4), under the store and language as every shop page is. The cart is a
@@ -30,6 +31,8 @@ Route::prefix('{store}/{locale}')
         Route::middleware(StorefrontArea::SIGNED_IN)->group(function (): void {
             Route::get('checkout', [ShopCheckoutController::class, 'checkout'])->name('storefront.sales.checkout');
             Route::post('checkout/place', [ShopCheckoutController::class, 'place'])->name('storefront.sales.place');
+            Route::post('checkout/payment/session', [ShopPaymentController::class, 'session'])->name('storefront.sales.payment.session');
+            Route::post('checkout/payment/pay', [ShopPaymentController::class, 'pay'])->name('storefront.sales.payment.pay');
             Route::get('orders/{number}/placed', [ShopCheckoutController::class, 'placed'])->name('storefront.sales.placed');
             Route::post('orders/{number}/receipts', [ShopCheckoutController::class, 'receipt'])->name('storefront.sales.receipt');
 
@@ -44,3 +47,13 @@ Route::prefix('{store}/{locale}')
             Route::post('account/returns/{return}/withdraw', [ShopOrdersController::class, 'withdraw'])->name('storefront.sales.return.withdraw');
         });
     });
+
+// A payment under way still gets its answer once its store is switched off, for that customer's own try alone (payments.md §1.10).
+Route::prefix('{store}/{locale}')
+    ->middleware([...StorefrontArea::MIDDLEWARE_FINISHING, StorefrontArea::SIGNED_IN])
+    ->group(function (): void {
+        Route::post('checkout/payment/{try}/follow', [ShopPaymentController::class, 'follow'])->name('storefront.sales.payment.follow');
+    });
+
+// Where the bank's page ends, inside our frame: a page with nothing in it but word to the page around it, so no session.
+Route::get('{store}/{locale}/checkout/payment/return', [ShopPaymentController::class, 'returned'])->name('storefront.sales.payment.return');

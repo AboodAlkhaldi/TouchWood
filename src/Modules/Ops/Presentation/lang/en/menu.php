@@ -6,5 +6,6 @@ declare(strict_types=1);
 return [
     'notices' => 'Offer Notices',
     'messages' => 'Customer Messages',
+    'subscribers' => 'Subscribers',
     'sms_countries' => 'SMS Countries',
 ];

@@ -180,12 +180,69 @@ Each checked against the code on 2026-11-01, the first two on 2026-11-03.
 | S7's link | The alert is built (`AlertStaff`, #314's event) and opens nothing: its entry has no link. `/admin/payments` has no route on main (2026-11-03) | The screens session (payments.md §4.2) |
 | S8 Campaign expiry | Built on Ops' side (`AlertStaff`, `MessageWriter`); sends nothing until Content is built. Its permission stands in for Content's (ops.md §1.6, §9.5) | Content: to fire `CampaignExpiring` and replace `NoCampaignsYet` |
 | A notice sent when a campaign goes live (§1.7) | Built on Ops' side (`StartCampaignNotice`): a waiting notice only. No state makes a notice wait for its campaign (ops.md §9.5) | Content: to fire `CampaignWentLive`; the owner |
-| A whole store's audience size | No public read counts a store's customers; a segment's is `segmentMemberCount` | Access (ops.md §4.13) |
 | The SMS provider | `log` only | The owner (Mobily being checked) |
 | Brevo on the live system | The adapters are built, every failure covered with faked answers (ops.md §7), and in production a web request or a worker refuses to boot on either `log` driver, or without a usable key and `MAIL_FROM_ADDRESS`, and logs loudly without `BREVO_NEWSLETTER_FOLDER_ID` or `BREVO_WEBHOOK_SECRET`, all the server's; other console commands are left alone; the webhook is made in Brevo, unbatched, with the secret as its custom header. Run `php artisan ops:brevo:check` once the key is in, and `php artisan queue:restart` after changing it. Not yet proven against the real Brevo | The owner, at hosting |
 | What to do about a lost unsubscribe, a long outage, a refused key on queued mail, a missing folder or secret at boot, staging's `APP_ENV` | ops.md §9.6: left as they are | The owner |
 | The words' full review | The reports' and unsubscribe pages' words are marked approved for now, the full review at the end (owner, 2026-10-31) | The owner |
-| The screens | Being built, one job at a time (ops.md §4.15): SMS Countries, the two bells with their full pages, Customer Messages and Offer Notices with their forms are in; the rest have no page or menu entry yet | The screens agent |
+| The screens | Being built, one job at a time (ops.md §4.15): SMS Countries, the two bells with their full pages, Customer Messages and Offer Notices with their forms, and Subscribers are in; Reports, Daily Reports, the newsletter box, the consent switch and box, and the confirm, leave and unsubscribe pages have no page yet | The screens agent |
+
+## Continuing the screens
+
+For whoever builds the rest of ops.md §4.15. The spec is accepted and every backend read it needs is in main. Read the
+page's O-section, and §4.1 and the section of §4 it names, sentence by sentence, before building it.
+
+**The owner's rules.** A question with its effect in plain words before any decision the spec doesn't make. One short branch
+and PR per job, squash merge, and the owner decides each merge. An independent review after each job, given the code and the
+spec, not your conclusions. No co-author line and no generated-with line in a commit or PR. Geist and shadcn pieces only
+(frontend.md §1.11). Latin digits everywhere, both languages, right to left in Arabic. A menu entry lands with its page, never
+before, or it opens raw JSON. Before touching `AdminMenu`, `AdminLayout` or `StorefrontLayout`, check with whoever else is working on them.
+
+**How a page is built here.** `SubscribersController` is the smallest whole example.
+
+- The same address answers a page or JSON: `$request->expectsJson()` for a screen's own read, otherwise `Page::render` with the
+  page's word files. A GET that answers a page **declares `Inertia\Response` in its return type**, or a signed-out visit isn't
+  remembered for after sign-in (#329).
+- A change the page sends goes back with its words (`Answers::fromPage`), and anything else keeps §4's JSON. A refusal for one
+  box goes on that box (`WrittenRefusals`, `SmsCountriesController::answer`); any other through `App\Http\FormErrors`.
+- Each page's words are a file of its own, `ops::admin_*`, in both languages, named in the controller's `WORDS`. Write keys out
+  whole: `TranslationKeysTest` can't read `${W}.x`.
+- A Show More list uses `useLoadMore`, with Back keeping every row and the place (frontend.md). A list with a row action also uses
+  `useKeptDepth`, which asks for the rows below the first page again after a save. `router.post` keeps the page by default, so
+  it needs no `preserveState` of its own.
+- Nothing reads the server by itself on a clock (Q7, Q15): any request resets a staff session's idle clock.
+- O8: `DateRangeField` says its days are UTC; O8 needs store days. Add a prop, don't fork it. O8's menu section means changing
+  `InMemoryAdminMenu`, Access's `permission_groups` words and `AdminMenuTest` together.
+- O13's frame reads no store, because an off store must work (§4.11).
+- The page limit is 60 KB of JavaScript (`JavaScriptBudgetTest`), and the heaviest pages are at 59.9. Split a shared file by who
+  uses it, as `written-list.tsx` and `written-form.tsx` are, before reaching for anything else. `React.lazy` never on first paint
+  under SSR; a dialog can be lazy.
+- A new panel-frame or shop-frame query changes exact counts in many tests: grep them all (`AdminFrameQueryBudgetTest`,
+  `ShopPagesTest`, `AddressFormPlacesTest` among others). The counts are targets recorded in tests and the PR, not hard caps.
+
+**Browser tests: what has bitten.**
+
+- Run each file alone, in the background, under a time limit that stops it, and keep the failure's words. A plain run has hung for
+  hours. Never run two on the same test database, and never build during a run.
+- The first browser run after a build or restart times out at sign-in. Warm up on a small file first (`CarriersScreenTest`).
+- The browser tests keep their rows between runs, and lists sort by `created_at`. **Never plant a far-future `created_at`:** the rows
+  stay on top of every later run and hide its rows. Give each run's data its own number.
+- A whole-store send goes to every customer of that store, so these tests write in `ae`, where few runs leave customers.
+- A product on a shop list needs stock and a price: `CatalogProducts::onSale` (catalog.md amendment 39).
+- Inertia saves the scroll place 100 ms after scrolling stops, so a test that clicks at once comes back to the earlier place.
+- `$page->script()` calls a value that is a function, so wrap statements in `(() => { ... })()`. A click's selector must match one
+  element. `assertSeeIn` has missed Arabic text; read it with `script()`.
+- Every test checks a phone at 375 × 812, with `browserSoon` so the width is read after the page settles (#333).
+- The test clock is frozen (#335): read `CarbonImmutable::now()`, never `time()`, `date()` or `microtime()`, against anything the app stamped, and never write an unbounded loop. One such loop hung CI for hours (#348).
+- A Pest file's functions are global: name each helper after the file's subject.
+- The panel opens in English in tests. Read a form's refusal with `AdminBrowser::flashed`.
+- `checked()` doesn't wire `onChange`: a hand-built `InputGroup` calls `check.onType()` itself (`SmsCountries.tsx`).
+- Lists differ in order: the subscribers list is oldest first (`ORDER BY id`), the others newest first. Read the list's query before a test counts on a row's place.
+
+**Seen once and not explained; don't take these as your own failure without checking.**
+
+- `InventoryScreensTest > it draws the product page's Inventory section…` failed once, then passed three reruns.
+- `CatalogListScreensTest > it adds a word pair and deletes another` failed once with a `QueryException`; the message wasn't kept, and
+  it has passed every run since.
 
 ## Tests
 
@@ -194,6 +251,6 @@ SMS), `PaymentEventsTest` (C10, C11, S6 and transfers overdue from Stage 7's rea
 `BellsTest`, `NoticesTest`, `NoticeSegmentTest`, `StaffMessagesTest`, `NewsletterTest`, `BrevoNewsletterListTest`,
 `ReportsTest`, `DailyReportTest`, `DailyReportEmailTest`, `PruneTest`, `OpsPermissionsTest`, `OpsSchemaTest`,
 `OpsTablesTest`. `tests/Modules/Ops/Feature` over HTTP — `BellRoutesTest`, `WrittenRoutesTest`, `ReportRoutesTest`,
-`DailyReportRoutesTest`, `StopEmailPagesTest`, `SmsCountryRoutesTest`, `ScreensReadsTest`, `SegmentReadsTest`. The consent itself is Access's: `tests/Modules/Access/Integration/MarketingConsentTest`,
+`DailyReportRoutesTest`, `StopEmailPagesTest`, `SmsCountryRoutesTest`, `SmsCountriesScreenTest`, `BellScreensTest`, `WrittenScreensTest`, `SubscribersScreenTest`, `ScreensReadsTest`, `SegmentReadsTest`. The consent itself is Access's: `tests/Modules/Access/Integration/MarketingConsentTest`,
 `tests/Modules/Access/Feature/CustomerAccountPageTest`. ops.md §8 maps each scenario to its test and says what no
 test covers.

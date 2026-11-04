@@ -63,5 +63,9 @@ final class CheckoutPage extends Data
         public bool $carrierChanged = false,
         /** The address is in a country another of our stores serves: no quote, the customer picks another or orders there. */
         public ?CheckoutOtherStoreData $otherStore = null,
+        /** The store's gateway is on and in Test: a Note says no real money is taken (payments.md §1.6, Q10). */
+        public bool $testMode = false,
+        /** A try that can still go through, on coming back (payments.md §4.2, Q8): no form, Pay out of reach. */
+        public ?CheckoutTryData $payment = null,
     ) {}
 }

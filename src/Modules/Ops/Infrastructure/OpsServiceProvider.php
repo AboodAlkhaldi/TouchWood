@@ -235,6 +235,7 @@ final class OpsServiceProvider extends ServiceProvider
         $this->app->make(AdminMenu::class)->register(
             new MenuEntryDto('ops', 'notices', 'marketing', 'ops.admin.notices', OpsPermissions::NOTICE_MANAGE, 40, icon: 'notices'),
             new MenuEntryDto('ops', 'messages', 'marketing', 'ops.admin.messages', [OpsPermissions::MESSAGE_SEND_ONE, OpsPermissions::MESSAGE_SEND_MANY], 50, icon: 'messages'),
+            new MenuEntryDto('ops', 'subscribers', 'marketing', 'ops.admin.subscribers', OpsPermissions::NEWSLETTER_MANAGE, 60, icon: 'subscribers'),
             new MenuEntryDto('ops', 'sms_countries', 'store_settings', 'ops.admin.sms-countries', OpsPermissions::SMS_COUNTRIES_MANAGE, 26, icon: 'sms'),
         );
 
