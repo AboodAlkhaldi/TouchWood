@@ -138,8 +138,6 @@ function CardHeart({ productId, name, saved }: { productId: string; name: string
             {
                 only: ['cardFacts'],
                 preserveScroll: true,
-                // Without it the page starts over, and a list shown with Show More keeps only its last page.
-                preserveState: true,
                 onStart: () => setBusy(true),
                 onFinish: () => setBusy(false),
                 onSuccess: () => {
