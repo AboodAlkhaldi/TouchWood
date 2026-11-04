@@ -213,7 +213,7 @@ function brevoFailuresStep(): ?int
     Artisan::call('queue:work', ['connection' => 'database', '--once' => true, '--queue' => 'default']);
     $at = DB::table('jobs')->value('available_at');
 
-    return $at === null ? null : (int) $at - time();
+    return $at === null ? null : (int) $at - CarbonImmutable::now()->getTimestamp();
 }
 
 function brevoFailuresRetry(): void
@@ -674,7 +674,7 @@ describe('a notice\'s emails when Brevo refuses everybody', function () {
 
         // Worked until nothing is due, its waits left as they are.
         do {
-            $due = DB::table('jobs')->where('available_at', '<=', time())->exists();
+            $due = DB::table('jobs')->where('available_at', '<=', CarbonImmutable::now()->getTimestamp())->exists();
 
             if ($due) {
                 Artisan::call('queue:work', ['connection' => 'database', '--once' => true, '--queue' => 'default']);
@@ -682,7 +682,7 @@ describe('a notice\'s emails when Brevo refuses everybody', function () {
         } while ($due);
 
         $row = brevoFailuresNoticeRow($notice);
-        $soonest = (int) DB::table('jobs')->min('available_at') - time();
+        $soonest = (int) DB::table('jobs')->min('available_at') - CarbonImmutable::now()->getTimestamp();
 
         expect(brevoFailuresCalls())->toBe(3)
             ->and(DB::table('jobs')->count())->toBe(3)
