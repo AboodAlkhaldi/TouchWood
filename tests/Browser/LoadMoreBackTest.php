@@ -203,6 +203,8 @@ it('keeps a customer\'s hearts through Show More and Back, on every page of the 
     foreach (range(1, 26) as $ignored) {
         $product = Cx::ready(['60 cm'], $category)['product'];
         Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $product, true)));
+        // In stock and priced, or it is off the shop's lists (catalog.md amendment 39).
+        Cx::onSale('sa', $product);
     }
 
     $email = strtolower((string) Str::ulid()).'@example.test';
