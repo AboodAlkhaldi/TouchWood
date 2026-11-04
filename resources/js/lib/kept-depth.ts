@@ -59,8 +59,10 @@ export function useKeptDepth(list: List, next: string | null, more: (cursor: str
                 wanted.current = 1;
 
                 if (place.current !== null) {
-                    window.scrollTo(window.scrollX, place.current);
+                    const top = place.current;
                     place.current = null;
+                    // After Inertia's own restore, which runs on the next frame and puts back the cut-down place it saved.
+                    window.requestAnimationFrame(() => window.requestAnimationFrame(() => window.scrollTo(window.scrollX, top)));
                 }
             }
 
