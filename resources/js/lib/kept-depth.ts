@@ -20,6 +20,9 @@ type List = { pages: number; loading: boolean };
  */
 export function useKeptDepth(list: List, next: string | null, more: (cursor: string) => void): boolean {
     const wanted = useRef(1);
+    // A change has gone out, and its first page hasn't replaced the list yet. The answer's `next` arrives a render
+    // before the list's page count falls: without this, that render took the depth as reached and forgot it.
+    const waiting = useRef(false);
     const shown = useRef(list.pages);
     shown.current = list.pages;
 
@@ -30,8 +33,10 @@ export function useKeptDepth(list: List, next: string | null, more: (cursor: str
 
                 if (visit.method !== 'get') {
                     wanted.current = Math.max(wanted.current, shown.current);
+                    waiting.current = true;
                 } else if (visit.only.length === 0 && !visit.prefetch) {
                     wanted.current = 1;
+                    waiting.current = false;
                 }
             }),
         [],
@@ -41,10 +46,14 @@ export function useKeptDepth(list: List, next: string | null, more: (cursor: str
 
     useEffect(() => {
         if (!restoring) {
-            wanted.current = 1;
+            if (!waiting.current) {
+                wanted.current = 1;
+            }
 
             return;
         }
+
+        waiting.current = false;
 
         if (!list.loading && next !== null) {
             more(next);

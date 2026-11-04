@@ -205,6 +205,31 @@ it('counts in the row and saves from the save bar, saying in amber when orders a
         ->and(browserSoon($page, "[...document.querySelectorAll('[data-sonner-toast][data-type=\"warning\"]')].some((toast) => toast.textContent.includes('1 order is short of {$ready['values'][0]}'))"))->toBeTrue();
 });
 
+it('shows a saved count on a row reached with Show More, not the count from before the save', function () {
+    // Enough sizes for a second page, whatever other runs left.
+    foreach (range(1, 28) as $product) {
+        inventoryBrowserProduct();
+    }
+
+    $page = inventoryBrowser();
+    $page->navigate('/admin/stock', BROWSER_SLOW_PAGE_LOAD);
+    $boxes = "document.querySelectorAll('input[id^=\"count-\"]')";
+    expect(browserSoon($page, "{$boxes}.length === 50"))->toBeTrue();
+
+    $page->script("(() => { document.querySelector('[data-test=\"more\"]').click(); })()");
+    expect(browserSoon($page, "{$boxes}.length > 50"))->toBeTrue();
+
+    $box = (string) $page->script("{$boxes}[{$boxes}.length - 1].id");
+    $page->type("#{$box}", '77');
+    expect(browserSoon($page, "document.getElementById('count-save-bar-message')?.textContent.includes('1')"))->toBeTrue();
+    $page->click('[data-test="save-bar-save"]');
+    expect(browserSoon($page, "document.body.textContent.includes('Counts saved')"))->toBeTrue();
+    usleep(500_000);
+
+    expect(browserSoon($page, "document.getElementById('{$box}')?.value === '77'", 5))->toBeTrue("the box says {$page->script("document.getElementById('{$box}')?.value")}");
+    $page->assertNoJavaScriptErrors();
+});
+
 it('says a save once: opening a drawer after it does not say it again', function () {
     $ready = inventoryBrowserProduct();
     [$size] = $ready['sizes'];

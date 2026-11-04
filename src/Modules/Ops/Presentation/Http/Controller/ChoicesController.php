@@ -62,8 +62,6 @@ final readonly class ChoicesController
      */
     private static function stores(array $stores): array
     {
-        $locale = app()->getLocale();
-
-        return array_map(static fn (StoreDto $store): StoreChoiceData => new StoreChoiceData($store->id, $store->code, $store->name->in($locale), $store->isActive), $stores);
+        return StoreChoiceData::listOf($stores);
     }
 }
