@@ -74,6 +74,7 @@ use Modules\Sales\Public\Dto\MoneyRecordMessageDto;
 use Modules\Sales\Public\Dto\OrderMessageDto;
 use Modules\Sales\Public\Dto\OrderMessageLineDto;
 use Modules\Sales\Public\Dto\ReturnMessageDto;
+use Modules\Sales\Public\Events\LatePaymentRefundDue;
 use Modules\Sales\Public\Events\OrderApproved;
 use Modules\Sales\Public\Events\OrderCameBack;
 use Modules\Sales\Public\Events\OrderCancelled;
@@ -1126,6 +1127,33 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
             ->and(eventMessagesSent(staffId: $byDefault))->toBe([])
             ->and(CapturedEmails::installed()->sent)->toHaveCount(1)
             ->and(CapturedEmails::installed()->sent[0]->subject)->toBe('A payment was not accepted in Saudi Arabia');
+    });
+
+    it('alerts the holders of sales.payment.record on LatePaymentRefundDue, once per event, by their switches, and tells the customer nothing', function () {
+        $byDefault = Fx::staffWith(['sales.payment.record'], ['sa']);
+        $byEmail = Fx::staffWith(['sales.payment.record'], ['sa']);
+        $elsewhere = Fx::staffWith(['sales.payment.record'], ['eg']);
+        $noPermission = Fx::staffWith(['sales.order.view'], ['sa']);
+        eventMessagesSwitch($byEmail, StaffNotificationTopic::PaymentsToCheck, panel: false, email: true);
+
+        // orderId is the id the order would have had: no order has it, so nothing may read it.
+        $late = new LatePaymentRefundDue(eventMessagesId(), strtolower((string) Str::ulid()), strtolower((string) Str::ulid()), strtolower((string) Str::ulid()), Fx::storeId('sa'), CarbonImmutable::now());
+        event($late);
+        event($late);
+
+        $bell = eventMessagesBell(staffId: $byDefault);
+
+        expect($bell)->toHaveCount(1)
+            ->and([$bell[0]->kind, $bell[0]->title_en, $bell[0]->line_en, $bell[0]->link])->toBe(['late_payment_refund_due', 'Late payment in Saudi Arabia, refund owed', 'A payment succeeded after its time ran out, so no order was made. Refund it by hand in MyFatoorah, or contact the customer.', null])
+            ->and(DB::table('ops.inbox_entries')->where('kind', 'late_payment_refund_due')->value('line_ar'))->toBe('نجحت دفعة بعد انتهاء وقتها، فلم يُنشأ طلب. استردّها يدويًا من ماي فاتورة، أو تواصل مع العميل.')
+            ->and(eventMessagesBell(staffId: $byEmail))->toBe([])
+            ->and(eventMessagesBell(staffId: $elsewhere))->toBe([])
+            ->and(eventMessagesBell(staffId: $noPermission))->toBe([])
+            ->and(eventMessagesSent(staffId: $byEmail))->toBe(['late_payment_refund_due EMAIL SENT'])
+            ->and(eventMessagesSent(staffId: $byDefault))->toBe([])
+            ->and(CapturedEmails::installed()->sent)->toHaveCount(1)
+            ->and(CapturedEmails::installed()->to())->toBe([eventMessagesEmailOf($byEmail)])
+            ->and(CapturedEmails::installed()->sent[0]->subject)->toBe('A payment succeeded too late in Saudi Arabia');
     });
 
     it('alerts super admins alone on GatewayKeyRejected, once per event, always with the SMS, saying which key', function (string $mode, string $locale, string $words) {
