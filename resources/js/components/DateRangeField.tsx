@@ -56,7 +56,8 @@ function today(timeZone?: string): string {
         return new Date().toISOString().slice(0, 10);
     }
 
-    const parts = new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+    // Only its parts are read, never its text: any language with Latin digits would do.
+    const parts = new Intl.DateTimeFormat(intlLocale('en'), { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
     const part = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
 
     return `${part('year')}-${part('month')}-${part('day')}`;
