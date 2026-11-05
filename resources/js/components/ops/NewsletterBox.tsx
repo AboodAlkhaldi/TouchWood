@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { checked, describedBy, Messages } from '@/components/Fields';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { sentenceOf, subjectOf } from '@/lib/checks';
 import { figure, intlLocale } from '@/lib/digits';
+import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import { useChecks } from '@/lib/use-checks';
 import type { NewsletterWords, SharedProps } from '@/types/page';
@@ -21,6 +22,7 @@ import type { NewsletterWords, SharedProps } from '@/types/page';
 | - 422 `email`: the box's own rule, which is also checked as typed;
 | - 429 `{retryAfter}`: how many minutes to wait;
 | - 503 `ops.newsletter_unavailable`: the problem's words, the email kept;
+| - 419: the session behind the page's token is gone; the page is read again and the send goes once more;
 | - anything else, no answer included: "try again", the email kept (owner, 2026-11-05).
 */
 
@@ -28,6 +30,7 @@ type Refusal = { text: string; signIn: boolean };
 
 export default function NewsletterBox({ words }: { words: NewsletterWords }) {
     const t = useTranslator();
+    const link = useLink();
     const { shop, locale, csrfToken } = usePage<SharedProps>().props;
     const [email, setEmail] = useState('');
     const [sending, setSending] = useState(false);
@@ -53,40 +56,70 @@ export default function NewsletterBox({ words }: { words: NewsletterWords }) {
 
     const address = `/${shop.code}/${locale}/newsletter`;
 
-    async function send() {
+    function fail() {
+        setRefusal({ text: words.failed, signIn: false });
+        setSending(false);
+    }
+
+    /**
+     * One send. A 419 means the session behind the page's token is gone (it expired while the page stood open): the
+     * page is read again for a fresh token, keeping what was typed, and the send goes once more with it.
+     */
+    async function send(token: string, again: boolean) {
         setSending(true);
         setRefusal(null);
         setBoxRefusal(undefined);
+
+        let status: number;
+        let answer: { type?: unknown; detail?: unknown; retryAfter?: unknown };
 
         try {
             const response = await fetch(address, {
                 method: 'POST',
                 credentials: 'same-origin',
-                headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrfToken },
+                headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': token },
                 body: JSON.stringify({ email }),
             });
-            const answer = (await response.json().catch(() => ({}))) as { detail?: unknown; retryAfter?: unknown };
-
-            if (response.status === 202) {
-                setSent(true);
-            } else if (response.status === 409 && typeof answer.detail === 'string') {
-                setRefusal({ text: answer.detail, signIn: true });
-            } else if (response.status === 422) {
-                setBoxRefusal(sentenceOf({ rule: 'email', values: {} }, subjectOf(words.email, locale), t, locale));
-            } else if (response.status === 429 && typeof answer.retryAfter === 'number') {
-                const minutes = Math.max(1, Math.ceil(answer.retryAfter / 60));
-                const sentence = words.too_many[new Intl.PluralRules(intlLocale(locale)).select(minutes)] ?? words.too_many.other ?? '';
-                setRefusal({ text: sentence.replace(':count', figure(locale, minutes)), signIn: false });
-            } else if (response.status === 503 && typeof answer.detail === 'string') {
-                setRefusal({ text: answer.detail, signIn: false });
-            } else {
-                setRefusal({ text: words.failed, signIn: false });
-            }
+            status = response.status;
+            answer = (await response.json().catch(() => ({}))) as typeof answer;
         } catch {
-            setRefusal({ text: words.failed, signIn: false });
-        } finally {
-            setSending(false);
+            fail();
+
+            return;
         }
+
+        if (status === 419 && !again) {
+            router.reload({
+                onSuccess: (page) => void send((page.props as unknown as SharedProps).csrfToken, true),
+                onNetworkError: () => {
+                    fail();
+
+                    return false;
+                },
+            });
+
+            return;
+        }
+
+        if (status === 202) {
+            setSent(true);
+        } else if (status === 409 && answer.type === 'ops.subscribe_in_your_account' && typeof answer.detail === 'string') {
+            setRefusal({ text: answer.detail, signIn: true });
+        } else if (status === 422) {
+            setBoxRefusal(sentenceOf({ rule: 'email', values: {} }, subjectOf(words.email, locale), t, locale));
+        } else if (status === 429 && typeof answer.retryAfter === 'number') {
+            const minutes = Math.max(1, Math.ceil(answer.retryAfter / 60));
+            const sentence = words.too_many[new Intl.PluralRules(intlLocale(locale)).select(minutes)] ?? words.too_many.other ?? '';
+            setRefusal({ text: sentence.replace(':count', figure(locale, minutes)), signIn: false });
+        } else if (status === 503 && answer.type === 'ops.newsletter_unavailable' && typeof answer.detail === 'string') {
+            setRefusal({ text: answer.detail, signIn: false });
+        } else {
+            fail();
+
+            return;
+        }
+
+        setSending(false);
     }
 
     return (
@@ -111,7 +144,7 @@ export default function NewsletterBox({ words }: { words: NewsletterWords }) {
                         event.preventDefault();
 
                         if (!sending) {
-                            checks.submit(() => void send());
+                            checks.submit(() => void send(csrfToken, false));
                         }
                     }}
                 >
@@ -151,7 +184,7 @@ export default function NewsletterBox({ words }: { words: NewsletterWords }) {
                         <p id="newsletter-refusal" role="alert" className="text-copy-14 text-bad" data-test="newsletter-refusal">
                             {refusal.text}{' '}
                             {refusal.signIn ? (
-                                <Link href={`/${shop.code}/${locale}/sign-in`} className="font-medium underline underline-offset-4" data-test="newsletter-sign-in">
+                                <Link href={link('storefront.sign-in')} className="font-medium underline underline-offset-4" data-test="newsletter-sign-in">
                                     {words.sign_in}
                                 </Link>
                             ) : null}

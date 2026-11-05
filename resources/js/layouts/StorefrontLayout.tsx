@@ -27,6 +27,9 @@ import type { SharedProps, ShopperLine } from '@/types/page';
 
 const NewsletterBox = lazy(() => import('@/components/ops/NewsletterBox'));
 
+/** Whether this tab has drawn a page once: only then may the box draw at once (the server never draws it). */
+let boxDrawn = false;
+
 /*
 | The shop's frame (frontend.md §2.3), on shadcn's code with Geist's rules (§1.11).
 |
@@ -63,8 +66,12 @@ export function StorefrontLayout({ title, children, address }: Props) {
     // The newsletter box (ops.md §4.15 O11) loads once the page has drawn, so no shop page carries it on first
     // paint (the page budget; a lazy part drawn by the server would break its render).
     const newsletter = shop === null || shop === undefined || staffView ? null : (bell?.newsletter ?? null);
-    const [drawn, setDrawn] = useState(false);
-    useEffect(() => setDrawn(true), []);
+    // Once drawn in this tab it stays: each page draws its own layout, and the box would go and come back on every visit.
+    const [drawn, setDrawn] = useState(boxDrawn);
+    useEffect(() => {
+        boxDrawn = true;
+        setDrawn(true);
+    }, []);
 
     return (
         <>

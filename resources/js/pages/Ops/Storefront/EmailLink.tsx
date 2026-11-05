@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { usePage } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { Button } from '@/components/ui/button';
 import { EmailLinkLayout } from '@/layouts/EmailLinkLayout';
@@ -14,7 +14,8 @@ import type { EmailLinkPageData } from '@/types/generated/Modules/Ops/Presentati
 |
 | - Confirm's refusal (`ops.confirmation_link_invalid`, 404) says its words in the button's place.
 | - Confirm alone then offers Go to the Shop, its store being on; the other two offer no way on, the store may be off.
-| - Anything else that goes wrong says "try again" and keeps the button (owner, 2026-11-05).
+| - A 419 (the session behind Confirm's token gone) reads the page again and presses once more with a fresh token.
+| - Anything else that goes wrong, another 404 included, says "try again" and keeps the button (owner, 2026-11-05).
 */
 
 type State = { kind: 'ready' } | { kind: 'sending' } | { kind: 'done' } | { kind: 'refused'; text: string } | { kind: 'failed' };
@@ -30,32 +31,50 @@ export default function EmailLink({ title, text, action, done, failed, shopAddre
         }
     }, [state.kind]);
 
-    async function press() {
-        if (state.kind === 'sending') {
+    /**
+     * One press. A 419 means the session behind the page's token is gone (Confirm takes one; the other two need none):
+     * the page is read again for a fresh token, and the press goes once more with it.
+     */
+    async function press(token: string, again: boolean) {
+        setState({ kind: 'sending' });
+
+        let response: Response;
+
+        try {
+            response = await fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': token },
+                body: '{}',
+            });
+        } catch {
+            setState({ kind: 'failed' });
+
             return;
         }
 
-        setState({ kind: 'sending' });
+        if (response.ok) {
+            setState({ kind: 'done' });
 
-        try {
-            const response = await fetch(url, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': props.csrfToken },
-                body: '{}',
+            return;
+        }
+
+        if (response.status === 419 && !again) {
+            router.reload({
+                onSuccess: (page) => void press((page.props as unknown as SharedProps).csrfToken, true),
+                onNetworkError: () => {
+                    setState({ kind: 'failed' });
+
+                    return false;
+                },
             });
 
-            if (response.ok) {
-                setState({ kind: 'done' });
-
-                return;
-            }
-
-            const problem = (await response.json().catch(() => ({}))) as { detail?: unknown };
-            setState(response.status === 404 && typeof problem.detail === 'string' ? { kind: 'refused', text: problem.detail } : { kind: 'failed' });
-        } catch {
-            setState({ kind: 'failed' });
+            return;
         }
+
+        // Only the link's own refusal takes the button's place; anything else may go through on another press.
+        const problem = (await response.json().catch(() => ({}))) as { type?: unknown; detail?: unknown };
+        setState(problem.type === 'ops.confirmation_link_invalid' && typeof problem.detail === 'string' ? { kind: 'refused', text: problem.detail } : { kind: 'failed' });
     }
 
     return (
@@ -79,7 +98,7 @@ export default function EmailLink({ title, text, action, done, failed, shopAddre
                 </p>
             ) : (
                 <div className="grid gap-3">
-                    <ActionButton type="button" className="w-full" loading={state.kind === 'sending'} onClick={() => void press()} data-test="email-link-action">
+                    <ActionButton type="button" className="w-full" loading={state.kind === 'sending'} onClick={() => void press(props.csrfToken, false)} data-test="email-link-action">
                         {action}
                     </ActionButton>
                     {state.kind === 'failed' ? (

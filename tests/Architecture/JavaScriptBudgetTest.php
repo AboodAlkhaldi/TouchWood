@@ -253,3 +253,25 @@ it('keeps the JavaScript within the budgets of frontend.md §5', function () {
         ->and($sizes['shared'])->toBeLessThanOrEqual(SHARED_BUDGET, sprintf('shared JavaScript is %.1f KB gzipped, over the 200 KB budget', $sizes['shared'] / 1000))
         ->and(array_map(fn (int $size): string => sprintf('%.1f KB', $size / 1000), $overPages))->toBe([]);
 });
+
+it('lists as frameless only pages that load neither the shop\'s frame nor the panel\'s', function () {
+    $manifestPath = dirname(__DIR__, 2).'/public/build/manifest.json';
+
+    expect(is_file($manifestPath))->toBeTrue('public/build/manifest.json is missing: run npm run build first');
+
+    /** @var array<string, array{file: string, name?: string, imports?: list<string>}> $manifest */
+    $manifest = json_decode((string) file_get_contents($manifestPath), true, flags: JSON_THROW_ON_ERROR);
+    $frames = fn (string $page): array => array_values(array_intersect(
+        ['StorefrontLayout', 'AdminLayout'],
+        array_map(fn (string $key): string => $manifest[$key]['name'] ?? '', chunksLoadedWith($manifest, $page)),
+    ));
+
+    // The way of telling sees a frame where there is one (lesson 44): a shop page and a panel page.
+    expect($frames('resources/js/pages/Access/Storefront/Register.tsx'))->toBe(['StorefrontLayout'])
+        ->and($frames('resources/js/pages/Ops/Admin/Subscribers.tsx'))->toBe(['AdminLayout']);
+
+    foreach (FRAMELESS_PAGES as $page) {
+        expect($manifest)->toHaveKey($page)
+            ->and($frames($page))->toBe([], "{$page} loads a frame: it is not frameless");
+    }
+});

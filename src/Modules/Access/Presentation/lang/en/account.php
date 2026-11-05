@@ -285,5 +285,6 @@ return [
         'label' => 'Send me offers and news',
         'hint' => 'By email. Messages about your orders and account still come.',
         'unconfirmed' => 'These can only reach you once your email is confirmed.',
+        'failed' => 'Couldn\'t save just now. Try again.',
     ],
 ];

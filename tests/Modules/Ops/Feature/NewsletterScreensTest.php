@@ -65,6 +65,19 @@ function newsletterScreensGuest(string $code, string $email): string
     return $id;
 }
 
+/** Whether a query names a table of the `ops` schema - `"ops".x` or `ops.x` - and not one ending in "ops", as "shops". */
+function newsletterScreensReadsOps(string $sql): int
+{
+    return preg_match('/(?:^|[^a-z0-9_".])(?:"ops"|ops)\.["a-z_]/i', $sql);
+}
+
+it('tells an ops table from one that only ends in "ops"', function () {
+    expect(newsletterScreensReadsOps('select * from "ops"."inbox_entries"'))->toBe(1)
+        ->and(newsletterScreensReadsOps('select count(*) from ops.inbox_entries'))->toBe(1)
+        ->and(newsletterScreensReadsOps('select * from "catalog"."shops" where "shops"."id" = ?'))->toBe(0)
+        ->and(newsletterScreensReadsOps('select * from "workshops"."x"'))->toBe(0);
+});
+
 function newsletterScreensStoreOff(string $code): void
 {
     DB::table('platform.stores')->where('code', $code)->update(['is_active' => false]);
@@ -142,7 +155,7 @@ it('carries the newsletter box\'s words to a guest, in the page\'s language, and
     $guest->get('/sa/en')->assertOk();
     $opsReads = 0;
     DB::listen(function (QueryExecuted $query) use (&$opsReads): void {
-        $opsReads += preg_match('/"?ops"?\./i', $query->sql);
+        $opsReads += newsletterScreensReadsOps($query->sql);
     });
 
     $guest->get('/sa/en')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
@@ -167,7 +180,7 @@ it('carries no newsletter box to a signed-in customer', function () {
     // The guest's test counts no Ops read; the same recorder sees the bell's, so it is no empty count (lesson 109).
     $opsReads = 0;
     DB::listen(function (QueryExecuted $query) use (&$opsReads): void {
-        $opsReads += preg_match('/"?ops"?\./i', $query->sql);
+        $opsReads += newsletterScreensReadsOps($query->sql);
     });
 
     $browser->get('/sa/en')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
