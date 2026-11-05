@@ -333,6 +333,16 @@ return [
             'A payment in :store was not accepted, and a refund is owed to the customer.',
         ],
     ],
+    'late_payment_refund_due' => [
+        'title' => 'Late payment in :store, refund owed',
+        'line' => 'A payment succeeded after its time ran out, so no order was made. Refund it by hand in MyFatoorah, or contact the customer.',
+        'subject' => 'A payment succeeded too late in :store',
+        'lines' => [
+            'Hello :name,',
+            'A payment in :store succeeded after its time ran out, so no order was made and a refund is owed.',
+            'Refund it by hand in MyFatoorah, or contact the customer.',
+        ],
+    ],
     'campaign_expiring' => [
         'title' => 'Campaign ending soon',
         'line' => 'The :campaign campaign in :store ends on :date.',

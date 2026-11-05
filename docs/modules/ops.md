@@ -202,6 +202,7 @@ decides, on `OrderMessageDto` and `MoneyRecordMessageDto`. The other messages ab
 | S5b | Payment problems | MyFatoorah refused a store's current key: once until a new key is saved; an earlier key refused sends nothing; a refusal on the mode not in use fires too | `GatewayKeyRejected(eventId, storeId, mode, occurredAt)` (#310; payments.md:187-192) | `payments.gateway.manage` — super admins only | **Yes** (owner, 2026-10-28, §9.3 #12) |
 | S6 | **Payments to check** (a **new** Access topic, amendment 84) | A bank transfer unchecked the store's `transferCheckHours` (72 by default) after the first upload | `TransferOverdue(eventId, orderId, storeId, occurredAt)`, once per order, never a test order, from **Sales'** hourly job (sales.md §9.5 #16) | `sales.payment.record` | — |
 | S7 | **Payments to check** | A payment not accepted — a refund is owed | `PaymentNotAccepted`, with its `storeId`; links to the attempt in Payments' staff lists — for a try the order never existed | `sales.payment.record` | — (owner, round 3 #13: withdrawn) |
+| S7b | **Payments to check** | A payment succeeded after its try was released: the money was taken and no order was made, so a refund is owed (the owner, 2026-11-04) | `LatePaymentRefundDue(eventId, tryId, attemptId, orderId, storeId, occurredAt)`, once per event. `orderId` is the id the order would have had: no order has it, so Ops reads no order. Nothing goes to the customer | `sales.payment.record` | — |
 | S9 | **Returns** (a **new** Access topic) | A customer asks for a return | **new** `ReturnRequested(eventId, returnId, orderId, storeId, customerId, occurredAt)` | `sales.return.manage` | — (bell opens the return; it stays under Waiting in the panel's Returns) |
 | S8 | Campaign expiry | A campaign is about to end, when Content's spec says | `CampaignExpiring(eventId, campaignId, storeId, endsAt, occurredAt)` | **Content's, when it has one.** Until then `ops.message.send_many`, admin-only: Super Admins and the store's admins who hold it (2026-11-03, for the owner to confirm) | — |
 | S10 | **None: it cannot be switched off** (owner, 2026-11-01) | A security email (C18) could not be sent: **at most once a clock hour** | None: `SecurityFailureAlert`, called from `OpsSecurityMessages` | `ops.sms_countries.manage`, reserved, used only because it reaches active super admins and no one else | — **The bell alone** |
@@ -999,7 +1000,7 @@ reads the screens needed were added; what stays is what the code cannot give yet
    fire `CampaignWentLive`, and to hold the notice's id (§9.5). S8 has no link until Content has a campaign page (§1.6).
 5. **C11's link opens a page with no route yet.** The bell and the email open `/{store}/{locale}/orders/{number}/pay`
    (payments.md §1.5), the screens session's (sales.md §9.9), not on main on 2026-11-03: until it lands the link answers 404.
-6. **S7 opens nothing.** Its page is `/admin/payments?store=&state=` (payments.md §4.2), the screens session's, not on main on
+6. **S7 and S7b open nothing.** Their page is `/admin/payments?store=&state=` (payments.md §4.2), the screens session's, not on main on
    2026-11-03. When it lands, `MessageWriter` gets the link and no screen changes.
 
 ### 4.14 The SMS countries (§3; access.md amendment 90)
