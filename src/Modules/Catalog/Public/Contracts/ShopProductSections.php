@@ -19,10 +19,13 @@ interface ShopProductSections
      *                               (amendment 33) - "feedback::shop"
      * @param  bool  $evenUnavailable  read on a "Not available now" page too (amendment 34) - the Save
      *                                 heart, so a saved product can be kept or removed there; every
-     *                                 other section is left off that page
+     *                                 other section is left off that page, but for those below
+     * @param  bool  $evenSoldOut  read on such a page too when the product is only sold out or unpriced for
+     *                             this viewer (amendment 40(a)) - reviews, the rating and questions; never
+     *                             on one marked by staff, archived or the like
      *
      * @throws \LogicException for a class that is not a ShopProductSection, a key not of that form, or
      *                         a key registered twice
      */
-    public function register(string $key, string $section, array $words = [], bool $evenUnavailable = false): void;
+    public function register(string $key, string $section, array $words = [], bool $evenUnavailable = false, bool $evenSoldOut = false): void;
 }

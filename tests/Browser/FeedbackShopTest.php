@@ -14,6 +14,7 @@ use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\Catalog\Support\CatalogProducts;
 use Tests\Modules\Feedback\Support\FeedbackFixtures as Fb;
+use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
 
 use function Pest\Laravel\seed;
 
@@ -120,6 +121,28 @@ it('writes a review, asks a question and saves the product, then shows it all in
 
         expect(feedbackShopWide($page))->toBe('', "{$uri} scrolls sideways");
     }
+});
+
+it('offers Write a Review and Ask a Question on a page only sold out, with no Add to Cart', function () {
+    ['product' => $product, 'variants' => $sizes] = Fb::sold();
+    $customer = Fx::customer(strtolower((string) Str::ulid()).'@example.test');
+    Fb::delivered($customer, $product, $sizes[0]);
+    Ix::count('sa', array_fill_keys($sizes, 0));
+    $page = feedbackShopCustomer($customer);
+    $page->resize(375, 812);
+
+    $page->navigate('/sa/en/products/'.feedbackShopSlug($product), BROWSER_PAGE_LOAD)
+        ->assertPresent('[data-test="not-available"]')
+        ->assertPresent('[data-test="write-review"]')
+        ->assertPresent('[data-test="ask-question"]')
+        ->assertMissing('[data-test="add-to-cart"]');
+
+    $page->click('[data-test="write-review"]')
+        ->click('[data-test="rate-4"]')
+        ->type('#review-body', 'Solid and quiet.')
+        ->click('[data-test="submit-review"]');
+    expect(browserUntil($page, "document.body.innerText.includes('You reviewed this product.')"))->toBeTrue()
+        ->and(feedbackShopWide($page))->toBe('', 'the product page scrolls sideways');
 });
 
 it('keeps the Save heart on a page that is not available now, saved as it was', function () {

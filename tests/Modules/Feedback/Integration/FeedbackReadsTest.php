@@ -12,6 +12,8 @@ use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
 use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNow;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNowHandler;
+use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTerms;
+use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTermsHandler;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Feedback\Application\Command\SaveToWishlist\SaveToWishlist;
 use Modules\Feedback\Application\Command\SaveToWishlist\SaveToWishlistHandler;
@@ -328,6 +330,31 @@ describe('the staff queues', function () {
 });
 
 describe('wishlists for staff', function () {
+    it('marks an item as the customer sees it, not as the staff member would (catalog.md amendment 40(e))', function () {
+        ['product' => $product, 'variants' => [$retail, $wholesale]] = Fb::sold();
+        Fx::asSystem(fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms(Fx::storeId('sa'), $product, [$retail => ['retail' => true, 'wholesale' => false], $wholesale => ['retail' => false, 'wholesale' => true]], wholesaleMinimum: 5)));
+        Ix::count('sa', [$retail => 0]);
+        $sara = Fx::customer('sara@example.test', 'sa', 'individual');
+        $works = Fx::customer('works@example.test', 'sa', 'company');
+        readsWishlist($sara, $product, 'sa', '2026-10-01 10:00:00+00');
+        readsWishlist($works, $product, 'sa', '2026-10-01 10:00:00+00');
+        $read = static function (string $customer): bool {
+            $groups = app(ViewCustomerWishlistHandler::class)->handle(new ViewCustomerWishlist($customer, 'en'));
+
+            return $groups[0]->items[0]->unavailable;
+        };
+
+        Fx::actAsStaff(Fx::staffWith([FeedbackPermissions::WISHLIST_VIEW, 'access.customer.view'], ['sa']));
+
+        // Retail sold out, wholesale in stock: the individual cannot buy it; the company can.
+        expect($read($sara))->toBeTrue()
+            ->and($read($works))->toBeFalse();
+
+        // And the same to the customer's own eyes.
+        Fx::actAsCustomer($sara);
+        expect(app(ViewMyWishlistHandler::class)->handle(new ViewMyWishlist('en'))[0]->items[0]->unavailable)->toBeTrue();
+    });
+
     it('shows a customer\'s items of the reader\'s stores only, and nothing of a customer they may not see', function () {
         ['product' => $product] = Fb::sold(['sa', 'ae']);
         $sara = Fx::customer();

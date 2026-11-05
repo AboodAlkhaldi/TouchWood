@@ -203,6 +203,21 @@ final readonly class DatabaseShopReader implements ShopReader
         ] : null;
     }
 
+    public function categoryTrail(string $locale, string $categoryId): array
+    {
+        $rows = $this->db->select(
+            'WITH RECURSIVE up (id, parent_id, depth) AS ('
+            .' SELECT c.id, c.parent_id, 0 FROM catalog.categories c WHERE c.id = ?'
+            .' UNION ALL SELECT c.id, c.parent_id, up.depth + 1 FROM catalog.categories c JOIN up ON c.id = up.parent_id)'
+            .' SELECT c.'.self::column('name', $locale).' AS name, s.slug FROM up JOIN catalog.categories c ON c.id = up.id'
+            .' JOIN catalog.category_slugs s ON s.category_id = c.id AND s.locale = ? AND s.is_current'
+            .' WHERE up.depth > 0 ORDER BY up.depth DESC',
+            [$categoryId, $locale],
+        );
+
+        return array_values(array_map(static fn (stdClass $row): ShopLink => new ShopLink((string) $row->name, (string) $row->slug), $rows));
+    }
+
     public function brandHead(string $locale, string $slug): ?array
     {
         $rows = $this->db->select(
@@ -653,7 +668,8 @@ final readonly class DatabaseShopReader implements ShopReader
 
     /**
      * The store's average, `C` (answer 15): every approved review of the products the store sells —
-     * its orderable listing rows, any language, any viewer — or none when none has a review, so every
+     * its listing rows, any language, any viewer, **sold out and unpriced ones too**: stock does not count
+     * (feedback.md §1.2, §9.1b #19; catalog.md amendment 40(c)), so a flip moves no key — or none when none has a review, so every
      * product comes last alike. From the store's listing rows (their key's first column), each product
      * once.
      */
@@ -661,7 +677,7 @@ final readonly class DatabaseShopReader implements ShopReader
     {
         $average = $this->db->selectOne(
             'SELECT SUM(pr.rating_sum)::numeric / NULLIF(SUM(pr.rating_count), 0) AS average'
-            .' FROM (SELECT DISTINCT product_id FROM '.self::LISTING.' WHERE store_id = ? AND orderable) sold'
+            .' FROM (SELECT DISTINCT product_id FROM '.self::LISTING.' WHERE store_id = ?) sold'
             .' JOIN catalog.product_ratings pr ON pr.product_id = sold.product_id',
             [$storeId],
         );

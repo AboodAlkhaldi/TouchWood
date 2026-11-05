@@ -13,6 +13,10 @@ use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategory;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategoryHandler;
+use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiences;
+use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiencesHandler;
+use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTerms;
+use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTermsHandler;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Dto\ProductDto;
 use Modules\Catalog\Public\Dto\VariantDto;
@@ -23,6 +27,8 @@ use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
+use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
+use Tests\Modules\Pricing\Support\PricingFixtures as Rx;
 
 use function Pest\Laravel\seed;
 
@@ -423,5 +429,90 @@ describe('a store\'s sizes and who may buy them, for Sales (amendment 29)', func
             ->and($open(ShopperKind::Company))->toBe($expect(['both', 'companies', 'no category', 'open child']))
             ->and($open(ShopperKind::Guest))->toBe($expect(['both', 'individuals', 'companies', 'no category', 'open child']))
             ->and(catalogReads()->productsOpenTo(StoreId::fromString($sa), ShopperKind::Guest, []))->toBe([]);
+    });
+});
+
+/**
+ * @param  list<string>  $products
+ * @return list<string> those this viewer can order in KSA now
+ */
+function catalogOrderableNow(ShopperKind $viewer, array $products): array
+{
+    return catalogReads()->productsOrderableNow(StoreId::fromString(Fx::storeId('sa')), $viewer, $products);
+}
+
+/**
+ * A ready product on sale in KSA.
+ *
+ * @param  list<string>  $sizes
+ * @return array{product: string, variants: list<string>, width: string}
+ */
+function catalogOrderableProduct(array $sizes = ['60 cm', '80 cm'], ?string $category = null): array
+{
+    $p = Px::ready($sizes, $category);
+    Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $p['product'], true)));
+    Px::onSale('sa', $p['product']);
+
+    return $p;
+}
+
+/**
+ * Its first size sold retail only, its second wholesale only.
+ *
+ * @param  array{product: string, variants: list<string>, width: string}  $p
+ */
+function catalogOrderableSides(array $p): void
+{
+    Fx::asSystem(fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms(Fx::storeId('sa'), $p['product'], [$p['variants'][0] => ['retail' => true, 'wholesale' => false], $p['variants'][1] => ['retail' => false, 'wholesale' => true]], wholesaleMinimum: 5)));
+}
+
+describe('which products a viewer can order now (amendment 39(k))', function () {
+    it('answers a company, a guest and an individual by the side each buys on', function () {
+        $retailGone = catalogOrderableProduct();
+        catalogOrderableSides($retailGone);
+        Ix::count('sa', [$retailGone['variants'][0] => 0]);
+        $wholesaleGone = catalogOrderableProduct();
+        catalogOrderableSides($wholesaleGone);
+        Ix::count('sa', [$wholesaleGone['variants'][1] => 0]);
+        $whole = catalogOrderableProduct();
+        $ids = [$retailGone['product'], $wholesaleGone['product'], $whole['product']];
+
+        expect(catalogOrderableNow(ShopperKind::Company, $ids))->toEqualCanonicalizing($ids)
+            ->and(catalogOrderableNow(ShopperKind::Guest, $ids))->toEqualCanonicalizing($ids)
+            ->and(catalogOrderableNow(ShopperKind::Individual, $ids))->toEqualCanonicalizing([$wholesaleGone['product'], $whole['product']]);
+    });
+
+    it('leaves out for everyone what is sold out, unpriced or not chosen, in one query', function () {
+        $soldOut = catalogOrderableProduct();
+        Ix::count('sa', array_fill_keys($soldOut['variants'], 0));
+        $unpriced = catalogOrderableProduct();
+        Rx::remove('sa', $unpriced['variants']);
+        $notChosen = Px::ready()['product'];
+        $on = catalogOrderableProduct();
+        $ids = [$soldOut['product'], $unpriced['product'], $notChosen, strtoupper($on['product']), 'not-an-id'];
+        $queries = Cx::recordQueries();
+
+        foreach ([ShopperKind::Company, ShopperKind::Guest, ShopperKind::Individual] as $viewer) {
+            expect(catalogOrderableNow($viewer, $ids))->toBe([$on['product']]);
+        }
+
+        expect(count($queries))->toBe(3)
+            ->and(catalogOrderableNow(ShopperKind::Guest, []))->toBe([]);
+    });
+
+    it('follows who the category is open to: a guest sees what either side sees', function () {
+        $category = Px::category('Kitchens');
+        $p = catalogOrderableProduct(['60 cm'], $category);
+        Fx::asSystem(fn () => app(SetCategoryAudiencesHandler::class)->handle(new SetCategoryAudiences(Fx::storeId('sa'), $category, null, false)));
+
+        expect(catalogOrderableNow(ShopperKind::Company, [$p['product']]))->toBe([])
+            ->and(catalogOrderableNow(ShopperKind::Individual, [$p['product']]))->toBe([$p['product']])
+            ->and(catalogOrderableNow(ShopperKind::Guest, [$p['product']]))->toBe([$p['product']]);
+
+        Fx::asSystem(fn () => app(SetCategoryAudiencesHandler::class)->handle(new SetCategoryAudiences(Fx::storeId('sa'), $category, false, true)));
+
+        expect(catalogOrderableNow(ShopperKind::Company, [$p['product']]))->toBe([$p['product']])
+            ->and(catalogOrderableNow(ShopperKind::Individual, [$p['product']]))->toBe([])
+            ->and(catalogOrderableNow(ShopperKind::Guest, [$p['product']]))->toBe([$p['product']]);
     });
 });

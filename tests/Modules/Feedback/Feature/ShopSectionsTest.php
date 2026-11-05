@@ -9,15 +9,28 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
+use Modules\Catalog\Application\Command\ClearNotAvailableNow\ClearNotAvailableNow;
+use Modules\Catalog\Application\Command\ClearNotAvailableNow\ClearNotAvailableNowHandler;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNow;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNowHandler;
+use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiences;
+use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiencesHandler;
+use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTerms;
+use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTermsHandler;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Actor;
 use Shared\Domain\ValueObject\StoreId;
 use Symfony\Component\HttpFoundation\Response;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
+use Tests\Modules\Access\Support\AdminBrowser;
+use Tests\Modules\Access\Support\FakeBreachList;
+use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\Feedback\Support\FeedbackFixtures as Fb;
+use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
+use Tests\Modules\Pricing\Support\PricingFixtures as Rx;
 
 use function Pest\Laravel\get;
 use function Pest\Laravel\seed;
@@ -68,6 +81,15 @@ function shopSectionsQuestion(string $productId, string $customerId, string $ans
     ]);
 
     return $id;
+}
+
+/** An approved review, the rating it makes and an answered question: what a page would show. */
+function shopSectionsWithFeedback(string $productId, string $variantId, string $storeCode = 'sa'): void
+{
+    $author = Fx::customer('author@example.test');
+    Fb::reviewRow($productId, $variantId, $author, ['status' => 'APPROVED', 'moderated_by' => Fx::staff(), 'moderated_at' => CarbonImmutable::now()], $storeCode);
+    DB::table('feedback.product_ratings')->insert(['product_id' => $productId, 'rating_sum' => 4, 'rating_count' => 1, 'updated_at' => CarbonImmutable::now()]);
+    shopSectionsQuestion($productId, $author, '2026-10-01 11:00:00+00', $storeCode);
 }
 
 it('gives a guest the rating, no reviews yet, nothing to write or ask, and no wishlist', function () {
@@ -218,6 +240,139 @@ it('tells a signed-in customer what they may do and whether they saved it here',
         ->and([$before['feedback.reviews']['canWrite'], $before['feedback.questions']['canAsk'], $before['feedback.wishlist']])->toBe([true, true, ['saved' => false]])
         // Written, though still waiting: no second one (§1.1).
         ->and([$after['feedback.reviews']['canWrite'], $after['feedback.wishlist']])->toBe([false, ['saved' => true]]);
+});
+
+it('keeps reviews, the rating, questions and both forms on a page only sold out or unpriced, with no Add to Cart (catalog.md amendment 40(a))', function () {
+    config(['session.driver' => 'database']);
+    FakeBreachList::install();
+    RecordingSecurityMessages::install();
+    ['product' => $product, 'variants' => $sizes] = Fb::sold();
+    $sara = Fx::customer();
+    Fb::sales();
+    Fb::delivered($sara, $product, $sizes[0]);
+    $author = Fx::customer('ali@example.test');
+    Fb::reviewRow($product, $sizes[0], $author, ['status' => 'APPROVED', 'moderated_by' => Fx::staff(), 'moderated_at' => CarbonImmutable::now()]);
+    DB::table('feedback.product_ratings')->insert(['product_id' => $product, 'rating_sum' => 4, 'rating_count' => 1, 'updated_at' => CarbonImmutable::now()]);
+    shopSectionsQuestion($product, $author, '2026-10-01 11:00:00+00');
+    $page = static function (string $productId) use ($sara): array {
+        app()->forgetScopedInstances();
+        Fx::actAsCustomer($sara);
+
+        return shopSections(get(shopSectionsUrl($productId)));
+    };
+    $check = static function (array $sections): void {
+        expect($sections['feedback.reviews']['canWrite'])->toBeTrue()
+            ->and($sections['feedback.reviews']['count'])->toBe(1)
+            ->and($sections['feedback.reviews']['reviews'])->toHaveCount(1)
+            ->and($sections['feedback.questions']['canAsk'])->toBeTrue()
+            ->and($sections['feedback.questions']['questions'])->toHaveCount(1)
+            ->and($sections['feedback.wishlist'])->toBe(['saved' => false])
+            ->and($sections)->not->toHaveKey('sales.cart')
+            ->and($sections)->not->toHaveKey('pricing.wholesale');
+    };
+
+    Ix::count('sa', array_fill_keys($sizes, 0));
+    $check($page($product));
+
+    // Unpriced, in stock: the same page.
+    Ix::count('sa', array_fill_keys($sizes, 5));
+    Rx::remove('sa', $sizes);
+    $check($page($product));
+
+    // Marked by staff: plain again, though it has no price either (amendment 34).
+    Fx::asSystem(fn () => app(MarkNotAvailableNowHandler::class)->handle(new MarkNotAvailableNow(Fx::storeId('sa'), $product)));
+    expect($page($product))->not->toHaveKeys(['feedback.reviews', 'feedback.questions']);
+    Fx::asSystem(fn () => app(ClearNotAvailableNowHandler::class)->handle(new ClearNotAvailableNow(Fx::storeId('sa'), $product)));
+
+    // Priced again, every size at 0: only sold out, and both forms posted from that page still take what
+    // they are given (answer 19): the store sells it, whatever its stock.
+    Rx::set('sa', array_fill_keys($sizes, '10.00'));
+    Ix::count('sa', array_fill_keys($sizes, 0));
+    expect(DB::table('catalog.store_variant_facts')->where('store_id', Fx::storeId('sa'))->whereIn('variant_id', $sizes)->get(['orderable', 'price_minor'])->map(static fn (object $size): array => (array) $size)->all())
+        ->toBe([['orderable' => false, 'price_minor' => 10_00], ['orderable' => false, 'price_minor' => 10_00]]);
+    $check($page($product));
+
+    $browser = new AdminBrowser('10.9.9.20');
+    $browser->post('/sa/en/account/sign-in', ['email' => 'sara@example.test', 'password' => Fx::CUSTOMER_PASSWORD])->assertRedirect('/sa/en');
+    $written = $browser->post("/sa/en/products/{$product}/reviews", ['rating' => 4, 'body' => 'Solid and quiet.', 'back' => shopSectionsUrl($product)]);
+    $asked = $browser->post("/sa/en/products/{$product}/questions", ['body' => 'Does it fit a 60 cm cabinet?', 'back' => shopSectionsUrl($product)]);
+
+    expect(AdminBrowser::flashed($written, 'status'))->toBe('Thanks — your review shows once the store approves it.')
+        ->and(AdminBrowser::flashed($asked, 'status'))->toBe('Thanks — the answer shows here and in your account.')
+        ->and(DB::table('feedback.reviews')->where('customer_id', $sara)->count())->toBe(1)
+        ->and(DB::table('feedback.questions')->where('customer_id', $sara)->count())->toBe(1)
+        // Written, though still waiting: no second one, on this page as on any (§1.1).
+        ->and($page($product)['feedback.reviews']['canWrite'])->toBeFalse();
+});
+
+describe('a page not available now for anything but stock or a price (catalog.md amendment 40(a))', function () {
+    it('shows neither reviews nor questions to anyone when the product is not chosen in this store', function () {
+        ['product' => $product, 'variants' => [$sixty]] = Fb::sold(['ae']);
+        shopSectionsWithFeedback($product, $sixty, 'ae');
+
+        // Global: the store selling it draws them.
+        expect(shopSections(get(str_replace('/sa/', '/ae/', shopSectionsUrl($product)))))->toHaveKeys(['feedback.reviews', 'feedback.questions']);
+
+        app()->forgetScopedInstances();
+        expect(shopSections(get(shopSectionsUrl($product))))->toBe(['feedback.wishlist' => null]);
+    });
+
+    it('shows neither reviews nor questions on an archived product, in stock or sold out when it was archived', function (int $pieces) {
+        ['product' => $product, 'variants' => $sizes] = Fb::sold();
+        shopSectionsWithFeedback($product, $sizes[0]);
+
+        expect(shopSections(get(shopSectionsUrl($product))))->toHaveKeys(['feedback.reviews', 'feedback.questions']);
+
+        Ix::count('sa', array_fill_keys($sizes, $pieces));
+        Fx::asSystem(fn () => app(ArchiveProductHandler::class)->handle(new ArchiveProduct($product)));
+
+        app()->forgetScopedInstances();
+        expect(shopSections(get(shopSectionsUrl($product))))->toBe(['feedback.wishlist' => null]);
+    })->with(['in stock' => [5], 'sold out' => [0]]);
+
+    it('shows them to whoever it is only sold out for, never to whom its category is closed', function () {
+        ['product' => $product, 'variants' => $sizes] = Fb::sold();
+        shopSectionsWithFeedback($product, $sizes[0]);
+        $category = (string) DB::table('catalog.products')->where('id', $product)->value('category_id');
+        Fx::asSystem(fn () => app(SetCategoryAudiencesHandler::class)->handle(new SetCategoryAudiences(Fx::storeId('sa'), $category, false)));
+        $individual = Fx::customer('ali@example.test');
+        $company = Fx::customer('works@example.test', 'sa', 'company');
+        $page = static function (string $customerId) use ($product): array {
+            Fx::actAsCustomer($customerId);
+
+            return shopSections(get(shopSectionsUrl($product)));
+        };
+
+        // In stock, not theirs: the Save heart alone; a company buys it.
+        expect($page($individual))->toBe(['feedback.wishlist' => ['saved' => false]])
+            ->and($page($company))->toHaveKeys(['feedback.reviews', 'feedback.questions', 'sales.cart']);
+
+        Ix::count('sa', array_fill_keys($sizes, 0));
+
+        // Sold out, still not theirs; only sold out for the company.
+        expect($page($individual))->toBe(['feedback.wishlist' => ['saved' => false]])
+            ->and($page($company))->toHaveKeys(['feedback.reviews', 'feedback.questions'])
+            ->and($page($company))->not->toHaveKey('sales.cart');
+    });
+
+    it('shows them to no individual on a product sold only wholesale, in stock or not', function () {
+        ['product' => $product, 'variants' => $sizes] = Fb::sold();
+        shopSectionsWithFeedback($product, $sizes[0]);
+        $terms = array_fill_keys($sizes, ['retail' => false, 'wholesale' => true]);
+        Fx::asSystem(fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms(Fx::storeId('sa'), $product, $terms, wholesaleMinimum: 5)));
+        $individual = Fx::customer('ali@example.test');
+        $page = static function () use ($individual, $product): array {
+            Fx::actAsCustomer($individual);
+
+            return shopSections(get(shopSectionsUrl($product)));
+        };
+
+        expect($page())->toBe(['feedback.wishlist' => ['saved' => false]]);
+
+        Ix::count('sa', array_fill_keys($sizes, 0));
+
+        expect($page())->toBe(['feedback.wishlist' => ['saved' => false]]);
+    });
 });
 
 it('gives a page that is not available now the Save heart alone (catalog.md amendment 34)', function () {

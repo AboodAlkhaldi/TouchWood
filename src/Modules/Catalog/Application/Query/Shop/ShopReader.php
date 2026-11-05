@@ -66,6 +66,13 @@ interface ShopReader
     public function categoryHead(string $storeId, string $locale, ShopperKind $viewer, string $slug, ShopFilters $filters): ?array;
 
     /**
+     * The categories above this one, from the top, each with its current slug in this language.
+     *
+     * @return list<ShopLink>
+     */
+    public function categoryTrail(string $locale, string $categoryId): array;
+
+    /**
      * A brand's page head, in one read: who holds the slug — now or before — their slug now in this
      * language and in the other, and the brand as its page shows it.
      *

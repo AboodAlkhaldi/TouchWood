@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Modules\Feedback\Application\Query\ViewCustomerWishlist;
 
 use Modules\Access\Public\Contracts\AccessApi;
+use Modules\Access\Public\Enums\AccountType;
 use Modules\Feedback\Application\FeedbackPermissions;
 use Modules\Feedback\Application\Query\FeedbackQueries;
 use Modules\Feedback\Application\Query\ReadInputs;
 use Modules\Feedback\Application\Query\WishlistGroup;
 use Modules\Feedback\Application\Query\WishlistGroups;
 use Modules\Feedback\Domain\Exception\InvalidFeedbackAttribute;
+use Modules\Platform\Public\Enums\ShopperKind;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
 use Shared\Application\Authorizer;
@@ -67,6 +69,12 @@ final readonly class ViewCustomerWishlistHandler
 
         $stores = $held === null ? null : array_map(static fn (StoreId $store): string => $store->value, $held);
 
-        return $this->groups->of($this->queries->wishlistOf($customerId, $stores), $locale);
+        // "Not available now" as the customer sees it, not as the staff member would (catalog.md amendment 40(e)).
+        $kind = match ($customer->accountType) {
+            AccountType::Individual => ShopperKind::Individual,
+            AccountType::Company => ShopperKind::Company,
+        };
+
+        return $this->groups->of($this->queries->wishlistOf($customerId, $stores), $locale, $kind);
     }
 }
