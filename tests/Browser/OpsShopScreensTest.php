@@ -157,8 +157,12 @@ it('sends the box again with a fresh token when the session behind the page has 
 it('keeps the box drawn from one page to the next', function () {
     $page = visit('/sa/en');
     expect(browserSoon($page, "document.querySelector('[data-test=\"newsletter-box\"]') !== null"))->toBeTrue();
-    // Marked, then watched across an Inertia visit: the box never leaves the page.
-    $page->script("(() => { window.__opsBoxGone = false; new MutationObserver(() => { if (document.querySelector('[data-test=\"newsletter-box\"]') === null) { window.__opsBoxGone = true; } }).observe(document.body, { childList: true, subtree: true }); })()");
+    // Watched across Inertia visits to other pages (each draws its own layout), and to the same page in Arabic: the box
+    // comes with the new page's footer, never put into a footer drawn without it a moment before.
+    $page->script("(() => { window.__opsBoxGone = false; new MutationObserver((records) => { if (document.querySelector('[data-test=\"newsletter-box\"]') === null || records.some((record) => record.target.tagName === 'FOOTER' && record.addedNodes.length > 0)) { window.__opsBoxGone = true; } }).observe(document.body, { childList: true, subtree: true }); })()");
+    $page->click('header a[href$="/sa/en/sign-in"]');
+    expect(browserSoon($page, "window.location.pathname === '/sa/en/sign-in' && document.querySelector('#email') !== null && document.querySelector('[data-test=\"newsletter-box\"]') !== null"))->toBeTrue()
+        ->and($page->script('window.__opsBoxGone'))->toBeFalse();
     $page->click('[data-test="language-ar"]');
     expect(browserSoon($page, "document.documentElement.dir === 'rtl' && document.querySelector('[data-test=\"newsletter-subscribe\"]')?.textContent === 'اشترك'"))->toBeTrue()
         ->and($page->script('window.__opsBoxGone'))->toBeFalse();
