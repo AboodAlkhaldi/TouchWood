@@ -44,7 +44,7 @@ beforeEach(function () {
 });
 
 /** A browser whose last chosen language is the other one than the address's. */
-function shopScreensBrowser(string $cookieLocale): AdminBrowser
+function newsletterScreensBrowser(string $cookieLocale): AdminBrowser
 {
     $browser = new AdminBrowser('10.9.14.'.random_int(20, 250));
     $browser->setCookie(HandleInertiaRequests::LOCALE_COOKIE, $cookieLocale);
@@ -53,7 +53,7 @@ function shopScreensBrowser(string $cookieLocale): AdminBrowser
 }
 
 /** A confirmed guest on the store's list; its id. */
-function shopScreensGuest(string $code, string $email): string
+function newsletterScreensGuest(string $code, string $email): string
 {
     $id = strtolower((string) Str::ulid());
     DB::table('ops.subscribers')->insert([
@@ -65,7 +65,7 @@ function shopScreensGuest(string $code, string $email): string
     return $id;
 }
 
-function shopScreensStoreOff(string $code): void
+function newsletterScreensStoreOff(string $code): void
 {
     DB::table('platform.stores')->where('code', $code)->update(['is_active' => false]);
     cache()->flush();
@@ -76,7 +76,7 @@ it('opens the confirmation page in the address\'s language, offers the shop, and
     preg_match('#(/sa/en/newsletter/confirm/[A-Za-z0-9]+)#', CapturedEmails::installed()->last()->text, $match);
     $path = $match[1] ?? throw new LogicException('No confirmation link.');
 
-    shopScreensBrowser('ar')->get($path)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+    newsletterScreensBrowser('ar')->get($path)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         ->component('Ops/Storefront/EmailLink')
         ->where('locale', 'en')
         ->where('direction', 'ltr')
@@ -95,11 +95,11 @@ it('opens the confirmation page in the address\'s language, offers the shop, and
 });
 
 it('opens a guest\'s leave page for a switched-off store, in Arabic, right to left, with no way to the store', function () {
-    $guest = shopScreensGuest('ae', 'leaver@example.test');
-    shopScreensStoreOff('ae');
+    $guest = newsletterScreensGuest('ae', 'leaver@example.test');
+    newsletterScreensStoreOff('ae');
     $signed = URL::signedRoute('storefront.ops.newsletter.leave', ['store' => 'ae', 'locale' => 'ar', 'subscriber' => $guest], null, false);
 
-    shopScreensBrowser('en')->get($signed)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+    newsletterScreensBrowser('en')->get($signed)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         ->component('Ops/Storefront/EmailLink')
         ->where('locale', 'ar')
         ->where('direction', 'rtl')
@@ -119,7 +119,7 @@ it('opens a customer\'s unsubscribe page and changes nothing', function () {
     DB::table('access.customers')->where('id', $sara)->update(['marketing_consent' => true]);
     $signed = URL::signedRoute('storefront.ops.unsubscribe', ['store' => 'sa', 'locale' => 'en', 'customer' => $sara], null, false);
 
-    shopScreensBrowser('ar')->get($signed)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+    newsletterScreensBrowser('ar')->get($signed)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         ->component('Ops/Storefront/EmailLink')
         ->where('locale', 'en')
         ->where('title', 'Unsubscribe from Offers and News')
@@ -134,11 +134,11 @@ it('keeps a bad signature the 403 page, for a plain visit too', function () {
     $sara = Fx::customer();
     $signed = URL::signedRoute('storefront.ops.unsubscribe', ['store' => 'sa', 'locale' => 'en', 'customer' => $sara], null, false);
 
-    shopScreensBrowser('en')->get($signed.'0')->assertForbidden();
+    newsletterScreensBrowser('en')->get($signed.'0')->assertForbidden();
 });
 
 it('carries the newsletter box\'s words to a guest, in the page\'s language, and reads nothing for them', function () {
-    $guest = shopScreensBrowser('en');
+    $guest = newsletterScreensBrowser('en');
     $guest->get('/sa/en')->assertOk();
     $opsReads = 0;
     DB::listen(function (QueryExecuted $query) use (&$opsReads): void {

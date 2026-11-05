@@ -35,6 +35,7 @@ export default function NewsletterBox({ words }: { words: NewsletterWords }) {
     const [refusal, setRefusal] = useState<Refusal | null>(null);
     const [boxRefusal, setBoxRefusal] = useState<string | undefined>(undefined);
     const sentLine = useRef<HTMLParagraphElement>(null);
+    const form = useRef<HTMLFormElement>(null);
 
     // The server's rule: 3 to 254 characters in an address's shape (§4.9).
     const checks = useChecks([{ id: 'newsletter-email', label: words.email, value: email, rules: { required: true, email: true, length: { min: 3, max: 254 } } }]);
@@ -103,6 +104,7 @@ export default function NewsletterBox({ words }: { words: NewsletterWords }) {
                 </p>
             ) : (
                 <form
+                    ref={form}
                     noValidate
                     className="grid gap-2"
                     onSubmit={(event) => {
@@ -137,7 +139,10 @@ export default function NewsletterBox({ words }: { words: NewsletterWords }) {
                             />
                             <Messages id="newsletter-email" error={check.message} check={check} />
                         </Field>
-                        <ActionButton type="submit" loading={sending} data-test="newsletter-subscribe">
+                        {/* Not a submit button: this box is in the footer of every shop page, and a page's own
+                            form keeps the only submit button there. Enter in the box still sends it, the form's
+                            one field submitting it implicitly. */}
+                        <ActionButton type="button" loading={sending} onClick={() => form.current?.requestSubmit()} data-test="newsletter-subscribe">
                             {words.action}
                         </ActionButton>
                     </div>
