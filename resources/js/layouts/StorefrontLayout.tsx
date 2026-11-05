@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { lazy, type ReactNode, Suspense, useEffect, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { ChevronDown, LayoutDashboard, LogOut, ShoppingCart, UserRound } from 'lucide-react';
 import { Bell } from '@/components/ops/Bell';
@@ -24,6 +24,8 @@ import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import type { ShopAddressData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import type { SharedProps, ShopperLine } from '@/types/page';
+
+const NewsletterBox = lazy(() => import('@/components/ops/NewsletterBox'));
 
 /*
 | The shop's frame (frontend.md §2.3), on shadcn's code with Geist's rules (§1.11).
@@ -58,6 +60,11 @@ export function StorefrontLayout({ title, children, address }: Props) {
     const { shop, shopper, shopperLines, staffView, locale, frame } = page.props;
     const catalog = frame?.catalog;
     const bell = frame?.ops;
+    // The newsletter box (ops.md §4.15 O11) loads once the page has drawn, so no shop page carries it on first
+    // paint (the page budget; a lazy part drawn by the server would break its render).
+    const newsletter = shop === null || shop === undefined || staffView ? null : (bell?.newsletter ?? null);
+    const [drawn, setDrawn] = useState(false);
+    useEffect(() => setDrawn(true), []);
 
     return (
         <>
@@ -141,6 +148,14 @@ export function StorefrontLayout({ title, children, address }: Props) {
                 <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
 
                 <footer className="border-t border-line bg-surface">
+                    {/* Ops' part of the frame (ops.md §4.15 O11): the newsletter box, for a guest only. */}
+                    {drawn && newsletter ? (
+                        <Suspense fallback={null}>
+                            <div className="mx-auto w-full max-w-6xl border-b border-line px-4 py-6">
+                                <NewsletterBox words={newsletter} />
+                            </div>
+                        </Suspense>
+                    ) : null}
                     <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-6">
                         <span className="text-label-12 text-muted-foreground">TouchWood</span>
                         {/* The shop's one theme switch, small, as Geist sizes it for a footer. */}
