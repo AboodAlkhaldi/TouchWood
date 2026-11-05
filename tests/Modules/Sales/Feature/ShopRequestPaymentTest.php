@@ -310,7 +310,9 @@ describe('paying', function () {
         $refused = shopRequestPost($ready['browser'], "{$ready['page']}/session")->assertStatus(409);
 
         // The page reloads only for these (PaymentBlock's REQUEST_RELOADS): this one is said in the form's place.
-        expect((string) $refused->json('type'))->not->toContain('payment_link_ended')->not->toContain('payment_in_progress')->not->toContain('amount_changed')
+        $type = (string) $refused->json('type');
+
+        expect(array_filter(['payment_link_ended', 'payment_in_progress', 'amount_changed'], static fn (string $reloads): bool => str_contains($type, $reloads)))->toBe([])
             ->and((string) $refused->json('detail'))->not->toBe('');
     });
 

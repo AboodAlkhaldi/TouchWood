@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Presentation\Http\Resource;
 
-use Modules\Payments\Public\Dto\PaymentAttemptDto;
 use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Contracts\Foundation\Application;
 use InvalidArgumentException;
+use Modules\Payments\Public\Dto\PaymentAttemptDto;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\MoneyData;
 use Modules\Platform\Public\Dto\StoreDto;
