@@ -1,14 +1,15 @@
-import type { ReactNode } from 'react';
-import { useForm, usePage } from '@inertiajs/react';
+import { type ReactNode, useEffect, useState } from 'react';
+import { router, useForm, usePage } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { SelectField, TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { Note } from '@/components/Note';
 import { Description } from '@/components/geist-only/Description';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { FieldGroup } from '@/components/ui/field';
+import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { NativeSelectOption } from '@/components/ui/native-select';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import { useChecks } from '@/lib/use-checks';
@@ -153,7 +154,81 @@ export function ProfileTab({ account }: Props) {
                     </CardFooter>
                 </form>
             </Card>
+
+            <OffersCard account={account} />
         </div>
+    );
+}
+
+/**
+ * Offers and news by email (amendment 79; ops.md §4.8, §4.15 O12): one switch that saves as it is flipped, with
+ * the "Changes saved" toast the server sends back. It shows the new place at once; a refusal puts it back and
+ * says why under it. Until the email is confirmed nothing can reach them, and it says so.
+ */
+function OffersCard({ account }: { account: CustomerAccountPage }) {
+    const t = useTranslator();
+    const link = useLink();
+    const [on, setOn] = useState(account.marketingConsent);
+    const [refusal, setRefusal] = useState<string | undefined>(undefined);
+
+    // The server's answer is the last word: what it saved, or what it kept after a refusal.
+    useEffect(() => setOn(account.marketingConsent), [account.marketingConsent]);
+
+    function save(next: boolean) {
+        setOn(next);
+        setRefusal(undefined);
+        router.post(
+            link('storefront.account.marketing'),
+            { marketing_consent: next },
+            {
+                preserveScroll: true,
+                preserveState: true,
+                onError: (errors) => {
+                    setOn(account.marketingConsent);
+                    setRefusal(errors.marketing_consent ?? errors.form);
+                },
+            },
+        );
+    }
+
+    return (
+        <Card className="material-base gap-4 border-0 py-5" data-test="offers-card">
+            <CardHeader className="px-6">
+                <CardTitle className="text-heading-20 text-ink">
+                    <h2>{t('access::account.offers.title')}</h2>
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-2 px-6">
+                <Field orientation="horizontal" data-invalid={refusal ? true : undefined}>
+                    <Switch
+                        id="marketing_consent"
+                        checked={on}
+                        onCheckedChange={save}
+                        aria-describedby={['marketing_consent-hint', account.emailVerified ? null : 'marketing_consent-unconfirmed', refusal ? 'marketing_consent-error' : null].filter(Boolean).join(' ')}
+                        className="data-[state=unchecked]:bg-ink-subtle"
+                        data-test="marketing-consent"
+                    />
+                    <FieldContent>
+                        <FieldLabel htmlFor="marketing_consent" className="text-label-14 text-ink">
+                            {t('access::account.offers.label')}
+                        </FieldLabel>
+                        <FieldDescription id="marketing_consent-hint" className="text-copy-13 text-ink-muted">
+                            {t('access::account.offers.hint')}
+                        </FieldDescription>
+                        {account.emailVerified ? null : (
+                            <FieldDescription id="marketing_consent-unconfirmed" className="text-copy-13 text-ink-muted" data-test="offers-unconfirmed">
+                                {t('access::account.offers.unconfirmed')}
+                            </FieldDescription>
+                        )}
+                    </FieldContent>
+                </Field>
+                {refusal ? (
+                    <FieldError id="marketing_consent-error" data-test="offers-refusal">
+                        {refusal}
+                    </FieldError>
+                ) : null}
+            </CardContent>
+        </Card>
     );
 }
 

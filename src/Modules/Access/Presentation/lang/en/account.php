@@ -279,4 +279,11 @@ return [
     'codes_file_heading' => 'Recovery codes - each works once',
     'continue' => 'Continue',
     'method_sms_password' => 'Enter your password to sign in by SMS instead of the app.',
+    // The offers and news switch on a customer's Profile tab (amendment 79; ops.md §4.15 O12), new 2026-11-05, not yet approved.
+    'offers' => [
+        'title' => 'Offers and News',
+        'label' => 'Send me offers and news',
+        'hint' => 'By email. Messages about your orders and account still come.',
+        'unconfirmed' => 'These can only reach you once your email is confirmed.',
+    ],
 ];
