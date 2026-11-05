@@ -13,6 +13,7 @@ use Modules\Catalog\Application\Search\SearchLog;
 use Modules\Inventory\Public\InventoryPermissions;
 use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
+use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Sales\Public\Contracts\SalesReports;
 use Modules\Sales\Public\Dto\ProductSaleDto;
 use Modules\Sales\Public\Dto\ProductSalesPageDto;
@@ -149,11 +150,16 @@ it('offers Stock where Inventory\'s job is held too, and shows it as it stands n
 });
 
 it('offers a Super Admin every store\'s report, its days in the base store\'s time', function () {
+    // The base store made `ae` for this test, so its zone is told apart from the first store's (`sa`, Riyadh).
+    DB::table('platform.stores')->where('code', 'sa')->update(['is_base' => false]);
+    DB::table('platform.stores')->where('code', 'ae')->update(['is_base' => true, 'is_active' => true]);
+    Fx::asSystem(fn () => app(StoreDirectory::class)->invalidate());
     $browser = reportsScreenStaff(Fx::staff(superAdmin: true));
 
     $browser->get('/admin/reports/revenue')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         ->where('reports.0.allStores', true)
-        ->where('zones.all', 'Asia/Riyadh')
+        ->where('zones.sa', 'Asia/Riyadh')
+        ->where('zones.all', 'Asia/Dubai')
         // Opens on the first store that is on, a Super Admin's too (§9.4).
         ->where('opening.store', 'sa'));
 

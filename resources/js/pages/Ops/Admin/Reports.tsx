@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { router, usePage } from '@inertiajs/react';
+import { useState, type KeyboardEvent } from 'react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { DateRangeField } from '@/components/DateRangeField';
 import { SelectField } from '@/components/Fields';
@@ -75,11 +75,25 @@ export default function Reports({ report, reports, zones, opening, shown, previe
     return (
         <AdminLayout title={t('ops::admin_reports.title')} subtitle={t('ops::admin_reports.subtitle')}>
             <div className="grid min-w-0 gap-4">
-                <Tabs value={report} onValueChange={(kind) => router.get(`/admin/reports/${kind}`)} activationMode="manual" className="min-w-0">
+                {/* Each kind a link to its own address, as B2B's type lists are (§4.15 O8). */}
+                <Tabs value={report} activationMode="manual" className="min-w-0">
                     <TabsList variant="line" className="h-10 w-full max-w-full min-w-0 justify-start overflow-x-auto border-b border-line p-0" aria-label={t('ops::admin_reports.kinds_label')}>
                         {reports.map((choice) => (
-                            <TabsTrigger key={choice.kind} value={choice.kind} data-test={`kind-${choice.kind}`} className="flex-none px-3 text-label-14">
-                                {t(`ops::admin_reports.kinds.${choice.kind}`)}
+                            <TabsTrigger key={choice.kind} value={choice.kind} asChild className="flex-none px-3 text-label-14">
+                                <Link
+                                    href={`/admin/reports/${choice.kind}`}
+                                    data-test={`kind-${choice.kind}`}
+                                    // Enter follows the link as any link does; Space, which a link ignores, opens it too, as a
+                                    // tab should (Geist's Tabs).
+                                    onKeyDown={(event: KeyboardEvent<HTMLAnchorElement>) => {
+                                        if (event.key === ' ') {
+                                            event.preventDefault();
+                                            router.visit(`/admin/reports/${choice.kind}`);
+                                        }
+                                    }}
+                                >
+                                    {t(`ops::admin_reports.kinds.${choice.kind}`)}
+                                </Link>
                             </TabsTrigger>
                         ))}
                     </TabsList>
