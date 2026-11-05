@@ -121,7 +121,7 @@ function Rows({ rows, reasons = false }: { rows: PaymentRowData[]; reasons?: boo
                 {rows.map((row) => (
                     <li key={row.id} className="grid gap-1 border-t border-line pt-2 text-copy-14 first:border-t-0 first:pt-0" data-test="payment-row">
                         <span className="flex flex-wrap items-center justify-between gap-2">
-                            <Link href={`/admin/payments/${row.id}`} className="text-label-14 text-ink underline underline-offset-4">
+                            <Link href={`/admin/payments/${row.id}`} className="text-label-14 text-ink underline underline-offset-4" data-test="attempt-link">
                                 <Money value={row.amount} />
                             </Link>
                             <AttemptState state={row.state} />
@@ -151,7 +151,7 @@ function Rows({ rows, reasons = false }: { rows: PaymentRowData[]; reasons?: boo
                     {rows.map((row) => (
                         <TableRow key={row.id} data-test="payment-row">
                             <TableCell>
-                                <Link href={`/admin/payments/${row.id}`} className="text-ink underline underline-offset-4">
+                                <Link href={`/admin/payments/${row.id}`} className="text-ink underline underline-offset-4" data-test="attempt-link">
                                     <Time value={row.createdAt} focusable={false} />
                                 </Link>
                             </TableCell>
