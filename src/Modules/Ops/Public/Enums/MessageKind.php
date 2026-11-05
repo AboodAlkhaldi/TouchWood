@@ -52,6 +52,7 @@ enum MessageKind: string
     case GatewayKeyRejected = 'gateway_key_rejected';
     case TransferOverdue = 'transfer_overdue';
     case PaymentNotAccepted = 'payment_not_accepted';
+    case LatePaymentRefundDue = 'late_payment_refund_due';
     case CampaignExpiring = 'campaign_expiring';
     case ReturnRequested = 'return_requested';
     case SecurityEmailFailed = 'security_email_failed';
@@ -96,6 +97,7 @@ enum MessageKind: string
             self::GatewayKeyRejected => 'S5b',
             self::TransferOverdue => 'S6',
             self::PaymentNotAccepted => 'S7',
+            self::LatePaymentRefundDue => 'S7b',
             self::CampaignExpiring => 'S8',
             self::ReturnRequested => 'S9',
             self::SecurityEmailFailed => 'S10',
