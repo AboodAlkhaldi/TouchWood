@@ -237,13 +237,15 @@ it('does not move a store\'s average when a product sells out: stock does not co
 
 it('counts only what the store sells in its average', function () {
     $category = Px::category('Doors');
-    $low = ratedProduct($category);
-    $high = ratedProduct($category);
+    $few = ratedProduct($category);
+    $many = ratedProduct($category);
     $elsewhere = ratedProduct($category, ['ae']);
-    rate($low, 4, 1);
-    rate($high, 20, 5);
-    // Sold only in the UAE: a store average of 1 would put the single 4★ review above the five 4★s.
-    rate($elsewhere, 200, 200);
+    rate($few, 3, 1);
+    rate($many, 32, 10);
+    // Sold only in the UAE: 200 reviews at 5★. Left out, as here, the store's average C = 35 / 11 ≈ 3.18 and the
+    // many score (5 × 3.18 + 32) / 15 ≈ 3.19, the single 3★ (5 × 3.18 + 3) / 6 ≈ 3.15. Counted, C ≈ 4.9 would
+    // lift the single one more than the many, 4.59 to 3.77, and turn the two around.
+    rate($elsewhere, 1000, 200);
 
-    expect(ratedIds(categoryOf($category, sort: ShopFilters::RATING)))->toBe([$high, $low]);
+    expect(ratedIds(categoryOf($category, sort: ShopFilters::RATING)))->toBe([$many, $few]);
 });

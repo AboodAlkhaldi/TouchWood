@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonImmutable;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Database\QueryException;
@@ -42,6 +43,7 @@ use Tests\Modules\Access\Support\AdminBrowser;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
+use Tests\Modules\Feedback\Support\FeedbackFixtures as Fb;
 use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
 use Tests\Modules\Pricing\Support\PricingFixtures as Rx;
 use Tests\Modules\Sales\Support\CheckoutFixtures as Sx;
@@ -167,6 +169,18 @@ function shopSoldOutSuggested(string $typed): array
     app()->forgetScopedInstances();
 
     return array_column(getJson('/sa/en/search/suggest?q='.$typed)->assertOk()->json('products'), 'productId');
+}
+
+/** How many queries a page asks, warm, as production serves it: once to fill the caches, then counted as a new request. */
+function shopSoldOutQueries(AdminBrowser $browser, string $url): int
+{
+    $browser->get($url)->assertOk();
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+    $browser->get($url)->assertOk();
+    DB::disableQueryLog();
+
+    return count(DB::getQueryLog());
 }
 
 describe('a product with no size left', function () {
@@ -575,6 +589,79 @@ describe('the queries', function () {
 
         expect($measure())->toBe($before);
     });
+
+    it('records a product\'s page with every size sold out, for a guest, in production\'s session', function () {
+        config(['session.driver' => 'database', 'session.lottery' => [0, 100]]);
+        FakeBreachList::install();
+        RecordingSecurityMessages::install();
+        $p = shopSoldOutProduct(Px::category('Kitchens'), ['60 cm', '80 cm']);
+        $url = '/sa/en/products/'.shopSoldOutSlug('product', $p['product']);
+        $browser = new AdminBrowser('10.13.2.11');
+        $now = CarbonImmutable::now();
+        $author = Fx::customer();
+
+        $inStock = shopSoldOutQueries($browser, $url);
+
+        foreach ($p['variants'] as $size) {
+            shopSoldOutByOrder($size);
+        }
+
+        $noFeedback = shopSoldOutQueries($browser, $url);
+
+        Fb::reviewRow($p['product'], $p['variants'][0], $author, ['status' => 'APPROVED', 'moderated_by' => Fx::staff(), 'moderated_at' => $now]);
+        DB::table('feedback.product_ratings')->insert(['product_id' => $p['product'], 'rating_sum' => 4, 'rating_count' => 1, 'updated_at' => $now]);
+        DB::table('feedback.questions')->insert([
+            'id' => strtolower((string) Str::ulid()), 'product_id' => $p['product'], 'store_id' => Fx::storeId('sa'), 'customer_id' => $author,
+            'body' => 'Does it fit?', 'locale' => 'en', 'status' => 'ANSWERED', 'answer' => 'Yes.', 'answered_by' => Fx::staff(),
+            'answered_at' => $now, 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        $withFeedback = shopSoldOutQueries($browser, $url);
+        /** @var array{props: array{available: bool, sections: array<string, array<string, list<mixed>>>}} $drawn */
+        $drawn = json_decode((string) json_encode($browser->get($url)->viewData('page')), true);
+
+        // The rows the count is of: both drawn, on a page with nothing to buy.
+        expect($drawn['props']['available'])->toBeFalse()
+            ->and($drawn['props']['sections']['feedback.reviews']['reviews'])->toHaveCount(1)
+            ->and($drawn['props']['sections']['feedback.questions']['questions'])->toHaveCount(1);
+
+        Fx::asSystem(fn () => app(MarkNotAvailableNowHandler::class)->handle(new MarkNotAvailableNow(Fx::storeId('sa'), $p['product'])));
+        $markedByStaff = shopSoldOutQueries($browser, $url);
+
+        // Measured 2026-11-05 (amendment 40), warm, 2 of each the session's row. Marked by staff, the plain
+        // page, as every "Not available now" was before amendment 40: 8, none of them Feedback's or Sales's.
+        // Only sold out: that and Feedback's one statement; with a review and an answer, its 3 more - the
+        // authors' names 1, the size bought 2 (Catalog's variants and their values); the stores' names are
+        // the frame's read, none here. Less than the page in stock, which has Add to Cart. The limits are a
+        // target, not a cap (owner, 2026-10-19).
+        expect(['in stock' => $inStock, 'sold out' => $noFeedback, 'sold out, with reviews and answers' => $withFeedback, 'marked by staff' => $markedByStaff])
+            ->toBe(['in stock' => 16, 'sold out' => 9, 'sold out, with reviews and answers' => 12, 'marked by staff' => 8]);
+    });
+
+    it('records an emptied category and brand, for a guest, in production\'s session', function () {
+        config(['session.driver' => 'database', 'session.lottery' => [0, 100]]);
+        FakeBreachList::install();
+        RecordingSecurityMessages::install();
+        $top = Px::category('Kitchens');
+        $sub = Px::category('Drawers', $top);
+        $p = shopSoldOutProduct($sub, ['60 cm']);
+        $pages = [
+            'sub-category' => '/sa/en/categories/'.shopSoldOutSlug('category', $sub),
+            'top category' => '/sa/en/categories/'.shopSoldOutSlug('category', $top),
+            'brand' => '/sa/en/brands/'.shopSoldOutSlug('brand', shopSoldOutBrandOf($p['product'])),
+        ];
+        $browser = new AdminBrowser('10.13.2.12');
+        $measure = static fn (): array => array_map(static fn (string $url): int => shopSoldOutQueries($browser, $url), $pages);
+
+        $onSale = $measure();
+        shopSoldOutByOrder($p['variants'][0]);
+
+        // Measured 2026-11-05, warm, 2 of each the session's row. Emptied, a category asks 2 more:
+        // whether only stock or a price emptied it (`onlySoldOut`, amendment 39(j)) and its way up
+        // (`categoryTrail`, amendment 40(d)), which a top category asks too and finds nothing above it. A brand
+        // 1 more: `onlySoldOut`, for its sentence. A page still listing asks neither.
+        expect(['on sale' => $onSale, 'emptied' => $measure()])
+            ->toBe(['on sale' => ['sub-category' => 8, 'top category' => 8, 'brand' => 8], 'emptied' => ['sub-category' => 10, 'top category' => 10, 'brand' => 9]]);
+    });
 });
 
 describe('until it is priced (owner, 2026-11-03)', function () {
@@ -716,6 +803,42 @@ describe('what only stock or a price empties (owner, 2026-11-03)', function () {
         // In Arabic, in Arabic; a category still listing draws its path from the menu, as before.
         expect(array_column(shopSoldOutProps('/sa/ar/categories/'.rawurlencode(shopSoldOutSlug('category', $emptied, 'ar')))['path'], 'slug'))->toBe([shopSoldOutSlug('category', $top, 'ar'), shopSoldOutSlug('category', $middle, 'ar')])
             ->and(array_column(shopSoldOutProps('/sa/en/categories/'.shopSoldOutSlug('category', $sibling))['path'], 'slug'))->toBe([shopSoldOutSlug('category', $top), shopSoldOutSlug('category', $middle)]);
+    });
+
+    it('keeps every category above a whole branch emptied answering with its sentence, none of them with a sibling still listing', function () {
+        $top = Px::category('Kitchens');
+        $middle = Px::category('Drawers', $top);
+        $emptied = Px::category('Runners', $middle);
+        $gone = shopSoldOutProduct($emptied, ['60 cm']);
+        $url = static fn (string $category): string => '/sa/en/categories/'.shopSoldOutSlug('category', $category);
+        $viewers = [ShopperKind::Guest, ShopperKind::Individual, ShopperKind::Company];
+
+        foreach ($viewers as $viewer) {
+            shopSoldOutViewer($viewer);
+
+            expect(shopSoldOutProps($url($top))['soldOut'])->toBeFalse()
+                ->and(shopSoldOutProps($url($middle))['soldOut'])->toBeFalse();
+        }
+
+        shopSoldOutByOrder($gone['variants'][0]);
+
+        foreach ($viewers as $viewer) {
+            shopSoldOutViewer($viewer);
+
+            foreach ([$top, $middle, $emptied] as $category) {
+                $page = shopSoldOutProps($url($category));
+
+                expect($page['soldOut'])->toBeTrue()
+                    ->and($page['products'])->toBe([])
+                    ->and($page['address']['noindex'])->toBeFalse();
+            }
+
+            // Out of the menu, every one; each keeps its way up.
+            expect($page['frame']['catalog']['menu'])->toBe([])
+                ->and(shopSoldOutProps($url($top))['path'])->toBe([])
+                ->and(array_column(shopSoldOutProps($url($middle))['path'], 'slug'))->toBe([shopSoldOutSlug('category', $top)])
+                ->and(array_column($page['path'], 'slug'))->toBe([shopSoldOutSlug('category', $top), shopSoldOutSlug('category', $middle)]);
+        }
     });
 
     it('leaves a category with nothing at all for this viewer as it was', function () {

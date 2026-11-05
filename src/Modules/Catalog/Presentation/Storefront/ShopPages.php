@@ -132,7 +132,8 @@ final readonly class ShopPages
     /**
      * The product's page as props, its own address added to what the cache keeps — and the other
      * modules' sections (amendment 26(b)), read on every request, never kept: they change with what
-     * those modules decide and with who is looking. A page not available now carries none.
+     * those modules decide and with who is looking. A page not available now carries only those registered
+     * for it: the Save heart (amendment 34) and, where only stock or a price is missing, reviews and questions (amendment 40(a)).
      *
      * @param  array<string, string>  $after  section key => where it goes on from ("Show more")
      * @param  array<string, string>  $filters  section key => what it is narrowed to (amendment 31)
@@ -206,7 +207,8 @@ final readonly class ShopPages
         $path = $around === null || $around['self'] === null ? [] : [...$around['path'], $around['self']];
 
         $customerId = $this->customerId();
-        // Not available now: only the sections read on such a page too - the Save heart (amendment 34).
+        // Not available now: only the sections read on such a page too - the Save heart (amendment 34) and,
+        // where only stock or a price is missing, reviews and questions (amendment 40(a)).
         // The page's sizes this viewer can buy wholesale, as it read them (amendment 35): none for an individual,
         // and a guest's only where companies may buy the product - as its card and Sales's Add to Cart have it.
         $wholesaleViewer = match ($viewer) {
