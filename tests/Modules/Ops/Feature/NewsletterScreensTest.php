@@ -68,7 +68,7 @@ function newsletterScreensGuest(string $code, string $email): string
 /** Whether a query names a table of the `ops` schema - `"ops".x` or `ops.x` - and not one ending in "ops", as "shops". */
 function newsletterScreensReadsOps(string $sql): int
 {
-    return preg_match('/(?:^|[^a-z0-9_".])(?:"ops"|ops)\.["a-z_]/i', $sql);
+    return preg_match('/(?:^|[^a-z0-9_".])(?:"ops"|ops)\.["a-z_]/i', $sql) === 1 ? 1 : 0;
 }
 
 it('tells an ops table from one that only ends in "ops"', function () {
