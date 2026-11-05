@@ -26,6 +26,14 @@ declare(strict_types=1);
 */
 
 const SHARED_BUDGET = 200_000;
+
+/*
+| Pages drawn in no frame of the shop's or the panel's, which leave out what every framed page loads (the theme switch, the
+| menus): ops.md §4.15 O13's page, which an emailed link opens. Counting them in "what every page loads" would move that code
+| out of shared and onto every other page, though no other page loads any more than before (+30 KB each, measured
+| 2026-11-05). They are still measured against the page budget themselves.
+*/
+const FRAMELESS_PAGES = ['resources/js/pages/Ops/Storefront/EmailLink.tsx'];
 const PAGE_BUDGET = 60_000;
 const APP_ENTRY = 'resources/js/app.tsx';
 
@@ -65,9 +73,10 @@ function chunksLoadedWith(array $manifest, string $key): array
  * @param  array<string, array{file: string, src?: string, imports?: list<string>, isDynamicEntry?: bool}>  $manifest
  * @param  callable(string): int  $gzippedSize  the gzipped size of a built file
  * @param  (callable(string): bool)|null  $isPage  whether a source file is a page; every entry, if not given
+ * @param  list<string>  $frameless  pages left out of what every page loads, still measured themselves
  * @return array{shared: int, pages: array<string, int>}
  */
-function javaScriptSizes(array $manifest, callable $gzippedSize, ?callable $isPage = null): array
+function javaScriptSizes(array $manifest, callable $gzippedSize, ?callable $isPage = null, array $frameless = []): array
 {
     $sizeOf = fn (array $keys): int => array_sum(array_map(fn (string $key): int => $gzippedSize($manifest[$key]['file']), $keys));
 
@@ -84,7 +93,8 @@ function javaScriptSizes(array $manifest, callable $gzippedSize, ?callable $isPa
 
     // What every page loads is downloaded once, whichever page comes first. With one page only,
     // nothing is "every page's" but the entry's: its own chunk would otherwise count as shared.
-    $everyPage = count($loaded) < 2 ? [] : array_values(array_intersect(...array_values($loaded)));
+    $framed = array_diff_key($loaded, array_flip($frameless));
+    $everyPage = count($framed) < 2 ? [] : array_values(array_intersect(...array_values($framed)));
     $shared = array_values(array_unique([...chunksLoadedWith($manifest, APP_ENTRY), ...$everyPage]));
 
     return [
@@ -157,6 +167,29 @@ it('counts a helper module beside the pages inside the page that imports it, not
     ]);
 });
 
+it('leaves a frameless page out of what every page loads, and still measures it', function () {
+    $manifest = [
+        APP_ENTRY => ['file' => 'app.js'],
+        '_frame.js' => ['file' => 'frame.js'],
+        'resources/js/pages/A.tsx' => ['file' => 'a.js', 'src' => 'resources/js/pages/A.tsx', 'isDynamicEntry' => true, 'imports' => ['_frame.js']],
+        'resources/js/pages/B.tsx' => ['file' => 'b.js', 'src' => 'resources/js/pages/B.tsx', 'isDynamicEntry' => true, 'imports' => ['_frame.js']],
+        'resources/js/pages/Link.tsx' => ['file' => 'link.js', 'src' => 'resources/js/pages/Link.tsx', 'isDynamicEntry' => true],
+    ];
+    $sizes = ['app.js' => 10, 'frame.js' => 50, 'a.js' => 5, 'b.js' => 7, 'link.js' => 3];
+
+    // Counted as a page like any other, the link page would put frame.js on A and B.
+    expect(javaScriptSizes($manifest, fn (string $file): int => $sizes[$file], null, ['resources/js/pages/Link.tsx']))->toBe([
+        'shared' => 60,
+        'pages' => ['resources/js/pages/A.tsx' => 5, 'resources/js/pages/B.tsx' => 7, 'resources/js/pages/Link.tsx' => 3],
+    ])->and(javaScriptSizes($manifest, fn (string $file): int => $sizes[$file])['pages']['resources/js/pages/A.tsx'])->toBe(55);
+});
+
+it('names only frameless pages that exist', function () {
+    foreach (FRAMELESS_PAGES as $page) {
+        expect(is_file(dirname(__DIR__, 2).'/'.$page))->toBeTrue("{$page} is gone: take it off FRAMELESS_PAGES");
+    }
+});
+
 /**
  * The files the build is made from that changed after it was made: the code and styles, the Vite
  * config and the lock file. At most five, named, which is enough to say what to rebuild for.
@@ -211,6 +244,7 @@ it('keeps the JavaScript within the budgets of frontend.md §5', function () {
         // counts - `export default` or `export { X as default }` - so a page is never dropped from
         // the measure for how its export is spelled (the batch B review).
         fn (string $source): bool => preg_match('/^export\s+(default\b|\{[^}]*\bas\s+default\b)/m', (string) file_get_contents(dirname(__DIR__, 2).'/'.$source)) === 1,
+        FRAMELESS_PAGES,
     );
     $overPages = array_filter($sizes['pages'], fn (int $size): bool => $size > PAGE_BUDGET);
     arsort($overPages);
