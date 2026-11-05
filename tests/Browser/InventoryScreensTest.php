@@ -421,7 +421,11 @@ function inventoryBrowserDeep(mixed $page, string $address, string $prefix): arr
     return ['id' => substr((string) $found[0], strlen($prefix)), 'other' => substr((string) $found[1], strlen($prefix)), 'shown' => (int) $found[2], 'place' => (int) $page->script('Math.round(window.scrollY)')];
 }
 
-/** Every row still there, and the page where it was. */
+/**
+ * Every row still there, and the page where it was.
+ *
+ * @param  array{id: string, other: string, shown: int, place: int}  $deep
+ */
 function inventoryBrowserKept(mixed $page, string $prefix, array $deep, string $what): void
 {
     $rows = "document.querySelectorAll('[data-test^=\"{$prefix}\"]')";

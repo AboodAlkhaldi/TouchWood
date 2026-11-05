@@ -1000,7 +1000,7 @@ need from the backend is in main (Q14, Q17, Q21, R1). How to carry on: `src/Modu
 |---|---|
 | O1, O2 the two bells and their full pages | Built, #325 |
 | O3 to O6 Customer Messages, Offer Notices and their forms | Built, #346 |
-| O7 Subscribers | Built, `feat/ops-subscribers` |
+| O7 Subscribers | Built, #347 |
 | O10 SMS Countries | Built, #322 |
 | O8 Reports, with the menu's `reports` section | **Not built** |
 | O9 Daily Reports | **Not built** |
