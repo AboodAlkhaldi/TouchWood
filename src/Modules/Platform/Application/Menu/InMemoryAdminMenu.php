@@ -42,6 +42,9 @@ final class InMemoryAdminMenu implements AdminMenu
         'payments',
         'companies',
         'customers',
+        // Ops' Reports section follows Customers (ops.md §4.15, the menu, Q2): a menu section only, no area of
+        // the role editor - its jobs stay under Messages and Reports.
+        'reports',
         // Handoff §14 places Marketing after Customers and before Points (platform.md §9.4).
         'marketing',
         // Handoff §14 places Support after Marketing and before Points (platform.md §9.4).

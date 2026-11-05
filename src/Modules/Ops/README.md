@@ -188,7 +188,7 @@ Each checked against the code on 2026-11-01, the first two on 2026-11-03, C11's 
 | Brevo on the live system | The adapters are built, every failure covered with faked answers (ops.md §7), and in production a web request or a worker refuses to boot on either `log` driver, or without a usable key and `MAIL_FROM_ADDRESS`, and logs loudly without `BREVO_NEWSLETTER_FOLDER_ID` or `BREVO_WEBHOOK_SECRET`, all the server's; other console commands are left alone; the webhook is made in Brevo, unbatched, with the secret as its custom header. Run `php artisan ops:brevo:check` once the key is in, and `php artisan queue:restart` after changing it. Not yet proven against the real Brevo | The owner, at hosting |
 | What to do about a lost unsubscribe, a long outage, a refused key on queued mail, a missing folder or secret at boot, staging's `APP_ENV` | ops.md §9.6: left as they are | The owner |
 | The words' full review | The reports' and unsubscribe pages' words are marked approved for now, the full review at the end (owner, 2026-10-31) | The owner |
-| The screens | Being built, one job at a time (ops.md §4.15): SMS Countries, the two bells with their full pages, Customer Messages and Offer Notices with their forms, and Subscribers are in; Reports, Daily Reports, the newsletter box, the consent switch and box, and the confirm, leave and unsubscribe pages have no page yet | The screens agent |
+| The screens | Being built, one job at a time (ops.md §4.15): SMS Countries, the two bells with their full pages, Customer Messages and Offer Notices with their forms, Subscribers and Reports are in; Daily Reports, the newsletter box, the consent switch and box, and the confirm, leave and unsubscribe pages have no page yet | The screens agent |
 
 ## Continuing the screens
 
@@ -214,8 +214,11 @@ before, or it opens raw JSON. Before touching `AdminMenu`, `AdminLayout` or `Sto
   `useKeptDepth`, which asks for the rows below the first page again after a save. `router.post` keeps the page by default, so
   it needs no `preserveState` of its own.
 - Nothing reads the server by itself on a clock (Q7, Q15): any request resets a staff session's idle clock.
-- O8: `DateRangeField` says its days are UTC; O8 needs store days. Add a prop, don't fork it. O8's menu section means changing
-  `InMemoryAdminMenu`, Access's `permission_groups` words and `AdminMenuTest` together.
+- O8 is built: `ReportsController::show` answers the page (`Ops/Admin/Reports`) or the JSON; the page reads the preview in its own
+  request once the address names choices, the store by its **code** there (`storeOf`) and by its id everywhere else. The kinds
+  on offer come from `ReportChoices`, which `ops.admin.choices` shares. `DateRangeField` takes a `timeZone` for store days. The
+  menu's `reports` section is in `InMemoryAdminMenu`, Access's `permission_groups` words and `AdminMenuTest`; O9's Daily Reports
+  entry joins it with its page.
 - O13's frame reads no store, because an off store must work (§4.11).
 - The page limit is 60 KB of JavaScript (`JavaScriptBudgetTest`), and the heaviest pages are at 59.9. Split a shared file by who
   uses it, as `written-list.tsx` and `written-form.tsx` are, before reaching for anything else. `React.lazy` never on first paint
@@ -255,6 +258,6 @@ SMS), `PaymentEventsTest` (C10, C11, S6 and transfers overdue from Stage 7's rea
 `BellsTest`, `NoticesTest`, `NoticeSegmentTest`, `StaffMessagesTest`, `NewsletterTest`, `BrevoNewsletterListTest`,
 `ReportsTest`, `DailyReportTest`, `DailyReportEmailTest`, `PruneTest`, `OpsPermissionsTest`, `OpsSchemaTest`,
 `OpsTablesTest`. `tests/Modules/Ops/Feature` over HTTP — `BellRoutesTest`, `WrittenRoutesTest`, `ReportRoutesTest`,
-`DailyReportRoutesTest`, `StopEmailPagesTest`, `SmsCountryRoutesTest`, `SmsCountriesScreenTest`, `BellScreensTest`, `WrittenScreensTest`, `SubscribersScreenTest`, `ScreensReadsTest`, `SegmentReadsTest`, `AudienceCountTest`. The consent itself is Access's: `tests/Modules/Access/Integration/MarketingConsentTest`,
+`DailyReportRoutesTest`, `StopEmailPagesTest`, `SmsCountryRoutesTest`, `SmsCountriesScreenTest`, `BellScreensTest`, `WrittenScreensTest`, `SubscribersScreenTest`, `ReportsScreenTest`, `ScreensReadsTest`, `SegmentReadsTest`, `AudienceCountTest`. The consent itself is Access's: `tests/Modules/Access/Integration/MarketingConsentTest`,
 `tests/Modules/Access/Feature/CustomerAccountPageTest`. ops.md §8 maps each scenario to its test and says what no
 test covers.
