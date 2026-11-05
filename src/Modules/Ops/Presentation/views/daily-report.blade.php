@@ -35,8 +35,6 @@
     .mini td { background-color: #f6efe8; padding: 6pt 8pt; vertical-align: top; width: 25%; }
     .mlabel { font-size: 7.4pt; color: #53626b; }
     .mvalue { font-size: 12.5pt; font-weight: bold; color: #0b2031; padding-top: 2pt; }
-    .mini td.wait { background-color: #f2f4f5; }
-    .mwait { font-size: 8.4pt; color: #815d2c; font-weight: bold; padding-top: 2pt; }
     h2 { font-size: 10.5pt; color: #02365e; margin: 14pt 0 5pt 0; padding-bottom: 3pt; border-bottom: 0.8pt solid #dcdfe1; }
     h2 .num { color: #864720; }
     h3 { font-size: 8.4pt; color: #53626b; margin: 6pt 0 3pt 0; font-weight: bold; }
@@ -111,6 +109,7 @@
         $refundsOut = \Shared\Domain\ValueObject\Money::zero($store->currencyCode);
         foreach ($s->money->refunds as $way) { $refundsOut = $refundsOut->add($way->amount); }
         $sum = static fn (array $byKind): int => array_sum($byKind);
+        $transfers = static fn ($figure): string => str_replace([':orders', ':amount'], [$f->int($figure->orders)->toHtml(), $money($figure->owed)->toHtml()], e(__('ops::daily_report.money.transfers_waiting_line', [], $locale)));
     @endphp
 
     @if ($report->allStores)
@@ -215,8 +214,8 @@
         @endforeach
     </tr></table>
     <table class="mini" style="margin-top: 4pt;"><tr>
-        <td style="width: 50%;"><div class="mlabel">{{ $w($s->notReadThatDay ? 'money.transfers_waiting_now' : 'money.transfers_waiting') }}</div><div class="mvalue">{!! str_replace([':orders', ':amount'], [$f->int($s->transfersWaiting->orders)->toHtml(), $money($s->transfersWaiting->owed)->toHtml()], e(__('ops::daily_report.money.transfers_waiting_line', [], $locale))) !!}</div></td>
-        <td class="wait" style="width: 50%;"><div class="mlabel">{{ $w('money.transfers_overdue') }}</div><div class="mwait">{{ $w('money.waits_stage7') }}</div></td>
+        <td style="width: 50%;"><div class="mlabel">{{ $w($s->notReadThatDay ? 'money.transfers_waiting_now' : 'money.transfers_waiting') }}</div><div class="mvalue">{!! $transfers($s->transfersWaiting) !!}</div></td>
+        <td style="width: 50%;"><div class="mlabel">{{ $w($s->notReadThatDay ? 'money.transfers_overdue_now' : 'money.transfers_overdue') }}</div><div class="mvalue">{!! $transfers($s->transfersOverdue) !!}</div></td>
     </tr></table>
     </td></tr></table>
 
@@ -363,6 +362,7 @@
             ['sales.shipping', static fn ($t) => $f->money($t->shipping, $t->currencyExponent, $locale === 'en' ? $t->symbolEn : $t->symbolAr)],
             ['sales.refunds', static fn ($t) => $f->money($t->refunds, $t->currencyExponent, $locale === 'en' ? $t->symbolEn : $t->symbolAr)],
             ['totals.payments_in', static fn ($t) => $f->money($t->paymentsIn, $t->currencyExponent, $locale === 'en' ? $t->symbolEn : $t->symbolAr)],
+            [array_filter($report->stores, static fn ($store): bool => $store->notReadThatDay) !== [] ? 'money.transfers_overdue_now' : 'money.transfers_overdue', static fn ($t) => str_replace([':orders', ':amount'], [$f->int($t->overdueOrders)->toHtml(), $f->money($t->overdueOwed, $t->currencyExponent, $locale === 'en' ? $t->symbolEn : $t->symbolAr)->toHtml()], e(__('ops::daily_report.money.transfers_waiting_line', [], $locale)))],
             ['compare.new_customers', static fn ($t) => $f->int($t->today->newCustomers)],
             ['month.orders', static fn ($t) => $f->int($t->monthToDate->orders)],
             ['month.revenue', static fn ($t) => $f->money($t->monthToDate->revenue, $t->currencyExponent, $locale === 'en' ? $t->symbolEn : $t->symbolAr)],

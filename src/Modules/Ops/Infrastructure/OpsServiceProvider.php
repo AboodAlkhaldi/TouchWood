@@ -91,6 +91,7 @@ use Modules\Ops\Infrastructure\Listener\StartCampaignNotice;
 use Modules\Ops\Infrastructure\Listener\TellCustomerAboutFeedback;
 use Modules\Ops\Infrastructure\Listener\TellCustomerAboutMoney;
 use Modules\Ops\Infrastructure\Listener\TellCustomerAboutOrder;
+use Modules\Ops\Infrastructure\Listener\TellCustomerAboutPaymentRequest;
 use Modules\Ops\Infrastructure\Listener\TellCustomerAboutPoints;
 use Modules\Ops\Infrastructure\Listener\TellCustomerAboutReturn;
 use Modules\Ops\Infrastructure\Listener\TellCustomersAboutCoupon;
@@ -110,6 +111,7 @@ use Modules\Ops\Presentation\Console\BrevoCheckCommand;
 use Modules\Payments\Public\Events\GatewayKeyExpiring;
 use Modules\Payments\Public\Events\GatewayKeyRejected;
 use Modules\Payments\Public\Events\PaymentNotAccepted;
+use Modules\Payments\Public\Events\PaymentRequested;
 use Modules\Platform\Public\Contracts\AdminFrameParts;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\PlatformApi;
@@ -132,6 +134,7 @@ use Modules\Sales\Public\Events\ReturnCompleted;
 use Modules\Sales\Public\Events\ReturnReceived;
 use Modules\Sales\Public\Events\ReturnRefused;
 use Modules\Sales\Public\Events\ReturnRequested;
+use Modules\Sales\Public\Events\TransferOverdue;
 use Modules\Sync\Public\Events\SyncNeedsAttention;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -274,6 +277,8 @@ final class OpsServiceProvider extends ServiceProvider
             Event::listen($event, [TellCustomerAboutMoney::class, 'handle']);
         }
 
+        Event::listen(PaymentRequested::class, [TellCustomerAboutPaymentRequest::class, 'handle']);
+
         Event::listen(CouponAssigned::class, [TellCustomersAboutCoupon::class, 'handle']);
 
         foreach ([PointsEarned::class, PointsChangedByHand::class] as $event) {
@@ -284,7 +289,7 @@ final class OpsServiceProvider extends ServiceProvider
             Event::listen($event, [TellCustomerAboutFeedback::class, 'handle']);
         }
 
-        foreach ([OrderPlaced::class, CompanyApplicationSubmitted::class, LowStockChanged::class, SyncNeedsAttention::class, ReturnRequested::class, GatewayKeyExpiring::class, GatewayKeyRejected::class, PaymentNotAccepted::class, CampaignExpiring::class] as $event) {
+        foreach ([OrderPlaced::class, CompanyApplicationSubmitted::class, LowStockChanged::class, SyncNeedsAttention::class, ReturnRequested::class, GatewayKeyExpiring::class, GatewayKeyRejected::class, PaymentNotAccepted::class, TransferOverdue::class, CampaignExpiring::class] as $event) {
             Event::listen($event, [AlertStaff::class, 'handle']);
         }
 

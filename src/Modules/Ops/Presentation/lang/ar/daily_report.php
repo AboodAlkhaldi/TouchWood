@@ -86,7 +86,7 @@ return [
         'transfers_waiting_now' => 'تحويلات منتظرة (حتى الآن، لا في ذلك اليوم)',
         'transfers_waiting_line' => 'عدد الطلبات :orders، المستحق :amount',
         'transfers_overdue' => 'تحويلات متأخرة',
-        'waits_stage7' => 'بانتظار وحدة المدفوعات (المرحلة 7)',
+        'transfers_overdue_now' => 'تحويلات متأخرة (حتى الآن، لا في ذلك اليوم)',
         'no_money' => 'لم تتحرك أموال اليوم.',
     ],
 

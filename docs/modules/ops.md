@@ -130,7 +130,7 @@ must publish it (§2.3).
 | C9 | Return completed | Staff complete the return | `ReturnCompleted` (exists) | "A refund of X is owed" — completing moves no money (`CompleteReturnHandler.php:30-33`) |
 | C9b | Refund sent | Staff record money sent back | **new** `RefundRecorded` (`RecordRefund`) | The amount and the way |
 | C10 | Payment received | Staff record a payment, or Sales records an online payment on an order that already exists (a payment request) | **new** `PaymentRecorded` — Sales records both (payments.md:390-391), so one event | An online **checkout** creates its order on `PaymentSucceeded` (payments.md:643): it gets **one** email, C1, saying it is paid |
-| C11 | Pay the remaining amount | Staff create a payment request | **new** `PaymentRequested(eventId, requestId, orderId, storeId, customerId, expiresAt, occurredAt)` (Payments, *Stage 7's proposal*) | **Sent at once** — the request lives 60 minutes (payments.md:386); the link `/{store}/{locale}/orders/{number}/pay` (payments.md:389) |
+| C11 | Pay the remaining amount | Staff create a payment request | `PaymentRequested(eventId, requestId, orderId, storeId, customerId, expiresAt, occurredAt)` (Payments) | **Sent at once** — the request lives 60 minutes (payments.md:386); the link `/{store}/{locale}/orders/{number}/pay` (payments.md:389) |
 | C12 | Points earned | Points credited on delivery | **new** `PointsEarned` | |
 | C13 | Points changed by hand | An admin adds or removes | **new** `PointsChangedByHand` | The admin's reason when given |
 | C14 | Points expiring | **7 days** before a lot expires | A nightly Ops job over a **new** Loyalty read (§2.3) | One message per customer per day, summing every lot that expires that day |
@@ -162,15 +162,33 @@ every morning at 10:00 Riyadh time for every store's own day a week ahead, once 
 the job carries the moment it was queued, so a late worker reminds of the same day. C9b and C10 read
 `SalesReports::moneyRecordForMessage`: a record gone, voided (owner, 2026-10-29), of the other kind or another
 customer's sends nothing; the words of a way are `refund_sent.ways`. **C10 has no check of its own for an online
-checkout's one email:** `PaymentRecorded` is for money on an order that exists (sales.md §2.2), and today only
-`MoneyRecording` fires it - so stage 7 must not fire it for the payment a checkout's order is created with
-(sales.md:1603), or that customer gets C10 beside C1; the record does not say which it was. C15 is one
+checkout's one email:** `PaymentRecorded` is for money on an order that exists (sales.md §2.2). Sales fires it for
+staff's records (`MoneyRecording`) and for a request's online payment, once per transaction (`OnlineMoney` with `tell`),
+and never for the payment a checkout's order is created with (`TryCompletion`), so that customer gets C1 alone. The
+payment's words name no way, so an `ONLINE` record reads as any other. C15 is one
 `CouponAssigned` for a whole assignment: its customers are paged with `PromotionsApi::assignedCustomers`, each
 told once by an id made of the event and the customer, so a retry carries on where a failure stopped; the code is
 read with `couponCode`, a coupon deleted since sends nothing. C1 shows the recipient and the delivery address in
 the email only, never the bell; an order with no address has no such line, never a stand-in. C1's "paid" line shows on an order whose way to
-pay is online: such an order exists only once its money came (sales.md §9.5 #4, #320). **Not built, waiting on
-another module:** C11 (`PaymentRequested`, stage 7).
+pay is online: such an order exists only once its money came (sales.md §9.5 #4, #320).
+
+**C11 is built (2026-11-03).** "Sent at once" means no delay and no batching: the event leaves the outbox within the
+minute (the relay), and the listener and the email job run straight off the queue. Only C18 is sent outside the queue. The
+words give the amount the request asks, read through `PaymentsApi::openRequests`, which writes nothing, and say its 60
+minutes; the button is the kind's own ("Pay now"), and the bell and the email open `/{store}/{locale}/orders/{number}/pay`.
+It sends nothing, when the listener runs and again when the email leaves, if the request is no longer the order's open
+one (withdrawn, paid, past its time, a newer one in its place), the order is gone or cancelled, rejected or came back, or
+the read names another store or customer. **Left as they are (review, 2026-11-03; the coordinator takes them to the owner if needed):** a request still open in
+Payments that no longer asks what the order is missing, after a refund or a voided record (sales.md §9.9 #2):
+`orderForMessage` does not say what is missing, so its message goes and its page answers "This payment link has ended"; and
+the words' fixed "60 minutes", which can overstate what is left when an email is held up by a long outage and leaves late
+but still within the request's time. **The page has no route on main yet** (§4.13 #5).
+
+**A test order says so (2026-11-03; payments.md §1.6, "marked TEST everywhere").** C1, C6b, C9b, C10 and C11, the messages
+that speak of its money, carry "This is a test order." after the bell's line and under the email's greeting. It says no more:
+every order placed in TEST is a test order, whatever the way to pay, so a transfer's money may be real. Sales' `isTest`
+decides, on `OrderMessageDto` and `MoneyRecordMessageDto`. The other messages about a test order have its number alone,
+`TEST-0001`.
 
 ### 1.6 Alerts to staff
 
@@ -182,8 +200,8 @@ another module:** C11 (`PaymentRequested`, stage 7).
 | S4 | Sync problems | A read left problems | `SyncNeedsAttention` (exists) | `sync.report.view` | — (owner, 2026-10-28: an offer stopped by Odoo's price is not SMS-worthy) |
 | S5 | Payment problems (access.md amendment 78) | The gateway key expires in 30, 7, 1 days | **new** `GatewayKeyExpiring(eventId, storeId, mode, daysLeft, expiresOn, occurredAt)`, once per threshold, from Payments' daily job (*Stage 7's proposal*) | `payments.gateway.manage` — super admins only | **Yes, at 1 day** |
 | S5b | Payment problems | MyFatoorah refused a store's current key: once until a new key is saved; an earlier key refused sends nothing; a refusal on the mode not in use fires too | `GatewayKeyRejected(eventId, storeId, mode, occurredAt)` (#310; payments.md:187-192) | `payments.gateway.manage` — super admins only | **Yes** (owner, 2026-10-28, §9.3 #12) |
-| S6 | **Payments to check** (a **new** Access topic, amendment 84) | A bank transfer unchecked 72 h after the upload | **new** `TransferOverdue(eventId, orderId, storeId, occurredAt)`, once per order, from **Sales'** scheduled job (*Stage 7's proposal*; sales.md:1583-1585) | `sales.payment.record` | — |
-| S7 | **Payments to check** | A payment not accepted — a refund is owed | `PaymentNotAccepted` + **`storeId`** (stage 7); links to the attempt in Payments' staff lists — for a try the order never existed | `sales.payment.record` | — (owner, round 3 #13: withdrawn) |
+| S6 | **Payments to check** (a **new** Access topic, amendment 84) | A bank transfer unchecked the store's `transferCheckHours` (72 by default) after the first upload | `TransferOverdue(eventId, orderId, storeId, occurredAt)`, once per order, never a test order, from **Sales'** hourly job (sales.md §9.5 #16) | `sales.payment.record` | — |
+| S7 | **Payments to check** | A payment not accepted — a refund is owed | `PaymentNotAccepted`, with its `storeId`; links to the attempt in Payments' staff lists — for a try the order never existed | `sales.payment.record` | — (owner, round 3 #13: withdrawn) |
 | S9 | **Returns** (a **new** Access topic) | A customer asks for a return | **new** `ReturnRequested(eventId, returnId, orderId, storeId, customerId, occurredAt)` | `sales.return.manage` | — (bell opens the return; it stays under Waiting in the panel's Returns) |
 | S8 | Campaign expiry | A campaign is about to end, when Content's spec says | `CampaignExpiring(eventId, campaignId, storeId, endsAt, occurredAt)` | **Content's, when it has one.** Until then `ops.message.send_many`, admin-only: Super Admins and the store's admins who hold it (2026-11-03, for the owner to confirm) | — |
 | S10 | **None: it cannot be switched off** (owner, 2026-11-01) | A security email (C18) could not be sent: **at most once a clock hour** | None: `SecurityFailureAlert`, called from `OpsSecurityMessages` | `ops.sms_countries.manage`, reserved, used only because it reaches active super admins and no one else | — **The bell alone** |
@@ -205,8 +223,16 @@ another module:** C11 (`PaymentRequested`, stage 7).
   `critical_sms` on and a phone, both checked again when the SMS leaves; the provider of the phone's country). **Their
   words say which key, the test or the live one (`mode`), and never that payments stop**: a key of the mode not in use
   stops nothing (2026-11-01). **S7 is built (2026-11-02, on #314's `PaymentNotAccepted`)**: its entry and
-  email carry no link until Payments' staff list of attempts exists. **Not built, waiting on another module:**
-  `TransferOverdue` (S6) is not in main. **S8 is built on Ops' side (2026-11-03) and waits on Content to fire
+  email carry no link until Payments' staff list of attempts exists (`/admin/payments?store=&state=`, payments.md §4.2:
+  no such route on main, 2026-11-03; §4.13 #6). **S6 is built (2026-11-03)**, on Sales' `TransferOverdue`, by its switches, opening
+  the order's panel page; an order gone, ended since or of another store sends nothing. Its words give the store's own
+  check time. **A role may hold `sales.payment.record` without `sales.order.view`** (roles are picked permission by
+  permission, Admin roles too; only a Super Admin holds everything): that person gets the same words with no link, in the
+  bell and the email, since the page would answer 403 (`AlertLinks`, a second `staffToAlert` for the order's permission).
+  **Left as they are (review, 2026-11-03; the coordinator takes them to the owner if needed):** a store with no holder of
+  the permission, or none with a switch on, alerts no one, and the order's Overdue badge and the daily report still show it;
+  an order paid in the narrow window between Sales firing and the message leaving is still alerted, as `orderForMessage`
+  does not say what it holds. **S8 is built on Ops' side (2026-11-03) and waits on Content to fire
   `CampaignExpiring`.** Its words name the campaign, read through `ContentApi::campaignForMessage`, and its last day in the
   store's zone; no link until Content has a page. Until Content is built the read answers null, and an alert sends nothing.
 - **S10 and S10b are built. The owner's decisions, 2026-11-01:** every active Super Admin always gets the entry, **no switch
@@ -438,7 +464,10 @@ Its send is recorded on the report (`emailed_at`), not as a message kind.
 
 **Transfers waiting are as they stand now** on any report read after its day, a past day's, a late worker's or a
 retry's: Sales keeps no history of them, so the report labels that one figure as current, in both languages (module
-pass, 2026-11-01).
+pass, 2026-11-01). **Transfers overdue the same (2026-11-03)**, from `SalesReports::transfersOverdue`: of those waiting,
+the ones whose first receipt is at least the store's `transferCheckHours` old, as staff's Overdue badge says, a test order
+never: the orders and what they owe. The totals per currency carry it too, labelled as current when any store's section
+is. The Excel reports do not: they cover a range of days, and this figure has no history.
 
 **Every store's report includes the switched-off stores** (owner, 2026-10-30): each marked "switched off", its
 figures in the totals per currency (`PlatformApi::allStores()`, which returns the stores on and off).
@@ -467,7 +496,7 @@ go (§9.2).
 
 | Module (builder) | Events | Reads |
 |---|---|---|
-| **Sales** (Stage 6 session) | **Built (#259):** `OrderApproved`, `OrderRejected`, `OrderShipped`, `OrderCameBack` `{eventId, orderId, storeId, customerId, occurredAt}`; `OrderEdited` adds `editId`; `ReturnRequested`, `ReturnAccepted`, `ReturnRefused`, `ReturnReceived` add `returnId`; `PaymentRecorded`, `RefundRecorded` add `moneyRecordId` (by hand; Stage 7 fires `PaymentRecorded` for an online payment on an order that already exists, never for the payment a checkout's order is created with: that customer gets C1 alone) — ids only, through the outbox. `TransferOverdue` is Stage 7's mark | **Built (#260)** on a new contract `Sales\Public\Contracts\SalesReports` (not `SalesApi`): `orderForMessage(orderId, locale)`, with the tracking link (C4; wired 2026-11-01); `returnForMessage(returnId)`; `counts(store, from, to)` {placed, counted, individuals, companies, cancelled, rejected, cameBack} — `counted` leaves out cancelled, rejected and came back; `moneyOn(store, fromDay, toDay)` — payments and refunds by way, on the store's own dates, voided left out; `transfersWaiting(store)` {orders, owed} (overdue is Stage 7's); `revenueByDay(store, from, to)` — pass the store's midnights, refunds and waiting refunds per day; `productSales(store, from, to, after, limit)` — most sold first, returns not taken off; **wired 2026-11-01:** `moneyRecordForMessage(moneyRecordId)` (C9b, C10) and `productNetSales(store, from, to, after, limit)` (by category, the Excel sheet and the daily report). An unknown store is refused |
+| **Sales** (Stage 6 session) | **Built (#259):** `OrderApproved`, `OrderRejected`, `OrderShipped`, `OrderCameBack` `{eventId, orderId, storeId, customerId, occurredAt}`; `OrderEdited` adds `editId`; `ReturnRequested`, `ReturnAccepted`, `ReturnRefused`, `ReturnReceived` add `returnId`; `PaymentRecorded`, `RefundRecorded` add `moneyRecordId` (by hand; Stage 7 fires `PaymentRecorded` for an online payment on an order that already exists, never for the payment a checkout's order is created with: that customer gets C1 alone) — ids only, through the outbox. **Built (2026-11-03) and listened to:** `TransferOverdue` | **Built (#260)** on a new contract `Sales\Public\Contracts\SalesReports` (not `SalesApi`): `orderForMessage(orderId, locale)`, with the tracking link (C4; wired 2026-11-01); `returnForMessage(returnId)`; `counts(store, from, to)` {placed, counted, individuals, companies, cancelled, rejected, cameBack} — `counted` leaves out cancelled, rejected and came back; `moneyOn(store, fromDay, toDay)` — payments and refunds by way, on the store's own dates, voided left out; `transfersWaiting(store)` {orders, owed}; **added 2026-11-03:** `transfersOverdue(store)`, the same shape; `revenueByDay(store, from, to)` — pass the store's midnights, refunds and waiting refunds per day; `productSales(store, from, to, after, limit)` — most sold first, returns not taken off; **wired 2026-11-01:** `moneyRecordForMessage(moneyRecordId)` (C9b, C10) and `productNetSales(store, from, to, after, limit)` (by category, the Excel sheet and the daily report). An unknown store is refused |
 | **Loyalty** (Stage 6) — **built (#256)** | `PointsEarned`, `PointsChangedByHand` | Lots expiring on a day; points per day per store **per ledger kind** (`EARNED`, `REDEEMED`, `REDEMPTION_RETURNED`, `EARNING_REVERSED`, `ADDED`, `DEDUCTED`, `EXPIRED`; loyalty.md:62-70) |
 | **Promotions** (Stage 6) — **built (#255)** | `CouponAssigned` | `segmentMembers` — store-scoped `segmentMembers(StoreId $store, string $segmentId, ?string $after, int $limit)` (PR #280; another store's segment → `SegmentNotFound`); coupons used per day and their discount; **wired 2026-11-01 (C15):** `assignedCustomers(assignmentId, after, limit)`, `couponCode(couponId)`; **(the forms, §4.3, §4.4):** `storeSegments(store, after, limit)`, `storeSegment(store, segmentId)` (#313) |
 | **Feedback** (Stage 6) | **Built (#252):** `QuestionAnswered`, `QuestionNotPublished`, `ReviewNotPublished` `{eventId, <itemId>, productId, storeId, customerId, occurredAt}` — one per item, only with a reason | **Built:** `favouriteCounts(store, after, limit)` (archived products included — Ops filters through Catalog); `reviewForMessage(id)`, `questionForMessage(id)`; `counts(store, from, to)` {newReviews, newQuestions, waitingQuestions (now)} |
@@ -475,7 +504,7 @@ go (§9.2).
 | **Inventory** (Stage 5 session) | **Built (#267, inventory.md amendment 1):** `LowStockChanged(eventId, storeId, becameLow, ranOut, cameBack, occurredAt)` — after commit, once per store, only when a list is non-empty; a store's first recount sends nothing; a size going from fine straight to out is in `ranOut` only (owner, 2026-10-29) | **Built:** `lowStockChanges(StoreId, from, to)` [from, to), an unknown store refused; `stockLevels(StoreId, after, limit 1–1000)`, paged by size id; the change log kept 12 months |
 | **Sync** (Stage 5) | `SyncNeedsAttention` (exists; ids only — the alert links to the Sync Report) | **Built (#262, sync.md amendment 1):** `readsAndProblemsPerDay(stores, fromDay, toDay, until)` → `list<SyncDayDto>` |
 | **B2B** (Stage 5) | **Built (#261, b2b.md amendment 34):** `CompanyApplicationSubmitted` carries `storeId` (owner, option (a)) | **Built:** `applicationCounts(storeId, from, to)` → {submitted, approved} over [from, to); Ops never counts from events |
-| **Payments** (Stage 7 session) | **Built, in main, and listened to (2026-11-01):** `GatewayKeyExpiring(eventId, storeId, mode, daysLeft, expiresOn, occurredAt)`, `GatewayKeyRejected(eventId, storeId, mode, occurredAt)`. **Not in main:** **`storeId`** on `PaymentSucceeded` and `PaymentNotAccepted`; `PaymentRequested` — Stage 7's proposals, put to the owner as payments.md amendments. **payments.md:387 to read "by bell and email"** (Stage 7 agreed) | — (the money figures are Sales') |
+| **Payments** (Stage 7 session) | **Built, in main, and listened to (2026-11-01):** `GatewayKeyExpiring(eventId, storeId, mode, daysLeft, expiresOn, occurredAt)`, `GatewayKeyRejected(eventId, storeId, mode, occurredAt)`. **Built, in main, and listened to:** `PaymentNotAccepted` with its `storeId` (S7), `PaymentRequested` (C11; 2026-11-03) | `PaymentsApi::openRequests(orderIds)` (C11, 2026-11-03); the money figures are Sales' |
 | **Access** (builder session gone; **this session writes it, with an independent review** — owner, 2026-10-28) | — | access.md amendments **79–84** (numbers taken at merge): marketing consent and `withdrawMarketingConsent` (79); `staffToAlert(store, topic, permission)` (80); the critical-SMS switch (81); the **Returns** topic (82); `customersRegistered(store, from, to)` (83); the **Payments to check** topic (84). **Built in Ops step 4 (2026-10-29):** 80, 81, 82, 84, and 88 — `staffStores(staffId)`, the stores a staff member's bell shows. **Added 2026-11-02:** `customerCountInStore(store)`, amendment 94 |
 | **Content** (stage 8, later) | **Declared ahead of its build, listened to, fired by nothing yet (2026-11-03):** `CampaignWentLive(eventId, campaignId, storeId, noticeId, occurredAt)`, `noticeId` null for none; `CampaignExpiring(eventId, campaignId, storeId, endsAt, occurredAt)` — ids only, through the outbox | **Declared, answered null until Content's build replaces `NoCampaignsYet`:** `ContentApi::campaignForMessage(id)` → `?CampaignMessageDto` {campaignId, storeId, name} (S8) |
 
@@ -943,13 +972,12 @@ props. Every other address of that store stays a 404.
   are empty when Catalog no longer knows the size. A `phrase` is what a shopper typed and may begin with `=`.
 - **Money has its currency beside it**, in the row's `currency`; an all-stores report is never converted or summed
   across currencies. A past day's figures may change on the next read; a kept PDF never does (§1.10).
-- **The daily report's figures are not in the JSON.** The list gives the file's facts only; "Transfers overdue"
-  inside the PDF reads "Waits for Payments (stage 7)" for now. "Transfers waiting" is as it stands now, labelled so on
-  a report read after its day.
+- **The daily report's figures are not in the JSON.** The list gives the file's facts only. "Transfers waiting" and
+  "Transfers overdue" inside the PDF are as they stand now, labelled so on a report read after its day.
 - **Two kinds of download address:** a report's `downloadUrl` is a path, a daily report's a full address.
 - **The language differs by route:** a bell's and the unsubscribe pages' words follow the page; a report's words and
   a daily report's PDF follow the reader's account.
-- **`kind` is an open list:** C11, S6 and, once Content fires its event, S8 will start appearing without any change here.
+- **`kind` is an open list:** once Content fires its event, S8 will start appearing without any change here, as C11 and S6 did.
 - **`count` on `ops.admin.audience` is the bell's reach, never the email's** (§4.1): a send by email alone reaches fewer, and its confirmation says so in its own words (O4).
 - **A segment's name can be gone:** `segmentId` set with `segmentNameAr` null means it was deleted since the notice or message was written. Its `segmentMemberCount` is today's, and never the audience it reached.
 - **Ids come in small letters;** send them back as given.
@@ -969,6 +997,10 @@ reads the screens needed were added; what stays is what the code cannot give yet
    store, staff messages by audience: none exists, and the bell's number is the only count. **Not now** (owner, 2026-11-01).
 4. **No screen ties a notice to a campaign.** Sending it when the campaign goes live is built (§1.7), and waits on Content: to
    fire `CampaignWentLive`, and to hold the notice's id (§9.5). S8 has no link until Content has a campaign page (§1.6).
+5. **C11's link opens a page with no route yet.** The bell and the email open `/{store}/{locale}/orders/{number}/pay`
+   (payments.md §1.5), the screens session's (sales.md §9.9), not on main on 2026-11-03: until it lands the link answers 404.
+6. **S7 opens nothing.** Its page is `/admin/payments?store=&state=` (payments.md §4.2), the screens session's, not on main on
+   2026-11-03. When it lands, `MessageWriter` gets the link and no screen changes.
 
 ### 4.14 The SMS countries (§3; access.md amendment 90)
 
@@ -1385,14 +1417,13 @@ Each with where it is tested, in `tests/Modules/Ops` unless named.
 | Reports: figures against hand-counted orders, a cancelled, rejected or came-back order excluded, **a refund on the day its return was asked**, categories adding up, **all stores totalled per currency**, a store's permission, days refused, the preview's 50 rows, the file's cells, fixed queries | `Integration/ReportsTest`; over HTTP `Feature/ReportRoutesTest` |
 | **The daily report's figures against hand-counted orders, a cancelled order excluded, a refund on its day**; net VAT; yesterday and month to date; **all stores totalled per currency**, each in its own day, the off ones marked; **a past day's file unchanged**; who may make and open | `Integration/DailyReportTest`; over HTTP `Feature/DailyReportRoutesTest` |
 | The daily email: off by default, each store's zone, on the person's behalf, one email however often switched on, stopped when changed, a late worker's one report; **00:00 refused; a store whose day has just started shows zeros and the email goes; a retry makes that moment's report once**; logo and name | `Integration/DailyReportEmailTest` |
+| C11 and S6 through the outbox from Stage 7's real flow; C10 on a request's online payment, none on a checkout's; each once, both languages, the refusals, at sending too; a test order's mark on C1, C6b, C9b, C10, C11, and none on a real order's; S6's hours by the store's setting, and no link for whoever cannot open the order; transfers overdue against hand-made orders, a test order left out, in the store's section and the totals | `Integration/PaymentEventsTest` |
 | SMS countries: the start list, add, change, remove, overlaps, Super Admins alone, audited | `Integration/SmsCountriesTest`; over HTTP `Feature/SmsCountryRoutesTest` |
 | The adapters: Brevo's requests as its reference shows, the log drivers refused on a live system, the newsletter's too, at boot | `Integration/SendersTest`, `Integration/BrevoNewsletterListTest`, `Integration/RealEmailDriverTest` |
 | The tables' last lines, the schema, the permissions, the nightly removal of the three log tables, of what staff wrote (sent, cancelled, failed; not what waits or sends) and of the daily reports | `Integration/OpsTablesTest`, `Integration/OpsSchemaTest`, `Integration/OpsPermissionsTest`, `Integration/PruneTest`, `Integration/NewsletterTest`, `Integration/DailyReportTest` |
 
 **Not tested:**
 
-- C11, S6 on their events: no listener exists (§1.5, §1.6), so "every row sends once" holds only
-  for the rows built.
 - S8 and the going-live notice against the real Content: nothing fires their events yet, so the tests fire them and
   answer `ContentApi` with a stand-in.
 - Over HTTP: `ops.admin.subscribers` (its handler is tested in `NewsletterTest`); the staff's

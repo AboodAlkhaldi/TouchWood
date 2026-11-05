@@ -43,8 +43,8 @@ use Shared\Domain\ValueObject\Money;
  * refunds' VAT (`waitingRefundsVat`) comes off only in "revenue with VAT if the waiting refunds go through".
  * VAT is the goods' alone (owner: no VAT on shipping) - Sales' `vat` is taken as it is, never adjusted here.
  *
- * **Transfers waiting are as they stand now**, on any report read after its day too - a past day's, a late
- * worker's, a retry's: Sales keeps no history of them, so the report labels that one figure as current
+ * **Transfers waiting and overdue are as they stand now**, on any report read after its day too - a past day's,
+ * a late worker's, a retry's: Sales keeps no history of them, so the report labels those figures as current
  * (owner, 2026-11-01).
  */
 final readonly class DailyReportReader
@@ -148,6 +148,7 @@ final readonly class DailyReportReader
             waitingRefunds: $waiting,
             money: $this->sales->moneyOn($id, $from, $from),
             transfersWaiting: $this->sales->transfersWaiting($id),
+            transfersOverdue: $this->sales->transfersOverdue($id),
             topSizes: $topSizes,
             categories: $categories,
             newIndividuals: $registered['individuals'],
@@ -337,6 +338,8 @@ final readonly class DailyReportReader
                 shipping: $current === null ? $section->shipping : $current->shipping->add($section->shipping),
                 refunds: $current === null ? $section->refunds : $current->refunds->add($section->refunds),
                 paymentsIn: $current === null ? $paymentsIn : $current->paymentsIn->add($paymentsIn),
+                overdueOrders: ($current === null ? 0 : $current->overdueOrders) + $section->transfersOverdue->orders,
+                overdueOwed: $current === null ? $section->transfersOverdue->owed : $current->overdueOwed->add($section->transfersOverdue->owed),
                 monthToDate: self::sum($current?->monthToDate, $section->monthToDate),
             );
         }
