@@ -24,18 +24,7 @@ use Modules\Payments\Application\Command\SwitchGateway\SwitchGatewayHandler;
 use Modules\Payments\Application\Gateway\KeyTester;
 use Modules\Payments\Domain\Exception\TooManyPaymentSessions;
 use Modules\Payments\Public\Contracts\PaymentsApi;
-use Modules\Payments\Public\Dto\BankAccountDto;
-use Modules\Payments\Public\Dto\OnlinePaymentDto;
-use Modules\Payments\Public\Dto\PaymentDto;
-use Modules\Payments\Public\Dto\PaymentRequestDto;
-use Modules\Payments\Public\Dto\PaymentRequestStateDto;
-use Modules\Payments\Public\Dto\PaymentSessionDto;
-use Modules\Payments\Public\Dto\PaymentStartDto;
 use Modules\Payments\Public\Dto\PaymentStateDto;
-use Modules\Payments\Public\Dto\PaymentTimersDto;
-use Modules\Payments\Public\Dto\PayRequestDto;
-use Modules\Payments\Public\Dto\SessionRequestDto;
-use Modules\Payments\Public\Enums\PaymentAudience;
 use Modules\Payments\Public\Enums\PaymentState;
 use Modules\Payments\Public\Events\PaymentFailed;
 use Modules\Payments\Public\Events\PaymentNotAccepted;
@@ -200,115 +189,16 @@ function triesPaymentId(): string
 /** Pay's process dies after its commit, before the charge is claimed: every other call goes through. */
 function triesChargeCrashes(): void
 {
-    app()->instance(PaymentsApi::class, new class(app(PaymentsApi::class)) implements PaymentsApi
-    {
-        public function __construct(private PaymentsApi $real) {}
+    $real = app(PaymentsApi::class);
+    $standIn = Mockery::mock(PaymentsApi::class);
 
-        public function availability(StoreId $store, PaymentAudience $audience): OnlinePaymentDto
-        {
-            return $this->real->availability($store, $audience);
-        }
+    // Every method as it is, whatever the contract grows to; only the charge dies.
+    foreach (get_class_methods(PaymentsApi::class) as $method) {
+        $standIn->shouldReceive($method)->andReturnUsing(fn (mixed ...$arguments): mixed => $real->{$method}(...$arguments))->byDefault();
+    }
 
-        public function openSession(SessionRequestDto $request): PaymentSessionDto
-        {
-            return $this->real->openSession($request);
-        }
-
-        public function prepare(PayRequestDto $request): string
-        {
-            return $this->real->prepare($request);
-        }
-
-        public function charge(string $attemptId): PaymentStartDto
-        {
-            throw new RuntimeException('The process died.');
-        }
-
-        public function abandon(string $attemptId): bool
-        {
-            return $this->real->abandon($attemptId);
-        }
-
-        public function refresh(string $ownerId): PaymentStateDto
-        {
-            return $this->real->refresh($ownerId);
-        }
-
-        public function lastKnown(string $ownerId): PaymentStateDto
-        {
-            return $this->real->lastKnown($ownerId);
-        }
-
-        public function bankAccount(StoreId $store): ?BankAccountDto
-        {
-            return $this->real->bankAccount($store);
-        }
-
-        public function inTestMode(StoreId $store): bool
-        {
-            return $this->real->inTestMode($store);
-        }
-
-        public function timers(StoreId $store): PaymentTimersDto
-        {
-            return $this->real->timers($store);
-        }
-
-        public function needsAttention(string $attemptId): void
-        {
-            $this->real->needsAttention($attemptId);
-        }
-
-        public function transferCheckHours(StoreId $store): int
-        {
-            return $this->real->transferCheckHours($store);
-        }
-
-        public function requestPayment(PaymentRequestDto $request, string $staffId): PaymentRequestStateDto
-        {
-            return $this->real->requestPayment($request, $staffId);
-        }
-
-        public function withdraw(string $orderId): bool
-        {
-            return $this->real->withdraw($orderId);
-        }
-
-        public function withdrawForCancelled(string $orderId): void
-        {
-            $this->real->withdrawForCancelled($orderId);
-        }
-
-        public function openRequest(string $orderId): ?PaymentRequestStateDto
-        {
-            return $this->real->openRequest($orderId);
-        }
-
-        public function openRequests(array $orderIds): array
-        {
-            return $this->real->openRequests($orderIds);
-        }
-
-        public function paymentOpen(string $orderId): bool
-        {
-            return $this->real->paymentOpen($orderId);
-        }
-
-        public function successes(string $orderId): array
-        {
-            return $this->real->successes($orderId);
-        }
-
-        public function attempts(string $orderId): array
-        {
-            return $this->real->attempts($orderId);
-        }
-
-        public function payment(string $paymentId): ?PaymentDto
-        {
-            return $this->real->payment($paymentId);
-        }
-    });
+    $standIn->shouldReceive('charge')->andThrow(new RuntimeException('The process died.'));
+    app()->instance(PaymentsApi::class, $standIn);
 }
 
 /** What a released try, or one never started, leaves behind: nothing held, nothing counted, no order. */
