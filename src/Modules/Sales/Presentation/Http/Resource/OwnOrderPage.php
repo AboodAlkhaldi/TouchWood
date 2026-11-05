@@ -61,5 +61,9 @@ final class OwnOrderPage extends Data
         public bool $shippingPending = false,
         /** A test order: a Note says no real money is taken (payments.md §1.6, Q10). */
         public bool $isTest = false,
+        /** The request open on it: a Note with Pay Now (payments.md §4.2, Q11). */
+        public ?OwnRequestData $paymentRequest = null,
+        /** A payment on it is open: said on the page, and `mayCancel` is false until it is answered. */
+        public bool $paymentBeingConfirmed = false,
     ) {}
 }

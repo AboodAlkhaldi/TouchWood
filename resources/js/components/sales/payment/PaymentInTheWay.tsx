@@ -4,7 +4,7 @@ import { Note } from '@/components/Note';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import type { CheckoutTryData } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
-import { CHANNEL, P, minutesAndSeconds, postJson, untilOf, useClock, useCsrfToken, useServerNow } from './flow';
+import { CHANNEL, P, minutesAndSeconds, payAddresses, postJson, untilOf, useClock, useCsrfToken, useServerNow } from './flow';
 
 /*
 | A try still live when the customer comes back, on the cart and on checkout alike (payments.md §4.2, Q8), and a second
@@ -14,7 +14,7 @@ import { CHANNEL, P, minutesAndSeconds, postJson, untilOf, useClock, useCsrfToke
 
 const EVERY = 15000;
 
-export default function PaymentInTheWay({ payment, onClosed }: { payment: CheckoutTryData; onClosed: (view: CheckoutTryData) => void }) {
+export default function PaymentInTheWay({ payment, number, onClosed }: { payment: CheckoutTryData; number?: string; onClosed: (view: CheckoutTryData) => void }) {
     const t = useTranslator();
     const link = useLink();
     const token = useCsrfToken();
@@ -22,6 +22,7 @@ export default function PaymentInTheWay({ payment, onClosed }: { payment: Checko
     const now = useServerNow(payment.serverNow);
     const [otherWindow, setOtherWindow] = useState(false);
     const until = untilOf(payment);
+    const addresses = payAddresses(link, number);
 
     // A window that is paying answers; none answering means this customer is simply back.
     useEffect(() => {
@@ -44,7 +45,7 @@ export default function PaymentInTheWay({ payment, onClosed }: { payment: Checko
         let gone = false;
         let timer: ReturnType<typeof setTimeout>;
         const ask = async () => {
-            const answer = await postJson<CheckoutTryData>(link('storefront.sales.payment.follow', { try: payment.tryId }), token);
+            const answer = await postJson<CheckoutTryData>(addresses.follow(payment.tryId), token);
 
             if (gone) {
                 return;
@@ -56,7 +57,7 @@ export default function PaymentInTheWay({ payment, onClosed }: { payment: Checko
                 // Any reload of a closed store is a 404, so an open page is the only place left to say it.
                 onClosed(answer.data);
             } else if (answer.ok && answer.data.orderNumber !== null) {
-                router.visit(link('storefront.sales.placed', { number: answer.data.orderNumber }));
+                router.visit(addresses.done(answer.data.orderNumber));
             } else if (answer.ok || answer.status === 404 || answer.status === 401 || answer.status === 419) {
                 // Over, or no longer this page's to ask. Asking again covers a reload that never landed; one that does ends this note.
                 router.reload();
@@ -83,7 +84,7 @@ export default function PaymentInTheWay({ payment, onClosed }: { payment: Checko
                 t(`${P}.other_window`)
             ) : (
                 <>
-                    {until === null ? null : t(`${P}.in_the_way`, { time: clock(until) })}
+                    {until === null ? t(`${P}.pay_later`) : t(number === undefined ? `${P}.in_the_way` : `${P}.request.in_the_way`, { time: clock(until) })}
                     {until === null ? null : (
                         <span className="tw-figure ms-2 text-label-14" dir="ltr" data-test="payment-time-left">
                             {minutesAndSeconds(new Date(until).getTime() - now)}

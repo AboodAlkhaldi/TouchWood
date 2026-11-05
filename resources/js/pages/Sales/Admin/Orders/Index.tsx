@@ -115,7 +115,7 @@ export default function Index(page: OrdersPage) {
                                             </TableCell>
                                             {allStores ? <TableCell className="text-copy-13 uppercase">{order.storeCode}</TableCell> : null}
                                             <TableCell>
-                                                <StateBadges status={order.status} payment={order.payment} shipment={order.shipment} short={order.shortOfStock} fee={order.shippingFeePending ? t(`${W}.orders.fee_pending`) : null} />
+                                                <StateBadges status={order.status} payment={order.payment} shipment={order.shipment} short={order.shortOfStock} fee={order.shippingFeePending ? t(`${W}.orders.fee_pending`) : null} overdue={order.isOverdue} />
                                             </TableCell>
                                             <TableCell className="text-end">
                                                 <Money value={order.total} />
@@ -144,7 +144,7 @@ export default function Index(page: OrdersPage) {
                                             <CustomerName customer={order.customer} /> · <Time value={order.placedAt} focusable={false} />
                                             {allStores ? <span className="uppercase"> · {order.storeCode}</span> : null}
                                         </span>
-                                        <StateBadges status={order.status} payment={order.payment} shipment={order.shipment} short={order.shortOfStock} fee={order.shippingFeePending ? t(`${W}.orders.fee_pending`) : null} />
+                                        <StateBadges status={order.status} payment={order.payment} shipment={order.shipment} short={order.shortOfStock} fee={order.shippingFeePending ? t(`${W}.orders.fee_pending`) : null} overdue={order.isOverdue} />
                                     </Link>
                                 </li>
                             ))}

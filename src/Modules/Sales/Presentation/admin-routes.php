@@ -38,6 +38,8 @@ Route::prefix(AdminArea::PREFIX)
         Route::post('orders/{order}/tick', [OrdersController::class, 'tick'])->name('sales.admin.orders.tick');
         Route::post('orders/{order}/ship-unpaid', [OrdersController::class, 'shipUnpaid'])->name('sales.admin.orders.ship-unpaid');
         Route::post('orders/{order}/payment', [OrdersController::class, 'payment'])->name('sales.admin.orders.payment');
+        Route::post('orders/{order}/request-payment', [OrdersController::class, 'requestPayment'])->name('sales.admin.orders.request-payment');
+        Route::post('orders/{order}/withdraw-request', [OrdersController::class, 'withdrawRequest'])->name('sales.admin.orders.withdraw-request');
         Route::post('orders/{order}/refund', [OrdersController::class, 'refund'])->name('sales.admin.orders.refund');
         Route::post('orders/{order}/void', [OrdersController::class, 'void'])->name('sales.admin.orders.void');
         Route::post('orders/{order}/clear-short', [OrdersController::class, 'clearShort'])->name('sales.admin.orders.clear-short');

@@ -22,6 +22,7 @@ final class OrderPage extends Data
      * @param  list<OrderCarrierData>  $carriers
      * @param  list<OrderReturnData>  $returns
      * @param  list<OrderFileData>  $transferDocuments
+     * @param  list<OrderAttemptData>|null  $attempts
      */
     public function __construct(
         public string $id,
@@ -100,5 +101,14 @@ final class OrderPage extends Data
         public ?OrderBoxData $box = null,
         /** The carrier ordered with: picked first in Ship… (sales.md §9.7 E12); none for a fee staff set. */
         public ?string $orderedCarrierId = null,
+        /** A transfer unpaid 72 hours after its first receipt (sales.md §9.9 #4). */
+        public bool $isOverdue = false,
+        /** The Online Payments block, oldest first; null for staff without `payments.payment.view`. */
+        public ?array $attempts = null,
+        public ?OrderRequestData $paymentRequest = null,
+        /** Edit Order and Record Payment wait for it (§1.5); staff's Cancel does not (sales.md §9.9 #3). */
+        public bool $paymentInProgress = false,
+        /** What the order allows; holding `sales.order.edit` is the page's own check (sales.md §9.9 #7). */
+        public bool $mayRequestPayment = false,
     ) {}
 }

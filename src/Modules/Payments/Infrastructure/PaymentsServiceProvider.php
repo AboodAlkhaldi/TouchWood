@@ -114,6 +114,7 @@ final class PaymentsServiceProvider extends ServiceProvider
 
         // The Payments group in the panel (§9.12 Q14): Gateway now, the Payments list with its step.
         $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('payments', 'payments', 'payments', 'payments.admin.payments', [PaymentsPermissions::VIEW], 10, icon: 'payments'),
             new MenuEntryDto('payments', 'gateway', 'payments', 'payments.admin.gateway', [PaymentsPermissions::GATEWAY_MANAGE], 20, icon: 'gateway'),
         );
         $this->app->make(AdminBanners::class)->register(GatewayBanners::class);

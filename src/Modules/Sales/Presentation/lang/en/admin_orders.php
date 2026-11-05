@@ -5,6 +5,7 @@ declare(strict_types=1);
 // Sales › Orders, an order's page and its packing slip (sales.md §4.1 P1–P3).
 return [
     'orders' => [
+        'overdue' => 'Overdue',
         'title' => 'Orders',
         'subtitle' => 'Every order placed in your stores, newest first',
         'tabs_label' => 'Orders by state',
@@ -102,6 +103,15 @@ return [
     'system' => 'System',
     'off' => 'Store off',
     'show' => [
+        'owes' => 'The customer owes :amount.',
+        'requested' => 'Requested :amount, open until :time',
+        'confirming' => 'A payment is being confirmed.',
+        'online_payments' => 'Online Payments',
+        'attempt_state' => [
+            'CREATING' => 'Starting', 'CHARGING' => 'Charging', 'OPEN' => 'Open', 'UNKNOWN' => 'Unknown', 'SUCCEEDED' => 'Paid',
+            'FAILED' => 'Failed', 'REFUSED' => 'Refused', 'EXPIRED' => 'Expired', 'ABANDONED' => 'Abandoned',
+        ],
+        'needs_attention' => 'Needs attention',
         'placed' => 'Placed :when',
         'actions' => 'More actions',
         'customer' => 'Customer',
@@ -172,6 +182,8 @@ return [
         'unpaid_ship' => 'May ship before it is paid',
     ],
     'action' => [
+        'request_payment' => 'Request Payment',
+        'withdraw_request' => 'Withdraw Request',
         'approve' => 'Approve',
         'reject' => 'Reject…',
         'cancel' => 'Cancel Order…',
@@ -192,6 +204,7 @@ return [
         'tick' => 'Save Ticks',
     ],
     'why' => [
+        'confirming' => 'A payment is being confirmed.',
         'void_uncovers' => 'What stays paid would no longer cover the refunds.',
         'not_waiting' => 'Only an order waiting for approval can be decided.',
         'shipped' => 'Already shipped.',
@@ -345,6 +358,8 @@ return [
         'failed' => 'The preview could not be worked out. Try again.',
     ],
     'toast' => [
+        'payment_requested' => 'Payment requested.',
+        'request_withdrawn' => 'Request withdrawn.',
         'edited' => 'Order edited.',
         'approved' => 'Order approved.',
         'rejected' => 'Order rejected.',

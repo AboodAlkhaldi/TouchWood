@@ -9,12 +9,14 @@ import { Note } from '@/components/Note';
 import { Money } from '@/components/Money';
 import { PanelDialog } from '@/components/PanelDialog';
 import { Time, useMoments } from '@/components/Time';
+import { useClock } from '@/components/sales/payment/flow';
 import { O, OrderStatus } from '@/components/sales/shop';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelectOption } from '@/components/ui/native-select';
 import { AccountLayout } from '@/layouts/AccountLayout';
+import { isolate } from '@/lib/bidi';
 import { cn } from '@/lib/cn';
 import { figure } from '@/lib/digits';
 import { useLink } from '@/lib/routes';
@@ -37,6 +39,7 @@ const CANCEL_REASONS = ['CHANGED_MIND', 'ORDERED_BY_MISTAKE', 'FOUND_CHEAPER', '
 export default function Order(order: OwnOrderPage) {
     const t = useTranslator();
     const link = useLink();
+    const clock = useClock();
     const [cancelling, setCancelling] = useState(false);
     const [busy, setBusy] = useState(false);
     const shipped = order.shipment !== 'NOT_SHIPPED';
@@ -47,6 +50,20 @@ export default function Order(order: OwnOrderPage) {
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-4">
                 <FormError />
                 {order.isTest ? <Note variant="warning" data-test="order-test-note">{t(`${O}.test_note`)}</Note> : null}
+                {order.paymentBeingConfirmed ? (
+                    <Note data-test="order-confirming">{t(`${O}.order.confirming`)}</Note>
+                ) : order.paymentRequest === null ? null : (
+                    <Note data-test="order-request">
+                        <span className="flex flex-wrap items-center justify-between gap-2">
+                            {t(`${O}.order.request`, { amount: isolate(order.paymentRequest.amount.text), time: isolate(clock(order.paymentRequest.expiresAt)) })}
+                            <Button asChild size="sm">
+                                <Link href={link('storefront.sales.request', { number: order.number })} data-test="order-pay-now">
+                                    {t(`${O}.order.pay_now`)}
+                                </Link>
+                            </Button>
+                        </span>
+                    </Note>
+                )}
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <span className="flex flex-wrap items-center gap-2 text-copy-14 text-ink-muted">
                         <OrderStatus status={order.status} label={t(`${O}.status.${order.status}`)} />
@@ -62,7 +79,7 @@ export default function Order(order: OwnOrderPage) {
                             {t(`${O}.order.buy_again`)}
                         </ActionButton>
                         {closed ? null : (
-                            <ActionButton variant="outline" disabledReason={order.mayCancel ? undefined : shipped ? t(`${O}.order.cannot_cancel`) : t(`${O}.order.cannot_cancel_closed`)} onClick={() => setCancelling(true)} data-test="cancel-order">
+                            <ActionButton variant="outline" disabledReason={order.mayCancel ? undefined : order.paymentBeingConfirmed ? t(`${O}.order.confirming`) : shipped ? t(`${O}.order.cannot_cancel`) : t(`${O}.order.cannot_cancel_closed`)} onClick={() => setCancelling(true)} data-test="cancel-order">
                                 {t(`${O}.order.cancel`)}
                             </ActionButton>
                         )}
