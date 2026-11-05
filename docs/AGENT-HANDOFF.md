@@ -68,22 +68,25 @@ Two links wait on Stage 7's screens, which aren't started and wait for the owner
 - `/{store}/{locale}/orders/{number}/pay`: the C11 email links to it, and it answers 404 until then.
 - `/admin/payments?store=&state=`: the S7 alert's link.
 
-## 4 · Where things stand (read from main 8f6a5b7a, 2026-11-05)
+`RequestOrderPaymentHandler` also has no controller or route until step 12's screens land, so no payment request can be made and C11 can't fire yet.
+
+## 4 · Where things stand (read from main f9ff88ff, 2026-11-05)
 
 This goes stale fast. Check with `gh pr list` and `git log` before relying on it.
 
 | Part | State |
 |---|---|
 | Stages 1–6 | Built and merged, tagged up to v0.8.0 |
-| Stage 7 backend, and its screens through checkout (#330) | Merged. v0.9.0 not tagged. Step 12's screens not started |
+| Stage 7 backend, and its screens through checkout (#330) | Merged. v0.9.0 tagged at 0f25d4f7. Step 12's screens not started |
 | Ops backend steps 1–10, Brevo failures, campaign events | Merged |
-| Stage 7's last events to Ops (C11, S6, overdue transfers) | **Held by Stage 8 specs planning:** #349, open |
-| Late-payment alert (`LatePaymentRefundDue`) | **Held:** waits for #349 |
-| Final check of all Ops backend | **Held** |
-| Sold-out follow-up | **Held:** #344, open, wants a review |
+| Stage 7's last events to Ops (C11, S6, overdue transfers) | Merged, #349 |
+| Late-payment alert (`LatePaymentRefundDue`, S7b) | **Open:** #354, waits for the owner's merge |
+| Final check of all Ops backend | Done 2026-11-05, by reading the code, no tests run: complete against the spec once #354 merges |
+| Sold-out follow-up | Merged, #344 |
+| Tests: saves below Show More on Stock, Low Stock and Sync | Merged, #350 |
 | Ops screens O1–O7, O10 | Merged |
 | Ops screens O8, O9, O11–O13 | **Yours** |
-| Content, storefront rebuild, themes | **Yours.** Empty folders in `src/Modules/Content`; Home is a placeholder |
+| Content, storefront rebuild, themes | **Yours.** `src/Modules/Content` holds only what Ops is built against: `Public` (`ContentApi`, `CampaignMessageDto`, `CampaignWentLive`, `CampaignExpiring`), the placeholder `NoCampaignsYet`, and its provider; the other folders are empty. Home is a placeholder |
 | Migration, hardening, launch | **Yours** |
 
 ## 5 · The wording file

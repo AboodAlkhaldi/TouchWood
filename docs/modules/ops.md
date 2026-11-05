@@ -52,7 +52,7 @@ language (the person's `locale`, access.md §1.2 and §1.4), and the **channels*
 |---|---|---|
 | **Bell** | Customers (the shop) and staff (the panel) | An entry in the person's inbox (§1.2) |
 | **Email** | Customers and staff | Through the email adapter — Brevo |
-| **SMS** | Codes to anyone; the gateway key's critical alerts to super admins (§1.6) | Through the SMS adapter — `log` until the provider is chosen |
+| **SMS** | Codes to anyone; the gateway key's critical alerts to super admins (§1.6) | Through the SMS adapter. No provider is chosen yet; `log`, the only one built, is for development and tests and is refused in production (§2.2) |
 
 The channels of each kind are **fixed in this spec** (§1.5, §1.6) — not switchable per store (owner,
 round 1 #3). A staff member's own switches (Access) still choose bell and email per topic.
@@ -133,7 +133,7 @@ must publish it (§2.3).
 | C11 | Pay the remaining amount | Staff create a payment request | `PaymentRequested(eventId, requestId, orderId, storeId, customerId, expiresAt, occurredAt)` (Payments) | **Sent at once** — the request lives 60 minutes (payments.md:386); the link `/{store}/{locale}/orders/{number}/pay` (payments.md:389) |
 | C12 | Points earned | Points credited on delivery | **new** `PointsEarned` | |
 | C13 | Points changed by hand | An admin adds or removes | **new** `PointsChangedByHand` | The admin's reason when given |
-| C14 | Points expiring | **7 days** before a lot expires | A nightly Ops job over a **new** Loyalty read (§2.3) | One message per customer per day, summing every lot that expires that day |
+| C14 | Points expiring | **7 days** before a lot expires | An Ops job every morning at 10:00 Riyadh time over a **new** Loyalty read (§2.3) | One message per customer per day, summing every lot that expires that day |
 | C15 | Coupon assigned | Staff assign one | **new** `CouponAssigned` | |
 | C16 | Question answered | Staff answer a waiting question (a corrected answer sends nothing) | `QuestionAnswered` (feedback.md §2.5, #252) | Read through `FeedbackApi::questionForMessage`; **sent only if the question is still answered** — events are kept in order per order only |
 | C17 | Review not published | Staff reject a review, or take an approved one down, **with a reason** | `ReviewNotPublished` (#252) | **No reason, no message** (feedback.md:75); read through `reviewForMessage`, sent only if it is still not published |
@@ -198,7 +198,7 @@ decides, on `OrderMessageDto` and `MoneyRecordMessageDto`. The other messages ab
 | S2 | Company applications | An application is submitted | `CompanyApplicationSubmitted` (exists) | `b2b.company.review` | — |
 | S3 | Low stock | Sizes **became** low or ran out at a recount | **new** `LowStockChanged`, one per store per recount (§2.3) | `inventory.stock.manage` (Inventory has no view-only key) | — |
 | S4 | Sync problems | A read left problems | `SyncNeedsAttention` (exists) | `sync.report.view` | — (owner, 2026-10-28: an offer stopped by Odoo's price is not SMS-worthy) |
-| S5 | Payment problems (access.md amendment 78) | The gateway key expires in 30, 7, 1 days | **new** `GatewayKeyExpiring(eventId, storeId, mode, daysLeft, expiresOn, occurredAt)`, once per threshold, from Payments' daily job (*Stage 7's proposal*) | `payments.gateway.manage` — super admins only | **Yes, at 1 day** |
+| S5 | Payment problems (access.md amendment 78) | The gateway key expires in 30, 7, 1 days | **new** `GatewayKeyExpiring(eventId, storeId, mode, daysLeft, expiresOn, occurredAt)`, once per threshold, from Payments' hourly job (`WarnExpiringKeysJob`; built and listened to, §2.3) | `payments.gateway.manage` — super admins only | **Yes, at 1 day** |
 | S5b | Payment problems | MyFatoorah refused a store's current key: once until a new key is saved; an earlier key refused sends nothing; a refusal on the mode not in use fires too | `GatewayKeyRejected(eventId, storeId, mode, occurredAt)` (#310; payments.md:187-192) | `payments.gateway.manage` — super admins only | **Yes** (owner, 2026-10-28, §9.3 #12) |
 | S6 | **Payments to check** (a **new** Access topic, amendment 84) | A bank transfer unchecked the store's `transferCheckHours` (72 by default) after the first upload | `TransferOverdue(eventId, orderId, storeId, occurredAt)`, once per order, never a test order, from **Sales'** hourly job (sales.md §9.5 #16) | `sales.payment.record` | — |
 | S7 | **Payments to check** | A payment not accepted — a refund is owed | `PaymentNotAccepted`, with its `storeId`; links to the attempt in Payments' staff lists — for a try the order never existed | `sales.payment.record` | — (owner, round 3 #13: withdrawn) |
@@ -389,7 +389,7 @@ the same for every page, and says so; an all-stores report names that moment in 
 **VAT is net of refunds** (owner, 2026-10-30; Sales #293): each day's VAT less the goods' VAT of the refunds asked
 that day (`refundsVat`), with "VAT if the waiting refunds go through" beside revenue's (`waitingRefundsVat`) and
 each waiting refund's VAT on its sheet (`estimateVat`). VAT is the goods' alone (owner: no VAT on shipping) - Ops
-takes Sales' `vat` as it is (Stage 7 makes it leave shipping out). **Money received is read day by day** in one
+takes Sales' `vat` as it is, which leaves shipping out since #304 (`taxable_base = goods_total`: `TotalsDto`, `OrderTotals`). **Money received is read day by day** in one
 read per store however long the range (`moneyByDay`, #295); by month, each month's days are summed.
 
 ### 1.11 The daily report
@@ -482,8 +482,12 @@ figures in the totals per currency (`PlatformApi::allStores()`, which returns th
 ### 2.2 Adapters
 
 - `EmailSender` — **Brevo** (transactional email); `log` in development and tests.
-- `SmsSender` — `log` until the owner names the provider (Mobily is being checked); then its adapter. **Which
-  provider sends an SMS is the phone's country's**, on the SMS countries list (access.md amendment 90).
+- `SmsSender` — `log` in development and tests, the only one built until the owner names the provider (Mobily is being
+  checked); then its adapter. **Which provider sends an SMS is the phone's country's**, on the SMS countries list (access.md
+  amendment 90). **In production `log` is refused when an SMS would go through it** (`BuiltSmsSenders`), and nothing at boot
+  asks for a provider (corrected 2026-11-05; this said codes go to the log until a provider is chosen). So a server with no SMS
+  provider starts normally, and every code then fails when it is sent: a FAILED row in `ops.sent_messages`, an error to the
+  caller, and S10b to the Super Admins. The owner is deciding whether that stays.
 - `NewsletterList` — **Brevo** contacts and lists; `log` in development and tests.
 
 Every adapter is chosen by configuration; a new provider is a new class and a binding.
@@ -535,9 +539,12 @@ fields in `Presentation/Http/Resource`. What a screen needs and the code does no
 
 ### 4.1 What holds for every route
 
-- **The answers are JSON, not pages.** Every GET of §4 answers JSON even to a plain visit, except the two
-  downloads; no route here renders a page (§4.13). **Changes when §4.15 is built (owner, 2026-11-02):** the same address
-  gives a page to a plain visit, and today's JSON to whoever asks for it with `Accept: application/json`. `ops.admin.choices` (§4.1 below) says what each form may offer. The consent switch (§4.8) is Access's and answers with a
+- **A built page's address answers a page; the other GETs answer JSON.** O1 to O7 and O10 are built (§4.15; owner, 2026-11-02;
+  brought up to date 2026-11-05): a list of theirs gives the page to a plain visit and its JSON to whoever asks with
+  `Accept: application/json`; a form's address gives only the page. Every other GET of §4 answers JSON even to a plain visit,
+  except the two downloads: Reports, Daily Reports and the confirm, leave and unsubscribe links, until their pages are built
+  (§4.13), and the reads a page asks for itself (`ops.admin.choices`, `ops.admin.audience`, the bells' unread number, a form's
+  segments and customers, one notice). `ops.admin.choices` (§4.1 below) says what each form may offer. The consent switch (§4.8) is Access's and answers with a
   redirect. The panel's route list carries `ops.admin.*`, the shop's `storefront.*` (`config/ziggy.php`).
 - **Types.** Each `…Data` class below is `#[TypeScript]`: generated in
   `resources/js/types/generated/Modules/Ops/Presentation/Http/Resource/index.ts`, `MessageKind` in
@@ -634,7 +641,7 @@ Input: `after` on the list. `InboxPageData` is `{entries: InboxEntryData[], next
 | `kind` | `MessageKind` | §1.5, §1.6, or `offer_notice`, `staff_message` |
 | `storeCode`, `storeName` | string | The store it is about, the name in the page's language; empty if the store is not found |
 | `title`, `line` | string | In the page's language: the shop's `{locale}`, the panel's language |
-| `link` | string or null | A path from the site's root, never a full address: a customer's in the language they read when it was written, a staff member's under `/admin`. Null when there is nowhere to go (a staff message, S10, S10b). The gateway key alerts (S5, S5b) open `/admin/payments/gateway?store={code}`, the alert's own store (owner, 2026-11-02); their emails carry the same link, their SMS none, and entries written before that stay without one |
+| `link` | string or null | A path from the site's root, never a full address: a customer's in the language they read when it was written, a staff member's under `/admin`. Null when there is nowhere to go (a staff message, S7, S8, S10, S10b; S6 for someone who cannot open the order, §1.6; and S7b, which #354 is adding). The gateway key alerts (S5, S5b) open `/admin/payments/gateway?store={code}`, the alert's own store (owner, 2026-11-02); their emails carry the same link, their SMS none, and entries written before that stay without one |
 | `read` | bool | |
 | `createdAt` | moment | |
 
@@ -987,9 +994,10 @@ props. Every other address of that store stays a 404.
 Listed, not invented. Each is for the owner or the screens agent to raise. Brought up to date 2026-11-01, when the
 reads the screens needed were added; what stays is what the code cannot give yet.
 
-1. **No pages.** No Inertia page, `AdminMenu` entry, Home card or account tab exists for Ops, and the bell is in no
-   frame. The three links emails carry (§4.10, §4.11) open JSON until those pages exist. A stop-email page for an off
-   store cannot use the shop's frame (§4.11). **Specified in §4.15 (owner, 2026-11-02); leaves this list as each is built.** Built: SMS Countries (#322), the two bells and their full pages (#325), Customer Messages and Offer Notices with their forms (#346), Subscribers. Left: Reports, Daily Reports, the newsletter box, the consent switch and box, and the confirm, leave and unsubscribe pages.
+1. **Pages left to build.** (Corrected 2026-11-05: this said no page, menu entry or account tab existed for Ops and the bell
+   was in no frame. `OpsServiceProvider` now registers the menu entries for Notices, Messages, Subscribers and SMS Countries, both
+   bells in their frames, and the account's Notifications page.) The three links emails carry (§4.10, §4.11) open JSON until those
+   pages exist. A stop-email page for an off store cannot use the shop's frame (§4.11). **Specified in §4.15 (owner, 2026-11-02); leaves this list as each is built.** Built: SMS Countries (#322), the two bells and their full pages (#325), Customer Messages and Offer Notices with their forms (#346), Subscribers (#347). Left: Reports, Daily Reports, the newsletter box, the consent switch and box, and the confirm, leave and unsubscribe pages.
    The Home card goes with the Home dashboard job (§9.4 Q5).
 2. **The consent box is on no page.** Outside the generated types, `resources/js` holds neither `marketingConsent` nor
    `marketing_consent`: the account's switch and the registration box have routes and no screen. **§4.15, O12.**
@@ -999,6 +1007,10 @@ reads the screens needed were added; what stays is what the code cannot give yet
    fire `CampaignWentLive`, and to hold the notice's id (§9.5). S8 has no link until Content has a campaign page (§1.6).
 5. **C11's link opens a page with no route yet.** The bell and the email open `/{store}/{locale}/orders/{number}/pay`
    (payments.md §1.5), the screens session's (sales.md §9.9), not on main on 2026-11-03: until it lands the link answers 404.
+   **C11 can't fire yet either (2026-11-05).** `RequestOrderPaymentHandler` has no controller or route until Stage 7's step 12 screens
+   land (sales.md §9.9), and nothing else asks `PaymentsApi::requestPayment`, so no request is made and `PaymentRequested` never fires
+   outside the tests. C10's online-request branch waits with it: `OpenRequestPayment` and `PayOrderRequest` have no route either, so
+   today C10 goes only for a payment staff record by hand.
 6. **S7 opens nothing.** Its page is `/admin/payments?store=&state=` (payments.md §4.2), the screens session's, not on main on
    2026-11-03. When it lands, `MessageWriter` gets the link and no screen changes.
 
@@ -1421,13 +1433,14 @@ Each with where it is tested, in `tests/Modules/Ops` unless named.
 | SMS countries: the start list, add, change, remove, overlaps, Super Admins alone, audited | `Integration/SmsCountriesTest`; over HTTP `Feature/SmsCountryRoutesTest` |
 | The adapters: Brevo's requests as its reference shows, the log drivers refused on a live system, the newsletter's too, at boot | `Integration/SendersTest`, `Integration/BrevoNewsletterListTest`, `Integration/RealEmailDriverTest` |
 | The tables' last lines, the schema, the permissions, the nightly removal of the three log tables, of what staff wrote (sent, cancelled, failed; not what waits or sends) and of the daily reports | `Integration/OpsTablesTest`, `Integration/OpsSchemaTest`, `Integration/OpsPermissionsTest`, `Integration/PruneTest`, `Integration/NewsletterTest`, `Integration/DailyReportTest` |
+| A whole store's audience: exactly who a message or a notice reaches by bell, the same people as the pages the sender walks, its email going to fewer, 0 for a store with none, either form's permission and anyone else refused, one count however many customers | `Feature/AudienceCountTest` |
+| What staff write keeps every digit as 0-9, in both languages | `Integration/WrittenTextDigitsTest` |
 
 **Not tested:**
 
 - S8 and the going-live notice against the real Content: nothing fires their events yet, so the tests fire them and
   answer `ContentApi` with a stand-in.
-- Over HTTP: `ops.admin.subscribers` (its handler is tested in `NewsletterTest`); the staff's
-  `ops.admin.bell.unread` and `ops.admin.bell.read-all`; the box's limit by address; a signed-in customer at the box.
+- Over HTTP: the staff's `ops.admin.bell.unread` and `ops.admin.bell.read-all`; the box's limit by address; a signed-in customer at the box.
 - No browser test for the pages not built yet (§4.15, "Where the build stands"). Each page built has its own under `tests/Browser`.
 
 ## 9 · Open questions and answers
@@ -1458,7 +1471,8 @@ publishes none; the four moments handed to stage 8.
 3. ~~Who makes Access's changes~~ — **answered**: this session, as access.md amendments 79–84, with an
    independent review; the owner is asked when unsure.
 4. The **events' and reads' exact shapes** — each builder confirms its rows of §2.3 (Stage 5, 6 and 7 done;
-   Stage 7's events are its proposals, for the owner with payments.md / sales.md amendments).
+   Stage 7's events were its proposals, for the owner with payments.md / sales.md amendments; all are now built and
+   listened to, §2.3, 2026-11-05).
 5. Brevo's API and webhook — checked against its documentation before the build.
 6.–8. **Answered** (owner, 2026-10-28, in the Stage 6 session) — written into §1.10.
 9. **Answered** (owner, 2026-10-28): a return asked → staff (S9, Returns topic); the customer hears "order
