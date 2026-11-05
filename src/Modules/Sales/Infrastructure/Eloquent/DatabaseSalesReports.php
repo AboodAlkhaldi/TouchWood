@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Infrastructure\Eloquent;
 
+use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use InvalidArgumentException;
+use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Sales\Application\Query\OrderShippingView;
 use Modules\Sales\Domain\Service\ReturnRefunds;
@@ -38,6 +40,7 @@ final readonly class DatabaseSalesReports implements SalesReports
     public function __construct(
         private ConnectionInterface $db,
         private PlatformApi $platform,
+        private PaymentsApi $payments,
     ) {}
 
     public function orderForMessage(string $orderId, string $locale): ?OrderMessageDto
@@ -92,7 +95,7 @@ final readonly class DatabaseSalesReports implements SalesReports
 
         // A payment or a refund: the two tables' ids are ULIDs, so one id is in one of them at most.
         $row = $this->db->selectOne(<<<'SQL'
-            SELECT m.*, o.number, o.customer_id FROM (
+            SELECT m.*, o.number, o.customer_id, o.is_test FROM (
                 SELECT 'PAYMENT' AS kind, id, order_id, store_id, currency_code, amount_minor, way, happened_on::text AS happened_on, voided_at FROM sales.payments WHERE id = ?
                 UNION ALL
                 SELECT 'REFUND', id, order_id, store_id, currency_code, amount_minor, way, happened_on::text, voided_at FROM sales.refunds WHERE id = ?
@@ -102,7 +105,7 @@ final readonly class DatabaseSalesReports implements SalesReports
 
         return $row instanceof stdClass ? new MoneyRecordMessageDto(
             (string) $row->id, (string) $row->kind, (string) $row->order_id, (string) $row->number, (string) $row->store_id, (string) $row->customer_id,
-            Money::of((int) $row->amount_minor, (string) $row->currency_code), (string) $row->way, (string) $row->happened_on, $row->voided_at !== null,
+            Money::of((int) $row->amount_minor, (string) $row->currency_code), (string) $row->way, (string) $row->happened_on, $row->voided_at !== null, (bool) $row->is_test,
         ) : null;
     }
 
@@ -193,12 +196,29 @@ final readonly class DatabaseSalesReports implements SalesReports
 
     public function transfersWaiting(StoreId $store): TransfersWaitingDto
     {
-        $row = $this->db->table('sales.orders')
+        return $this->transfers($store, $this->platform->store($store)->currencyCode ?? throw new InvalidArgumentException('No such store.'), null);
+    }
+
+    public function transfersOverdue(StoreId $store): TransfersWaitingDto
+    {
+        $currency = $this->platform->store($store)->currencyCode ?? throw new InvalidArgumentException('No such store.');
+
+        return $this->transfers($store, $currency, CarbonImmutable::now()->subHours($this->payments->transferCheckHours($store)));
+    }
+
+    /** `$uploadedBy`: only those whose first receipt came by then, counted as `OrderStatuses::transferOverdue` does (§9.9 #4). */
+    private function transfers(StoreId $store, string $currency, ?DateTimeImmutable $uploadedBy): TransfersWaitingDto
+    {
+        $orders = $this->db->table('sales.orders')
             ->where('store_id', $store->value)->where('is_test', false)->where('way_to_pay', 'BANK_TRANSFER')
             ->whereIn('status', ['PENDING_APPROVAL', 'APPROVED', 'COMPLETED'])
-            ->whereRaw('due_minor > paid_minor - refunded_minor')
-            ->first([$this->db->raw('count(*) AS orders'), $this->db->raw('coalesce(sum(due_minor - (paid_minor - refunded_minor)), 0) AS owed')]);
-        $currency = $this->platform->store($store)->currencyCode ?? throw new InvalidArgumentException('No such store.');
+            ->whereRaw('due_minor > paid_minor - refunded_minor');
+
+        if ($uploadedBy !== null) {
+            $orders->whereRaw('(SELECT min(d.uploaded_at) FROM sales.transfer_documents d WHERE d.order_id = sales.orders.id) <= ?', [Moment::of($uploadedBy)]);
+        }
+
+        $row = $orders->first([$this->db->raw('count(*) AS orders'), $this->db->raw('coalesce(sum(due_minor - (paid_minor - refunded_minor)), 0) AS owed')]);
 
         return $row instanceof stdClass
             ? new TransfersWaitingDto((int) $row->orders, Money::of((int) $row->owed, $currency))

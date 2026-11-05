@@ -27,5 +27,7 @@ final readonly class MoneyRecordMessageDto
         public string $happenedOn,
         /** Voided since: recorded by mistake — a voided payment sends no message (the owner, 2026-10-29). */
         public bool $voided,
+        /** Its order is a test order: Ops says so (payments.md §1.6). */
+        public bool $isTest = false,
     ) {}
 }

@@ -6,7 +6,7 @@ namespace Modules\Sales\Public\Dto;
 
 use Shared\Domain\ValueObject\Money;
 
-/** The bank transfers a store still waits for (`SalesReports::transfersWaiting`; ops.md §1.11 item 3). */
+/** The bank transfers a store still waits for, or those of them overdue (`SalesReports::transfersWaiting`, `transfersOverdue`; ops.md §1.11 item 3). */
 final readonly class TransfersWaitingDto
 {
     public function __construct(

@@ -1,5 +1,7 @@
 # Brief for an agent joining TouchWood
 
+**Out of date: the current handoff is `docs/AGENT-HANDOFF.md`.** Only §7 and §8 below still hold.
+
 Rewritten 2026-10-06 for an agent building **the Catalog screens** — the admin panel's and the
 storefront's — on the Catalog backend, which stage 4's steps 1–7 built and reviewed. Read this whole
 file, then **Read these first** (§3), before you write a line of anything — code or spec.

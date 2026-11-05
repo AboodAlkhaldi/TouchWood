@@ -28,4 +28,10 @@ final readonly class MessageText
         public ?string $trackLink = null,
         public ?string $trackAction = null,
     ) {}
+
+    /** The same words, for someone the page would refuse: no button and no address. */
+    public function withoutLink(): self
+    {
+        return new self($this->title, $this->line, $this->subject, $this->lines, null, null, $this->summary, $this->sms, $this->trackLink, $this->trackAction);
+    }
 }

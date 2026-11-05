@@ -26,11 +26,14 @@ final class InMemoryShopProductSections implements ShopProductSections
     /** @var array<string, true> the keys read on a "Not available now" page too (amendment 34) */
     private array $evenUnavailable = [];
 
+    /** @var array<string, true> the keys read on a page only sold out or unpriced too (amendment 40(a)) */
+    private array $evenSoldOut = [];
+
     public function __construct(
         private readonly Container $container,
     ) {}
 
-    public function register(string $key, string $section, array $words = [], bool $evenUnavailable = false): void
+    public function register(string $key, string $section, array $words = [], bool $evenUnavailable = false, bool $evenSoldOut = false): void
     {
         if (preg_match('/^[a-z]+\.[a-z_]+$/', $key) !== 1) {
             throw new LogicException("The shop product section key \"{$key}\" is not {module}.{key}.");
@@ -49,6 +52,10 @@ final class InMemoryShopProductSections implements ShopProductSections
 
         if ($evenUnavailable) {
             $this->evenUnavailable[$key] = true;
+        }
+
+        if ($evenSoldOut) {
+            $this->evenSoldOut[$key] = true;
         }
     }
 
@@ -72,16 +79,17 @@ final class InMemoryShopProductSections implements ShopProductSections
      * @param  bool  $available  false on a "Not available now" page: only the sections registered for it are read (amendment 34)
      * @param  ShopperKind  $viewer  the side the viewer buys on (amendment 35)
      * @param  list<string>  $wholesaleSizes  the page's sizes this viewer can buy wholesale (amendment 35)
-     * @param  list<string>  $sizes  every size the page shows (amendment 36)
+     * @param  list<string>  $sizes  every size the page offers (amendment 36)
+     * @param  bool  $soldOut  that page is only for want of stock or a price: the sections registered for it are read too (amendment 40(a))
      * @return array<string, array<string, mixed>|null>
      */
-    public function read(StoreId $store, string $locale, string $productId, ?string $customerId, array $after, array $filters = [], bool $available = true, ShopperKind $viewer = ShopperKind::Guest, array $wholesaleSizes = [], array $sizes = []): array
+    public function read(StoreId $store, string $locale, string $productId, ?string $customerId, array $after, array $filters = [], bool $available = true, ShopperKind $viewer = ShopperKind::Guest, array $wholesaleSizes = [], array $sizes = [], bool $soldOut = false): array
     {
         $parts = [];
         $visit = new ShopProductVisitDto($store, $locale, $productId, $customerId, $after, $filters, $viewer, $wholesaleSizes, $sizes);
 
         foreach ($this->sections as $key => $class) {
-            if (! $available && ! isset($this->evenUnavailable[$key])) {
+            if (! $available && ! isset($this->evenUnavailable[$key]) && ! ($soldOut && isset($this->evenSoldOut[$key]))) {
                 continue;
             }
 

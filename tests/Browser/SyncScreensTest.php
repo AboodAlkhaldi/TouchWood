@@ -466,3 +466,54 @@ it('draws the Sync Report right to left in Arabic, its digits Latin', function (
     expect(browserSoon($page, "document.documentElement.dir === 'rtl' && document.querySelector('[data-test=\"error-sentence\"]')?.textContent === 'هذه القراءة غير متاحة.'"))->toBeTrue()
         ->and(browserSoon($page, "document.querySelector('[data-test=\"error-back\"]')?.textContent === 'العودة إلى الرئيسية'"))->toBeTrue();
 });
+
+it('keeps the rows shown with Show More, and the place, through a dismissal and through Sync Now', function () {
+    $wired = syncBrowserWired();
+    $store = Fx::storeId('ae');
+    $source = (array) DB::table('sync.report_entries')->where('store_id', $store)->where('kind', 'UNKNOWN_CODE')->where('code', $wired['unknown'])->first();
+    unset($source['id']);
+
+    foreach (range(1, 55) as $i) {
+        DB::table('sync.report_entries')->insert([...$source, 'code' => $wired['unknown'].'-'.$i]);
+    }
+
+    $read = (array) DB::table('sync.reads')->where('id', $wired['read'])->first();
+    unset($read['id']);
+
+    foreach (range(1, 55) as $i) {
+        DB::table('sync.reads')->insert([...$read, 'id' => strtolower((string) Str::ulid())]);
+    }
+
+    $page = syncBrowserReader();
+
+    // Problems: a row dismissed below Show More goes, and the rest stay.
+    $rows = "document.querySelectorAll('[data-test^=\"entry-actions-\"]')";
+    $page->navigate('/admin/sync?store=ae', BROWSER_SLOW_PAGE_LOAD);
+    expect(browserSoon($page, "{$rows}.length === 50"))->toBeTrue();
+    $page->script("(() => { document.querySelector('[data-test=\"more\"]').click(); })()");
+    expect(browserSoon($page, "{$rows}.length > 50"))->toBeTrue();
+    usleep(300_000);
+    $shown = (int) $page->script("{$rows}.length");
+    $target = (string) $page->script("(() => { const all = [...{$rows}]; all[all.length - 2].scrollIntoView({ block: 'center' }); return all[all.length - 2].dataset.test; })()");
+    expect(browserSoon($page, 'window.scrollY > 0'))->toBeTrue();
+    usleep(300_000);
+    $place = (int) $page->script('Math.round(window.scrollY)');
+
+    $page->click("[data-test=\"{$target}\"]")->click('[data-test="dismiss-entry"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"confirm-dismiss\"]') !== null"))->toBeTrue();
+    $page->click('[data-test="confirm-dismiss"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"{$target}\"]') === null && {$rows}.length === ".($shown - 1)))->toBeTrue("{$page->script("{$rows}.length")} rows of {$shown}")
+        ->and(browserSoon($page, "window.scrollY > {$place} - 60", 5))->toBeTrue("scrolled to {$page->script('Math.round(window.scrollY)')}, was {$place}");
+
+    // Reads: Sync Now adds a read on top, and the rows below stay.
+    $rows = "document.querySelectorAll('[data-test=\"open-read\"]')";
+    $page->navigate('/admin/sync?store=ae&tab=reads', BROWSER_SLOW_PAGE_LOAD);
+    expect(browserSoon($page, "{$rows}.length === 50"))->toBeTrue();
+    $page->script("(() => { document.querySelector('[data-test=\"more\"]').click(); })()");
+    expect(browserSoon($page, "{$rows}.length > 50"))->toBeTrue();
+    usleep(300_000);
+    $shown = (int) $page->script("{$rows}.length");
+    $page->click('[data-test="sync-now"]');
+    expect(browserSoon($page, "document.body.textContent.includes('Read queued') && {$rows}.length >= {$shown}"))->toBeTrue("{$page->script("{$rows}.length")} reads of {$shown}");
+    $page->assertNoJavaScriptErrors();
+});

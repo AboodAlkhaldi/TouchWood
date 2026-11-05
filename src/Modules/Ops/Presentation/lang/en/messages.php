@@ -16,6 +16,7 @@ declare(strict_types=1);
 */
 return [
     // Messages to customers (§1.5).
+    'test_mark' => 'This is a test order.',
     'order_taken' => [
         'title' => 'Order :order received',
         'line' => 'We received your order and will review it soon.',
@@ -316,11 +317,11 @@ return [
     ],
     'transfer_overdue' => [
         'title' => 'Transfer to check for order :order',
-        'line' => 'A bank transfer has waited 72 hours for a check.',
+        'line' => 'A bank transfer has waited :hours for a check.',
         'subject' => 'A bank transfer waits for a check: order :order',
         'lines' => [
             'Hello :name,',
-            'The bank transfer receipt of order :order in :store has waited 72 hours for a check.',
+            'The bank transfer receipt of order :order in :store has waited :hours for a check.',
         ],
     ],
     'payment_not_accepted' => [
@@ -330,6 +331,16 @@ return [
         'lines' => [
             'Hello :name,',
             'A payment in :store was not accepted, and a refund is owed to the customer.',
+        ],
+    ],
+    'late_payment_refund_due' => [
+        'title' => 'Late payment in :store, refund owed',
+        'line' => 'A payment succeeded after its time ran out, so no order was made. Refund it by hand in MyFatoorah, or contact the customer.',
+        'subject' => 'A payment succeeded too late in :store',
+        'lines' => [
+            'Hello :name,',
+            'A payment in :store succeeded after its time ran out, so no order was made and a refund is owed.',
+            'Refund it by hand in MyFatoorah, or contact the customer.',
         ],
     ],
     'campaign_expiring' => [
@@ -370,6 +381,7 @@ return [
         'LIVE' => 'live',
     ],
     'day_count' => '{0} 0 days|{1} 1 day|[2,*] :count days',
+    'hour_count' => '{1} 1 hour|[2,*] :count hours',
     'summary' => [
         'gift' => 'Free gift',
         'subtotal' => 'Subtotal',

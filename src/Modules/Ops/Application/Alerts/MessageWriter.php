@@ -14,6 +14,7 @@ use Modules\Feedback\Public\Enums\QuestionStatus;
 use Modules\Feedback\Public\Enums\ReviewStatus;
 use Modules\Loyalty\Public\Contracts\LoyaltyApi;
 use Modules\Ops\Public\Enums\MessageKind;
+use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
 use Modules\Promotions\Public\Contracts\PromotionsApi;
@@ -33,7 +34,9 @@ use Shared\Domain\ValueObject\Money;
  * - C16: the question is still answered (feedback.md §2.5: events are kept in order per order only);
  * - C17, C17b: still not published, **with a reason** - no reason, no message (feedback.md:75);
  * - C9b, C10: the record is the kind's and was not voided since (owner, 2026-10-29);
+ * - C11: the event's request is still the order's open one, and the order was not ended since;
  * - C15: the coupon was not deleted since;
+ * - S6: the order was not ended since;
  * - S8: Content still knows the campaign.
  *
  * **A read that names another store, or another customer, than the event did sends nothing** - it is
@@ -43,6 +46,10 @@ use Shared\Domain\ValueObject\Money;
  * order with no address has no such line, never a stand-in. C4 names the carrier only when the order has one,
  * and offers Track only when it holds a tracking link. S5 and S5b say which key and never that payments stop:
  * a key of the mode not in use stops nothing.
+ *
+ * **A test order says so** (payments.md §1.6): the messages that speak of its money - C1, C6b, C9b, C10, C11 - carry the
+ * mark in the bell's line and under the email's greeting; it says no more than that, for a test order's money may be real
+ * when it is paid by transfer. The others have its number alone, `TEST-0001`.
  *
  * Amounts are written with the currency's letters (its abbreviation, never its sign), Latin digits
  * always (owner, 2026-10-06): the new riyal and dirham signs are in few fonts an email client has. A
@@ -54,6 +61,9 @@ final readonly class MessageWriter
     /** The store's return window (sales.md §1.10), read through Platform's settings. */
     private const string RETURN_WINDOW = 'sales.returns.window_days';
 
+    /** An order that owes nothing and can be asked nothing (sales.md §9.9 #5; §1.4: nothing is due on it). */
+    private const array ENDED = ['CANCELLED', 'REJECTED', 'UNDELIVERED'];
+
     public function __construct(
         private Translator $translator,
         private PlatformApi $platform,
@@ -63,6 +73,7 @@ final readonly class MessageWriter
         private CatalogApi $catalog,
         private PromotionsApi $promotions,
         private ContentApi $content,
+        private PaymentsApi $payments,
         private LoggerInterface $log,
     ) {}
 
@@ -82,6 +93,7 @@ final readonly class MessageWriter
             MessageKind::OrderShipped, MessageKind::OrderDelivered => $this->order($to, $locale, $values),
             MessageKind::ReturnAccepted, MessageKind::ReturnRefused, MessageKind::ReturnReceived, MessageKind::ReturnCompleted => $this->customerReturn($to, $locale, $values),
             MessageKind::RefundSent, MessageKind::PaymentReceived => $this->moneyRecord($to, $locale, $values),
+            MessageKind::PayRemaining => $this->payRemaining($to, $locale, $values),
             MessageKind::CouponAssigned => $this->coupon($to, $locale, $values),
             MessageKind::PointsEarned, MessageKind::PointsChangedByHand => $this->points($to, $locale, $values),
             MessageKind::PointsExpiring => $this->text($message->kind, $locale, [...$values, 'points' => (string) $message->int('points'), 'date' => $message->string('date')], self::shop($store, $locale, 'account/points')),
@@ -89,12 +101,13 @@ final readonly class MessageWriter
             MessageKind::ReviewNotPublished => $this->review($to, $locale, $values),
             MessageKind::NewOrder => $this->newOrder($to, $locale, $values),
             MessageKind::CompanyApplication => $this->text($message->kind, $locale, $values, '/admin/companies/'.$message->string('companyId')),
-            MessageKind::LowStock => $this->text($message->kind, $locale, [...$values, 'low' => (string) $message->int('low'), 'out' => (string) $message->int('out')], '/admin/low-stock'),
-            MessageKind::SyncProblems => $this->text($message->kind, $locale, $values, '/admin/sync'),
+            MessageKind::LowStock => $this->text($message->kind, $locale, [...$values, 'low' => (string) $message->int('low'), 'out' => (string) $message->int('out')], '/admin/low-stock?store='.$store->code),
+            MessageKind::SyncProblems => $this->text($message->kind, $locale, $values, '/admin/sync?store='.$store->code),
             MessageKind::ReturnRequested => $this->returnRequested($to, $locale, $values),
             MessageKind::GatewayKeyExpiring => $this->text($message->kind, $locale, [...$values, 'days' => $this->days($message->int('days'), $locale), 'date' => $message->string('date'), 'mode' => $this->keyMode($message, $locale)], self::gatewayPage($store), sms: true),
             MessageKind::GatewayKeyRejected => $this->text($message->kind, $locale, [...$values, 'mode' => $this->keyMode($message, $locale)], self::gatewayPage($store), sms: true),
-            MessageKind::PaymentNotAccepted => $this->text($message->kind, $locale, $values, null),
+            MessageKind::TransferOverdue => $this->transferOverdue($to, $locale, $values),
+            MessageKind::PaymentNotAccepted, MessageKind::LatePaymentRefundDue => $this->text($message->kind, $locale, $values, '/admin/payments/'.$message->string('attemptId')),
             MessageKind::CampaignExpiring => $this->campaignExpiring($to, $locale, $values),
             default => throw new LogicException("Ops writes no event message of the kind {$message->kind->value}."),
         };
@@ -119,8 +132,9 @@ final readonly class MessageWriter
         // An online order exists only once its money came (sales.md §9.5 #4): C1 is its one email (§1.5).
         $optional = $kind === MessageKind::OrderTaken ? ['paid' => $order->wayToPay === 'ONLINE' ? $values['amount'] : null, 'address' => $order->deliveryAddress] : [];
         $text = $this->text($kind, $locale, $values, self::shop($to->store, $locale, 'account/orders/'.$order->number), $optional);
+        $text = new MessageText($text->title, $text->line, $text->subject, $text->lines, $text->link, $text->action, $this->summary($order, $to->store, $locale));
 
-        return new MessageText($text->title, $text->line, $text->subject, $text->lines, $text->link, $text->action, $this->summary($order, $to->store, $locale));
+        return $order->isTest ? $this->testMarked($text, $locale) : $text;
     }
 
     /** @param  array<string, string> $values */
@@ -216,7 +230,56 @@ final readonly class MessageWriter
             $values['way'] = (string) $this->translator->get("ops::messages.refund_sent.ways.{$record->way}", [], $locale);
         }
 
-        return $this->text($kind, $locale, $values, self::shop($to->store, $locale, 'account/orders/'.$record->orderNumber));
+        $text = $this->text($kind, $locale, $values, self::shop($to->store, $locale, 'account/orders/'.$record->orderNumber));
+
+        return $record->isTest ? $this->testMarked($text, $locale) : $text;
+    }
+
+    /**
+     * C11: the amount the open request asks, and its page, with the kind's own button. Read through `openRequests`,
+     * which writes nothing: a request withdrawn, paid or past its time, or a newer one in its place, sends nothing,
+     * when the bell is written and again when the email leaves. The 60 minutes are in the words (payments.md §1.5).
+     *
+     * @param  array<string, string>  $values
+     */
+    private function payRemaining(MessageTarget $to, string $locale, array $values): ?MessageText
+    {
+        $orderId = $to->message->string('orderId');
+        $order = $this->sales->orderForMessage($orderId, $locale);
+
+        if ($order === null || ! $this->belongs($to, $order->storeId, $order->customerId) || in_array($order->status, self::ENDED, true)) {
+            return null;
+        }
+
+        $request = $this->payments->openRequests([$orderId])[$orderId] ?? null;
+
+        if ($request === null || $request->requestId !== $to->message->string('requestId')) {
+            return null;
+        }
+
+        $kind = $to->message->kind;
+        $text = $this->text($kind, $locale, [...$values, 'order' => $order->number, 'amount' => self::money($request->amount, $to->store, $locale)], self::shop($to->store, $locale, 'orders/'.$order->number.'/pay'));
+
+        $text = new MessageText($text->title, $text->line, $text->subject, $text->lines, $text->link, (string) $this->translator->get("ops::messages.{$kind->value}.action", [], $locale));
+
+        return $order->isTest ? $this->testMarked($text, $locale) : $text;
+    }
+
+    /**
+     * S6: the store's own check time in words, and the order's page, where staff check the receipt (`AlertLinks` takes
+     * the link off for whoever cannot open it). Sales fires it once per order, and never for a test order.
+     *
+     * @param  array<string, string>  $values
+     */
+    private function transferOverdue(MessageTarget $to, string $locale, array $values): ?MessageText
+    {
+        $order = $this->sales->orderForMessage($to->message->string('orderId'), $locale);
+
+        if ($order === null || ! $this->belongs($to, $order->storeId, $order->customerId) || in_array($order->status, self::ENDED, true)) {
+            return null;
+        }
+
+        return $this->text($to->message->kind, $locale, [...$values, 'order' => $order->number, 'hours' => $this->hours($this->payments->transferCheckHours($to->store->storeId()), $locale)], '/admin/orders/'.$order->orderId);
     }
 
     /** @param  array<string, string> $values */
@@ -393,6 +456,16 @@ final readonly class MessageWriter
         );
     }
 
+    /** The message with the test mark: after the bell's line, and under the email's greeting. */
+    private function testMarked(MessageText $text, string $locale): MessageText
+    {
+        $mark = (string) $this->translator->get('ops::messages.test_mark', [], $locale);
+        $lines = $text->lines;
+        array_splice($lines, 1, 0, [$mark]);
+
+        return new MessageText($text->title, $text->line.' '.$mark, $text->subject, $lines, $text->link, $text->action, $text->summary, $text->sms, $text->trackLink, $text->trackAction);
+    }
+
     /**
      * The order's lines as sold or edited, then its totals and how it is paid; the coupon and points rows
      * only when they took something off.
@@ -432,6 +505,12 @@ final readonly class MessageWriter
     private function days(int $days, string $locale): string
     {
         return $this->translator->choice('ops::messages.day_count', $days, [], $locale);
+    }
+
+    /** A number of hours as the language counts them, in Latin digits: "1 hour", "72 ساعة". */
+    private function hours(int $hours, string $locale): string
+    {
+        return $this->translator->choice('ops::messages.hour_count', $hours, [], $locale);
     }
 
     /** Which of the store's two gateway keys: the test or the live one. */

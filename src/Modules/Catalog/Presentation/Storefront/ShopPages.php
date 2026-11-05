@@ -19,6 +19,7 @@ use Modules\Catalog\Application\Query\Shop\ShopCatalog;
 use Modules\Catalog\Application\Query\Shop\ShopChoice;
 use Modules\Catalog\Application\Query\Shop\ShopChoiceValue;
 use Modules\Catalog\Application\Query\Shop\ShopFilters;
+use Modules\Catalog\Application\Query\Shop\ShopLink;
 use Modules\Catalog\Application\Query\Shop\ShopPagesCache;
 use Modules\Catalog\Application\Query\Shop\ShopSearch;
 use Modules\Catalog\Application\Query\Shop\ShopVariant;
@@ -83,13 +84,15 @@ final readonly class ShopPages
         }
 
         $around = $this->visit->around($store, $locale, $page->categoryId);
+        // Emptied by stock or prices it has left the menu; every category above it still answers, so it keeps the way up (amendment 40(d)).
+        $path = $page->soldOut ? array_map(static fn (ShopLink $link): ShopLinkData => new ShopLinkData($link->name, $link->slug), $this->catalog->trail($locale, $page->categoryId)) : $around['path'];
         // Marked chosen: what the page applied - the choices it still offers (P14).
         $filters = $page->chosen ?? $filters->forViewer($viewer);
 
         return new ShopCategoryPage(
             $page->name,
             $page->slug,
-            $around['path'],
+            $path,
             $around['children'],
             $this->cards($store, $locale, $page->products->cards),
             $page->products->next,
@@ -129,7 +132,8 @@ final readonly class ShopPages
     /**
      * The product's page as props, its own address added to what the cache keeps — and the other
      * modules' sections (amendment 26(b)), read on every request, never kept: they change with what
-     * those modules decide and with who is looking. A page not available now carries none.
+     * those modules decide and with who is looking. A page not available now carries only those registered
+     * for it: the Save heart (amendment 34) and, where only stock or a price is missing, reviews and questions (amendment 40(a)).
      *
      * @param  array<string, string>  $after  section key => where it goes on from ("Show more")
      * @param  array<string, string>  $filters  section key => what it is narrowed to (amendment 31)
@@ -203,7 +207,8 @@ final readonly class ShopPages
         $path = $around === null || $around['self'] === null ? [] : [...$around['path'], $around['self']];
 
         $customerId = $this->customerId();
-        // Not available now: only the sections read on such a page too - the Save heart (amendment 34).
+        // Not available now: only the sections read on such a page too - the Save heart (amendment 34) and,
+        // where only stock or a price is missing, reviews and questions (amendment 40(a)).
         // The page's sizes this viewer can buy wholesale, as it read them (amendment 35): none for an individual,
         // and a guest's only where companies may buy the product - as its card and Sales's Add to Cart have it.
         $wholesaleViewer = match ($viewer) {
@@ -219,7 +224,7 @@ final readonly class ShopPages
         ));
         // Every size the page offers, in its order (amendment 36).
         $sizes = array_map(static fn (array $variant): string => (string) $variant['id'], $offered);
-        $sections = $this->sections->read($store, $locale === 'ar' ? 'ar' : 'en', $owner['id'], $customerId, $after, $filters, $kept['page']['available'] === true, $viewer, $wholesaleSizes, $sizes);
+        $sections = $this->sections->read($store, $locale === 'ar' ? 'ar' : 'en', $owner['id'], $customerId, $after, $filters, $kept['page']['available'] === true, $viewer, $wholesaleSizes, $sizes, $kept['page']['available'] !== true && ($kept['noindex'] ?? true) === false);
         // The relations' cards are kept with the page; what the modules add to them is this viewer's (amendment 32).
         $related = array_column([...self::listOf($kept['page']['goesWith'] ?? []), ...self::listOf($kept['page']['mayAlsoLike'] ?? [])], 'productId');
 

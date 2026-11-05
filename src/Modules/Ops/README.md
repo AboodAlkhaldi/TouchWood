@@ -6,7 +6,8 @@ messages; the newsletter's subscribers, copied to Brevo; the reports in Excel an
 **The agreed rules are [`docs/modules/ops.md`](../../../docs/modules/ops.md)**; this file says how the module
 is built.
 
-Backend only: the screens are the screens agent's (owner, 2026-10-28), from the data shapes of ops.md §4.
+The backend is built. The screens were left to the screens agent, from the data shapes of ops.md §4 (owner, 2026-10-28), and are
+being built one job at a time: the Waiting table and "Continuing the screens" below say which are in.
 Nothing depends on Ops (handoff §4.4): it listens to the other modules' events, reads their `Public`
 surfaces, and offers nothing callable. Its `Public` holds two enums, `MessageKind` and `MessageChannel`. The
 one contract it fulfils is Access's: `SecurityMessages` and `PhoneCountries`, bound in its provider, so
@@ -28,6 +29,7 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
 | 9 — the daily report | The PDF, every file kept twelve months, a past day, the email at the time the person chose | `Application/DailyReport`, `Application/Command/{MakeDailyReport,SetDailyReportEmail,DeliverDailyReport,SendDailyReportEmail}`, `Infrastructure/Pdf`, `Infrastructure/Files` |
 | 10 — the module pass | This file, ops.md §4's data shapes, §5, §7 and §8 brought in line with the code; then the whole-module review's fixes and the reads the screens need (owner, 2026-11-01): the stop-email pages of an off store, 00:00 refused, the SMS countries' routes, a staff message to a segment, S5, C4's Track, a retried daily email, the staff messages list and each form's choices | here |
 | After the pass | S10, S10b, the bell alerts that a security email or SMS could not be sent; a form's segments, and the segment's name on what was written (owner, 2026-11-01) | `Infrastructure/Messages/SecurityFailureAlert`, `Application/Query/ListSegments` |
+| Stage 7's last events | C11 on `PaymentRequested`, S6 on `TransferOverdue`, C10 checked on a request's online payment, transfers overdue in the daily report and its totals (2026-11-03) | `Infrastructure/Listener/TellCustomerAboutPaymentRequest`, `AlertStaff`, `Application/Alerts/MessageWriter`, `Application/DailyReport/DailyReportReader` |
 | After the screens' spec | A whole store's audience, `ops.admin.audience` (ops.md §9.4 Q14), on Access's `customerCountInStore` (access.md amendment 94) | `Application/Query/CountStoreAudience`, `Presentation/Http/Controller/AudienceController` |
 
 ## What is here
@@ -65,7 +67,7 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
 - **`Application/Command`, `Application/Query`** — one folder per use case, each authorizing itself.
 - **`Infrastructure/OpsServiceProvider`** — the bindings, the permissions, the listeners, the schedule, the
   routes; the unsubscribe links' POST is let through without a CSRF token, its signature being its authority.
-- **`Infrastructure/Listener`** — `TellCustomerAboutOrder`, `…Return`, `…Money`, `…Points`, `…Feedback`,
+- **`Infrastructure/Listener`** — `TellCustomerAboutOrder`, `…Return`, `…Money`, `…PaymentRequest`, `…Points`, `…Feedback`,
   `TellCustomersAboutCoupon`, `AlertStaff`, `StartCampaignNotice`, `RefreshNewsletterSubscription`, `ForgetAnonymizedCustomer`: each on
   the queue, once per event through `Infrastructure/Eloquent/HandledEvents`.
 - **`Infrastructure/External`** — `BrevoEmailSender`, `BrevoNewsletterList`, `BrevoAnswers` (the key as pasted, how
@@ -78,8 +80,9 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
   `MpdfDailyReportRenderer`. **`Infrastructure/Files`** — `LocalReportFiles`, the app's private files.
 - **`Infrastructure/Persistence`** — `OpsSchema` and the migrations of ops.md §5, every CHECK the last line
   behind a rule the code refuses first.
-- **`Presentation`** — `admin-routes.php`, `shop-routes.php`, `webhook-routes.php`; the controllers, JSON for the
-  screens agent's pages; `Http/Middleware/StopEmailStore`, the store and language of the stop-email pages, on or
+- **`Presentation`** — `admin-routes.php`, `shop-routes.php`, `webhook-routes.php`; the controllers: a built page's list gives the
+  page to a plain visit and §4's JSON to whoever asks, a form's address only the page, and every other GET JSON or its download
+  (ops.md §4.1); `Http/Middleware/StopEmailStore`, the store and language of the stop-email pages, on or
   off; `Http/Resource`, the `…Data` classes (`#[TypeScript]`) and the three classes that fill
   them (`BellPages`, `WrittenPages`, `DailyReportPages`); `lang/{ar,en}`; `views` (the three mail frames, the
   daily report's PDF and its email).
@@ -93,6 +96,10 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
 - **To customers:** bell and email, in their language, on the queue, consent not asked; an anonymized account
   gets nothing, a switched-off store still sends. C18 is the exception: no bell, codes by SMS and links by email,
   sent at once. One that fails tells the Super Admins, below.
+- **A test order:** C1, C6b, C9b, C10 and C11 carry "This is a test order." (`ops::messages.test_mark`) in the bell's line and
+  under the email's greeting; the rest have its number alone.
+- **A link the person cannot open:** S6 opens the order, under another permission than the one that reaches them. Whoever
+  lacks it gets the same words with no link (`AlertLinks`).
 - **To staff:** one read, `AccessApi::staffToAlert`, gives every active holder of the topic's permission in the
   store with their switches; the bell by the in-panel switch, the email by the email switch.
 - **Critical SMS:** only for the gateway key at 1 day or refused, to super admins with the switch on and a phone,
@@ -162,20 +169,19 @@ transaction. The delivery is at least once (owner, 2026-11-01). Files and rows g
 starting with Saudi Arabia 966 and Egypt 20 on `log`. `ListedPhoneCountries` reads a number's country by its
 calling code, for Access and for Ops' own SMS; a phone of an unlisted country is refused and no code goes to it.
 A calling code overlapping another listed one is refused. Reserved to Super Admins (`ops.sms_countries.manage`),
-audited (`ops.sms_country.*`). `log` is the only provider built, and it is refused on a live system when an SMS
-would go through it. Its routes are `ops.admin.sms-countries*` (ops.md §4.1), its page `Ops/Admin/SmsCountries` (§4.15 O10).
+audited (`ops.sms_country.*`). `log` is the only provider built, for development and tests, and it is refused in production when
+an SMS would go through it (`BuiltSmsSenders`). Nothing at boot asks for a provider, so a production server with none starts
+normally, and every code then fails when it is sent: a FAILED row, an error to the caller, S10b. The owner is deciding whether that
+stays (2026-11-05). Its routes are `ops.admin.sms-countries*` (ops.md §4.1), its page `Ops/Admin/SmsCountries` (§4.15 O10).
 
 ## Waiting
 
-Each checked against the code on 2026-11-01.
+Each checked against the code on 2026-11-01, the first two on 2026-11-03, C11's again on 2026-11-05.
 
 | What | State here | On whom |
 |---|---|---|
-| C11 Pay the remaining amount | The kind and its words exist; `MessageWriter` has no branch for it, no listener | No `PaymentRequested` event exists: Stage 7 (Payments step 11) |
-| C10 and a checkout's one email | Ops has no check of its own (§1.5): `PaymentRecorded` must not be fired for the payment a checkout's order is created with | Stage 7, where it fires the event |
-| S6 Payments to check: a transfer overdue | The kind and its words exist; no writer's branch, no listener | No `TransferOverdue` event exists: Stage 7 (Sales' scheduled job) |
-| S7's link | The alert is built (`AlertStaff`, #314's event) and opens nothing: its entry has no link | Payments' staff list of attempts: Stage 7 |
-| "Transfers overdue" in the daily report | The cell prints "Waits for Payments (stage 7)" (`views/daily-report.blade.php`); `SalesReports::transfersWaiting` gives orders and owed only | Stage 7 |
+| C11 and its link | Built; the bell and the email open `/{store}/{locale}/orders/{number}/pay`, which has no route on main (2026-11-03) and answers 404 until it does. C11 can't fire yet either: `RequestOrderPaymentHandler` has no controller or route until Stage 7's step 12 screens land, so `PaymentRequested` never fires outside the tests. C10 on a request's online payment waits with it (`OpenRequestPayment` and `PayOrderRequest` have no route either) (2026-11-05) | The screens session (sales.md §9.9) |
+| S7's and S7b's link | Built; the bell and the email open `/admin/payments/{id}` for whoever holds `payments.payment.view` (`AlertLinks`), which has no route on main (2026-11-05) and answers 404 until it does | The screens session (payments.md §4.2) |
 | S8 Campaign expiry | Built on Ops' side (`AlertStaff`, `MessageWriter`); sends nothing until Content is built. Its permission stands in for Content's (ops.md §1.6, §9.5) | Content: to fire `CampaignExpiring` and replace `NoCampaignsYet` |
 | A notice sent when a campaign goes live (§1.7) | Built on Ops' side (`StartCampaignNotice`): a waiting notice only. No state makes a notice wait for its campaign (ops.md §9.5) | Content: to fire `CampaignWentLive`; the owner |
 | The SMS provider | `log` only | The owner (Mobily being checked) |
@@ -245,10 +251,10 @@ before, or it opens raw JSON. Before touching `AdminMenu`, `AdminLayout` or `Sto
 ## Tests
 
 `tests/Modules/Ops/Integration` — `EventMessagesTest` (§1.5, §1.6, the sent-then-marked row, C14, the critical
-SMS), `CampaignEventsTest`, `MessageKindsTest`, `SecurityMessagesTest`, `SecurityFailureAlertTest`, `SecurityFailureAlertRaceTest`, `SendersTest`, `BrevoFailuresTest` (every way Brevo can fail, on every path, on the real database queue), `SmsCountriesTest`, `RealEmailDriverTest`,
+SMS), `PaymentEventsTest` (C10, C11, S6 and transfers overdue from Stage 7's real flow), `CampaignEventsTest`, `MessageKindsTest`, `SecurityMessagesTest`, `SecurityFailureAlertTest`, `SecurityFailureAlertRaceTest`, `WrittenTextDigitsTest`, `SendersTest`, `BrevoFailuresTest` (every way Brevo can fail, on every path, on the real database queue), `SmsCountriesTest`, `RealEmailDriverTest`,
 `BellsTest`, `NoticesTest`, `NoticeSegmentTest`, `StaffMessagesTest`, `NewsletterTest`, `BrevoNewsletterListTest`,
 `ReportsTest`, `DailyReportTest`, `DailyReportEmailTest`, `PruneTest`, `OpsPermissionsTest`, `OpsSchemaTest`,
 `OpsTablesTest`. `tests/Modules/Ops/Feature` over HTTP — `BellRoutesTest`, `WrittenRoutesTest`, `ReportRoutesTest`,
-`DailyReportRoutesTest`, `StopEmailPagesTest`, `SmsCountryRoutesTest`, `SmsCountriesScreenTest`, `BellScreensTest`, `WrittenScreensTest`, `SubscribersScreenTest`, `ScreensReadsTest`, `SegmentReadsTest`. The consent itself is Access's: `tests/Modules/Access/Integration/MarketingConsentTest`,
+`DailyReportRoutesTest`, `StopEmailPagesTest`, `SmsCountryRoutesTest`, `SmsCountriesScreenTest`, `BellScreensTest`, `WrittenScreensTest`, `SubscribersScreenTest`, `ScreensReadsTest`, `SegmentReadsTest`, `AudienceCountTest`. The consent itself is Access's: `tests/Modules/Access/Integration/MarketingConsentTest`,
 `tests/Modules/Access/Feature/CustomerAccountPageTest`. ops.md §8 maps each scenario to its test and says what no
 test covers.

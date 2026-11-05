@@ -20,6 +20,7 @@ return [
     'tell_customer_about_order' => 'إبلاغ العميل بما حدث لطلبه',
     'tell_customer_about_return' => 'إبلاغ العميل بما حدث لطلب الإرجاع',
     'tell_customer_about_money' => 'إبلاغ العميل بإرسال استرداد أو استلام دفعة',
+    'tell_customer_about_payment_request' => 'إرسال رابط دفع المتبقي من الطلب إلى العميل',
     'tell_customers_about_coupon' => 'إبلاغ العملاء بقسيمة أُعطيت لهم',
     'tell_customer_about_points' => 'إبلاغ العميل بتغيّر نقاطه',
     'tell_customer_about_feedback' => 'إبلاغ العميل بما حدث لسؤاله أو تقييمه',

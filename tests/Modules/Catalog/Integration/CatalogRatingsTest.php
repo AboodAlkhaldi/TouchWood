@@ -19,6 +19,7 @@ use Modules\Platform\Public\Enums\ShopperKind;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
+use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
 
 use function Pest\Laravel\seed;
 
@@ -215,15 +216,36 @@ it('treats a product whose last review was unpublished as one without reviews', 
         ->and(ratedIds(categoryOf($category, sort: ShopFilters::RATING)))->toBe([$rated, $newest, $emptied]);
 });
 
+it('does not move a store\'s average when a product sells out: stock does not count (feedback.md §1.2, answer 19)', function () {
+    $category = Px::category('Doors');
+    $one = ratedProduct($category);
+    $five = ratedProduct($category);
+    $best = ratedProduct($category);
+    rate($one, 4, 1);
+    rate($five, 20, 5);
+    // Nearly every review the store has, near 5: the average pulls the single 4★ above the five 4★s. Left out
+    // of it, the average would be 4, the two would tie, and the newer would come first.
+    rate($best, 1000, 200);
+    $sizes = DB::table('catalog.variants')->where('product_id', $best)->pluck('id')->map(strval(...))->all();
+
+    expect(ratedIds(categoryOf($category, sort: ShopFilters::RATING)))->toBe([$best, $one, $five]);
+
+    Ix::count('sa', array_fill_keys($sizes, 0));
+
+    expect(ratedIds(categoryOf($category, sort: ShopFilters::RATING)))->toBe([$one, $five]);
+});
+
 it('counts only what the store sells in its average', function () {
     $category = Px::category('Doors');
-    $low = ratedProduct($category);
-    $high = ratedProduct($category);
+    $few = ratedProduct($category);
+    $many = ratedProduct($category);
     $elsewhere = ratedProduct($category, ['ae']);
-    rate($low, 4, 1);
-    rate($high, 20, 5);
-    // Sold only in the UAE: a store average of 1 would put the single 4★ review above the five 4★s.
-    rate($elsewhere, 200, 200);
+    rate($few, 3, 1);
+    rate($many, 32, 10);
+    // Sold only in the UAE: 200 reviews at 5★. Left out, as here, the store's average C = 35 / 11 ≈ 3.18 and the
+    // many score (5 × 3.18 + 32) / 15 ≈ 3.19, the single 3★ (5 × 3.18 + 3) / 6 ≈ 3.15. Counted, C ≈ 4.9 would
+    // lift the single one more than the many, 4.59 to 3.77, and turn the two around.
+    rate($elsewhere, 1000, 200);
 
-    expect(ratedIds(categoryOf($category, sort: ShopFilters::RATING)))->toBe([$high, $low]);
+    expect(ratedIds(categoryOf($category, sort: ShopFilters::RATING)))->toBe([$many, $few]);
 });
