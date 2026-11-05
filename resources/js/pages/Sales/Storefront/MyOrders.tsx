@@ -3,6 +3,7 @@ import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { Money } from '@/components/Money';
 import { Time } from '@/components/Time';
 import { O, OrderStatus, plural, useLocale } from '@/components/sales/shop';
+import { Badge } from '@/components/ui/badge';
 import { Empty, EmptyDescription, EmptyHeader } from '@/components/ui/empty';
 import { AccountLayout } from '@/layouts/AccountLayout';
 import { useLink } from '@/lib/routes';
@@ -53,7 +54,14 @@ export default function MyOrders(page: MyOrdersPage) {
                                         <span>
                                             <Time value={order.placedAt} focusable={false} /> · {plural(t, locale, `${O}.my.pieces`, order.pieces)}
                                         </span>
-                                        <OrderStatus status={order.status} label={t(`${O}.status.${order.status}`)} />
+                                        <span className="flex flex-wrap items-center gap-2">
+                                            {order.paymentRequested ? (
+                                                <Badge variant="outline" data-test="payment-requested">
+                                                    {t(`${O}.my.payment_requested`)}
+                                                </Badge>
+                                            ) : null}
+                                            <OrderStatus status={order.status} label={t(`${O}.status.${order.status}`)} />
+                                        </span>
                                     </span>
                                 </Link>
                             </li>

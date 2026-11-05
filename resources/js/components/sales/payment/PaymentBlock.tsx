@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import type { CheckoutTryData, PayStartData, PaymentFormData } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
-import { CHANNEL, P, endingOf, minutesAndSeconds, postJson, untilOf, useClock, useCsrfToken, useServerNow } from './flow';
+import { CHANNEL, P, endingOf, minutesAndSeconds, payAddresses, postJson, untilOf, useClock, useCsrfToken, useServerNow } from './flow';
 
 /*
 | The Payment card's part while paying online (payments.md §1.4, §4.2). MyFatoorah's form in Collect Details mode: it only
@@ -38,6 +38,13 @@ type Phase = { kind: 'opening' } | { kind: 'failed'; words: string } | { kind: '
 
 export type OnlineState = { ready: boolean; locked: boolean; failed: boolean };
 
+/**
+ * A request's refusals that a fresh page answers: the link ended, a payment already open, the amount moved. Any other
+ * (the gateway off or its key refused, the request no longer open in this mode) is said where the form would be: the
+ * request's page doesn't change with the gateway, so reloading it would only ask again, for ever.
+ */
+const REQUEST_RELOADS = ['payment_link_ended', 'payment_in_progress', 'amount_changed'];
+
 /** From Pay until the answer: nothing on the page may change (Q3). */
 const LOCKED = ['pressed', 'sending', 'live'];
 
@@ -66,9 +73,12 @@ function loadScript(src: string): Promise<void> {
     return loading;
 }
 
-export default function PaymentBlock({ quoteId, press, onState, onClosed }: { quoteId: string; press: RefObject<(() => void) | null>; onState: (state: OnlineState) => void; onClosed: (view: CheckoutTryData) => void }) {
+/** At checkout, for its quote; on a request's page, for the order with this number (§4.2). */
+export default function PaymentBlock({ quoteId = '', number, press, onState, onClosed }: { quoteId?: string; number?: string; press: RefObject<(() => void) | null>; onState: (state: OnlineState) => void; onClosed: (view: CheckoutTryData) => void }) {
     const t = useTranslator();
     const link = useLink();
+    const addresses = payAddresses(link, number);
+    const formFailed = number === undefined ? `${P}.form_failed` : `${P}.request.form_failed`;
     const token = useCsrfToken();
     const [phase, setPhase] = useState<Phase>({ kind: 'opening' });
     const [notice, setNotice] = useState<string | null>(null);
@@ -87,7 +97,7 @@ export default function PaymentBlock({ quoteId, press, onState, onClosed }: { qu
     const send = useCallback(async () => {
         setNotice(null);
         setPhase({ kind: 'sending' });
-        const answer = await postJson<PayStartData>(link('storefront.sales.payment.pay'), token, { quote: quote.current, session: session.current ?? '' });
+        const answer = await postJson<PayStartData>(addresses.pay, token, { ...(number === undefined ? { quote: quote.current } : {}), session: session.current ?? '' });
 
         if (answer.ok) {
             const { tryId, frameUrl, windowEndsAt, holdEndsAt, serverNow } = answer.data;
@@ -98,6 +108,8 @@ export default function PaymentBlock({ quoteId, press, onState, onClosed }: { qu
         } else if (answer.status === 0 || answer.status >= 500) {
             // Nobody knows whether it started: the server says, when the page opens again.
             again(null);
+        } else if (number !== undefined && !REQUEST_RELOADS.some((type) => answer.type.includes(type))) {
+            setPhase({ kind: 'failed', words: answer.detail === '' ? t(formFailed) : answer.detail });
         } else {
             again(answer.type.includes('quote_changed') || answer.type.includes('quote_expired') ? t(`${P}.changed`) : answer.detail);
         }
@@ -123,18 +135,20 @@ export default function PaymentBlock({ quoteId, press, onState, onClosed }: { qu
 
         void (async () => {
             quoteOpened.current = quoteId;
-            const answer = await postJson<PaymentFormData>(link('storefront.sales.payment.session'), token, { quote: quoteId });
+            const answer = await postJson<PaymentFormData>(addresses.session, token, number === undefined ? { quote: quoteId } : {});
 
             if (gone) {
                 return;
             }
 
             if (!answer.ok) {
-                if (answer.status === 409) {
-                    // A try started in another window since this page was drawn.
+                if (answer.status === 409 && (number === undefined || REQUEST_RELOADS.some((type) => answer.type.includes(type)))) {
+                    // A try started in another window since this page was drawn, or the request's own state moved.
                     again(null);
+                } else if (answer.status === 409) {
+                    setPhase({ kind: 'failed', words: answer.detail === '' ? t(formFailed) : answer.detail });
                 } else {
-                    setPhase({ kind: 'failed', words: answer.status === 429 ? t(`${P}.too_many`) : t(`${P}.form_failed`) });
+                    setPhase({ kind: 'failed', words: answer.status === 429 ? t(`${P}.too_many`) : t(formFailed) });
                 }
 
                 return;
@@ -144,7 +158,7 @@ export default function PaymentBlock({ quoteId, press, onState, onClosed }: { qu
                 await loadScript(answer.data.scriptUrl);
             } catch {
                 if (!gone) {
-                    setPhase({ kind: 'failed', words: t(`${P}.form_failed`) });
+                    setPhase({ kind: 'failed', words: t(formFailed) });
                 }
 
                 return;
@@ -177,7 +191,7 @@ export default function PaymentBlock({ quoteId, press, onState, onClosed }: { qu
                 });
                 setPhase({ kind: 'form' });
             } catch {
-                setPhase({ kind: 'failed', words: t(`${P}.form_failed`) });
+                setPhase({ kind: 'failed', words: t(formFailed) });
             }
         })();
 
@@ -235,13 +249,14 @@ export default function PaymentBlock({ quoteId, press, onState, onClosed }: { qu
             {phase.kind === 'live' ? (
                 <Paying
                     live={phase.live}
+                    number={number}
                     change={(next) => setPhase((now) => (now.kind === 'live' ? { kind: 'live', live: { ...now.live, ...next } } : now))}
                     onOver={(view) => {
                         // Any reload of a closed store is a 404, so an open page is the only place left to say it.
                         if (view.mainStoreUrl !== null) {
                             onClosed(view);
                         } else if (view.orderNumber !== null) {
-                            router.visit(link('storefront.sales.placed', { number: view.orderNumber }));
+                            router.visit(addresses.done(view.orderNumber));
                         } else {
                             again(endingOf(view, t));
                         }
@@ -256,7 +271,7 @@ export default function PaymentBlock({ quoteId, press, onState, onClosed }: { qu
 }
 
 /** From Pay to the answer: the time left, the bank's page, and asking our server. */
-function Paying({ live, change, onOver, onLost }: { live: Live; change: (next: Partial<Live>) => void; onOver: (view: CheckoutTryData) => void; onLost: () => void }) {
+function Paying({ live, number, change, onOver, onLost }: { live: Live; number?: string; change: (next: Partial<Live>) => void; onOver: (view: CheckoutTryData) => void; onLost: () => void }) {
     const t = useTranslator();
     const link = useLink();
     const token = useCsrfToken();
@@ -279,7 +294,7 @@ function Paying({ live, change, onOver, onLost }: { live: Live; change: (next: P
 
         asking.current = true;
         clearTimeout(timer.current);
-        const answer = await postJson<CheckoutTryData>(link('storefront.sales.payment.follow', { try: latest.current.tryId }), token);
+        const answer = await postJson<CheckoutTryData>(payAddresses(link, number).follow(latest.current.tryId), token);
         asking.current = false;
 
         if (gone.current) {
@@ -394,7 +409,7 @@ function Paying({ live, change, onOver, onLost }: { live: Live; change: (next: P
     return (
         <>
             {view?.payment === 'UNKNOWN' && waitOver ? (
-                <Note data-test="payment-still-confirming">{t(`${P}.still_confirming`)}</Note>
+                <Note data-test="payment-still-confirming">{t(number === undefined ? `${P}.still_confirming` : `${P}.request.still_confirming`)}</Note>
             ) : live.finished ? (
                 <p role="status" className="text-label-14 text-ink" data-test="payment-confirming">
                     {t(`${P}.confirming`)}

@@ -25,5 +25,7 @@ final class OrderRowData extends Data
         public bool $shortOfStock,
         /** Fee to be set, its total before shipping (shipping.md §9.3 #8). */
         public bool $shippingFeePending = false,
+        /** A transfer unpaid 72 hours after its first receipt (sales.md §9.9 #4). */
+        public bool $isOverdue = false,
     ) {}
 }

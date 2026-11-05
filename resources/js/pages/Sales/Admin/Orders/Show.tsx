@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { isolate } from '@/lib/bidi';
 import { figure, intlLocale } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
@@ -92,7 +93,7 @@ export default function Show(order: OrderPage) {
                 {a.mayEdit ? (
                     <MenuAction
                         label={t(`${W}.action.edit`)}
-                        reason={CLOSED.includes(order.status) ? t(`${W}.why.closed`) : notShipped ? null : t(`${W}.why.shipped`)}
+                        reason={CLOSED.includes(order.status) ? t(`${W}.why.closed`) : !notShipped ? t(`${W}.why.shipped`) : order.paymentInProgress ? t(`${W}.why.confirming`) : null}
                         onSelect={() => router.visit(`${base}/edit`)}
                         test="edit"
                     />
@@ -167,7 +168,8 @@ export default function Show(order: OrderPage) {
                     <div className="grid min-w-0 content-start gap-4">
                         <Lines order={order} />
                         <Totals order={order} />
-                        <MoneyCard order={order} onRecord={() => setDialog('payment')} onRefund={() => setDialog('refund')} onVoid={(record) => setDialog({ void: record })} />
+                        <MoneyCard order={order} busy={busy} post={post} onRecord={() => setDialog('payment')} onRefund={() => setDialog('refund')} onVoid={(record) => setDialog({ void: record })} />
+                        {order.attempts !== null && order.attempts.length > 0 ? <OnlinePayments order={order} /> : null}
                         <History order={order} />
                     </div>
                     <div className="grid min-w-0 content-start gap-4">
@@ -330,9 +332,12 @@ function Totals({ order }: { order: OrderPage }) {
     );
 }
 
-function MoneyCard({ order, onRecord, onRefund, onVoid }: { order: OrderPage; onRecord: () => void; onRefund: () => void; onVoid: (record: MoneyRecordData) => void }) {
+function MoneyCard({ order, busy, post, onRecord, onRefund, onVoid }: { order: OrderPage; busy: boolean; post: (action: string) => void; onRecord: () => void; onRefund: () => void; onVoid: (record: MoneyRecordData) => void }) {
     const t = useTranslator();
+    const { locale } = usePage<SharedProps>().props;
     const may = order.actions.mayRecordMoney;
+    const edit = order.actions.mayEdit;
+    const clock = (iso: string) => new Intl.DateTimeFormat(intlLocale(locale), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: order.storeTimezone }).format(new Date(iso));
 
     return (
         <Section
@@ -341,7 +346,7 @@ function MoneyCard({ order, onRecord, onRefund, onVoid }: { order: OrderPage; on
             action={
                 may ? (
                     <span className="flex flex-wrap gap-2">
-                        <ActionButton size="sm" variant="outline" disabledReason={order.owed.minor === 0 ? t(`${W}.why.nothing_owed`) : undefined} onClick={onRecord} data-test="record-payment">
+                        <ActionButton size="sm" variant="outline" disabledReason={order.paymentInProgress ? t(`${W}.why.confirming`) : order.owed.minor === 0 ? t(`${W}.why.nothing_owed`) : undefined} onClick={onRecord} data-test="record-payment">
                             {t(`${W}.action.payment`)}
                         </ActionButton>
                         <ActionButton size="sm" variant="outline" disabledReason={order.held.minor === 0 ? t(`${W}.why.nothing_held`) : undefined} onClick={onRefund} data-test="record-refund">
@@ -351,6 +356,34 @@ function MoneyCard({ order, onRecord, onRefund, onVoid }: { order: OrderPage; on
                 ) : undefined
             }
         >
+            {/* Online payment (payments.md §4.2, Q22): Record Payment is "by hand", beside Request Payment. */}
+            {order.paymentInProgress ? (
+                <Note className="mb-3" data-test="payment-confirming">
+                    {t(`${W}.show.confirming`)}
+                </Note>
+            ) : order.paymentRequest !== null ? (
+                <Note className="mb-3" data-test="payment-request">
+                    <span className="flex flex-wrap items-center justify-between gap-2">
+                        {t(`${W}.show.requested`, { amount: isolate(order.paymentRequest.amount.text), time: isolate(clock(order.paymentRequest.expiresAt)) })}
+                        {edit ? (
+                            <ActionButton size="sm" variant="outline" loading={busy} onClick={() => post('withdraw-request')} data-test="withdraw-request">
+                                {t(`${W}.action.withdraw_request`)}
+                            </ActionButton>
+                        ) : null}
+                    </span>
+                </Note>
+            ) : order.mayRequestPayment && order.owed.minor > 0 ? (
+                <Note className="mb-3" data-test="payment-owed">
+                    <span className="flex flex-wrap items-center justify-between gap-2">
+                        {t(`${W}.show.owes`, { amount: isolate(order.owed.text) })}
+                        {edit ? (
+                            <ActionButton size="sm" loading={busy} onClick={() => post('request-payment')} data-test="request-payment">
+                                {t(`${W}.action.request_payment`)}
+                            </ActionButton>
+                        ) : null}
+                    </span>
+                </Note>
+            ) : null}
             <dl className="grid gap-1.5">
                 <Row label={t(`${W}.show.due`)} value={order.due} always />
                 <Row label={t(`${W}.show.paid`)} value={order.paid} always />
@@ -401,6 +434,33 @@ function MoneyCard({ order, onRecord, onRefund, onVoid }: { order: OrderPage; on
                     ))}
                 </ul>
             )}
+        </Section>
+    );
+}
+
+/** Each online attempt on the order, oldest first, opening its own page (payments.md §4.2). */
+function OnlinePayments({ order }: { order: OrderPage }) {
+    const t = useTranslator();
+
+    return (
+        <Section title={t(`${W}.show.online_payments`)} test="online-payments">
+            <ul className="grid gap-2">
+                {(order.attempts ?? []).map((attempt) => (
+                    <li key={attempt.id} className="border-t border-line pt-2 first:border-t-0 first:pt-0">
+                        <Link href={`/admin/payments/${attempt.id}`} className="flex flex-wrap items-center justify-between gap-2 text-copy-14 text-ink hover:underline" data-test="online-payment">
+                            <span className="flex flex-wrap items-center gap-2">
+                                <Badge className={tone(attempt.state === 'SUCCEEDED' ? 'green-subtle' : attempt.state === 'FAILED' || attempt.state === 'REFUSED' ? 'red-subtle' : 'gray-subtle')}>{t(`${W}.show.attempt_state.${attempt.state}`)}</Badge>
+                                {attempt.needsAttention ? <Badge className={tone('amber-subtle')}>{t(`${W}.show.needs_attention`)}</Badge> : null}
+                                {attempt.method === null ? null : <span className="text-copy-13 text-ink-muted">{attempt.method}</span>}
+                            </span>
+                            <span className="flex items-center gap-2">
+                                <Money value={attempt.amount} />
+                                <Time value={attempt.createdAt} focusable={false} />
+                            </span>
+                        </Link>
+                    </li>
+                ))}
+            </ul>
         </Section>
     );
 }

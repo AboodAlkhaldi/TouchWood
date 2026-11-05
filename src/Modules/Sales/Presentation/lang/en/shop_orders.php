@@ -8,6 +8,7 @@ return [
     'my' => [
         'title' => 'My Orders',
         'subtitle' => 'Every order you placed, newest first',
+        'payment_requested' => 'Payment requested',
         'empty' => 'You haven\'t placed an order yet.',
         'pieces' => ['zero' => ':count pieces', 'one' => ':count piece', 'two' => ':count pieces', 'few' => ':count pieces', 'many' => ':count pieces', 'other' => ':count pieces'],
     ],
@@ -69,6 +70,9 @@ return [
         'delivered_on' => 'Delivered',
         'buy_again' => 'Buy Again',
         'cancel' => 'Cancel Order…',
+        'request' => 'Pay the remaining :amount by :time',
+        'pay_now' => 'Pay Now',
+        'confirming' => 'A payment is being confirmed.',
         'cannot_cancel' => 'Shipped orders can\'t be cancelled. You can ask for a return after delivery.',
         'cannot_cancel_closed' => 'This order can no longer be cancelled.',
     ],

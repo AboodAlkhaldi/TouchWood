@@ -12,16 +12,19 @@ use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\MoneyData;
 use Modules\Platform\Public\Dto\StoreDto;
 use Modules\Sales\Application\Command\BuyAgain\BuyAgainSkipped;
+use Modules\Sales\Application\Command\FollowRequestPayment\RequestPaymentView;
 use Modules\Sales\Application\Query\ListOwnOrders\ListOwnOrders;
 use Modules\Sales\Application\Query\ListOwnOrders\ListOwnOrdersHandler;
 use Modules\Sales\Application\Query\Own\OrderLineView;
 use Modules\Sales\Application\Query\Own\OwnOrderRow;
+use Modules\Sales\Application\Query\Own\OwnOrderView;
 use Modules\Sales\Application\Query\Own\OwnReturnRow;
 use Modules\Sales\Application\Query\Own\ReturnLineView;
 use Modules\Sales\Application\Query\ViewOwnOrder\ViewOwnOrder;
 use Modules\Sales\Application\Query\ViewOwnOrder\ViewOwnOrderHandler;
 use Modules\Sales\Application\Query\ViewOwnReturn\ViewOwnReturn;
 use Modules\Sales\Application\Query\ViewOwnReturn\ViewOwnReturnHandler;
+use Modules\Sales\Domain\Exception\OrderNotFound;
 use Modules\Sales\Public\Enums\WayToPay;
 use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
@@ -48,7 +51,7 @@ final readonly class OwnPages
         $page = $list->handle(new ListOwnOrders($after));
 
         return new MyOrdersPage(array_map(fn (OwnOrderRow $row): OwnOrderRowData => new OwnOrderRowData(
-            $row->number, self::moment($row->placedAt), $row->status->value, $this->money($row->total, $row->storeId, $row->exponent, $locale), $row->pieces, $row->shippingPending,
+            $row->number, self::moment($row->placedAt), $row->status->value, $this->money($row->total, $row->storeId, $row->exponent, $locale), $row->pieces, $row->shippingPending, $row->paymentRequested,
         ), $page->orders), $page->next);
     }
 
@@ -57,7 +60,37 @@ final readonly class OwnPages
      */
     public function order(string $number, string $locale, ViewOwnOrderHandler $view): OwnOrderPage
     {
+        return $this->orderPage($view->handle(new ViewOwnOrder($number)), $locale);
+    }
+
+    /**
+     * A request's page, for this store's own order (payments.md §4.2, Q12). The last known state of a payment still
+     * open, never the gateway's: the page's own ask does that.
+     *
+     * @throws Unauthorized|OrderNotFound|DomainError
+     */
+    public function payRequest(string $number, string $storeId, string $locale, ViewOwnOrderHandler $view): PayRequestPage
+    {
         $order = $view->handle(new ViewOwnOrder($number));
+
+        if ($order->storeId !== $storeId) {
+            throw new OrderNotFound;
+        }
+
+        $request = $order->paymentRequest;
+        $state = $request !== null && $order->paymentBeingConfirmed ? $this->payments->lastKnown($request->requestId) : null;
+
+        return new PayRequestPage(
+            $this->orderPage($order, $locale),
+            $request === null || $state === null ? null : CheckoutTryData::ofRequest(
+                new RequestPaymentView($request->requestId, $state->state, $state->windowEndsAt, $state->waitEndsAt, $state->holdEndsAt, $state->nothingCharged, $state->declineCode),
+                $order->number,
+            ),
+        );
+    }
+
+    private function orderPage(OwnOrderView $order, string $locale): OwnOrderPage
+    {
         $money = fn (Money $amount): MoneyData => $this->money($amount, $order->storeId, $order->exponent, $locale);
         $some = fn (Money $amount): ?MoneyData => $amount->isZero() ? null : $money($amount);
         $held = $order->paid->minorUnits - $order->refunded->minorUnits;
@@ -103,6 +136,8 @@ final readonly class OwnPages
             $order->shippingDetail?->trackingLink,
             $order->shippingDetail->feePending ?? false,
             $order->isTest,
+            $order->paymentRequest === null ? null : new OwnRequestData($order->paymentRequest->requestId, $money($order->paymentRequest->amount), self::moment($order->paymentRequest->expiresAt)),
+            $order->paymentBeingConfirmed,
         );
     }
 

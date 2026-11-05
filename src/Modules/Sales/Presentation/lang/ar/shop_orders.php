@@ -8,6 +8,7 @@ return [
     'my' => [
         'title' => 'طلباتي',
         'subtitle' => 'كل طلب قدّمته، الأحدث أولًا',
+        'payment_requested' => 'مطلوب الدفع',
         'empty' => 'لم تقدّم أي طلب بعد.',
         'pieces' => ['zero' => ':count قطعة', 'one' => 'قطعة واحدة', 'two' => 'قطعتان', 'few' => ':count قطع', 'many' => ':count قطعة', 'other' => ':count قطعة'],
     ],
@@ -69,6 +70,9 @@ return [
         'delivered_on' => 'وُصّل',
         'buy_again' => 'اشترِ مجددًا',
         'cancel' => 'إلغاء الطلب…',
+        'request' => 'ادفع المبلغ المتبقي :amount قبل :time',
+        'pay_now' => 'ادفع الآن',
+        'confirming' => 'يجري تأكيد عملية دفع.',
         'cannot_cancel' => 'لا يمكن إلغاء الطلبات المشحونة. يمكنك طلب إرجاع بعد التوصيل.',
         'cannot_cancel_closed' => 'لم يعد بالإمكان إلغاء هذا الطلب.',
     ],

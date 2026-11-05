@@ -6,7 +6,10 @@ namespace Modules\Sales\Presentation\Http\Resource;
 
 use DateTimeImmutable;
 use DateTimeInterface;
+use Modules\Payments\Public\Enums\PaymentState;
 use Modules\Sales\Application\Checkout\CheckoutTryView;
+use Modules\Sales\Application\Command\FollowRequestPayment\RequestPaymentView;
+use Modules\Sales\Domain\Model\CheckoutTry;
 use Spatie\LaravelData\Data;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
@@ -47,6 +50,28 @@ final class CheckoutTryData extends Data
             $view->refundDue,
             $view->declineCode,
             $view->firstSeen,
+            now()->format(DateTimeInterface::ATOM),
+            $mainStoreUrl,
+        );
+    }
+
+    /** A request's payment, in the same words as a try's: the page's timers and answers are the same (payments.md §4.2). */
+    public static function ofRequest(RequestPaymentView $view, string $number, ?string $mainStoreUrl = null): self
+    {
+        $open = in_array($view->payment, [PaymentState::Open, PaymentState::InProgress, PaymentState::Unknown], true);
+
+        return new self(
+            $view->requestId,
+            $open ? CheckoutTry::LIVE : 'OVER',
+            $view->payment->value,
+            $view->payment === PaymentState::Succeeded ? $number : null,
+            self::moment($view->windowEndsAt),
+            self::moment($view->waitEndsAt),
+            self::moment($view->holdEndsAt),
+            $view->nothingCharged,
+            false,
+            $view->declineCode,
+            false,
             now()->format(DateTimeInterface::ATOM),
             $mainStoreUrl,
         );
