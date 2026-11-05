@@ -12,9 +12,18 @@ on:
 permissions:
   contents: read
 
+# A new push to a PR stops that PR's older run, which nobody will read: five left running on one branch
+# queued the fix for a hang behind them (2026-11-04). Each commit on main keeps its own run.
+concurrency:
+  group: ci-${{ github.head_ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   quality:
     runs-on: ubuntu-latest
+    # A whole run takes up to about 75 minutes. A hung test otherwise holds a runner for GitHub's 6 hours,
+    # with no log to read (2026-11-04).
+    timeout-minutes: 120
 
     services:
       postgres:
@@ -61,10 +70,27 @@ jobs:
           node-version: '20.19'
           cache: npm
 
+      # Packages come from the cache, and a refused download is tried again: several runs starting
+      # together were refused by GitHub with HTTP 429 and failed before any test ran (2026-11-04).
+      - name: Find Composer's cache
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
       # --no-scripts: composer's post-autoload-dump boots Laravel (package:discover), and there is
       # no .env yet. The environment comes first, then the packages are discovered.
       - name: Install dependencies
-        run: composer install --prefer-dist --no-interaction --no-progress --no-scripts
+        run: |
+          for attempt in 1 2 3; do
+            composer install --prefer-dist --no-interaction --no-progress --no-scripts && exit 0
+            sleep 60
+          done
+          exit 1
 
       - name: Install front-end dependencies
         run: npm ci
