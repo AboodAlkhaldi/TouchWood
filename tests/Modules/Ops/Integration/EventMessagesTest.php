@@ -942,7 +942,21 @@ describe('alerts to staff (§1.4, §1.6)', function () {
 
         expect(array_map(static fn (object $entry): string => "{$entry->kind} {$entry->link}", eventMessagesBell(staffId: $reviewer)))->toBe(["company_application /admin/companies/{$company}"])
             ->and(array_map(static fn (object $entry): string => "{$entry->kind} {$entry->link}", eventMessagesBell(staffId: $returns)))->toBe(["return_requested /admin/returns/{$returnId}"])
-            ->and(array_map(static fn (object $entry): string => "{$entry->kind} {$entry->link}", eventMessagesBell(staffId: $sync)))->toBe(['sync_problems /admin/sync']);
+            ->and(array_map(static fn (object $entry): string => "{$entry->kind} {$entry->link}", eventMessagesBell(staffId: $sync)))->toBe(['sync_problems /admin/sync?store=sa']);
+    });
+
+    // Without the store, either page opens the reader's first store, not the one the alert is about (2026-11-05).
+    it('opens the low stock and sync pages on the store the alert is about, for someone with two stores', function () {
+        $both = Fx::staffWith(['inventory.stock.manage', 'sync.report.view'], ['sa', 'eg']);
+        $sku = strtolower((string) Str::ulid());
+
+        event(new LowStockChanged(eventMessagesId(), Fx::storeId('eg'), [$sku], [], [], CarbonImmutable::now()));
+        event(new SyncNeedsAttention(eventMessagesId(), Fx::storeId('eg'), 'read-1', ['SALE_STOPPED' => 2], CarbonImmutable::now()));
+
+        $links = array_map(static fn (object $entry): string => "{$entry->kind} {$entry->link}", eventMessagesBell(staffId: $both));
+        sort($links);
+
+        expect($links)->toBe(['low_stock /admin/low-stock?store=eg', 'sync_problems /admin/sync?store=eg']);
     });
 
     it('alerts sizes that became low or ran out, with their counts; a recount where sizes only came back alerts no one', function () {
