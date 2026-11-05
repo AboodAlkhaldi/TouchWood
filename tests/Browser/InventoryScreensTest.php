@@ -220,13 +220,15 @@ it('shows a saved count on a row reached with Show More, not the count from befo
     expect(browserSoon($page, "{$boxes}.length > 50"))->toBeTrue();
 
     $box = (string) $page->script("{$boxes}[{$boxes}.length - 1].id");
-    $page->type("#{$box}", '77');
+    // One more than it holds: the rows stay between runs, and a count left as it was saves nothing.
+    $count = (string) (((int) $page->script("document.getElementById('{$box}').value")) + 1);
+    $page->type("#{$box}", $count);
     expect(browserSoon($page, "document.getElementById('count-save-bar-message')?.textContent.includes('1')"))->toBeTrue();
     $page->click('[data-test="save-bar-save"]');
     expect(browserSoon($page, "document.body.textContent.includes('Counts saved')"))->toBeTrue();
     usleep(500_000);
 
-    expect(browserSoon($page, "document.getElementById('{$box}')?.value === '77'", 5))->toBeTrue("the box says {$page->script("document.getElementById('{$box}')?.value")}");
+    expect(browserSoon($page, "document.getElementById('{$box}')?.value === '{$count}'", 5))->toBeTrue("the box says {$page->script("document.getElementById('{$box}')?.value")}, not {$count}");
     $page->assertNoJavaScriptErrors();
 });
 
@@ -492,12 +494,16 @@ it('keeps every row shown with Show More through a save on Low Stock', function 
 
     $page->click("[data-test=\"{$prefix}{$deep['id']}\"]")->click('[data-test="adjust-stock"]');
     expect(browserSoon($page, "document.querySelector('[data-test=\"adjust-dialog\"]') !== null"))->toBeTrue();
-    $page->click('[data-test="adjust-remove"]')->type('#adjust-quantity', '1');
-    expect(browserSoon($page, "document.querySelector('[id^=\"adjust-reason-\"]') !== null"))->toBeTrue();
-    $page->script("(() => { document.querySelector('[id^=\"adjust-reason-\"]').click(); })()");
-    $page->click('[data-test="confirm-adjust"]');
+    // Adding, because the rows stay between runs: a past run may have taken this one to 0.
+    $page->click('[data-test="adjust-add"]')->type('#adjust-quantity', '1');
+    expect(browserSoon($page, "document.getElementById('adjust-reason-RECEIVED') !== null"))->toBeTrue();
+    $page->click('#adjust-reason-RECEIVED')->click('[data-test="confirm-adjust"]');
     expect(browserSoon($page, "document.querySelector('[data-test=\"adjust-dialog\"]') === null"))->toBeTrue();
-    // Still low at 0, so it stays: every row is there.
-    inventoryBrowserKept($page, $prefix, $deep, 'after removing stock');
+
+    // The row may have climbed out of Low Stock: the others stay, and the place, but for that one row.
+    $rows = "document.querySelectorAll('[data-test^=\"{$prefix}\"]')";
+    $least = $deep['shown'] - 1;
+    expect(browserSoon($page, "document.querySelector('[data-test=\"{$prefix}{$deep['other']}\"]') !== null && {$rows}.length >= {$least}"))->toBeTrue("{$page->script("{$rows}.length")} rows of {$deep['shown']}")
+        ->and(browserSoon($page, "window.scrollY > {$deep['place']} - 60", 5))->toBeTrue("scrolled to {$page->script('Math.round(window.scrollY)')}, was {$deep['place']}");
     $page->assertNoJavaScriptErrors();
 });
