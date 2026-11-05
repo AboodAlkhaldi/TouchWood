@@ -71,8 +71,8 @@ final class AlertStaff implements ShouldQueue
             $event instanceof ReturnRequested => [new EventMessage(MessageKind::ReturnRequested, $store, ['returnId' => strtolower($event->returnId)]), StaffNotificationTopic::Returns, 'sales.return.manage'],
             $event instanceof GatewayKeyExpiring => [new EventMessage(MessageKind::GatewayKeyExpiring, $store, ['days' => $event->daysLeft, 'date' => $event->expiresOn, 'mode' => $event->mode]), StaffNotificationTopic::PaymentProblems, 'payments.gateway.manage'],
             $event instanceof GatewayKeyRejected => [new EventMessage(MessageKind::GatewayKeyRejected, $store, ['mode' => $event->mode]), StaffNotificationTopic::PaymentProblems, 'payments.gateway.manage'],
-            $event instanceof PaymentNotAccepted => [new EventMessage(MessageKind::PaymentNotAccepted, $store, []), StaffNotificationTopic::PaymentsToCheck, 'sales.payment.record'],
-            $event instanceof LatePaymentRefundDue => [new EventMessage(MessageKind::LatePaymentRefundDue, $store, []), StaffNotificationTopic::PaymentsToCheck, 'sales.payment.record'],
+            $event instanceof PaymentNotAccepted => [new EventMessage(MessageKind::PaymentNotAccepted, $store, ['attemptId' => strtolower($event->attemptId)]), StaffNotificationTopic::PaymentsToCheck, 'sales.payment.record'],
+            $event instanceof LatePaymentRefundDue => [new EventMessage(MessageKind::LatePaymentRefundDue, $store, ['attemptId' => strtolower($event->attemptId)]), StaffNotificationTopic::PaymentsToCheck, 'sales.payment.record'],
             $event instanceof TransferOverdue => [new EventMessage(MessageKind::TransferOverdue, $store, ['orderId' => strtolower($event->orderId)]), StaffNotificationTopic::PaymentsToCheck, 'sales.payment.record'],
             $event instanceof CampaignExpiring => [new EventMessage(MessageKind::CampaignExpiring, $store, ['campaignId' => strtolower($event->campaignId), 'endsAt' => $event->endsAt->format(DATE_ATOM)]), StaffNotificationTopic::CampaignExpiry, OpsPermissions::MESSAGE_SEND_MANY],
         };
