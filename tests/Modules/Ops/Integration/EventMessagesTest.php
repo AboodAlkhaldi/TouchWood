@@ -1105,7 +1105,7 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
         expect(CapturedEmails::installed()->to())->toBe([eventMessagesEmailOf($super)]);
     });
 
-    it('alerts the holders of sales.payment.record on PaymentNotAccepted, once per event, by their switches, with no link', function () {
+    it('alerts the holders of sales.payment.record on PaymentNotAccepted, once per event, by their switches, with no link for whoever cannot open the attempt', function () {
         $byDefault = Fx::staffWith(['sales.payment.record'], ['sa']);
         $byEmail = Fx::staffWith(['sales.payment.record'], ['sa']);
         $elsewhere = Fx::staffWith(['sales.payment.record'], ['eg']);
@@ -1155,6 +1155,33 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
             ->and(CapturedEmails::installed()->to())->toBe([eventMessagesEmailOf($byEmail)])
             ->and(CapturedEmails::installed()->sent[0]->subject)->toBe('A payment succeeded too late in Saudi Arabia');
     });
+
+    it('links S7 and S7b to the attempt for whoever may open it, and gives the rest the same words with no link', function (string $kind) {
+        $paymentOnly = Fx::staffWith(['sales.payment.record'], ['sa']);
+        $both = Fx::staffWith(['sales.payment.record', 'payments.payment.view'], ['sa']);
+        eventMessagesSwitch($paymentOnly, StaffNotificationTopic::PaymentsToCheck, panel: true, email: true);
+        eventMessagesSwitch($both, StaffNotificationTopic::PaymentsToCheck, panel: true, email: true);
+        $attempt = strtolower((string) Str::ulid());
+
+        $other = static fn (): string => strtolower((string) Str::ulid());
+        event($kind === 'payment_not_accepted'
+            ? new PaymentNotAccepted(eventMessagesId(), $attempt, $other(), $other(), Fx::storeId('sa'), CarbonImmutable::now())
+            : new LatePaymentRefundDue(eventMessagesId(), $other(), $attempt, $other(), Fx::storeId('sa'), CarbonImmutable::now()));
+
+        $page = '/admin/payments/'.$attempt;
+        $without = CapturedEmails::installed()->for(eventMessagesEmailOf($paymentOnly));
+        $with = CapturedEmails::installed()->for(eventMessagesEmailOf($both));
+
+        expect(eventMessagesBell(staffId: $paymentOnly)[0]->kind)->toBe($kind)
+            ->and(eventMessagesBell(staffId: $paymentOnly)[0]->link)->toBeNull()
+            ->and($without->text)->not->toContain('/admin/payments/')
+            ->and($without->html)->not->toContain('/admin/payments/')
+            ->and(eventMessagesBell(staffId: $both)[0]->link)->toBe($page)
+            ->and($with->text)->toContain($page);
+    })->with([
+        'S7' => ['payment_not_accepted'],
+        'S7b' => ['late_payment_refund_due'],
+    ]);
 
     it('alerts super admins alone on GatewayKeyRejected, once per event, always with the SMS, saying which key', function (string $mode, string $locale, string $words) {
         $super = Fx::staff(superAdmin: true);

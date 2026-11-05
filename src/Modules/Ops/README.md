@@ -177,7 +177,7 @@ Each checked against the code on 2026-11-01, the first two on 2026-11-03.
 | What | State here | On whom |
 |---|---|---|
 | C11's link | Built; the bell and the email open `/{store}/{locale}/orders/{number}/pay`, which has no route on main (2026-11-03) and answers 404 until it does | The screens session (sales.md §9.9) |
-| S7's and S7b's link | The alerts are built (`AlertStaff`, on `PaymentNotAccepted` and `LatePaymentRefundDue`) and open nothing: their entries have no link. `/admin/payments` has no route on main (2026-11-03) | The screens session (payments.md §4.2) |
+| S7's and S7b's link | Built; the bell and the email open `/admin/payments/{id}` for whoever holds `payments.payment.view` (`AlertLinks`), which has no route on main (2026-11-05) and answers 404 until it does | The screens session (payments.md §4.2) |
 | S8 Campaign expiry | Built on Ops' side (`AlertStaff`, `MessageWriter`); sends nothing until Content is built. Its permission stands in for Content's (ops.md §1.6, §9.5) | Content: to fire `CampaignExpiring` and replace `NoCampaignsYet` |
 | A notice sent when a campaign goes live (§1.7) | Built on Ops' side (`StartCampaignNotice`): a waiting notice only. No state makes a notice wait for its campaign (ops.md §9.5) | Content: to fire `CampaignWentLive`; the owner |
 | The SMS provider | `log` only | The owner (Mobily being checked) |

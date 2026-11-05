@@ -107,7 +107,7 @@ final readonly class MessageWriter
             MessageKind::GatewayKeyExpiring => $this->text($message->kind, $locale, [...$values, 'days' => $this->days($message->int('days'), $locale), 'date' => $message->string('date'), 'mode' => $this->keyMode($message, $locale)], self::gatewayPage($store), sms: true),
             MessageKind::GatewayKeyRejected => $this->text($message->kind, $locale, [...$values, 'mode' => $this->keyMode($message, $locale)], self::gatewayPage($store), sms: true),
             MessageKind::TransferOverdue => $this->transferOverdue($to, $locale, $values),
-            MessageKind::PaymentNotAccepted, MessageKind::LatePaymentRefundDue => $this->text($message->kind, $locale, $values, null),
+            MessageKind::PaymentNotAccepted, MessageKind::LatePaymentRefundDue => $this->text($message->kind, $locale, $values, '/admin/payments/'.$message->string('attemptId')),
             MessageKind::CampaignExpiring => $this->campaignExpiring($to, $locale, $values),
             default => throw new LogicException("Ops writes no event message of the kind {$message->kind->value}."),
         };

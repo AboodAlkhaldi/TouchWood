@@ -223,9 +223,9 @@ decides, on `OrderMessageDto` and `MoneyRecordMessageDto`. The other messages ab
   `GatewayKeyExpiring` and `GatewayKeyRejected`, with the critical SMS at 1 day and on every refusal (super admins with
   `critical_sms` on and a phone, both checked again when the SMS leaves; the provider of the phone's country). **Their
   words say which key, the test or the live one (`mode`), and never that payments stop**: a key of the mode not in use
-  stops nothing (2026-11-01). **S7 is built (2026-11-02, on #314's `PaymentNotAccepted`)**: its entry and
-  email carry no link until Payments' staff list of attempts exists (`/admin/payments?store=&state=`, payments.md §4.2:
-  no such route on main, 2026-11-03; §4.13 #6). **S6 is built (2026-11-03)**, on Sales' `TransferOverdue`, by its switches, opening
+  stops nothing (2026-11-01). **S7 is built (2026-11-02, on #314's `PaymentNotAccepted`)**: since 2026-11-05 its entry and
+  email, and S7b's, open the attempt (`/admin/payments/{id}`, payments.md §4.2) for whoever holds `payments.payment.view`; the
+  rest get the same words with no link. The page isn't on main yet (§4.13 #6). **S6 is built (2026-11-03)**, on Sales' `TransferOverdue`, by its switches, opening
   the order's panel page; an order gone, ended since or of another store sends nothing. Its words give the store's own
   check time. **A role may hold `sales.payment.record` without `sales.order.view`** (roles are picked permission by
   permission, Admin roles too; only a Super Admin holds everything): that person gets the same words with no link, in the
@@ -1000,8 +1000,8 @@ reads the screens needed were added; what stays is what the code cannot give yet
    fire `CampaignWentLive`, and to hold the notice's id (§9.5). S8 has no link until Content has a campaign page (§1.6).
 5. **C11's link opens a page with no route yet.** The bell and the email open `/{store}/{locale}/orders/{number}/pay`
    (payments.md §1.5), the screens session's (sales.md §9.9), not on main on 2026-11-03: until it lands the link answers 404.
-6. **S7 and S7b open nothing.** Their page is `/admin/payments?store=&state=` (payments.md §4.2), the screens session's, not on main on
-   2026-11-03. When it lands, `MessageWriter` gets the link and no screen changes.
+6. **S7's and S7b's links open a page with no route yet.** The bell and the email open `/admin/payments/{id}` (payments.md §4.2), the
+   screens session's, not on main on 2026-11-05: until it lands the link answers 404. Built from the spec's address so nothing here changes when it does.
 
 ### 4.14 The SMS countries (§3; access.md amendment 90)
 
