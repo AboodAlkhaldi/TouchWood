@@ -43,7 +43,9 @@ Route::prefix(AdminArea::PREFIX)
         Route::post('notices/{notice}', [NoticesController::class, 'update'])->name('ops.admin.notices.update');
         Route::post('notices/{notice}/cancel', [NoticesController::class, 'cancel'])->name('ops.admin.notices.cancel');
 
-        // Step 8's reports (§1.10): a report's preview as JSON, and its Excel file.
+        // Step 8's reports (§1.10): the page (§4.15 O8) - its own address goes to the first kind - a report's page
+        // and its preview as JSON at the same address, and its Excel file.
+        Route::get('reports', [ReportsController::class, 'index'])->name('ops.admin.reports');
         Route::get('reports/{report}', [ReportsController::class, 'show'])->name('ops.admin.reports.show');
         Route::get('reports/{report}/download', [ReportsController::class, 'download'])->name('ops.admin.reports.download');
 

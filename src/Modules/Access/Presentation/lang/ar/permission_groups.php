@@ -8,6 +8,8 @@ declare(strict_types=1);
 return [
     'staff_and_permissions' => 'الموظفون والصلاحيات',
     'customers' => 'العملاء',
+    // The panel menu's Reports section (ops.md §4.15, the menu): a menu section, not an area of the role editor.
+    'reports' => 'التقارير',
     'store_settings' => 'إعدادات المتجر والضريبة',
     'media' => 'مكتبة الوسائط',
     'audit' => 'سجل التدقيق',
