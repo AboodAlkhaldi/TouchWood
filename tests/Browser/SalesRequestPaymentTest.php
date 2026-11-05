@@ -213,3 +213,19 @@ it('keeps the page working when the payment code can\'t load, in the page\'s own
         ->and((string) $page->script("document.querySelector('[data-test=\"pay\"]').getAttribute('aria-disabled')"))->toBe('true')
         ->and((bool) $page->script("!!document.querySelector('[data-test=\"request-order\"]')"))->toBeTrue();
 });
+
+it('says the gateway is off in the form\'s place, without reloading', function () {
+    ['page' => $page, 'number' => $number] = salesRequestReady(1280, 800);
+    $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
+    Cx::asSuperAdmin(static fn () => app(SwitchGatewayHandler::class)->handle(new SwitchGateway(Fx::storeId('sa'), false)));
+    app()->scoped(ActorContext::class, $previous);
+    app()->forgetScopedInstances();
+
+    $page->navigate("/sa/en/orders/{$number}/pay", BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "!!document.querySelector('[data-test=\"payment-failed\"]')"))->toBeTrue('the refusal was never said');
+    $page->script('window.notReloaded = true');
+    usleep(3_000_000);
+
+    expect((bool) $page->script('window.notReloaded === true'))->toBeTrue('the page reloaded')
+        ->and((string) $page->script("document.querySelector('[data-test=\"pay\"]').getAttribute('aria-disabled')"))->toBe('true');
+});

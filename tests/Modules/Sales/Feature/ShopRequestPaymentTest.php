@@ -244,11 +244,12 @@ describe('paying', function () {
         $ready['fake']->paid($ready['amount']);
         $follow = "{$ready['page']}/{$start['tryId']}/follow";
 
-        shopRequestPost($ready['browser'], $follow)->assertOk()->assertJsonPath('orderNumber', $ready['number'])->assertJsonPath('state', 'OVER');
+        $paid = shopRequestPost($ready['browser'], $follow)->assertOk()->assertJsonPath('orderNumber', $ready['number'])->assertJsonPath('state', 'OVER');
         $order = shopRequestProps($ready['browser'], "/sa/en/account/orders/{$ready['number']}", 'Sales/Storefront/Order');
         shopRequestPost($ready['browser'], $follow)->assertOk()->assertJsonPath('orderNumber', $ready['number']);
 
-        expect($order['paymentRequest'])->toBeNull()
+        expect(AdminBrowser::flashed($paid, 'status'))->toBe('Payment received.')
+            ->and($order['paymentRequest'])->toBeNull()
             ->and($order['owed']['minor'])->toBe(0)
             ->and(DB::table('sales.payments')->where('order_id', $ready['order'])->count())->toBe(1)
             ->and(shopRequestProps($ready['browser'], $ready['page'], 'Sales/Storefront/PayRequest')['order']['paymentRequest'])->toBeNull();
@@ -297,6 +298,20 @@ describe('paying', function () {
 
         expect($unknown->status())->toBe(404, 'unknown: '.$unknown->headers->get('Location'))
             ->and($other->status())->toBe(404, 'other: '.$other->headers->get('Location'));
+    });
+
+    it('says a refusal the page can\'t change where the form would be, with no reload', function () {
+        $ready = shopRequestReady();
+        $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
+        Cx::asSuperAdmin(static fn () => app(SwitchGatewayHandler::class)->handle(new SwitchGateway(Fx::storeId('sa'), false)));
+        app()->scoped(ActorContext::class, $previous);
+        app()->forgetScopedInstances();
+
+        $refused = shopRequestPost($ready['browser'], "{$ready['page']}/session")->assertStatus(409);
+
+        // The page reloads only for these (PaymentBlock's REQUEST_RELOADS): this one is said in the form's place.
+        expect((string) $refused->json('type'))->not->toContain('payment_link_ended')->not->toContain('payment_in_progress')->not->toContain('amount_changed')
+            ->and((string) $refused->json('detail'))->not->toBe('');
     });
 
     it('answers too many tries with a 429 and charges nothing', function () {

@@ -95,10 +95,7 @@ export default function Attempt(page: AttemptPage) {
                                         {page.contactPhone === null ? null : <bdi dir="ltr">{page.contactPhone}</bdi>}
                                     </>
                                 ) : (
-                                    <>
-                                        {row.customerName === null ? null : <bdi>{row.customerName}</bdi>}
-                                        <span className="text-copy-13 text-ink-muted">{t(`${A}.contact_hidden`)}</span>
-                                    </>
+                                    <span className="text-copy-13 text-ink-muted">{t(`${A}.contact_hidden`)}</span>
                                 )}
                             </dd>
                         </dl>

@@ -38,6 +38,13 @@ type Phase = { kind: 'opening' } | { kind: 'failed'; words: string } | { kind: '
 
 export type OnlineState = { ready: boolean; locked: boolean; failed: boolean };
 
+/**
+ * A request's refusals that a fresh page answers: the link ended, a payment already open, the amount moved. Any other
+ * (the gateway off or its key refused, the request no longer open in this mode) is said where the form would be: the
+ * request's page doesn't change with the gateway, so reloading it would only ask again, for ever.
+ */
+const REQUEST_RELOADS = ['payment_link_ended', 'payment_in_progress', 'amount_changed'];
+
 /** From Pay until the answer: nothing on the page may change (Q3). */
 const LOCKED = ['pressed', 'sending', 'live'];
 
@@ -101,6 +108,8 @@ export default function PaymentBlock({ quoteId = '', number, press, onState, onC
         } else if (answer.status === 0 || answer.status >= 500) {
             // Nobody knows whether it started: the server says, when the page opens again.
             again(null);
+        } else if (number !== undefined && !REQUEST_RELOADS.some((type) => answer.type.includes(type))) {
+            setPhase({ kind: 'failed', words: answer.detail === '' ? t(formFailed) : answer.detail });
         } else {
             again(answer.type.includes('quote_changed') || answer.type.includes('quote_expired') ? t(`${P}.changed`) : answer.detail);
         }
@@ -133,9 +142,11 @@ export default function PaymentBlock({ quoteId = '', number, press, onState, onC
             }
 
             if (!answer.ok) {
-                if (answer.status === 409) {
-                    // A try started in another window since this page was drawn.
+                if (answer.status === 409 && (number === undefined || REQUEST_RELOADS.some((type) => answer.type.includes(type)))) {
+                    // A try started in another window since this page was drawn, or the request's own state moved.
                     again(null);
+                } else if (answer.status === 409) {
+                    setPhase({ kind: 'failed', words: answer.detail === '' ? t(formFailed) : answer.detail });
                 } else {
                     setPhase({ kind: 'failed', words: answer.status === 429 ? t(`${P}.too_many`) : t(formFailed) });
                 }

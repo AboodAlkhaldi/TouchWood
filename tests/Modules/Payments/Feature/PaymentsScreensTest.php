@@ -132,7 +132,7 @@ describe('the order', function () {
             ->and($withdrawn['mayRequestPayment'])->toBeTrue();
     });
 
-    it('shows a payment in progress and its attempt, and refuses hand recording in words', function () {
+    it('shows a payment in progress and its attempt, and records nothing by hand meanwhile', function () {
         $ready = paymentsScreenOrder(paying: true);
         $staff = paymentsScreenStaff();
         $order = paymentsScreenProps($staff, "/admin/orders/{$ready['order']}", 'Sales/Admin/Orders/Show');
@@ -187,10 +187,16 @@ describe('the Payments list', function () {
             ->and($page['rows'])->toBe([]);
     });
 
-    it('refuses staff without payments.payment.view', function () {
-        paymentsScreenOrder(paying: true);
+    it('refuses staff without payments.payment.view, on the list, an attempt and Ask', function () {
+        $ready = paymentsScreenOrder(paying: true);
+        $staff = paymentsScreenStaff(['sales.order.view']);
 
-        paymentsScreenStaff(['sales.order.view'])->get('/admin/payments')->assertForbidden();
+        $staff->get('/admin/payments')->assertForbidden();
+        $staff->get("/admin/payments/{$ready['attempt']}")->assertForbidden();
+        $asked = count($ready['fake']->calls);
+        $staff->post("/admin/payments/{$ready['attempt']}/check");
+
+        expect(count($ready['fake']->calls))->toBe($asked);
     });
 });
 
@@ -203,6 +209,7 @@ describe('an attempt', function () {
             ->and($page['canAsk'])->toBeTrue()
             ->and($page['refundDue'])->toBeFalse()
             ->and($page['mayReadContact'])->toBeTrue()
+            ->and($page['contactEmail'])->toContain('@')
             ->and($page['calls'])->not->toBeEmpty()
             ->and(implode('', array_map(static fn (array $call): string => ($call['request'] ?? '').($call['response'] ?? ''), $page['calls'])))->not->toContain('sk_key_ABC123');
     });
@@ -212,7 +219,7 @@ describe('an attempt', function () {
         $page = paymentsScreenProps(paymentsScreenStaff(['payments.payment.view']), "/admin/payments/{$ready['attempt']}", 'Payments/Admin/Attempt');
 
         expect($page['mayReadContact'])->toBeFalse()
-            ->and($page['contactEmail'])->toBeNull();
+            ->and([$page['contactName'], $page['contactEmail'], $page['contactPhone']])->toBe([null, null, null]);
     });
 
     it('says a refund is due where money was taken that no order keeps', function () {
