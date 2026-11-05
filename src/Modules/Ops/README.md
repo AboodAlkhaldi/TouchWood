@@ -6,7 +6,8 @@ messages; the newsletter's subscribers, copied to Brevo; the reports in Excel an
 **The agreed rules are [`docs/modules/ops.md`](../../../docs/modules/ops.md)**; this file says how the module
 is built.
 
-Backend only: the screens are the screens agent's (owner, 2026-10-28), from the data shapes of ops.md §4.
+The backend is built. The screens were left to the screens agent, from the data shapes of ops.md §4 (owner, 2026-10-28), and are
+being built one job at a time: the Waiting table and "Continuing the screens" below say which are in.
 Nothing depends on Ops (handoff §4.4): it listens to the other modules' events, reads their `Public`
 surfaces, and offers nothing callable. Its `Public` holds two enums, `MessageKind` and `MessageChannel`. The
 one contract it fulfils is Access's: `SecurityMessages` and `PhoneCountries`, bound in its provider, so
@@ -79,8 +80,9 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
   `MpdfDailyReportRenderer`. **`Infrastructure/Files`** — `LocalReportFiles`, the app's private files.
 - **`Infrastructure/Persistence`** — `OpsSchema` and the migrations of ops.md §5, every CHECK the last line
   behind a rule the code refuses first.
-- **`Presentation`** — `admin-routes.php`, `shop-routes.php`, `webhook-routes.php`; the controllers, JSON for the
-  screens agent's pages; `Http/Middleware/StopEmailStore`, the store and language of the stop-email pages, on or
+- **`Presentation`** — `admin-routes.php`, `shop-routes.php`, `webhook-routes.php`; the controllers: a built page's list gives the
+  page to a plain visit and §4's JSON to whoever asks, a form's address only the page, and every other GET JSON or its download
+  (ops.md §4.1); `Http/Middleware/StopEmailStore`, the store and language of the stop-email pages, on or
   off; `Http/Resource`, the `…Data` classes (`#[TypeScript]`) and the three classes that fill
   them (`BellPages`, `WrittenPages`, `DailyReportPages`); `lang/{ar,en}`; `views` (the three mail frames, the
   daily report's PDF and its email).
@@ -167,16 +169,18 @@ transaction. The delivery is at least once (owner, 2026-11-01). Files and rows g
 starting with Saudi Arabia 966 and Egypt 20 on `log`. `ListedPhoneCountries` reads a number's country by its
 calling code, for Access and for Ops' own SMS; a phone of an unlisted country is refused and no code goes to it.
 A calling code overlapping another listed one is refused. Reserved to Super Admins (`ops.sms_countries.manage`),
-audited (`ops.sms_country.*`). `log` is the only provider built, and it is refused on a live system when an SMS
-would go through it. Its routes are `ops.admin.sms-countries*` (ops.md §4.1), its page `Ops/Admin/SmsCountries` (§4.15 O10).
+audited (`ops.sms_country.*`). `log` is the only provider built, for development and tests, and it is refused in production when
+an SMS would go through it (`BuiltSmsSenders`). Nothing at boot asks for a provider, so a production server with none starts
+normally, and every code then fails when it is sent: a FAILED row, an error to the caller, S10b. The owner is deciding whether that
+stays (2026-11-05). Its routes are `ops.admin.sms-countries*` (ops.md §4.1), its page `Ops/Admin/SmsCountries` (§4.15 O10).
 
 ## Waiting
 
-Each checked against the code on 2026-11-01, the first two on 2026-11-03.
+Each checked against the code on 2026-11-01, the first two on 2026-11-03, C11's again on 2026-11-05.
 
 | What | State here | On whom |
 |---|---|---|
-| C11's link | Built; the bell and the email open `/{store}/{locale}/orders/{number}/pay`, which has no route on main (2026-11-03) and answers 404 until it does | The screens session (sales.md §9.9) |
+| C11 and its link | Built; the bell and the email open `/{store}/{locale}/orders/{number}/pay`, which has no route on main (2026-11-03) and answers 404 until it does. C11 can't fire yet either: `RequestOrderPaymentHandler` has no controller or route until Stage 7's step 12 screens land, so `PaymentRequested` never fires outside the tests. C10 on a request's online payment waits with it (`OpenRequestPayment` and `PayOrderRequest` have no route either) (2026-11-05) | The screens session (sales.md §9.9) |
 | S7's and S7b's link | Built; the bell and the email open `/admin/payments/{id}` for whoever holds `payments.payment.view` (`AlertLinks`), which has no route on main (2026-11-05) and answers 404 until it does | The screens session (payments.md §4.2) |
 | S8 Campaign expiry | Built on Ops' side (`AlertStaff`, `MessageWriter`); sends nothing until Content is built. Its permission stands in for Content's (ops.md §1.6, §9.5) | Content: to fire `CampaignExpiring` and replace `NoCampaignsYet` |
 | A notice sent when a campaign goes live (§1.7) | Built on Ops' side (`StartCampaignNotice`): a waiting notice only. No state makes a notice wait for its campaign (ops.md §9.5) | Content: to fire `CampaignWentLive`; the owner |
@@ -247,10 +251,10 @@ before, or it opens raw JSON. Before touching `AdminMenu`, `AdminLayout` or `Sto
 ## Tests
 
 `tests/Modules/Ops/Integration` — `EventMessagesTest` (§1.5, §1.6, the sent-then-marked row, C14, the critical
-SMS), `PaymentEventsTest` (C10, C11, S6 and transfers overdue from Stage 7's real flow), `CampaignEventsTest`, `MessageKindsTest`, `SecurityMessagesTest`, `SecurityFailureAlertTest`, `SecurityFailureAlertRaceTest`, `SendersTest`, `BrevoFailuresTest` (every way Brevo can fail, on every path, on the real database queue), `SmsCountriesTest`, `RealEmailDriverTest`,
+SMS), `PaymentEventsTest` (C10, C11, S6 and transfers overdue from Stage 7's real flow), `CampaignEventsTest`, `MessageKindsTest`, `SecurityMessagesTest`, `SecurityFailureAlertTest`, `SecurityFailureAlertRaceTest`, `WrittenTextDigitsTest`, `SendersTest`, `BrevoFailuresTest` (every way Brevo can fail, on every path, on the real database queue), `SmsCountriesTest`, `RealEmailDriverTest`,
 `BellsTest`, `NoticesTest`, `NoticeSegmentTest`, `StaffMessagesTest`, `NewsletterTest`, `BrevoNewsletterListTest`,
 `ReportsTest`, `DailyReportTest`, `DailyReportEmailTest`, `PruneTest`, `OpsPermissionsTest`, `OpsSchemaTest`,
 `OpsTablesTest`. `tests/Modules/Ops/Feature` over HTTP — `BellRoutesTest`, `WrittenRoutesTest`, `ReportRoutesTest`,
-`DailyReportRoutesTest`, `StopEmailPagesTest`, `SmsCountryRoutesTest`, `SmsCountriesScreenTest`, `BellScreensTest`, `WrittenScreensTest`, `SubscribersScreenTest`, `ScreensReadsTest`, `SegmentReadsTest`. The consent itself is Access's: `tests/Modules/Access/Integration/MarketingConsentTest`,
+`DailyReportRoutesTest`, `StopEmailPagesTest`, `SmsCountryRoutesTest`, `SmsCountriesScreenTest`, `BellScreensTest`, `WrittenScreensTest`, `SubscribersScreenTest`, `ScreensReadsTest`, `SegmentReadsTest`, `AudienceCountTest`. The consent itself is Access's: `tests/Modules/Access/Integration/MarketingConsentTest`,
 `tests/Modules/Access/Feature/CustomerAccountPageTest`. ops.md §8 maps each scenario to its test and says what no
 test covers.

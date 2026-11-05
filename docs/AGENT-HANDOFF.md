@@ -66,24 +66,28 @@ The owner agreed this split on 2026-11-04.
 
 Two links wait on Stage 7's screens, which aren't started and wait for the owner to say Stage 7 is wrapped up:
 - `/{store}/{locale}/orders/{number}/pay`: the C11 email links to it, and it answers 404 until then.
-- `/admin/payments?store=&state=`: the S7 alert's link.
+- `/admin/payments/{id}`: the S7 and S7b alerts link to it, for staff with `payments.payment.view`, and it answers 404 until then.
 
-## 4 · Where things stand (read from main 8f6a5b7a, 2026-11-05)
+`RequestOrderPaymentHandler` also has no controller or route until step 12's screens land, so no payment request can be made and C11 can't fire yet.
+
+## 4 · Where things stand (read from main 773320aa, 2026-11-05)
 
 This goes stale fast. Check with `gh pr list` and `git log` before relying on it.
 
 | Part | State |
 |---|---|
 | Stages 1–6 | Built and merged, tagged up to v0.8.0 |
-| Stage 7 backend, and its screens through checkout (#330) | Merged. v0.9.0 not tagged. Step 12's screens not started |
+| Stage 7 backend, and its screens through checkout (#330) | Merged. v0.9.0 tagged at 0f25d4f7. Step 12's screens not started |
 | Ops backend steps 1–10, Brevo failures, campaign events | Merged |
-| Stage 7's last events to Ops (C11, S6, overdue transfers) | **Held by Stage 8 specs planning:** #349, open |
-| Late-payment alert (`LatePaymentRefundDue`) | **Held:** waits for #349 |
-| Final check of all Ops backend | **Held** |
-| Sold-out follow-up | **Held:** #344, open, wants a review |
+| Stage 7's last events to Ops (C11, S6, overdue transfers) | Merged, #349 |
+| Late-payment alert (`LatePaymentRefundDue`, S7b) | Merged, #354 |
+| Final check of all Ops backend | Done 2026-11-05, by reading the code, no tests run: complete against the spec. Two owner calls are open (reminders 24, 25) |
+| Alert links: S3 and S4 name the store; S7 and S7b open the attempt | PR `fix/ops-alert-store-links`, in CI when this was written |
+| Sold-out follow-up | Merged, #344 |
+| Tests: saves below Show More on Stock, Low Stock and Sync | Merged, #350 |
 | Ops screens O1–O7, O10 | Merged |
 | Ops screens O8, O9, O11–O13 | **Yours** |
-| Content, storefront rebuild, themes | **Yours.** Empty folders in `src/Modules/Content`; Home is a placeholder |
+| Content, storefront rebuild, themes | **Yours.** `src/Modules/Content` holds only what Ops is built against: `Public` (`ContentApi`, `CampaignMessageDto`, `CampaignWentLive`, `CampaignExpiring`), the placeholder `NoCampaignsYet`, and its provider; the other folders are empty. Home is a placeholder |
 | Migration, hardening, launch | **Yours** |
 
 ## 5 · The wording file
@@ -124,6 +128,15 @@ The latest copy is in the local pack (§8), built from main 8f6a5b7a: 6,918 pair
 - **Browser tests:** alone, with a time limit, warm up on `CarriersScreenTest` first. Shop-list products need `CatalogProducts::onSale`, because sold-out and unpriced products leave the lists. Never plant a far-future `created_at`.
 - **Pages:** a GET that answers a page declares `Inertia\Response` in its return type. A list with a row action needs `useKeptDepth`; `router.post` already keeps state. The limit is 60 KB per page, and the heaviest is at 59.9, so split shared files by who uses them.
 - **Unexplained failures, seen once each:** `InventoryScreensTest` (product page's Inventory section), `CatalogListScreensTest` (adds a word pair), `WrittenScreensTest` (a row reached with Show More); plus a first browser test of a cold run stalling.
+
+**Several sessions at once.** The owner runs you as several sessions in one project at the same time.
+- Each session gets its own worktree under `.claude/worktrees/`, cut from a fresh `main`, its own short branch and PR, its own dev and test databases, and its own port. `phpunit.xml` forces the test database's name, so set that per worktree and keep it out of commits.
+- Two sessions never change the same files. Before starting, check `gh pr list` and name the files you'll touch. Agree who owns shared files first: `AdminMenu`, `AdminLayout`, `StorefrontLayout`, `resources/css/themes.css`, the permission lists, `composer.lock`, `package-lock.json`, the generated TypeScript types. One session changes them at a time.
+- Each worktree runs its own `npm run build` after merging main. A stale build shows up as "Unable to locate file in Vite manifest" and as `JavaScriptBudgetTest` failing.
+- `docs/handoff/owner-reminders.md` and `lessons.md` are shared: add your line, in its own short PR or with your job's, and expect merge conflicts there.
+- Numbering is shared too. Before claiming a spec amendment number, check main and the open PRs.
+- Don't push many branches at the same moment: GitHub has refused downloads when several runs started together. Merge one PR at a time, and merge main into the next before trusting its green.
+- The Stage 7 sessions may still be working beside you on Payments, Shipping and checkout. Stay off those files.
 
 **CI: what went wrong on 2026-11-04, so you don't repeat it**
 1. **Tests run on a frozen clock** (`TestCase::FROZEN_AT`). Read `CarbonImmutable::now()`, never `time()`, `date()` or `microtime()`, against anything the app stamped, and never write an unbounded loop. One such test hung CI for hours.

@@ -68,7 +68,7 @@ verified by the stage 7 session — raise only what is confirmed.)
     (b) Arabic for coupons is mixed: قسيمة 40 + قسائم 16 vs كوبون 21 in lang/ar (menu says القسائم, the
     spec's menu row الكوبونات, permissions كوبونات); owner picks one. ([[touchwood-stage6-screens]])
 
-12. Ops/SMS (2026-10-29): name the Saudi SMS provider (and later Egypt's); until then codes go to the log.
+12. Ops/SMS (2026-10-29): name the Saudi SMS provider (and later Egypt's). Corrected 2026-11-05: production refuses `log`, so until a provider is named a production server starts normally and every code fails when sent (a FAILED row, an error to the caller, S10b). The owner is deciding whether that stays.
     Brevo: the owner HAS the key and adds it at staging (2026-11-03); sending-domain DNS still before real emails. ([[touchwood-stage-8-ops]])
 14. Brevo one-click unsubscribe (2026-10-30): Brevo's send API refuses standard headers, so our List-Unsubscribe
     header can't be sent; Brevo adds its own (unsubscribes at Brevo). Check with the real Brevo account that
@@ -93,7 +93,13 @@ verified by the stage 7 session — raise only what is confirmed.)
 
 21. Subscribers page, two calls (Ops screens, 2026-11-04, PR #347): the list is oldest first while other Ops lists are newest first; the hidden email's tooltip can't be opened by touch (a popover would). ([[touchwood-ops-screens]])
 
-22. BEFORE DEPLOYMENT (owner 2026-11-04): remove the development-only hand-off files from GitHub: docs/HANDOFF.md, docs/AGENT-BRIEF.md, docs/AGENT-HANDOFF.md, docs/handoff/, and ask the owner about the rest of docs/. They are for the development stage only. The repo STAYS PUBLIC for now (owner 2026-11-04: going private loses the free unlimited CI minutes); deleting a file does not remove it from history. Raise it in every "what's left" and at launch.
+22. BEFORE DEPLOYMENT (owner 2026-11-04): remove the development-only hand-off files from GitHub: docs/HANDOFF.md, docs/AGENT-BRIEF.md, docs/AGENT-HANDOFF.md, docs/handoff/, and ask the owner about the rest of docs/. Owner 2026-11-05, again: everything put on GitHub for the outside agent is development-only and comes off at the end. They are for the development stage only. The repo STAYS PUBLIC for now (owner 2026-11-04: going private loses the free unlimited CI minutes); deleting a file does not remove it from history. Raise it in every "what's left" and at launch.
+
+23. A sold-out product in an emptied category has no breadcrumb, though the category and everything above it now answer 200 (#344's review, 2026-11-05; ShopPages.php:205-207). Amendment 40(d) covers only the sub-category's own page. Owner's call.
+
+24. Live server with no SMS provider (Ops final check, 2026-11-05): it starts normally, then every code fails when sent (a FAILED row, an error to the caller, S10b). Decide: refuse to start, as Brevo's key does (recommended, since sign-in codes are essential), or leave it. Owner's call. Choose the provider before go-live either way (reminder 12).
+25. docs/modules/ops.md's top line still says "DRAFT… Not accepted", though it was merged and built. Owner to confirm it's accepted, then change the line.
+26. Optional tests from the Ops final check: fire `GuestBecameCustomer`, `CustomerEmailVerified` and `CustomerUnblocked` in Ops' suite; schedule tests for 4 Ops jobs; `$timeout` on long Ops jobs once a worker command exists.
 
 ## Closed
 - Flaky phone-width browser checks (old item 9b): DONE, #333 merged 2026-11-03 (fadb0b90); about 13 differently written checks unchanged.
