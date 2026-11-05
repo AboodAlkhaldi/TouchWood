@@ -4,21 +4,24 @@ declare(strict_types=1);
 
 namespace Modules\Ops\Presentation\Http\Controller;
 
+use App\Http\Page;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
+use Inertia\Response as InertiaResponse;
 use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Application\Newsletter\NewsletterSignUps;
 use Modules\Ops\Domain\Exception\NewsletterUnavailable;
 use Modules\Ops\Domain\Exception\SubscribeInYourAccount;
+use Modules\Ops\Presentation\Http\Resource\EmailLinkPageData;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
 use Shared\Application\StoreContext;
 
 /*
-| The shop's newsletter box and its links (ops.md §1.9, §3: guest / signed link). JSON; the screens
-| agent builds the box and the pages the links open.
+| The shop's newsletter box and its links (ops.md §1.9, §3: guest / signed link). The box sends JSON and gets
+| JSON; a link opens its page to a plain visit and today's JSON to a screen asking for it (§4.15 O11, O13).
 |
 | - POST newsletter: a guest gives an email. The same answer whether it was on the list or not; a
 |   signed-in customer, or an email that belongs to an account, is told to tick the box in the
@@ -37,6 +40,9 @@ final readonly class NewsletterController
     public const int SIGN_UPS_AN_HOUR_FOR_AN_EMAIL = 5;
 
     public const int SIGN_UPS_AN_HOUR_FROM_AN_ADDRESS = 20;
+
+    /** The one page all three emailed links open (ops.md §4.15 O13); its words travel as its data. */
+    private const string PAGE = 'Ops/Storefront/EmailLink';
 
     public function __construct(
         private NewsletterSignUps $signUps,
@@ -72,15 +78,33 @@ final readonly class NewsletterController
         return new JsonResponse(['sent' => true], 202);
     }
 
-    public function confirmation(string $token): JsonResponse
+    /**
+     * What the confirmation link opens: the page to a plain visit (§4.15 O13), today's JSON to a screen asking for it.
+     * Its store is on - the shop's middleware has seen to it - so the page offers the way to it after confirming.
+     */
+    public function confirmation(Request $request, string $token, Page $page, StoreContext $stores, PlatformApi $platform): InertiaResponse|JsonResponse
     {
-        return new JsonResponse([
-            'token' => $token,
-            'title' => __('ops::newsletter.confirm.title'),
-            'text' => __('ops::newsletter.confirm.text'),
-            'action' => __('ops::newsletter.confirm.action'),
-            'done' => __('ops::newsletter.confirm.done'),
-        ]);
+        if ($request->expectsJson()) {
+            return new JsonResponse([
+                'token' => $token,
+                'title' => __('ops::newsletter.confirm.title'),
+                'text' => __('ops::newsletter.confirm.text'),
+                'action' => __('ops::newsletter.confirm.action'),
+                'done' => __('ops::newsletter.confirm.done'),
+            ]);
+        }
+
+        $store = $platform->store($stores->current()) ?? abort(404);
+
+        return $page->render(self::PAGE, (new EmailLinkPageData(
+            __('ops::newsletter.confirm.title'),
+            __('ops::newsletter.confirm.text'),
+            __('ops::newsletter.confirm.action'),
+            __('ops::newsletter.confirm.done'),
+            __('ops::newsletter.confirm.failed'),
+            '/'.$store->code.'/'.app()->getLocale(),
+            __('ops::newsletter.confirm.shop'),
+        ))->toArray(), []);
     }
 
     public function confirm(string $token): JsonResponse
@@ -90,14 +114,14 @@ final readonly class NewsletterController
         return new JsonResponse(['confirmed' => true]);
     }
 
-    public function leavePage(): JsonResponse
+    public function leavePage(Request $request, Page $page): InertiaResponse|JsonResponse
     {
-        return self::page('leave');
+        return self::page($request, $page, 'leave');
     }
 
-    public function unsubscribePage(): JsonResponse
+    public function unsubscribePage(Request $request, Page $page): InertiaResponse|JsonResponse
     {
-        return self::page('unsubscribe');
+        return self::page($request, $page, 'unsubscribe');
     }
 
     public function leave(string $subscriber): JsonResponse
@@ -114,14 +138,27 @@ final readonly class NewsletterController
         return new JsonResponse(['unsubscribed' => true]);
     }
 
-    /** What the page shows, in the page's language: its title, its line, its one button. Nothing changes. */
-    private static function page(string $which): JsonResponse
+    /**
+     * What the page shows, in the page's language: its title, its line, its one button. Nothing changes. The page to a
+     * plain visit (§4.15 O13), with no way on to the store, which may be off; today's JSON to a screen asking for it.
+     */
+    private static function page(Request $request, Page $page, string $which): InertiaResponse|JsonResponse
     {
-        return new JsonResponse([
-            'title' => __("ops::unsubscribe.{$which}.title"),
-            'text' => __("ops::unsubscribe.{$which}.text"),
-            'action' => __("ops::unsubscribe.{$which}.action"),
-            'done' => __("ops::unsubscribe.{$which}.done"),
-        ]);
+        if ($request->expectsJson()) {
+            return new JsonResponse([
+                'title' => __("ops::unsubscribe.{$which}.title"),
+                'text' => __("ops::unsubscribe.{$which}.text"),
+                'action' => __("ops::unsubscribe.{$which}.action"),
+                'done' => __("ops::unsubscribe.{$which}.done"),
+            ]);
+        }
+
+        return $page->render(self::PAGE, (new EmailLinkPageData(
+            __("ops::unsubscribe.{$which}.title"),
+            __("ops::unsubscribe.{$which}.text"),
+            __("ops::unsubscribe.{$which}.action"),
+            __("ops::unsubscribe.{$which}.done"),
+            __("ops::unsubscribe.{$which}.failed"),
+        ))->toArray(), []);
     }
 }

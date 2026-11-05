@@ -35,6 +35,15 @@ export type DailyReportPageData = {
 reports: DailyReportData[],
 next: string | null,
 };
+export type EmailLinkPageData = {
+title: string,
+text: string,
+action: string,
+done: string,
+failed: string,
+shopAddress: string | null,
+shopLabel: string | null,
+};
 export type InboxEntryData = {
 id: string,
 kind: MessageKind,

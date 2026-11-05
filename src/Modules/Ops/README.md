@@ -144,6 +144,10 @@ because only the system may: run within the request for a person's link, so it i
 queue for the webhook. The two signed links work for a switched-off store too (`StopEmailStore`, outside the
 shop's `store` middleware), and the signature comes first, so a bad one tells nothing about the store. The removal
 job is encrypted: it alone carries an address. Unconfirmed guests go after seven days (`PruneWrittenMessages`, 04:40 Riyadh).
+The screens (ops.md §4.15 O11, O13): the box's words travel in Ops' part of the shop frame (`Presentation/Frame/ShopPart`) for a
+guest outside a staff view alone, read from nothing; `StorefrontLayout` loads the box (`components/ops/NewsletterBox`) only once
+the page has drawn, so no shop page carries it on first paint. Each link opens `Ops/Storefront/EmailLink` in `EmailLinkLayout`,
+which reads no store; `StopEmailStore` shares the address's language again, since nothing else does on those routes.
 
 ### Reports
 
@@ -188,7 +192,7 @@ Each checked against the code on 2026-11-01, the first two on 2026-11-03, C11's 
 | Brevo on the live system | The adapters are built, every failure covered with faked answers (ops.md §7), and in production a web request or a worker refuses to boot on either `log` driver, or without a usable key and `MAIL_FROM_ADDRESS`, and logs loudly without `BREVO_NEWSLETTER_FOLDER_ID` or `BREVO_WEBHOOK_SECRET`, all the server's; other console commands are left alone; the webhook is made in Brevo, unbatched, with the secret as its custom header. Run `php artisan ops:brevo:check` once the key is in, and `php artisan queue:restart` after changing it. Not yet proven against the real Brevo | The owner, at hosting |
 | What to do about a lost unsubscribe, a long outage, a refused key on queued mail, a missing folder or secret at boot, staging's `APP_ENV` | ops.md §9.6: left as they are | The owner |
 | The words' full review | The reports' and unsubscribe pages' words are marked approved for now, the full review at the end (owner, 2026-10-31) | The owner |
-| The screens | Being built, one job at a time (ops.md §4.15): SMS Countries, the two bells with their full pages, Customer Messages and Offer Notices with their forms, and Subscribers are in; Reports, Daily Reports, the newsletter box, the consent switch and box, and the confirm, leave and unsubscribe pages have no page yet | The screens agent |
+| The screens | Being built, one job at a time (ops.md §4.15): SMS Countries, the two bells with their full pages, Customer Messages and Offer Notices with their forms, Subscribers, the newsletter box, the consent switch and box, and the confirm, leave and unsubscribe pages are in; Reports and Daily Reports have no page yet | The screens agent |
 
 ## Continuing the screens
 

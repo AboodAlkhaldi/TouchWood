@@ -540,10 +540,10 @@ fields in `Presentation/Http/Resource`. What a screen needs and the code does no
 
 ### 4.1 What holds for every route
 
-- **A built page's address answers a page; the other GETs answer JSON.** O1 to O7 and O10 are built (§4.15; owner, 2026-11-02;
-  brought up to date 2026-11-05): a list of theirs gives the page to a plain visit and its JSON to whoever asks with
-  `Accept: application/json`; a form's address gives only the page. Every other GET of §4 answers JSON even to a plain visit,
-  except the two downloads: Reports, Daily Reports and the confirm, leave and unsubscribe links, until their pages are built
+- **A built page's address answers a page; the other GETs answer JSON.** O1 to O7, O10 and O13 are built (§4.15; owner, 2026-11-02;
+  brought up to date 2026-11-05): a list of theirs, and the confirm, leave and unsubscribe links, give the page to a plain visit
+  and the JSON to whoever asks with `Accept: application/json`; a form's address gives only the page. Every other GET of §4
+  answers JSON even to a plain visit, except the two downloads: Reports and Daily Reports, until their pages are built
   (§4.13), and the reads a page asks for itself (`ops.admin.choices`, `ops.admin.audience`, the bells' unread number, a form's
   segments and customers, one notice). `ops.admin.choices` (§4.1 below) says what each form may offer. The consent switch (§4.8) is Access's and answers with a
   redirect. The panel's route list carries `ops.admin.*`, the shop's `storefront.*` (`config/ziggy.php`).
@@ -998,10 +998,10 @@ reads the screens needed were added; what stays is what the code cannot give yet
 1. **Pages left to build.** (Corrected 2026-11-05: this said no page, menu entry or account tab existed for Ops and the bell
    was in no frame. `OpsServiceProvider` now registers the menu entries for Notices, Messages, Subscribers and SMS Countries, both
    bells in their frames, and the account's Notifications page.) The three links emails carry (§4.10, §4.11) open JSON until those
-   pages exist. A stop-email page for an off store cannot use the shop's frame (§4.11). **Specified in §4.15 (owner, 2026-11-02); leaves this list as each is built.** Built: SMS Countries (#322), the two bells and their full pages (#325), Customer Messages and Offer Notices with their forms (#346), Subscribers (#347). Left: Reports, Daily Reports, the newsletter box, the consent switch and box, and the confirm, leave and unsubscribe pages.
+   pages exist. A stop-email page for an off store cannot use the shop's frame (§4.11). **Specified in §4.15 (owner, 2026-11-02); leaves this list as each is built.** Built: SMS Countries (#322), the two bells and their full pages (#325), Customer Messages and Offer Notices with their forms (#346), Subscribers (#347), the newsletter box, the consent switch and box, and the confirm, leave and unsubscribe pages (O11-O13, 2026-11-05). Left: Reports, Daily Reports.
    The Home card goes with the Home dashboard job (§9.4 Q5).
-2. **The consent box is on no page.** Outside the generated types, `resources/js` holds neither `marketingConsent` nor
-   `marketing_consent`: the account's switch and the registration box have routes and no screen. **§4.15, O12.**
+2. ~~**The consent box is on no page.**~~ Built (§4.15 O12, 2026-11-05): the Profile tab's Offers and News switch and the
+   registration box.
 3. **The lists have no search, filter or total.** Subscribers by email or kind, notices by status, daily reports by
    store, staff messages by audience: none exists, and the bell's number is the only count. **Not now** (owner, 2026-11-01).
 4. **No screen ties a notice to a campaign.** Sending it when the campaign goes live is built (§1.7), and waits on Content: to
@@ -1049,7 +1049,7 @@ need from the backend is in main (Q14, Q17, Q21, R1). How to carry on: `src/Modu
 | O10 SMS Countries | Built, #322 |
 | O8 Reports, with the menu's `reports` section | **Not built** |
 | O9 Daily Reports | **Not built** |
-| O11 the newsletter box, O12 the consent switch and box, O13 the confirm, leave and unsubscribe pages | **Not built** |
+| O11 the newsletter box, O12 the consent switch and box, O13 the confirm, leave and unsubscribe pages | Built, 2026-11-05 (PR to come) |
 | The Home card (Q5) | Not in this work: it goes with the Home dashboard job |
 
 #### What holds for every page

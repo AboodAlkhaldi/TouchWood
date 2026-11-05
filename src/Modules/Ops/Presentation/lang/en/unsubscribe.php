@@ -10,11 +10,14 @@ return [
         'text' => 'Stop receiving offers and news by email. Messages about your orders and your account still come.',
         'action' => 'Unsubscribe',
         'done' => 'You are unsubscribed. You can switch offers and news back on in your account at any time.',
+        // New (2026-11-05), not yet approved: said when the request doesn't go through (ops.md §4.15 O13; owner, 2026-11-05).
+        'failed' => 'That didn\'t go through. Try again.',
     ],
     'leave' => [
         'title' => 'Leave the Newsletter',
         'text' => 'Stop receiving our newsletter at this email address.',
         'action' => 'Unsubscribe',
         'done' => 'You are unsubscribed. You can sign up again at any time.',
+        'failed' => 'That didn\'t go through. Try again.',
     ],
 ];
