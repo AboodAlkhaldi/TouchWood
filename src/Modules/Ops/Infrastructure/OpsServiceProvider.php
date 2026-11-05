@@ -119,6 +119,7 @@ use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Contracts\ShopFrameParts;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Promotions\Public\Events\CouponAssigned;
+use Modules\Sales\Public\Events\LatePaymentRefundDue;
 use Modules\Sales\Public\Events\OrderApproved;
 use Modules\Sales\Public\Events\OrderCameBack;
 use Modules\Sales\Public\Events\OrderCancelled;
@@ -289,7 +290,7 @@ final class OpsServiceProvider extends ServiceProvider
             Event::listen($event, [TellCustomerAboutFeedback::class, 'handle']);
         }
 
-        foreach ([OrderPlaced::class, CompanyApplicationSubmitted::class, LowStockChanged::class, SyncNeedsAttention::class, ReturnRequested::class, GatewayKeyExpiring::class, GatewayKeyRejected::class, PaymentNotAccepted::class, TransferOverdue::class, CampaignExpiring::class] as $event) {
+        foreach ([OrderPlaced::class, CompanyApplicationSubmitted::class, LowStockChanged::class, SyncNeedsAttention::class, ReturnRequested::class, GatewayKeyExpiring::class, GatewayKeyRejected::class, PaymentNotAccepted::class, LatePaymentRefundDue::class, TransferOverdue::class, CampaignExpiring::class] as $event) {
             Event::listen($event, [AlertStaff::class, 'handle']);
         }
 

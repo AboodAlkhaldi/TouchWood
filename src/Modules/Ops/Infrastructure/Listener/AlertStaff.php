@@ -17,6 +17,7 @@ use Modules\Ops\Public\Enums\MessageKind;
 use Modules\Payments\Public\Events\GatewayKeyExpiring;
 use Modules\Payments\Public\Events\GatewayKeyRejected;
 use Modules\Payments\Public\Events\PaymentNotAccepted;
+use Modules\Sales\Public\Events\LatePaymentRefundDue;
 use Modules\Sales\Public\Events\OrderPlaced;
 use Modules\Sales\Public\Events\ReturnRequested;
 use Modules\Sales\Public\Events\TransferOverdue;
@@ -38,6 +39,7 @@ use Modules\Sync\Public\Events\SyncNeedsAttention;
  * - S5b the gateway refused a store's current key - the same topic and permission, always with the critical SMS;
  * - S6 a bank transfer's receipt waited past its check time - Payments to check, `sales.payment.record`;
  * - S7 money was taken but cannot enter an order, so a refund is owed - the same topic and permission;
+ * - S7b a payment succeeded after its try was released, so no order exists and a refund is owed - the same again;
  * - S8 a campaign is about to end - Campaign expiry. Content has no permission yet, so it goes to the Super Admins
  *   and the store's admins, by the admin-only `ops.message.send_many`; Content's build names its own here.
  *
@@ -57,7 +59,7 @@ final class AlertStaff implements ShouldQueue
         private readonly HandledEvents $handled,
     ) {}
 
-    public function handle(OrderPlaced|CompanyApplicationSubmitted|LowStockChanged|SyncNeedsAttention|ReturnRequested|GatewayKeyExpiring|GatewayKeyRejected|PaymentNotAccepted|TransferOverdue|CampaignExpiring $event): void
+    public function handle(OrderPlaced|CompanyApplicationSubmitted|LowStockChanged|SyncNeedsAttention|ReturnRequested|GatewayKeyExpiring|GatewayKeyRejected|PaymentNotAccepted|LatePaymentRefundDue|TransferOverdue|CampaignExpiring $event): void
     {
         $store = strtolower($event->storeId);
 
@@ -70,6 +72,7 @@ final class AlertStaff implements ShouldQueue
             $event instanceof GatewayKeyExpiring => [new EventMessage(MessageKind::GatewayKeyExpiring, $store, ['days' => $event->daysLeft, 'date' => $event->expiresOn, 'mode' => $event->mode]), StaffNotificationTopic::PaymentProblems, 'payments.gateway.manage'],
             $event instanceof GatewayKeyRejected => [new EventMessage(MessageKind::GatewayKeyRejected, $store, ['mode' => $event->mode]), StaffNotificationTopic::PaymentProblems, 'payments.gateway.manage'],
             $event instanceof PaymentNotAccepted => [new EventMessage(MessageKind::PaymentNotAccepted, $store, []), StaffNotificationTopic::PaymentsToCheck, 'sales.payment.record'],
+            $event instanceof LatePaymentRefundDue => [new EventMessage(MessageKind::LatePaymentRefundDue, $store, []), StaffNotificationTopic::PaymentsToCheck, 'sales.payment.record'],
             $event instanceof TransferOverdue => [new EventMessage(MessageKind::TransferOverdue, $store, ['orderId' => strtolower($event->orderId)]), StaffNotificationTopic::PaymentsToCheck, 'sales.payment.record'],
             $event instanceof CampaignExpiring => [new EventMessage(MessageKind::CampaignExpiring, $store, ['campaignId' => strtolower($event->campaignId), 'endsAt' => $event->endsAt->format(DATE_ATOM)]), StaffNotificationTopic::CampaignExpiry, OpsPermissions::MESSAGE_SEND_MANY],
         };
