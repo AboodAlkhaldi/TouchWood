@@ -51,19 +51,13 @@ export function Bell({ base, unread: fromServer, words, manyStores = false, rech
         }
 
         // A tab may open behind another, or a page arrive while it is hidden: that counts as away too.
-        let hiddenAt: number | null = document.hidden ? Date.now() : null;
+        let hiddenAt = document.hidden ? Date.now() : 0;
         const changed = () => {
-            if (document.hidden) {
-                hiddenAt = Date.now();
-
-                return;
-            }
-
-            if (hiddenAt !== null && Date.now() - hiddenAt >= AWAY_MS) {
+            if (!document.hidden && hiddenAt > 0 && Date.now() - hiddenAt >= AWAY_MS) {
                 void loadMenu().then((loaded) => loaded.recheck(base));
             }
 
-            hiddenAt = null;
+            hiddenAt = document.hidden ? Date.now() : 0;
         };
         document.addEventListener('visibilitychange', changed);
 
