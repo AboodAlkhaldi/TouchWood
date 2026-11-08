@@ -111,7 +111,7 @@ type Props = {
 };
 
 export function MenuIcon({ name, className }: Props) {
-    const Icon = name !== null && name in ICONS ? ICONS[name as keyof typeof ICONS] : CircleDot;
+    const Icon = ICONS[name as keyof typeof ICONS] ?? CircleDot;
 
     return <Icon className={className} aria-hidden />;
 }

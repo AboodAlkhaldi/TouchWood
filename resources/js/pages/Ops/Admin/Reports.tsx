@@ -289,6 +289,7 @@ function Sheet({ sheet, locale, pageLocale, index }: { sheet: ReportSheetData; l
                                     </TableRow>
                                 ))}
                             </TableBody>
+                            {/* A second body, not shadcn's TableFooter: nothing else uses that, and importing it adds to the table chunk of every page with a table. */}
                             {sheet.totals.length > 0 ? (
                                 <TableBody className="border-t border-line bg-surface-sunken" data-test="totals">
                                     {sheet.totals.map((row, at) => (

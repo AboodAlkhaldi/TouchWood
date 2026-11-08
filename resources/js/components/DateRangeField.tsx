@@ -51,16 +51,13 @@ type Props = {
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 /** Today in UTC, or in the zone given, as YYYY-MM-DD. */
-function today(timeZone?: string): string {
-    if (timeZone === undefined) {
-        return new Date().toISOString().slice(0, 10);
-    }
-
+function today(timeZone = 'UTC'): string {
     // Only its parts are read, never its text: any language with Latin digits would do.
-    const parts = new Intl.DateTimeFormat(intlLocale('en'), { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
-    const part = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+    const parts = Object.fromEntries(
+        new Intl.DateTimeFormat(intlLocale('en'), { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()).map((part) => [part.type, part.value]),
+    );
 
-    return `${part('year')}-${part('month')}-${part('day')}`;
+    return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
 /** A plain day as a calendar date, or undefined when the text is not one. */
