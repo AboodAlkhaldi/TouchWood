@@ -25,6 +25,9 @@ import type { BellWords, SharedProps } from '@/types/page';
 /** A minute away before the number is worth asking again (Q7). */
 const AWAY_MS = 60_000;
 
+/** One place that loads the rest: each `import()` written out costs its own preload list, on every page. */
+const loadMenu = () => import('@/components/ops/BellMenu');
+
 type Props = {
     /** The bell's address: the list's, and the marks' under it. */
     base: string;
@@ -48,19 +51,13 @@ export function Bell({ base, unread: fromServer, words, manyStores = false, rech
         }
 
         // A tab may open behind another, or a page arrive while it is hidden: that counts as away too.
-        let hiddenAt: number | null = document.hidden ? Date.now() : null;
+        let hiddenAt = document.hidden ? Date.now() : 0;
         const changed = () => {
-            if (document.hidden) {
-                hiddenAt = Date.now();
-
-                return;
+            if (!document.hidden && hiddenAt > 0 && Date.now() - hiddenAt >= AWAY_MS) {
+                void loadMenu().then((loaded) => loaded.recheck(base));
             }
 
-            if (hiddenAt !== null && Date.now() - hiddenAt >= AWAY_MS) {
-                void import('@/components/ops/BellMenu').then((loaded) => loaded.recheck(base));
-            }
-
-            hiddenAt = null;
+            hiddenAt = document.hidden ? Date.now() : 0;
         };
         document.addEventListener('visibilitychange', changed);
 
@@ -68,13 +65,11 @@ export function Bell({ base, unread: fromServer, words, manyStores = false, rech
     }, [base, recheck]);
 
     function press() {
-        if (open) {
-            setOpen(false);
-        } else if (Menu !== null) {
-            setOpen(true);
+        if (Menu !== null) {
+            setOpen(!open);
         } else {
             // A failed load leaves the bell as it was: the next press asks again.
-            void import('@/components/ops/BellMenu').then(
+            void loadMenu().then(
                 (loaded) => {
                     setMenu(() => loaded.BellMenu);
                     setOpen(true);

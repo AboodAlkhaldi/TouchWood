@@ -119,6 +119,8 @@ describe('the admin menu', function () {
             'customers/customers',
             // Feedback's screens (feedback.md §4.1): Favourited Products, then Support's two.
             'customers/favourites',
+            // Ops' Reports section, after Customers (ops.md §4.15, the menu).
+            'reports/reports',
             // Promotions' screens (promotions.md §4.1): Marketing's Coupons.
             'marketing/coupons',
             'marketing/segments',

@@ -101,6 +101,8 @@ const ICONS = {
     notices: Megaphone,
     messages: MessageCircleQuestion,
     subscribers: Users,
+    // Ops' Reports section and its entry (ops.md §4.15, the menu): an icon the panel already draws (owner, 2026-11-05).
+    reports: FileText,
 } as const;
 
 type Props = {
@@ -109,7 +111,7 @@ type Props = {
 };
 
 export function MenuIcon({ name, className }: Props) {
-    const Icon = name !== null && name in ICONS ? ICONS[name as keyof typeof ICONS] : CircleDot;
+    const Icon = ICONS[name as keyof typeof ICONS] ?? CircleDot;
 
     return <Icon className={className} aria-hidden />;
 }

@@ -21,7 +21,10 @@ const DateRangeCalendar = lazy(() => import('@/components/DateRangeCalendar'));
 |
 | The days are plain dates, YYYY-MM-DD, as the filter has always sent them, and they are **UTC
 | days**, as the server compares them (the audit log's reader): "today" is today in UTC, so the
-| presets ask for what they say. The field says so under it. An Arabic page shows Latin digits,
+| presets ask for what they say. The field says so under it. A screen whose server reads the days
+| in a store's own time (the reports, ops.md §4.15 O8) names that zone in `timeZone`: "today", the
+| presets and the last day the calendar offers are then that store's, and its words say so under
+| the field. An Arabic page shows Latin digits,
 | on the button and in the calendar, as every date in the system does (§1.8, 2026-10-06). A date the
 | address holds that is not a plain day is treated as none, never as a broken page.
 */
@@ -41,13 +44,20 @@ type Props = {
     until: string;
     onChange: (from: string, until: string) => void;
     words: DateRangeWords;
+    /** The IANA zone the days are read in, a store's; left out, UTC. */
+    timeZone?: string;
 };
 
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-/** Today in UTC, as YYYY-MM-DD. */
-function today(): string {
-    return new Date().toISOString().slice(0, 10);
+/** Today in UTC, or in the zone given, as YYYY-MM-DD. */
+function today(timeZone = 'UTC'): string {
+    // Only its parts are read, never its text: any language with Latin digits would do.
+    const parts = Object.fromEntries(
+        new Intl.DateTimeFormat(intlLocale('en'), { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()).map((part) => [part.type, part.value]),
+    );
+
+    return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
 /** A plain day as a calendar date, or undefined when the text is not one. */
@@ -90,11 +100,11 @@ function firstShown(start: Date | undefined, latest: Date): Date {
     return start === undefined || start > latest ? latest : start;
 }
 
-export function DateRangeField({ id, label, from: askedFrom, until: askedUntil, onChange, words }: Props) {
+export function DateRangeField({ id, label, from: askedFrom, until: askedUntil, onChange, words, timeZone }: Props) {
     const { locale } = usePage<SharedProps>().props;
     const t = useTranslator();
     const [open, setOpen] = useState(false);
-    const now = today();
+    const now = today(timeZone);
     // Only plain days count; anything else in the address is no date at all.
     const from = asDate(askedFrom) === undefined ? '' : askedFrom;
     const until = asDate(askedUntil) === undefined ? '' : askedUntil;
