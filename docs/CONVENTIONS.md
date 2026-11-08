@@ -244,6 +244,19 @@ step branches under them: they left a tangled history, with no version marking w
 - Functions and constants declared in a Pest file are global to the whole suite: name them after
   the file's subject, or two files declaring the same name stop every test run.
 
+### Solved test problems: use the fix that exists (owner, 2026-11-04)
+
+A problem one session solved is solved for every session. Before writing a test helper, look in `tests/Pest.php` and each module's `tests/Modules/*/Support`, and read the test fixes merged lately.
+
+- **The clock.** Every non-browser test runs at `TestCase::FROZEN_AT` (#335). Read `CarbonImmutable::now()`, never PHP's `time()`, against anything the app stamped: `TestClockTest` refuses it. A test that clears the clock partway goes back to `FROZEN_AT`. Browser tests stay on the real clock on purpose. The database's `now()` is not frozen.
+- **No unbounded loop.** A loop that waits on the clock or a queue has a limit. One without hung main's CI for hours (#348).
+- **Waiting in a browser test.** Use `browserSoon` (`tests/Pest.php`), which asks again until the page settles and fails after 15 seconds (#333), not a helper of your own. That includes a phone-width check: `browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth')`.
+- **A page inside a frame.** The frame's element exists before the page inside it listens: wait for that page to say it is ready before messaging it (#330). `FakePaymentPages` has this for the fake bank.
+- **Paying in a browser test.** Use `FakeMyFatoorah` with its `framePath`, and `FakePaymentPages` for the fake form and bank page.
+- **Standing in for a contract.** Replace the one thing the test changes, at the narrowest point you can. A class written out against a whole interface breaks each time the interface grows (#330, #356).
+- **A running local test has a time limit.** Put `timeout` in front of it, and run a slow folder file by file, or a hang looks like a slow run. Two runs on one test database deadlock.
+- **Text with a value in it.** A shown value may carry the bidi marks of `isolate`, so match the words around it with `includes()`, not a pattern across the value.
+
 ## Local environment (Windows)
 
 - `docker compose up -d --wait` starts Postgres 17 on port 5433 (the only service; no Redis).
