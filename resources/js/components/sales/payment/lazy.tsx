@@ -14,7 +14,7 @@ import type { CheckoutTryData } from '@/types/generated/Modules/Sales/Presentati
 
 const P = 'sales::shop_payment';
 
-function FormUnavailable({ onState }: { onState: (state: { ready: boolean; locked: boolean; failed: boolean }) => void }) {
+function FormUnavailable({ number, onState }: { number?: string; onState: (state: { ready: boolean; locked: boolean; failed: boolean }) => void }) {
     const t = useTranslator();
 
     // Pay stays out of reach, saying why.
@@ -22,7 +22,7 @@ function FormUnavailable({ onState }: { onState: (state: { ready: boolean; locke
 
     return (
         <div className="grid justify-items-start gap-2" data-test="payment-unavailable">
-            <p className="text-copy-14 text-ink">{t(`${P}.form_failed`)}</p>
+            <p className="text-copy-14 text-ink">{t(number === undefined ? `${P}.form_failed` : `${P}.request.form_failed`)}</p>
             {/* A file that didn't load isn't asked for again without one. */}
             <ActionButton variant="outline" onClick={() => window.location.reload()} data-test="payment-reload">
                 {t(`${P}.try_again`)}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { usePage } from '@inertiajs/react';
 import { useStoreZone } from '@/components/Time';
 import { intlLocale } from '@/lib/digits';
+import type { useLink } from '@/lib/routes';
 import type { useTranslator } from '@/lib/t';
 import type { SharedProps } from '@/types/page';
 import type { CheckoutTryData } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
@@ -81,6 +82,23 @@ export function useClock(): (iso: string) => string {
 /** Until when a payment can still go through: the hold limit (§1.7, gap 10.1). */
 export function untilOf(view: CheckoutTryData): string | null {
     return view.holdEndsAt ?? view.waitEndsAt ?? view.windowEndsAt;
+}
+
+/** Where a payment talks to: checkout's, or a request's on the order with this number. */
+export function payAddresses(link: ReturnType<typeof useLink>, number: string | undefined) {
+    return number === undefined
+        ? {
+              session: link('storefront.sales.payment.session'),
+              pay: link('storefront.sales.payment.pay'),
+              follow: (id: string) => link('storefront.sales.payment.follow', { try: id }),
+              done: (order: string) => link('storefront.sales.placed', { number: order }),
+          }
+        : {
+              session: link('storefront.sales.request.session', { number }),
+              pay: link('storefront.sales.request.pay', { number }),
+              follow: (id: string) => link('storefront.sales.request.follow', { number, paying: id }),
+              done: (order: string) => link('storefront.sales.order', { number: order }),
+          };
 }
 
 const REASONS = ['MF001', 'MF004', 'MF007', 'MF010'];

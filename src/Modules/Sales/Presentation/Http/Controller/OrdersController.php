@@ -34,6 +34,8 @@ use Modules\Sales\Application\Command\RecordRefund\RecordRefund;
 use Modules\Sales\Application\Command\RecordRefund\RecordRefundHandler;
 use Modules\Sales\Application\Command\RejectOrder\RejectOrder;
 use Modules\Sales\Application\Command\RejectOrder\RejectOrderHandler;
+use Modules\Sales\Application\Command\RequestOrderPayment\RequestOrderPayment;
+use Modules\Sales\Application\Command\RequestOrderPayment\RequestOrderPaymentHandler;
 use Modules\Sales\Application\Command\SetShippingFee\SetShippingFee;
 use Modules\Sales\Application\Command\SetShippingFee\SetShippingFeeHandler;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrder;
@@ -42,6 +44,8 @@ use Modules\Sales\Application\Command\TickReducedInProvider\TickReducedInProvide
 use Modules\Sales\Application\Command\TickReducedInProvider\TickReducedInProviderHandler;
 use Modules\Sales\Application\Command\VoidMoneyRecord\VoidMoneyRecord;
 use Modules\Sales\Application\Command\VoidMoneyRecord\VoidMoneyRecordHandler;
+use Modules\Sales\Application\Command\WithdrawOrderRequest\WithdrawOrderRequest;
+use Modules\Sales\Application\Command\WithdrawOrderRequest\WithdrawOrderRequestHandler;
 use Modules\Sales\Application\Query\ListCarriers\ListCarriersHandler;
 use Modules\Sales\Application\Query\ListOrders\ListOrdersHandler;
 use Modules\Sales\Application\Query\OpenOrderFile\OpenOrderFile;
@@ -176,6 +180,17 @@ final readonly class OrdersController
             $order, self::text($request, 'way'), self::optional($request, 'reference'), self::optional($request, 'note'),
             self::text($request, 'happened_on'), self::requestId($request), self::optional($request, 'shown'),
         )), 'payment');
+    }
+
+    /** Request Payment (payments.md §1.5, §4.2): exactly what the order is missing, a link the customer is sent. */
+    public function requestPayment(Request $request, string $order, RequestOrderPaymentHandler $handler): RedirectResponse
+    {
+        return self::act($request, fn () => $handler->handle(new RequestOrderPayment($order)), 'payment_requested');
+    }
+
+    public function withdrawRequest(Request $request, string $order, WithdrawOrderRequestHandler $handler): RedirectResponse
+    {
+        return self::act($request, fn () => $handler->handle(new WithdrawOrderRequest($order)), 'request_withdrawn');
     }
 
     public function refund(Request $request, string $order, RecordRefundHandler $handler): RedirectResponse
