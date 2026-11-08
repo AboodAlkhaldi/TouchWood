@@ -87,6 +87,8 @@ return [
     'account_type_permanent' => 'This choice can never be changed later.',
     'account_type_required' => 'Choose a kind of account.',
     'terms_accept' => 'I accept the terms of sale and the privacy policy.',
+    // The offers box (amendment 79; ops.md §4.15 O12), new 2026-11-05, not yet approved.
+    'marketing_consent' => 'Send me offers and news',
 
     'verify_title' => 'Confirm Your Email',
     'verify_subtitle' => 'The link goes to this address:',

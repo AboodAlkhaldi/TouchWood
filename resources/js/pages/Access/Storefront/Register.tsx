@@ -60,6 +60,7 @@ export default function Register({ minimumLength }: Props) {
         last_name: '',
         locale,
         terms: false,
+        marketing_consent: false,
     });
 
     // Each box as typed (frontend.md §1.7), with the server's rules: names of up to 100 characters
@@ -202,6 +203,20 @@ export default function Register({ minimumLength }: Props) {
                             </FieldLabel>
                         </Field>
                         {form.errors.terms ? <FieldError id="terms-error">{form.errors.terms}</FieldError> : null}
+
+                        {/* Offers and news by email (amendment 79; ops.md §4.15 O12): unticked, and it blocks nothing. */}
+                        <Field orientation="horizontal">
+                            <Checkbox
+                                id="marketing_consent"
+                                data-test="marketing-consent"
+                                checked={form.data.marketing_consent}
+                                onCheckedChange={(checked) => form.setData('marketing_consent', checked === true)}
+                                className="border-ink-subtle"
+                            />
+                            <FieldLabel htmlFor="marketing_consent" className="text-label-14 font-normal text-ink">
+                                {t('access::auth.marketing_consent')}
+                            </FieldLabel>
+                        </Field>
 
                         <Field>
                             <ActionButton type="submit" loading={form.processing} disabledReason={checks.reason} className="w-full">

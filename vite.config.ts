@@ -34,6 +34,13 @@ export default defineConfig({
             { find: /^cn$/, replacement: fileURLToPath(new URL('./resources/js/lib/cn.ts', import.meta.url)) },
         ],
     },
+    build: {
+        modulePreload: {
+            // The shop footer's newsletter box (ops.md §4.15 O11) loads after the page has drawn, so nothing waits on
+            // its parts: the list of them to fetch ahead is left out of the layout every shop page carries.
+            resolveDependencies: (filename, deps) => (filename.includes('NewsletterBox') ? [] : deps),
+        },
+    },
     server: {
         watch: {
             ignored: ['**/storage/framework/views/**'],

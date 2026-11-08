@@ -106,8 +106,8 @@ use Modules\Ops\Infrastructure\Queue\QueuedEventDeliveries;
 use Modules\Ops\Infrastructure\Queue\RemindExpiringPointsJob;
 use Modules\Ops\Infrastructure\Queue\StartDueNoticesJob;
 use Modules\Ops\Presentation\Bell\PanelBellPart;
-use Modules\Ops\Presentation\Bell\ShopBellPart;
 use Modules\Ops\Presentation\Console\BrevoCheckCommand;
+use Modules\Ops\Presentation\Frame\ShopPart;
 use Modules\Payments\Public\Events\GatewayKeyExpiring;
 use Modules\Payments\Public\Events\GatewayKeyRejected;
 use Modules\Payments\Public\Events\PaymentNotAccepted;
@@ -244,7 +244,7 @@ final class OpsServiceProvider extends ServiceProvider
 
         // The two bells, with each page's frame (§4.15 O1, O2), and the shop's full page in the account's menu.
         $this->app->make(AdminFrameParts::class)->register('ops', PanelBellPart::class);
-        $this->app->make(ShopFrameParts::class)->register('ops', ShopBellPart::class);
+        $this->app->make(ShopFrameParts::class)->register('ops', ShopPart::class);
         $this->app->make(CustomerAccountPages::class)->register(new CustomerAccountPageDto('ops', 'notifications', 'storefront.ops.bell', position: 6));
 
         // The unsubscribe links' POST is also a mail client's one-click unsubscribe (RFC 8058), which

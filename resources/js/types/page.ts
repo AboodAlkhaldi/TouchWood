@@ -131,6 +131,19 @@ export type BellWords = {
     unread: string;
 };
 
+/** The shop's newsletter box's words, carried with the frame for a guest alone (ops.md §4.15 O11; `ops::newsletter.box`). */
+export type NewsletterWords = {
+    title: string;
+    text: string;
+    email: string;
+    action: string;
+    sent: string;
+    sign_in: string;
+    /** By plural category, `:count` the minutes. */
+    too_many: Record<string, string>;
+    failed: string;
+};
+
 export type SharedProps = {
     /** Sent back as X-CSRF-TOKEN so the two same-named cookies are never consulted (§1.4). */
     csrfToken: string;
@@ -162,7 +175,7 @@ export type SharedProps = {
      * Shop pages under a store: what modules put in the frame, by module (catalog.md §4.5) - Catalog's
      * category menu and search box.
      */
-    frame?: { catalog?: ShopFrameData; sales?: { pieces: number; words: { cart: string; pieces: Record<string, string> } }; ops?: { unread: number | null; words: BellWords | null } };
+    frame?: { catalog?: ShopFrameData; sales?: { pieces: number; words: { cart: string; pieces: Record<string, string> } }; ops?: { unread: number | null; words: BellWords | null; newsletter: NewsletterWords | null } };
     /** Panel pages, for a signed-in staff member: what modules put in the frame, by module (ops.md §4.15 O1). */
     panelFrame?: { ops?: { unread: number; manyStores: boolean; words: BellWords } };
     /** Whether the sidebar starts open or shut down to its rail; this browser's own choice. */

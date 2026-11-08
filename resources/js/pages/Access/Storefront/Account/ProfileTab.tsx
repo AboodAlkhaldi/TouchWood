@@ -1,14 +1,16 @@
-import type { ReactNode } from 'react';
-import { useForm, usePage } from '@inertiajs/react';
+import { type ReactNode, useEffect, useState } from 'react';
+import { router, useForm, usePage } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { SelectField, TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { Note } from '@/components/Note';
 import { Description } from '@/components/geist-only/Description';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { FieldGroup } from '@/components/ui/field';
+import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { NativeSelectOption } from '@/components/ui/native-select';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import { useChecks } from '@/lib/use-checks';
@@ -153,7 +155,122 @@ export function ProfileTab({ account }: Props) {
                     </CardFooter>
                 </form>
             </Card>
+
+            <OffersCard account={account} />
         </div>
+    );
+}
+
+/**
+ * Offers and news by email (amendment 79; ops.md §4.8, §4.15 O12): one switch that saves as it is flipped, with
+ * the "Changes saved" toast the server sends back. It shows the new place at once; a refusal puts it back and
+ * says why under it. Until the email is confirmed nothing can reach them, and it says so.
+ */
+function OffersCard({ account }: { account: CustomerAccountPage }) {
+    const t = useTranslator();
+    const link = useLink();
+    const [on, setOn] = useState(account.marketingConsent);
+    const [refusal, setRefusal] = useState<string | undefined>(undefined);
+    const [saving, setSaving] = useState(false);
+    const [tip, setTip] = useState(false);
+    const busy = saving ? t('access::account.saving_reason') : undefined;
+
+    // The server's answer is the last word: what it saved, or what it kept after a refusal.
+    useEffect(() => setOn(account.marketingConsent), [account.marketingConsent]);
+
+    function save(next: boolean) {
+        // One change at a time, as the panel's notification switches (NotificationsTab): a second flip while the
+        // first is on its way would race it.
+        if (saving) {
+            return;
+        }
+
+        setOn(next);
+        setRefusal(undefined);
+        setSaving(true);
+        router.post(
+            link('storefront.account.marketing'),
+            { marketing_consent: next },
+            {
+                preserveScroll: true,
+                preserveState: true,
+                onFinish: () => setSaving(false),
+                onError: (errors) => {
+                    setOn(account.marketingConsent);
+                    setRefusal(errors.marketing_consent ?? errors.form);
+                },
+                // No answer at all: back to what is saved, and said.
+                onNetworkError: () => {
+                    setOn(account.marketingConsent);
+                    setRefusal(t('access::account.offers.failed'));
+                    setSaving(false);
+
+                    return false;
+                },
+            },
+        );
+    }
+
+    return (
+        <Card className="material-base gap-4 border-0 py-5" data-test="offers-card">
+            <CardHeader className="px-6">
+                <CardTitle className="text-heading-20 text-ink">
+                    <h2>{t('access::account.offers.title')}</h2>
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-2 px-6">
+                <Field orientation="horizontal" data-invalid={refusal ? true : undefined}>
+                    {/* While it saves it stays reachable and does nothing, its tooltip saying why; the tooltip hangs on a
+                        span, never on the switch, whose data-state it would hide (lesson 133). */}
+                    <Tooltip open={busy !== undefined && tip} onOpenChange={setTip}>
+                        <TooltipTrigger asChild>
+                            <span className="inline-flex">
+                                <Switch
+                                    id="marketing_consent"
+                                    checked={on}
+                                    aria-disabled={busy === undefined ? undefined : true}
+                                    onCheckedChange={(next) => (busy === undefined ? save(next) : undefined)}
+                                    aria-describedby={[
+                                        'marketing_consent-hint',
+                                        account.emailVerified ? null : 'marketing_consent-unconfirmed',
+                                        refusal ? 'marketing_consent-error' : null,
+                                        busy === undefined ? null : 'marketing_consent-busy',
+                                    ]
+                                        .filter(Boolean)
+                                        .join(' ')}
+                                    className="data-[state=unchecked]:bg-ink-subtle aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                                    data-test="marketing-consent"
+                                />
+                            </span>
+                        </TooltipTrigger>
+                        {busy === undefined ? null : <TooltipContent>{busy}</TooltipContent>}
+                    </Tooltip>
+                    {busy === undefined ? null : (
+                        <span id="marketing_consent-busy" className="sr-only">
+                            {busy}
+                        </span>
+                    )}
+                    <FieldContent>
+                        <FieldLabel htmlFor="marketing_consent" className="text-label-14 text-ink">
+                            {t('access::account.offers.label')}
+                        </FieldLabel>
+                        <FieldDescription id="marketing_consent-hint" className="text-copy-13 text-ink-muted">
+                            {t('access::account.offers.hint')}
+                        </FieldDescription>
+                        {account.emailVerified ? null : (
+                            <FieldDescription id="marketing_consent-unconfirmed" className="text-copy-13 text-ink-muted" data-test="offers-unconfirmed">
+                                {t('access::account.offers.unconfirmed')}
+                            </FieldDescription>
+                        )}
+                    </FieldContent>
+                </Field>
+                {refusal ? (
+                    <FieldError id="marketing_consent-error" data-test="offers-refusal">
+                        {refusal}
+                    </FieldError>
+                ) : null}
+            </CardContent>
+        </Card>
     );
 }
 

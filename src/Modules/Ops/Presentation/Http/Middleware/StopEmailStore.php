@@ -7,6 +7,7 @@ namespace Modules\Ops\Presentation\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
+use Inertia\Inertia;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -34,6 +35,10 @@ final readonly class StopEmailStore
         }
 
         app()->setLocale($locale);
+        // The page is read in the address's language (§4.15 O13). The application's Inertia middleware shared a
+        // language before this ran, from this browser's cookie; nothing else here shares it again, as the shop's
+        // own middleware does (lessons 74, 97), so this does.
+        Inertia::share(['locale' => $locale, 'direction' => $locale === 'ar' ? 'rtl' : 'ltr']);
         $route->forgetParameter('store');
         $route->forgetParameter('locale');
 
