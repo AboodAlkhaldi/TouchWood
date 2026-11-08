@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Contracts\Foundation\Application;
 use InvalidArgumentException;
+use Modules\Payments\Public\Dto\PaymentAttemptDto;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\MoneyData;
 use Modules\Platform\Public\Dto\StoreDto;
@@ -138,6 +139,7 @@ final readonly class OrderPages
             $this->money($row->total, $row->storeId, $row->exponent),
             $row->shortOfStock,
             $row->shippingFeePending,
+            $row->isOverdue,
         );
     }
 
@@ -230,6 +232,13 @@ final readonly class OrderPages
             $order->shippingDetail->feePending ?? false,
             OrderBoxData::of($order->box),
             $order->shippingDetail?->orderedCarrierId,
+            $order->isOverdue,
+            $order->attempts === null ? null : array_map(static fn (PaymentAttemptDto $attempt): OrderAttemptData => new OrderAttemptData(
+                $attempt->attemptId, $attempt->state, $money($attempt->amount), $attempt->method, $attempt->needsAttention, self::moment($attempt->createdAt),
+            ), $order->attempts),
+            $order->paymentRequest === null ? null : new OrderRequestData($money($order->paymentRequest->amount), self::moment($order->paymentRequest->expiresAt)),
+            $order->paymentInProgress,
+            $order->mayRequestPayment,
         );
     }
 

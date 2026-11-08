@@ -228,6 +228,14 @@ mayFulfil: boolean,
 mayRecordMoney: boolean,
 mayManageReturns: boolean,
 };
+export type OrderAttemptData = {
+id: string,
+state: string,
+amount: MoneyData,
+method: string | null,
+needsAttention: boolean,
+createdAt: string,
+};
 export type OrderBoxData = {
 name: string | null,
 byHand: boolean,
@@ -347,6 +355,15 @@ orderedCarrier: string | null,
 shippingFeePending: boolean,
 box: OrderBoxData | null,
 orderedCarrierId: string | null,
+isOverdue: boolean,
+attempts: OrderAttemptData[] | null,
+paymentRequest: OrderRequestData | null,
+paymentInProgress: boolean,
+mayRequestPayment: boolean,
+};
+export type OrderRequestData = {
+amount: MoneyData,
+expiresAt: string,
 };
 export type OrderReturnData = {
 id: string,
@@ -367,6 +384,7 @@ payment: string,
 total: MoneyData,
 shortOfStock: boolean,
 shippingFeePending: boolean,
+isOverdue: boolean,
 };
 export type OrderTickData = {
 variantId: string,
@@ -434,6 +452,8 @@ storeTimezone: string,
 trackingLink: string | null,
 shippingPending: boolean,
 isTest: boolean,
+paymentRequest: OwnRequestData | null,
+paymentBeingConfirmed: boolean,
 };
 export type OwnOrderRowData = {
 number: string,
@@ -442,6 +462,12 @@ status: string,
 total: MoneyData,
 pieces: number,
 shippingPending: boolean,
+paymentRequested: boolean,
+};
+export type OwnRequestData = {
+requestId: string,
+amount: MoneyData,
+expiresAt: string,
 };
 export type OwnReturnLineData = {
 name: string,
@@ -475,6 +501,10 @@ status: string,
 requestedAt: string,
 refundDue: MoneyData | null,
 staffReason: string | null,
+};
+export type PayRequestPage = {
+order: OwnOrderPage,
+payment: CheckoutTryData | null,
 };
 export type PayStartData = {
 tryId: string,

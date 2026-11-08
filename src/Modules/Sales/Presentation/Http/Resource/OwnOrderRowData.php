@@ -20,5 +20,7 @@ final class OwnOrderRowData extends Data
         public int $pieces,
         /** The total is before shipping: staff set the fee (sales.md §9.7 E7). */
         public bool $shippingPending = false,
+        /** A request is open on it (payments.md §4.2, Q13). */
+        public bool $paymentRequested = false,
     ) {}
 }

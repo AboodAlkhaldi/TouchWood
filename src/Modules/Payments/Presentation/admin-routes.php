@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\AdminArea;
 use Illuminate\Support\Facades\Route;
 use Modules\Payments\Presentation\Http\Controller\GatewayController;
+use Modules\Payments\Presentation\Http\Controller\PaymentsController;
 
 /*
 | Payments' screens in the admin panel (payments.md §4.2): the Gateway page; the Payments list and an attempt
@@ -14,6 +15,9 @@ use Modules\Payments\Presentation\Http\Controller\GatewayController;
 Route::prefix(AdminArea::PREFIX)
     ->middleware([...AdminArea::MIDDLEWARE, AdminArea::SIGNED_IN])
     ->group(function (): void {
+        Route::get('payments', [PaymentsController::class, 'index'])->name('payments.admin.payments');
+        Route::get('payments/{attempt}', [PaymentsController::class, 'show'])->whereUlid('attempt')->name('payments.admin.payments.show');
+        Route::post('payments/{attempt}/check', [PaymentsController::class, 'check'])->whereUlid('attempt')->name('payments.admin.payments.check');
         Route::get('payments/gateway', [GatewayController::class, 'index'])->name('payments.admin.gateway');
         Route::post('payments/gateway/keys', [GatewayController::class, 'keys'])->name('payments.admin.gateway.keys');
         Route::post('payments/gateway/mode', [GatewayController::class, 'mode'])->name('payments.admin.gateway.mode');

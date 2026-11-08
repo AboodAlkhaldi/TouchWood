@@ -4,20 +4,33 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Presentation\Http\Controller;
 
+use App\Http\Page;
+use App\Http\StorefrontArea;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Inertia\Response as InertiaResponse;
 use Modules\Payments\Public\Contracts\PaymentsApi;
+use Modules\Payments\Public\Dto\PaymentStartDto;
+use Modules\Payments\Public\Enums\PaymentState;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Sales\Application\Command\FollowCheckoutPayment\FollowCheckoutPayment;
 use Modules\Sales\Application\Command\FollowCheckoutPayment\FollowCheckoutPaymentHandler;
+use Modules\Sales\Application\Command\FollowRequestPayment\FollowRequestPayment;
+use Modules\Sales\Application\Command\FollowRequestPayment\FollowRequestPaymentHandler;
 use Modules\Sales\Application\Command\OpenCheckoutPayment\OpenCheckoutPayment;
 use Modules\Sales\Application\Command\OpenCheckoutPayment\OpenCheckoutPaymentHandler;
+use Modules\Sales\Application\Command\OpenRequestPayment\OpenRequestPayment;
+use Modules\Sales\Application\Command\OpenRequestPayment\OpenRequestPaymentHandler;
 use Modules\Sales\Application\Command\PayOnline\PayOnline;
 use Modules\Sales\Application\Command\PayOnline\PayOnlineHandler;
+use Modules\Sales\Application\Command\PayOrderRequest\PayOrderRequest;
+use Modules\Sales\Application\Command\PayOrderRequest\PayOrderRequestHandler;
+use Modules\Sales\Application\Query\ViewOwnOrder\ViewOwnOrderHandler;
 use Modules\Sales\Presentation\Http\Resource\CheckoutTryData;
+use Modules\Sales\Presentation\Http\Resource\OwnPages;
 use Modules\Sales\Presentation\Http\Resource\PaymentFormData;
 use Modules\Sales\Presentation\Http\Resource\PayStartData;
 use Shared\Application\StoreContext;
@@ -30,10 +43,15 @@ use Shared\Domain\ValueObject\StoreId;
 */
 final readonly class ShopPaymentController
 {
+    /** @var list<string> */
+    private const array REQUEST_WORDS = [...StorefrontArea::WORDS, 'sales::shop_orders', 'sales::shop_checkout', 'sales::shop_payment', 'sales::errors'];
+
     public function __construct(
         private StoreContext $stores,
         private PlatformApi $platform,
         private PaymentsApi $payments,
+        private Page $page,
+        private OwnPages $pages,
     ) {}
 
     /** The form for a quote: nothing is held or charged. Asked by the page, so a slow gateway never holds up checkout. */
@@ -55,15 +73,7 @@ final readonly class ShopPaymentController
             route('storefront.sales.payment.return'),
         ));
 
-        $timers = $this->payments->timers(StoreId::fromString($this->stores->current()->value));
-
-        return new JsonResponse((new PayStartData(
-            $paying->tryId,
-            $paying->start->frameUrl,
-            $paying->start->windowEndsAt->format(DateTimeInterface::ATOM),
-            CarbonImmutable::instance($paying->start->windowEndsAt)->subMinutes($timers->window)->addMinutes($timers->hold)->format(DateTimeInterface::ATOM),
-            now()->format(DateTimeInterface::ATOM),
-        ))->toArray());
+        return $this->started($paying->tryId, $paying->start);
     }
 
     /** The page's own answer: Payments asked, the order made or the try released. For this customer's own try alone. */
@@ -72,6 +82,46 @@ final readonly class ShopPaymentController
         $view = $handler->handle(new FollowCheckoutPayment($try));
 
         return new JsonResponse(CheckoutTryData::of($view, $this->mainStoreIfClosed())->toArray());
+    }
+
+    /** A request's page (payments.md §4.2, Q12): anyone but the order's customer gets a 404. */
+    public function requestPage(string $number, ViewOwnOrderHandler $view): InertiaResponse
+    {
+        return $this->page->render('Sales/Storefront/PayRequest', $this->pages->payRequest($number, $this->stores->current()->value, app()->getLocale(), $view)->toArray(), self::REQUEST_WORDS);
+    }
+
+    /** The form for a request: nothing is held or charged. */
+    public function requestSession(string $number, OpenRequestPaymentHandler $handler): JsonResponse
+    {
+        $session = $handler->handle(new OpenRequestPayment($this->stores->current()->value, $number, app()->getLocale()));
+
+        return new JsonResponse((new PaymentFormData($session->sessionId, $session->scriptUrl))->toArray());
+    }
+
+    /** Pay on a request's page: the session alone, its amount the request's (rule 12). */
+    public function requestPay(Request $request, string $number, PayOrderRequestHandler $handler): JsonResponse
+    {
+        $paying = $handler->handle(new PayOrderRequest(
+            $this->stores->current()->value,
+            $number,
+            self::text($request, 'session'),
+            app()->getLocale(),
+            route('storefront.sales.payment.return'),
+        ));
+
+        return $this->started($paying->requestId, $paying->start);
+    }
+
+    /** The request's answer, for this customer's own order alone. Paid goes back to the order, which says so once. */
+    public function requestFollow(Request $request, string $number, string $paying, FollowRequestPaymentHandler $handler): JsonResponse
+    {
+        $view = $handler->handle(new FollowRequestPayment($this->stores->current()->value, $number, $paying));
+
+        if ($view->payment === PaymentState::Succeeded) {
+            $request->session()->flash('status', __('sales::shop_payment.request.received'));
+        }
+
+        return new JsonResponse(CheckoutTryData::ofRequest($view, $number, $this->mainStoreIfClosed())->toArray());
     }
 
     /**
@@ -88,6 +138,20 @@ final readonly class ShopPaymentController
             200,
             ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'no-store'],
         );
+    }
+
+    /** What the page needs once Pay has started. The hold's end is worked out here: the start names only the window's. */
+    private function started(string $id, PaymentStartDto $start): JsonResponse
+    {
+        $timers = $this->payments->timers(StoreId::fromString($this->stores->current()->value));
+
+        return new JsonResponse((new PayStartData(
+            $id,
+            $start->frameUrl,
+            $start->windowEndsAt->format(DateTimeInterface::ATOM),
+            CarbonImmutable::instance($start->windowEndsAt)->subMinutes($timers->window)->addMinutes($timers->hold)->format(DateTimeInterface::ATOM),
+            now()->format(DateTimeInterface::ATOM),
+        ))->toArray());
     }
 
     /** The main store's address while this store is switched off, for the closed store's one page (payments.md §1.10). */

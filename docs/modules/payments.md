@@ -1503,3 +1503,17 @@ The owner answered **(a) for all twenty-two** (2026-11-01: "All as recommended")
     attempts are kept for good, so the key could never go unless that key is changed. Left for the owner's decision.
 14. **`openRequests(orderIds)`, asked by Sales for My Orders' "Payment requested"** (§4.2): one read for a page, by order id, writing
     nothing. One past its time with no payment open is left out, though its row still says `OPEN` until it is next looked at (#8).
+
+### 9.15 The step 12 screens' own picks (2026-11-05, taken as recommended under the owner's rule; Q1–Q22 as answered)
+
+1. **A request's page reuses checkout's form, timers and answers**, told the order's number instead of a quote. Its words differ only where checkout's name the cart or Staff Will Contact You. Its follow answers for an off store, as checkout's does (§1.10).
+2. **Paid goes back to the order, which says "Payment received."**: the ask that finds it paid sets it, for the page it then goes to.
+3. **A payment still open on a request shows what is last known**, never the gateway's answer on opening the page (#331's rule): the note's own ask does that.
+4. **No Test badge in the Payments list or on an attempt** (owner, 2026-11-03: the order's number says it). The Test/Live filter is the only mark on a test attempt with no order; the attempt's page says its mode.
+5. **"Refund this by hand…" shows for paid twice, a currency refused, and paid with no order**: money taken that no order keeps. A success after a request ended (`LATE_SUCCESS`) says only that, since its order holds it.
+6. **The Overdue badge sits on the order list**, beside the state badges, as §4.2 says, not on the order's own page.
+7. **Request Payment, the request open and a payment being confirmed are one Note in the order's Money card**, above the amounts. Record Payment and Edit Order are out of reach while a payment is being confirmed; staff's Cancel is not (sales.md §9.9 #3). A refusal the button's state didn't foresee (`sales.payment_being_confirmed`) says its own words.
+8. **A call's request and response show as stored**, pretty-printed: keys and card details were never stored (rule 13).
+9. **A request's page says a refusal it can't change in the form's place**, with no reload: the gateway off or its key refused (`NoOnlinePayment`), a request no longer open in this mode (`RequestNotOpen`). Only an ended link, a payment already open or a moved amount reloads the page. Without it, the page asked and reloaded for ever (the review, 2026-11-05).
+10. **The attempt's page shows no customer details at all without `access.customer.view`**, not even the name (§9.14 #11); the list keeps the name, as orders do.
+11. **Checkout's "can still go through" note says "Pay opens again after that" when it has no time to give**, where it said nothing before.
