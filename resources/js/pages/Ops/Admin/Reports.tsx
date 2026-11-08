@@ -9,7 +9,7 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { NativeSelectOption } from '@/components/ui/native-select';
-import { Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { AdminLayout } from '@/layouts/AdminLayout';
@@ -290,7 +290,7 @@ function Sheet({ sheet, locale, pageLocale, index }: { sheet: ReportSheetData; l
                                 ))}
                             </TableBody>
                             {sheet.totals.length > 0 ? (
-                                <TableFooter className="bg-surface-sunken">
+                                <TableBody className="border-t border-line bg-surface-sunken" data-test="totals">
                                     {sheet.totals.map((row, at) => (
                                         <TableRow key={at} className="font-semibold" data-test="total">
                                             {sheet.columns.map((column, place) => (
@@ -300,7 +300,7 @@ function Sheet({ sheet, locale, pageLocale, index }: { sheet: ReportSheetData; l
                                             ))}
                                         </TableRow>
                                     ))}
-                                </TableFooter>
+                                </TableBody>
                             ) : null}
                         </Table>
                     </div>
