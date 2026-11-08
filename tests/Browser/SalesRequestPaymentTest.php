@@ -214,6 +214,23 @@ it('keeps the page working when the payment code can\'t load, in the page\'s own
         ->and((bool) $page->script("!!document.querySelector('[data-test=\"request-order\"]')"))->toBeTrue();
 });
 
+it('says the link has ended in the form\'s place once the gateway has left the request\'s mode, without reloading', function () {
+    ['page' => $page, 'number' => $number] = salesRequestReady();
+    $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
+    Cx::asSuperAdmin(static fn () => app(ChangeKeysHandler::class)->handle(new ChangeKeys(Fx::storeId('sa'), 'TEST', 'sk_key_TEST12', 'whsec_secret_2', '2030-12-31')));
+    app()->scoped(ActorContext::class, $previous);
+    app()->forgetScopedInstances();
+    DB::table('payments.gateways')->update(['mode' => 'TEST']);
+
+    $page->navigate("/sa/en/orders/{$number}/pay", BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "(document.querySelector('[data-test=\"payment-failed\"]')?.textContent ?? '').includes('This payment link has ended')"))->toBeTrue('the refusal was never said');
+    $page->script('window.notReloaded = true');
+    usleep(3_000_000);
+
+    expect((bool) $page->script('window.notReloaded === true'))->toBeTrue('the page reloaded')
+        ->and((string) $page->script("document.querySelector('[data-test=\"pay\"]').getAttribute('aria-disabled')"))->toBe('true');
+});
+
 it('says the gateway is off in the form\'s place, without reloading', function () {
     ['page' => $page, 'number' => $number] = salesRequestReady(1280, 800);
     $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;

@@ -16,6 +16,7 @@ use Modules\Payments\Domain\Exception\GatewayUnreachable;
 use Modules\Payments\Domain\Exception\InvalidPaymentsInput;
 use Modules\Payments\Domain\Exception\KeyPermissionMissing;
 use Modules\Payments\Domain\Exception\NoOnlinePayment;
+use Modules\Payments\Domain\Exception\RequestNotOpen;
 use Modules\Payments\Domain\Exception\TooManyPaymentSessions;
 use Modules\Payments\Domain\Model\Gateway;
 use Modules\Payments\Domain\Model\GatewaySession;
@@ -47,7 +48,7 @@ final readonly class OpenPaymentSession
     ) {}
 
     /**
-     * @throws NoOnlinePayment|InvalidPaymentsInput|GatewayRefused|GatewayUnreachable
+     * @throws NoOnlinePayment|RequestNotOpen|InvalidPaymentsInput|GatewayRefused|GatewayUnreachable
      */
     public function open(SessionRequestDto $request): PaymentSessionDto
     {
@@ -60,6 +61,11 @@ final readonly class OpenPaymentSession
 
         if ($this->gateways->currentKey($store->id, $gateway->mode)?->rejected !== false) {
             throw new NoOnlinePayment;
+        }
+
+        // Pay would refuse it: said now, before a card is typed for nothing (§9.14 #6).
+        if ($request->requestMode !== null && $request->requestMode !== $gateway->mode) {
+            throw new RequestNotOpen;
         }
 
         if ($request->amount->currencyCode !== $store->currencyCode || ! $request->amount->isPositive()) {

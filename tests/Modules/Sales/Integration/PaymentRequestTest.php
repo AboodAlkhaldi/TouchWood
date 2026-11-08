@@ -17,6 +17,7 @@ use Modules\Payments\Application\Command\ChangeKeys\ChangeKeysHandler;
 use Modules\Payments\Application\Command\SwitchGateway\SwitchGateway;
 use Modules\Payments\Application\Command\SwitchGateway\SwitchGatewayHandler;
 use Modules\Payments\Application\Gateway\KeyTester;
+use Modules\Payments\Domain\Exception\RequestNotOpen;
 use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Payments\Public\Dto\PaymentRequestStateDto;
 use Modules\Payments\Public\Enums\PaymentRequestState;
@@ -376,6 +377,22 @@ describe('the page', function () {
         expect(CarbonImmutable::instance($session->expiresAt)->equalTo(CarbonImmutable::instance($request->expiresAt)->addMinutes(5 + 2)))->toBeTrue()
             ->and($fake->count('POST', '/v3/sessions'))->toBe(1)
             ->and(DB::table('payments.sessions')->where('owner_id', $request->requestId)->value('amount_minor'))->toEqual($request->amount->minorUnits);
+    });
+
+    it('opens no form once the gateway has left the request\'s mode, and opens again when it is back', function () {
+        ['order' => $order, 'number' => $number, 'fake' => $fake] = orderPayReady();
+        $request = orderPayAsk($order);
+        Cx::asSuperAdmin(static fn () => app(ChangeKeysHandler::class)->handle(new ChangeKeys(Fx::storeId('sa'), 'TEST', 'sk_key_TEST12', 'whsec_secret_2', '2030-12-31')));
+        DB::table('payments.gateways')->update(['mode' => 'TEST']);
+
+        expect(fn () => orderPaySession($number))->toThrow(RequestNotOpen::class)
+            ->and($fake->count('POST', '/v3/sessions'))->toBe(0)
+            ->and(DB::table('payments.sessions')->where('owner_id', $request->requestId)->count())->toBe(0);
+
+        DB::table('payments.gateways')->update(['mode' => 'LIVE']);
+
+        expect(orderPaySession($number))->not->toBe('')
+            ->and($fake->count('POST', '/v3/sessions'))->toBe(1);
     });
 
     it('says the link has ended with no request open, for the own customer', function () {

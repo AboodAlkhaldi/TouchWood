@@ -47,6 +47,7 @@ final readonly class OpenRequestPaymentHandler
         return $this->payments->openSession(new SessionRequestDto(
             $store, $request->requestId, $customerId, $request->amount, $command->locale,
             CarbonImmutable::instance($request->expiresAt)->addMinutes($timers->window + $timers->wait),
+            $request->mode,
         ));
     }
 }

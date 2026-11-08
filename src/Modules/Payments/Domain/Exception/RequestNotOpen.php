@@ -7,7 +7,8 @@ namespace Modules\Payments\Domain\Exception;
 use Shared\Domain\Error\ErrorCategory;
 
 /**
- * Paying a request that expired, was paid or was withdrawn (payments.md §1.5, §7).
+ * Paying a request that expired, was paid or was withdrawn, or opening or paying one the gateway's mode has left
+ * (payments.md §1.5, §7, §9.14 #6).
  */
 final class RequestNotOpen extends PaymentsError
 {
