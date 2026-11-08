@@ -110,6 +110,7 @@ describe('the admin menu', function () {
             // Shipping's screens (shipping.md §4.1 part 1): its own group, after Orders.
             'shipping/carriers',
             'shipping/boxes',
+            'payments/payments',
             'payments/gateway',
             // B2B's staff screens (b2b.md amendment 21).
             'companies/companies',
@@ -118,6 +119,8 @@ describe('the admin menu', function () {
             'customers/customers',
             // Feedback's screens (feedback.md §4.1): Favourited Products, then Support's two.
             'customers/favourites',
+            // Ops' Reports section, after Customers (ops.md §4.15, the menu).
+            'reports/reports',
             // Promotions' screens (promotions.md §4.1): Marketing's Coupons.
             'marketing/coupons',
             'marketing/segments',

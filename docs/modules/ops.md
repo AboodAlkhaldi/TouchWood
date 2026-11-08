@@ -540,10 +540,12 @@ fields in `Presentation/Http/Resource`. What a screen needs and the code does no
 
 ### 4.1 What holds for every route
 
-- **A built page's address answers a page; the other GETs answer JSON.** O1 to O7, O10 and O13 are built (§4.15; owner, 2026-11-02;
+- **A built page's address answers a page; the other GETs answer JSON.** O1 to O8, O10 and O13 are built (§4.15; owner, 2026-11-02;
   brought up to date 2026-11-05): a list of theirs, and the confirm, leave and unsubscribe links, give the page to a plain visit
-  and the JSON to whoever asks with `Accept: application/json`; a form's address gives only the page. Every other GET of §4
-  answers JSON even to a plain visit, except the two downloads: Reports and Daily Reports, until their pages are built
+  and the JSON to whoever asks with `Accept: application/json`; a form's address gives only the page. A report's address
+  (`ops.admin.reports.show`) gives the Reports page to a plain visit, which names the store by its **code** (owner, 2026-11-05),
+  and the preview's JSON, the store by its id, to whoever asks. Every other GET of §4 answers JSON even to a plain visit, except
+  the two downloads (a report's Excel file, a daily report's PDF): Daily Reports, until its page is built
   (§4.13), and the reads a page asks for itself (`ops.admin.choices`, `ops.admin.audience`, the bells' unread number, a form's
   segments and customers, one notice). `ops.admin.choices` (§4.1 below) says what each form may offer. The consent switch (§4.8) is Access's and answers with a
   redirect. The panel's route list carries `ops.admin.*`, the shop's `storefront.*` (`config/ziggy.php`).
@@ -577,7 +579,8 @@ fields in `Presentation/Http/Resource`. What a screen needs and the code does no
 | Routes | `store` is | Left out |
 |---|---|---|
 | Notices list and write, composer lookup and send, subscribers list, the two segment lists | The store's **code**, through `StoreChoices::chosen` | The first store on offer that is on; 403 when there is none |
-| Reports preview and download | The store's **id**, or `all` | 422, `store` |
+| Reports preview (JSON) and download | The store's **id**, or `all` | 422, `store` |
+| The Reports page (§4.15 O8) | The store's **code**, or `all` (owner, 2026-11-05); read as its id, so `downloadUrl` keeps the id. A code not among the kind's stores on offer, unknown or not the reader's, is refused as a store not offered (in words on the page) | The page opens on the first store on offer that is on; nothing is read until Show Report |
 | Daily report make, email switch | The store's **id** | Every store's report: a super admin's alone, 403 for anyone else |
 
 `StoreChoices` offers a Super Admin every store and anyone else the stores that are on. The reports, the daily
@@ -998,7 +1001,7 @@ reads the screens needed were added; what stays is what the code cannot give yet
 1. **Pages left to build.** (Corrected 2026-11-05: this said no page, menu entry or account tab existed for Ops and the bell
    was in no frame. `OpsServiceProvider` now registers the menu entries for Notices, Messages, Subscribers and SMS Countries, both
    bells in their frames, and the account's Notifications page.) The three links emails carry (§4.10, §4.11) open JSON until those
-   pages exist. A stop-email page for an off store cannot use the shop's frame (§4.11). **Specified in §4.15 (owner, 2026-11-02); leaves this list as each is built.** Built: SMS Countries (#322), the two bells and their full pages (#325), Customer Messages and Offer Notices with their forms (#346), Subscribers (#347), the newsletter box, the consent switch and box, and the confirm, leave and unsubscribe pages (O11-O13, 2026-11-05). Left: Reports, Daily Reports.
+   pages exist. A stop-email page for an off store cannot use the shop's frame (§4.11). **Specified in §4.15 (owner, 2026-11-02); leaves this list as each is built.** Built: SMS Countries (#322), the two bells and their full pages (#325), Customer Messages and Offer Notices with their forms (#346), Subscribers (#347), Reports (#357), the newsletter box, the consent switch and box, and the confirm, leave and unsubscribe pages (#359). Left: Daily Reports.
    The Home card goes with the Home dashboard job (§9.4 Q5).
 2. ~~**The consent box is on no page.**~~ Built (§4.15 O12, 2026-11-05): the Profile tab's Offers and News switch and the
    registration box.
@@ -1047,9 +1050,9 @@ need from the backend is in main (Q14, Q17, Q21, R1). How to carry on: `src/Modu
 | O3 to O6 Customer Messages, Offer Notices and their forms | Built, #346 |
 | O7 Subscribers | Built, #347 |
 | O10 SMS Countries | Built, #322 |
-| O8 Reports, with the menu's `reports` section | **Not built** |
+| O8 Reports, with the menu's `reports` section | Built, #357. The owner's answers of 2026-11-05: the page's address names the store by its code; All Stores' days in the base store's time; the section's icon FileText |
 | O9 Daily Reports | **Not built** |
-| O11 the newsletter box, O12 the consent switch and box, O13 the confirm, leave and unsubscribe pages | Built, 2026-11-05 (PR to come) |
+| O11 the newsletter box, O12 the consent switch and box, O13 the confirm, leave and unsubscribe pages | Built, #359 |
 | The Home card (Q5) | Not in this work: it goes with the Home dashboard job |
 
 #### What holds for every page

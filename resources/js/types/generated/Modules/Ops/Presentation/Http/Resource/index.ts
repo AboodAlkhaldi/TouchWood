@@ -129,6 +129,12 @@ dailyReports: StoreChoiceData[],
 dailyReportsAllStores: boolean,
 reports: ReportChoiceData[],
 };
+export type ReportAskedData = {
+store: string,
+from: string,
+to: string,
+by: string,
+};
 export type ReportChoiceData = {
 kind: ReportKind,
 stores: StoreChoiceData[],
@@ -156,6 +162,15 @@ notes: string[],
 rows: (string| number| null)[][],
 totals: (string| number| null)[][],
 more: boolean,
+};
+export type ReportsPageData = {
+report: ReportKind,
+reports: ReportChoiceData[],
+zones: Record<string, string>,
+opening: ReportAskedData,
+shown: ReportAskedData | null,
+preview: ReportPreviewData | null,
+refusal: string | null,
 };
 export type SegmentChoiceData = {
 id: string,

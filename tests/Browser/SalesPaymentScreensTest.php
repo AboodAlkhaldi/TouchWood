@@ -6,14 +6,11 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Route;
 use Modules\Payments\Application\Command\ChangeKeys\ChangeKeys;
 use Modules\Payments\Application\Command\ChangeKeys\ChangeKeysHandler;
 use Modules\Payments\Application\Command\SwitchGateway\SwitchGateway;
 use Modules\Payments\Application\Command\SwitchGateway\SwitchGatewayHandler;
-use Modules\Payments\Application\Gateway\GatewayAddresses;
 use Modules\Payments\Application\Gateway\KeyTester;
-use Modules\Payments\Public\Enums\PaymentMode;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Shared\Application\ActorContext;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -21,6 +18,7 @@ use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\Catalog\Support\CatalogProducts;
 use Tests\Modules\Payments\Support\FakeMyFatoorah;
+use Tests\Modules\Payments\Support\FakePaymentPages;
 use Tests\Modules\Sales\Support\CheckoutFixtures as Cx;
 
 use function Pest\Laravel\get;
@@ -47,27 +45,7 @@ afterEach(function () {
 });
 
 beforeEach(function () {
-    // The real Payments: only the form's script is ours here, and the bank's page comes from the fake gateway.
-    app()->instance(GatewayAddresses::class, new class(app(GatewayAddresses::class)) implements GatewayAddresses
-    {
-        public function __construct(private GatewayAddresses $real) {}
-
-        public function offered(string $countryCode): bool
-        {
-            return $this->real->offered($countryCode);
-        }
-
-        public function api(string $countryCode, PaymentMode $mode): string
-        {
-            return $this->real->api($countryCode, $mode);
-        }
-
-        public function script(string $countryCode, PaymentMode $mode): string
-        {
-            return '/__fake-mf/session.js';
-        }
-    });
-
+    FakePaymentPages::install();
     config(['session.driver' => 'database']);
     seed(PlatformSeeder::class);
     seed(CatalogSeeder::class);
@@ -78,22 +56,6 @@ beforeEach(function () {
     {
         public function test(string $apiBase, #[SensitiveParameter] string $key, string $currencyCode): void {}
     });
-
-    config(['testing.payment_script_down' => false]);
-    Route::get('__fake-mf/session.js', static fn () => config('testing.payment_script_down') === true ? response('', 503) : response(<<<'JS'
-        window.myfatoorah = {
-            init(config) {
-                window.fakeForm = config;
-                document.getElementById(config.containerId).innerHTML = '<div data-test="fake-form">The card form</div>';
-            },
-            validateCardInputs() { return Promise.resolve(); },
-            submitCardPayment() { window.fakeForm.callback({ isSuccess: true, paymentType: 'CARD', sessionId: window.fakeForm.sessionId, paymentCompleted: false }); },
-        };
-        JS, 200, ['Content-Type' => 'text/javascript']));
-    Route::get('__fake-mf/bank', static fn () => response(<<<'HTML'
-        <!doctype html><title>Bank</title><p>Enter your code</p>
-        <script>window.addEventListener('message', (event) => { if (event.data === 'finish') { window.parent.postMessage(JSON.stringify({ sender: 'MF-3DSecure', url: 'x' }), '*'); } }); window.bankReady = true;</script>
-        HTML));
 });
 
 /**
@@ -102,7 +64,7 @@ beforeEach(function () {
 function salesPaymentReady(int $width = 375, int $height = 812): array
 {
     $fake = FakeMyFatoorah::install();
-    $fake->framePath = '/__fake-mf/bank';
+    $fake->framePath = FakePaymentPages::BANK;
     $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
 
     try {
@@ -139,9 +101,8 @@ function salesPaymentPay(mixed $page): void
 
 function salesPaymentFinish(mixed $page): void
 {
-    // The frame's element comes before the page inside it: a message sent sooner reaches nobody.
-    expect(browserSoon($page, "document.querySelector('[data-test=\"payment-frame\"]')?.contentWindow?.bankReady === true"))->toBeTrue('the bank page never loaded');
-    $page->script("document.querySelector('[data-test=\"payment-frame\"]').contentWindow.postMessage('finish', '*')");
+    expect(browserSoon($page, FakePaymentPages::BANK_READY))->toBeTrue('the bank page never loaded');
+    $page->script(FakePaymentPages::FINISH);
 }
 
 function salesPaymentTotal(): string

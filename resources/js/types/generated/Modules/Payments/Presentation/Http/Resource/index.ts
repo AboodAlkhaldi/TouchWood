@@ -1,3 +1,42 @@
+import type { MoneyData } from '../../../../Platform/Public/Dto';
+export type AttemptCallData = {
+id: string,
+endpoint: string,
+httpStatus: number | null,
+tookMs: number,
+at: string,
+request: string | null,
+response: string | null,
+error: string | null,
+};
+export type AttemptPage = {
+attempt: PaymentRowData,
+isTest: boolean,
+contactName: string | null,
+contactEmail: string | null,
+contactPhone: string | null,
+mayReadContact: boolean,
+transactions: AttemptTransactionData[],
+calls: AttemptCallData[],
+canAsk: boolean,
+refundDue: boolean,
+timezone: string,
+};
+export type AttemptTransactionData = {
+id: string,
+gatewayPaymentId: string,
+status: string,
+succeeded: boolean,
+method: string,
+cardBrand: string | null,
+amount: string | null,
+paidAt: string | null,
+errorCode: string | null,
+errorMessage: string | null,
+mismatch: boolean,
+paidTwice: boolean,
+seenAt: string,
+};
 export type GatewayKeyData = {
 last6: string,
 expiresOn: string,
@@ -29,4 +68,29 @@ export type GatewayStoreData = {
 code: string,
 name: string,
 isActive: boolean,
+};
+export type PaymentRowData = {
+id: string,
+storeCode: string,
+orderId: string,
+orderNumber: string | null,
+customerName: string | null,
+amount: MoneyData,
+method: string | null,
+state: string,
+ownerKind: string,
+reasons: string[],
+createdAt: string,
+};
+export type PaymentsListPage = {
+stores: GatewayStoreData[],
+storeCode: string | null,
+state: string | null,
+mode: string | null,
+states: string[],
+needingAttention: PaymentRowData[],
+needingAttentionCount: number,
+rows: PaymentRowData[],
+next: string | null,
+timezone: string,
 };

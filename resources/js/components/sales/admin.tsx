@@ -28,7 +28,7 @@ const SHIPMENT: Record<string, Tone> = { NOT_SHIPPED: 'gray-subtle', SHIPPED: 'b
 const PAYMENT: Record<string, Tone> = { NOTHING_DUE: 'gray-subtle', UNPAID: 'red-subtle', PARTLY_PAID: 'amber-subtle', PAID: 'green-subtle', REFUND_DUE: 'amber-subtle', REFUNDED: 'gray-subtle' };
 
 /** The order's, payment's and shipment's states, each a badge in its own words. */
-export function StateBadges({ status, payment, shipment, short = false, fee }: { status: string; payment: string; shipment: string; short?: boolean; /** The fee to be set, in the page's words. */ fee?: string | null }) {
+export function StateBadges({ status, payment, shipment, short = false, fee, overdue = false }: { status: string; payment: string; shipment: string; short?: boolean; /** The fee to be set, in the page's words. */ fee?: string | null; /** A transfer unpaid 72 hours after its receipt (sales.md §9.9 #4). */ overdue?: boolean }) {
     const t = useTranslator();
 
     return (
@@ -45,6 +45,11 @@ export function StateBadges({ status, payment, shipment, short = false, fee }: {
             {short ? (
                 <Badge className={tone('red')} data-test="order-short">
                     {t(`${W}.orders.short`)}
+                </Badge>
+            ) : null}
+            {overdue ? (
+                <Badge className={tone('amber')} data-test="order-overdue">
+                    {t(`${W}.orders.overdue`)}
                 </Badge>
             ) : null}
             {fee === null || fee === undefined ? null : (

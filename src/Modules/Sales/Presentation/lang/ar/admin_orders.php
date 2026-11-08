@@ -5,6 +5,7 @@ declare(strict_types=1);
 // المبيعات › الطلبات، وصفحة الطلب وقائمة التعبئة (المواصفة §4.1 P1–P3).
 return [
     'orders' => [
+        'overdue' => 'متأخر',
         'title' => 'الطلبات',
         'subtitle' => 'كل طلب في متاجرك، الأحدث أولًا',
         'tabs_label' => 'الطلبات حسب الحالة',
@@ -102,6 +103,15 @@ return [
     'system' => 'النظام',
     'off' => 'المتجر متوقف',
     'show' => [
+        'owes' => 'على العميل :amount.',
+        'requested' => 'طُلب :amount، متاح حتى :time',
+        'confirming' => 'يجري تأكيد عملية دفع.',
+        'online_payments' => 'المدفوعات الإلكترونية',
+        'attempt_state' => [
+            'CREATING' => 'قيد البدء', 'CHARGING' => 'قيد الخصم', 'OPEN' => 'مفتوحة', 'UNKNOWN' => 'غير معروفة', 'SUCCEEDED' => 'مدفوعة',
+            'FAILED' => 'فشلت', 'REFUSED' => 'مرفوضة', 'EXPIRED' => 'انتهت', 'ABANDONED' => 'متروكة',
+        ],
+        'needs_attention' => 'تحتاج متابعة',
         'placed' => 'طُلب :when',
         'actions' => 'إجراءات أخرى',
         'customer' => 'العميل',
@@ -172,6 +182,8 @@ return [
         'unpaid_ship' => 'يمكن شحنه قبل الدفع',
     ],
     'action' => [
+        'request_payment' => 'طلب الدفع',
+        'withdraw_request' => 'سحب الطلب',
         'approve' => 'موافقة',
         'reject' => 'رفض…',
         'cancel' => 'إلغاء الطلب…',
@@ -192,6 +204,7 @@ return [
         'tick' => 'حفظ العلامات',
     ],
     'why' => [
+        'confirming' => 'يجري تأكيد عملية دفع.',
         'void_uncovers' => 'لن يغطي المدفوع المتبقي الاستردادات.',
         'not_waiting' => 'لا يُقرَّر إلا طلب بانتظار الموافقة.',
         'shipped' => 'شُحن بالفعل.',
@@ -345,6 +358,8 @@ return [
         'failed' => 'تعذّر حساب المعاينة. حاول مجددًا.',
     ],
     'toast' => [
+        'payment_requested' => 'تم طلب الدفع.',
+        'request_withdrawn' => 'تم سحب الطلب.',
         'edited' => 'عُدّل الطلب.',
         'approved' => 'تمت الموافقة على الطلب.',
         'rejected' => 'رُفض الطلب.',

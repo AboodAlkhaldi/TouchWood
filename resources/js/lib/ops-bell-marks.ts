@@ -1,14 +1,32 @@
 import { useState } from 'react';
 import { usePage } from '@inertiajs/react';
 import { readJson } from '@/lib/live-read';
-import { ask, tell } from '@/lib/ops-bell';
+import { BELL_CHANGE, type BellChange } from '@/lib/ops-bell';
 import type { UnreadData } from '@/types/generated/Modules/Ops/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
 
 /*
 | What a bell asks the server (ops.md §4.15 O1, O2), apart from lib/ops-bell.ts since no page needs it on
 | first paint. The marks are plain requests, not Inertia visits: they answer with the number, not a page.
+|
+| Requests are numbered: the number on screen is the newest asked's, whatever order the answers arrive in,
+| since sessions don't lock and two marks run side by side (the review of the bells).
 */
+
+let asked = 0;
+let applied = 0;
+
+/** A place in line, taken before a request goes out. */
+export function ask(): number {
+    return ++asked;
+}
+
+/** An older answer than one already shown still says which row was marked; its number is out of date. */
+export function tell(order: number, change: BellChange): void {
+    const late = order < applied;
+    applied = Math.max(applied, order);
+    window.dispatchEvent(new CustomEvent<BellChange>(BELL_CHANGE, { detail: late ? { ...change, unread: undefined } : change }));
+}
 
 /** How long a mark may hold up going to a row's link: a failed mark still goes (O1). */
 const MARK_MS = 4_000;
