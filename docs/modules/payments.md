@@ -636,7 +636,8 @@ interface PaymentsApi
 ```
 
 - **`SessionRequestDto`**: `storeId`, `ownerId` (the quote's id for checkout, the request's id for a
-  request page), `buyerId`, `amount` (Money — from the quote or the request), `locale`, `expiresAt`.
+  request page), `buyerId`, `amount` (Money — from the quote or the request), `locale`, `expiresAt`,
+  `requestMode` (a request's own mode; null at checkout).
 - **`PaymentSessionDto`**: `sessionId`, `scriptUrl` (MyFatoorah's, for the mode), `mode` (`LIVE`,
   `TEST`), `expiresAt`, `applePay` (bool — the domain registered, §1.2).
 - **`PayRequestDto`**: `ownerId` (the try's id, or the request's), `ownerKind` (`TRY`, `REQUEST`),
@@ -915,7 +916,7 @@ Every error extends `PaymentsError` → `DomainError` ("payments.*"), with both 
 | `KeyTestFailed` | INVALID | Saving a key whose test call failed — the reason named |
 | `KeyPermissionMissing` | INVALID | MyFatoorah's 401 "The token does not have the required permissions!" — names what to switch on |
 | `AttemptNotFound` | NOT_FOUND | An attempt that is not there (which buyer may ask about it is Sales's to check: `charge`, `abandon` and `refresh` take no buyer) |
-| `RequestNotOpen` | CONFLICT | Paying a request that expired, was paid or was withdrawn (§1.5) |
+| `RequestNotOpen` | CONFLICT | Paying a request that expired, was paid or was withdrawn (§1.5), or opening or paying one the gateway's mode has left (§9.14 #6) |
 | `AmountChanged` | CONFLICT | A request for an amount different from the open request's — Sales must withdraw first |
 | `InvalidPaymentsInput` | INVALID | A field out of range, named |
 
@@ -1484,8 +1485,12 @@ The owner answered **(a) for all twenty-two** (2026-11-01: "All as recommended")
    and a cancelled order must not keep a link to pay. §4's "never while an attempt is open" holds for staff's withdrawal only.
 5. **The order's number in the Payments list comes from Sales through a port**: `Public/Contracts/PaymentOrderNumbers`, bound in
    Sales, for the same reason. Attempts hold no number: a try's order has none until it is paid.
-6. **A request whose mode is not the gateway's** is refused as `NoOnlinePayment` when asked, and `RequestNotOpen` when paid. A
-   request with an amount other than `prepare`'s is `AmountChanged`.
+6. **A request whose mode is not the gateway's** is refused as `NoOnlinePayment` when asked, and `RequestNotOpen` when its form
+   is opened or it is paid. **The form is refused too (the owner, 2026-11-09)**, so nobody types a card for a payment Pay would
+   refuse, and the check is on the pay page alone: the order page and My Orders don't look at the gateway, so Pay Now stays there
+   until the request's time ends. `RequestNotOpen` is one the page says in the form's place: `payment_link_ended` would reload a
+   page that doesn't change with the gateway, for ever (§9.15 #9). A request with an amount other than `prepare`'s is
+   `AmountChanged`.
 7. **Two requests at the same instant, past the order's lock**: the one-open index keeps one and the other is answered from it, the
    same way as if it had come later, with no second `PaymentRequested`.
 8. **A request's time ends when it is next looked at** (`openRequest`, `requestPayment`), with no scheduled job: nothing shows it

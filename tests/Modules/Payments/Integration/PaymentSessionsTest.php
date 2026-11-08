@@ -31,6 +31,7 @@ use Modules\Payments\Domain\Exception\InvalidPaymentsInput;
 use Modules\Payments\Domain\Exception\KeyPermissionMissing;
 use Modules\Payments\Domain\Exception\NoGatewayKey;
 use Modules\Payments\Domain\Exception\NoOnlinePayment;
+use Modules\Payments\Domain\Exception\RequestNotOpen;
 use Modules\Payments\Domain\Repository\Gateways;
 use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Payments\Public\Dto\SessionRequestDto;
@@ -131,6 +132,29 @@ describe('opening a session', function () {
             return $store;
         }],
     ]);
+
+    it('refuses a form for a request of the other mode before any call, and opens one of the gateway\'s own', function () {
+        Http::fake([SESSIONS_MF.'/v3/sessions' => Http::response(Answers::session(), 201)]);
+        $store = sessionsGateway();
+        $ask = sessionsAsk($store);
+        $for = static fn (PaymentMode $mode): SessionRequestDto => new SessionRequestDto($ask->storeId, $ask->ownerId, $ask->buyerId, $ask->amount, $ask->locale, $ask->expiresAt, $mode);
+
+        expect(fn () => app(PaymentsApi::class)->openSession($for(PaymentMode::Live)))->toThrow(RequestNotOpen::class)
+            ->and(DB::table('payments.sessions')->count())->toBe(0);
+        Http::assertNothingSent();
+
+        expect(app(PaymentsApi::class)->openSession($for(PaymentMode::Test))->mode)->toBe(PaymentMode::Test);
+        Http::assertSentCount(1);
+    });
+
+    it('says the gateway is off before the mode, for a request of the other mode', function () {
+        Http::fake();
+        $store = sessionsGateway(on: false);
+        $ask = sessionsAsk($store);
+
+        expect(fn () => app(PaymentsApi::class)->openSession(new SessionRequestDto($ask->storeId, $ask->ownerId, $ask->buyerId, $ask->amount, $ask->locale, $ask->expiresAt, PaymentMode::Live)))
+            ->toThrow(NoOnlinePayment::class);
+    });
 
     it('refuses a store the gateway is not offered in, whose gateway somehow stands', function () {
         Http::fake();
