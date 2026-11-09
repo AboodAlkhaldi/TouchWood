@@ -9,4 +9,5 @@ return [
     'messages' => 'Customer Messages',
     'subscribers' => 'Subscribers',
     'sms_countries' => 'SMS Countries',
+    'daily_reports' => 'Daily Reports',
 ];

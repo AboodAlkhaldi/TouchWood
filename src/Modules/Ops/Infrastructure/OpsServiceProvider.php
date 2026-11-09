@@ -234,8 +234,9 @@ final class OpsServiceProvider extends ServiceProvider
 
         // Each entry lands with its page (ops.md §4.15, the menu).
         $this->app->make(AdminMenu::class)->register(
-            // The Reports section's first entry (§4.15 O8); Daily Reports joins it with its page (O9).
+            // The Reports section (§4.15 O8, O9).
             new MenuEntryDto('ops', 'reports', 'reports', 'ops.admin.reports', OpsPermissions::REPORT_VIEW, 10, icon: 'reports'),
+            new MenuEntryDto('ops', 'daily_reports', 'reports', 'ops.admin.daily-reports', OpsPermissions::REPORT_DAILY, 20, icon: 'daily_reports'),
             new MenuEntryDto('ops', 'notices', 'marketing', 'ops.admin.notices', OpsPermissions::NOTICE_MANAGE, 40, icon: 'notices'),
             new MenuEntryDto('ops', 'messages', 'marketing', 'ops.admin.messages', [OpsPermissions::MESSAGE_SEND_ONE, OpsPermissions::MESSAGE_SEND_MANY], 50, icon: 'messages'),
             new MenuEntryDto('ops', 'subscribers', 'marketing', 'ops.admin.subscribers', OpsPermissions::NEWSLETTER_MANAGE, 60, icon: 'subscribers'),

@@ -121,6 +121,7 @@ describe('the admin menu', function () {
             'customers/favourites',
             // Ops' Reports section, after Customers (ops.md §4.15, the menu).
             'reports/reports',
+            'reports/daily_reports',
             // Promotions' screens (promotions.md §4.1): Marketing's Coupons.
             'marketing/coupons',
             'marketing/segments',

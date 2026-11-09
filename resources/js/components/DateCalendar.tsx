@@ -10,23 +10,26 @@ import { Calendar } from '@/components/ui/calendar';
 
 type Props = {
     selected: Date | undefined;
-    /** The first day that can be chosen, and the month first shown when none is. */
-    earliest: Date;
+    /** The first day that can be chosen, and the month first shown when none is. Left out: no first day. */
+    earliest?: Date;
+    /** The last day that can be chosen. Left out: no last day. */
+    latest?: Date;
     /** The store's today, marked as today whatever the device's own date. */
     today: Date;
     onSelect: (day: Date | undefined) => void;
     arabic: boolean;
 };
 
-export default function DateCalendar({ selected, earliest, today, onSelect, arabic }: Props) {
+export default function DateCalendar({ selected, earliest, latest, today, onSelect, arabic }: Props) {
     return (
         <Calendar
             mode="single"
             selected={selected}
-            defaultMonth={selected ?? earliest}
+            defaultMonth={selected ?? earliest ?? latest}
             startMonth={earliest}
+            endMonth={latest}
             onSelect={onSelect}
-            disabled={{ before: earliest }}
+            disabled={[...(earliest === undefined ? [] : [{ before: earliest }]), ...(latest === undefined ? [] : [{ after: latest }])]}
             today={today}
             locale={arabic ? dayPickerArabic : undefined}
             dir={arabic ? 'rtl' : 'ltr'}

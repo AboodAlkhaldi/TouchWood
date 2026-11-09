@@ -176,7 +176,7 @@ it('offers the menu entry, under its own section, only to whoever may read a rep
     );
 
     expect($menu(Fx::staffWith([OpsPermissions::REPORT_VIEW], ['sa'])))->toContain('reports:reports')
-        ->and(implode('|', $menu(Fx::staffWith([OpsPermissions::REPORT_DAILY], ['sa']))))->not->toContain('reports:');
+        ->and(implode('|', $menu(Fx::staffWith([OpsPermissions::REPORT_DAILY], ['sa']))))->not->toContain('reports:reports');
 });
 
 it('names the Reports section in both languages', function () {
