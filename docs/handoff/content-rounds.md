@@ -1,6 +1,6 @@
 # Content: the rounds of questions so far
 
-For the agent who writes the Content spec (`docs/AGENT-HANDOFF.md`). There is no `docs/modules/content.md` yet, and this file is
+For the agent who writes the Content spec (`docs/AGENT-HANDOFF.md`). The spec is `docs/modules/content.md` (draft); this file is
 not a spec. It holds the questions the owner was asked and the answers, in the owner's words where quoted. **The owner's latest
 word wins**, so where a later entry changes an earlier one, the later one stands. Anything marked OPEN is still the owner's to answer.
 
@@ -81,9 +81,9 @@ The owner's words, in substance:
 
 The comparison of design against built code is in `docs/handoff/design-compare.md`.
 
-## Round 3 (asked 2026-11-03): OPEN, except where marked
+## Round 3 (asked 2026-11-03, answered 2026-11-09)
 
-The owner has not answered these yet. Ask whichever are still open, one batch. "rec" is what was recommended.
+Answered: see "Round 3 answers" below. "rec" is what was recommended.
 
 **Themes, decided first (a sample comes after the answers)**
 1. **Parts a theme may change.** Rec: announcement bar, hero artwork, section bands (promises row, points, logos), flags and ribbons on products, product badges, listing banners, cart message, footer artwork, and page background at the edges only.
@@ -113,12 +113,40 @@ The owner has not answered these yet. Ask whichever are still open, one batch. "
 19. **Queued list jobs** stop after about 36 minutes today. Make them last a day? Rec: yes.
 20. **Bad key or no credit:** add a bell alert for queued emails too? Rec: yes.
 
+## Round 3 answers (owner, 2026-11-09)
+
+"The rest as rec", so #2, #3, #4, #6, #7, #9 to #20 are as recommended above.
+
+| # | Answer |
+|---|---|
+| 1 | Shown each part, default against a campaign. "Yes, all 11": announcement bar, hero artwork, promises row, points band, logos band, product flag and ribbon, product badge, listing banner, cart message, footer artwork, page background at the edges only. |
+| 2 | As rec: fixed in every theme are text and button colours, prices, cards, photo backgrounds, the phone tab bar, stars and hearts. |
+| 3 | As rec: a theme can't swap the logo. |
+| 5 | "That was just a design and these are dummy data": cards keep the add button, stock counts and codes OFF. |
+| 6 | As rec: build the technical list view for contractors. |
+| 7 | As rec: keep the current colours (`#02365e` etc.). |
+| 8 | Prices keep the current font. Digits stay 0-9 everywhere. |
+| 9 | As rec: product photos square. |
+| 10 to 16 | As rec: the design's shorter menu names (15); underlined tabs with counts everywhere; whole row opens an order; one-press language switch per the docs; the design's phone top bar (icon-only View Store, 44 px menu button, 20 px title, keeping shadcn's breakpoint); wide tables become cards on phones; keep white page ground, list layout, no "All operational" line. |
+| 17 to 20 | As rec: add a nightly read of recently changed Brevo contacts; keep the start-up rule as built; queued list jobs last a day; bell alert for queued emails on a bad key or no credit. |
+
+## Round 4 (owner, 2026-11-09)
+
+| # | Question | Answer |
+|---|---|---|
+| 1 | Page editor | Pages and blog use Catalog's text format extended with links, images and tables; no raw HTML stored. (Settles Round 2 #5.) |
+| 2 | What a campaign discounts | Products, sizes, categories and brands, by % off or a fixed price per size; lowest price still wins; Pricing's CAMPAIGN kind. |
+| 3 | Who creates a theme | A Super Admin, by filling the 11 parts and uploading artwork; no developer. The owner: build the themes "after we finish the whole content stage, as an extra step inside the stage itself, not to let it for other time". So the 11 slots go into the site from the start; the actual themes (National Day, Ramadan...) are created with the owner as the stage's last step. |
+| 4 | Overlapping themes | A second theme overlapping in one store is refused on save, naming the clash. |
+| 5 | Announcement and alert bar | One bar (they are the same thing), which a theme can dress. |
+| 6 | Translation (and the 6 old posts) | A Translate button for staff on every Content item that has Arabic and English: staff type Arabic, then type English or press Translate; English fills the box, staff read and fix it, then publish; nothing goes live unseen. Service: DeepL (`deeplcom/deepl-php`), token in the server's settings (the owner holds it), behind an adapter Feedback's F2 and F5 can reuse. English stays required before publishing. Whether DeepL keeps formatting for Arabic is not verified. (Settles Round 2 #14.) |
+| 7 | Projects page | Built, hidden until the first project is published. |
+| 8 | Pop-up targeting | One pop-up for everyone in the store at launch; once per visitor per pop-up, delayed, small on phones. |
+| 9 | A campaign's notice | Chosen on the campaign's page, sent once on go-live (`CampaignWentLive` with `noticeId`), back to draft if the campaign is cancelled. |
+| 10 | Ending alert | `CampaignExpiring` fires twice: 3 days and 24 hours before the end. A campaign shorter than 3 days gets only the 24-hour one, shorter than 24 hours gets none. |
+| 11 | Who gets it | S8's audience: holders of the new Content permission. |
+| 12 | How content is entered | Typed into the admin screens; only the redirect sheet is uploaded. |
+
 ## Open owner calls for the spec
 
-- Card add button, stock counts and product codes (Round 3 #5).
-- Technical list (Round 3 #6).
-- Adopting the design's colours into `themes.css` (Round 3 #7).
-- Flag and ribbon slots, which neither side has today (Round 3 #1).
-- Page editor (Round 2 #5).
-- English on old blog posts (Round 2 #14).
-- For Ops, once Content is specced: a notice waiting for its campaign alone, how staff pick a campaign's notice, and when `CampaignExpiring` fires. S8's audience is `ops.message.send_many` until Content has a permission.
+All earlier ones are settled by rounds 3 and 4. What is still the owner's is the numbered list in `docs/modules/content.md` §9.2.
