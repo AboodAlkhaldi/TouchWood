@@ -154,3 +154,5 @@ None. All earlier ones were settled by rounds 3 and 4, and the spec's own questi
 ## The spec's questions (owner, 2026-11-10)
 
 The 21 questions of `docs/modules/content.md` §9.2: "Yes, all rec", so each takes its recommended option (Q14 and Q16 (b), every other (a): Q5's campaign page included, as the one exception to the dropped Offers page; Q12 one Content section; Q19 Content first, then the shop pages rebuilt, then the themes; Q20 `/` forwards to the base store's Arabic home; Q21 home pages only). The 35 picks of §9.3: told "tell me any you'd reject; the rest stand", the owner rejected none.
+
+- **A provider's price past the ceiling (owner, 2026-11-10):** the new price applies, the campaign skips that size until the price allows, and staff are told (Sync report entry and its S4 alert; the campaign's page lists the skipped sizes). Content spec §1.7 #17.
