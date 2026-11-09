@@ -808,7 +808,8 @@ Owner, 2026-10-28 (security audit run-2):
    build plan that adds them (2026-10-17); built with step 1 (access.md amendment 69, platform.md §9.4).
 3. ~~**Promotions' screens**~~ — **the stage 6 screens session builds them** (owner, 2026-10-18/19,
    as for Loyalty); the draft is §4.1, its questions §9.4.
-4. **Content and segments** — the handoff wants segments for pop-up targeting (§11.2), but Content may
+4. ~~**Content and segments**~~ — **settled** (owner, 2026-11-09, Content round 4 #8; content.md §1.10): one pop-up for
+   everyone in the store at launch, so Content has no arrow to Promotions. Was: the handoff wants segments for pop-up targeting (§11.2), but Content may
    not read Promotions (§4.4). The owner's call when Content is specified: add Content → Promotions to
    the graph, or target pop-ups another way.
 5. **A guest trying a code in the cart** — Sales's spec asks it (their cart). Using one needs an account.

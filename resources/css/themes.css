@@ -2,9 +2,9 @@
 | A theme is data, not code (frontend.md §1.8, owner 2026-09-22).
 |
 | Every colour, radius and shadow the interface uses is a custom property here. Light and dark are
-| simply the first two themes; the owner intends campaign themes - the whole system dressed for
-| National Day, Ramadan, a sale - and each of those is another block in this file plus a row in a
-| table one day. It is never a change to a component.
+| simply the first two themes; the owner's campaign themes - the shop dressed for National Day,
+| Ramadan, a sale - are Content's data (below), never another block here and never a change to a
+| component.
 |
 | Rules that keep that true:
 |   - No component carries a colour, a font or a radius of its own. A test fails the build when a
@@ -27,18 +27,21 @@
 |
 |     <html data-campaign="national-day" data-mode="dark">
 |
-| So a campaign is written as a pair of blocks and nothing else:
+| That was the plan of 2026-09-22: a campaign written as a pair of blocks of its own values. It is
+| replaced (owner, 2026-11-10): one set of artwork serves light and dark (content.md Q8 (a)), and
+| no block of campaign values is ever written here.
 |
-|     [data-campaign='national-day'] { ...its light values... }
-|     [data-campaign='national-day'][data-mode='dark'] { ...its dark ones... }
+| A campaign's look is a theme, Content's (docs/modules/content.md §1.8; owner, 2026-11-10), and a
+| theme is 11 parts only: announcement bar, hero artwork, promises row, points band, logos band,
+| product flag and ribbon, product badge, listing banner, cart message, footer artwork, and the
+| page background at the edges only. A Super Admin makes it from artwork and words, so none of
+| them appears in this file: Content's server writes their images into the page as custom
+| properties, --tw-backdrop among them.
 |
-| Campaigns are made by an admin, with their own colours and poster, so most of them will never
-| appear in this file at all: their values arrive as data and are written into the page as the same
-| custom properties. This file is the one campaign that ships with the system, and the shape every
-| other one follows.
-|
-| Only colour, radius and shadow are a campaign's to change (owner, 2026-09-22). Fonts and spacing
-| stay as they are, in app.css, for every campaign.
+| A theme changes no colour, radius or shadow token here (replacing the owner's note of
+| 2026-09-22 that those three were a campaign's to change). Text and button colours, prices,
+| cards, photo backgrounds, the phone tab bar, stars, hearts and the logo stay as they are in every
+| theme; fonts and spacing stay in app.css.
 */
 
 :root,

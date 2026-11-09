@@ -349,6 +349,13 @@ wins (§2.7). Screens the design does not show are derived from its look (§2.1)
   - Where a campaign's values will come from — a record in Promotions (stage 6), with dates — is not
     this stage's business. What this stage guarantees is that adding one later is **data and a
     stylesheet, never a change to a component**. Nothing here assumes only two themes exist.
+  - **[REVISED by the owner, 2026-11-10; content.md §1.8]** A campaign's look is a **theme**, Content's: **the 11
+    parts** of content.md §1.8 — announcement bar, hero artwork, promises row, points band, logos band, product flag
+    and ribbon, product badge, listing banner, cart message, footer artwork, page background at the edges only —
+    made by a Super Admin from artwork and words. **It changes no colour, radius or shadow token; it sets only image
+    properties**, written by the server from media ids, `--tw-backdrop` among them. Fixed in every theme: text and
+    button colours, prices, cards, photo backgrounds, the phone tab bar, stars and hearts, and the logo. It dresses the
+    shop's pages only, through Content's middleware after the store is resolved; the panel stays base.
 - shadcn is set up for right-to-left (`rtl: true` in `components.json`, with its `DirectionProvider`).
   Its docs say the automatic conversion only works for projects created with `shadcn create` using
   its new styles. The project starts that way.
@@ -809,6 +816,13 @@ no storefront design and still holds for anything those files do not show:
   the off stores too, marked Off (access.md §1.11). **[PROVISIONAL: the words]**
 - **[DECIDED 2026-09-19] Platform's two Blade pages are rebuilt in React:** the country page at
   `brand.com/` and the placeholder store home (platform.md §3). Their tests move with them.
+- **[REVISED by the owner, 2026-11-10; content.md §1.4, §1.5, §1.14]** **The store's home and the shop's frame are
+  Content's**: the placeholder home gives way to Content's home page (H1). The frame becomes the design's: the
+  announcement bar above the header, a sticky desktop header, on a phone a 52 px sticky header with its search row
+  and a fixed bottom tab bar (Home, Explore, Cart, Favourites, My Account), and the footer per store with the theme
+  switch and the newsletter box. Everything this section and §1.11 keep stays: the staff view line and menu, back to
+  the panel, the shopper lines, the verify-email badge, the country and language switches, the bell. **`brand.com/`
+  with no remembered store answers 302 to the base store's Arabic home** instead of the country page (handoff §4.1).
 
 ### 2.4 Customer account
 

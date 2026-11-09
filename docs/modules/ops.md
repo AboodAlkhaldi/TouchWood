@@ -204,7 +204,7 @@ decides, on `OrderMessageDto` and `MoneyRecordMessageDto`. The other messages ab
 | S7 | **Payments to check** | A payment not accepted — a refund is owed | `PaymentNotAccepted`, with its `storeId`; links to the attempt in Payments' staff lists — for a try the order never existed | `sales.payment.record` | — (owner, round 3 #13: withdrawn) |
 | S7b | **Payments to check** | A payment succeeded after its try was released: the money was taken and no order was made, so a refund is owed (the owner, 2026-11-04) | `LatePaymentRefundDue(eventId, tryId, attemptId, orderId, storeId, occurredAt)`, once per event. `orderId` is the id the order would have had: no order has it, so Ops reads no order. Nothing goes to the customer | `sales.payment.record` | — |
 | S9 | **Returns** (a **new** Access topic) | A customer asks for a return | **new** `ReturnRequested(eventId, returnId, orderId, storeId, customerId, occurredAt)` | `sales.return.manage` | — (bell opens the return; it stays under Waiting in the panel's Returns) |
-| S8 | Campaign expiry | A campaign is about to end, when Content's spec says | `CampaignExpiring(eventId, campaignId, storeId, endsAt, occurredAt)` | **Content's, when it has one.** Until then `ops.message.send_many`, admin-only: Super Admins and the store's admins who hold it (2026-11-03, for the owner to confirm) | — |
+| S8 | Campaign expiry | A campaign is about to end, when Content's spec says | `CampaignExpiring(eventId, campaignId, storeId, endsAt, occurredAt)` | **Content's, when it has one.** Until then `ops.message.send_many`, admin-only: Super Admins and the store's admins who hold it (2026-11-03, for the owner to confirm). **Settled 2026-11-10: `content.campaign.manage`, twice a run, 72 and 24 hours before the end (§9.7)** | — |
 | S10 | **None: it cannot be switched off** (owner, 2026-11-01) | A security email (C18) could not be sent: **at most once a clock hour** | None: `SecurityFailureAlert`, called from `OpsSecurityMessages` | `ops.sms_countries.manage`, reserved, used only because it reaches active super admins and no one else | — **The bell alone** |
 | S10b | **None: it cannot be switched off** (owner, 2026-11-01) | A security SMS (C18) could not be sent: **at most once a clock hour, its own hour** | The same | The same | — **The bell alone**: a failed SMS never sends an SMS or an email about itself |
 
@@ -1552,6 +1552,7 @@ Asked by the screens session for §4.15. **Round 1 answered by the owner, 2026-1
 ### 9.5 The campaign links: for the owner (2026-11-03)
 
 Ops' side is built, on assumptions these decide. Nothing here blocks Ops; each is answered before Content's spec is accepted.
+**Settled by content.md (2026-11-10): #1, #2 and #4 in §9.7; #3 still open.**
 
 1. **A notice cannot wait for its campaign.** A notice is sent now or at a time (§1.7), so one tied to a campaign keeps a time, and the
    scheduler sends it then even if the campaign has not gone live. A new state would make it wait for the campaign alone; none was added.
@@ -1574,3 +1575,35 @@ Left as they are, each needing the owner's decision; §7's table says what happe
 | 7 | What is staging's `APP_ENV`? The guard acts only on `production`: on anything else it is silent, and `log` drivers and an empty key start | `production`, so staging proves the guard |
 | 4 | The newsletter's sync holds the subscriber's row while it calls Brevo, so a person's unsubscribe link for that very row, at that very moment, waits up to 10 s in a hung Brevo. Worth rebuilding the sync for it? | No |
 | 5 | Brevo documents an idempotency key for a send, with a TTL of 30 minutes or 15 (its pages differ) and casing that differs too, answering a repeat with an error of no stated status. Taken as "sent", a first attempt that failed but held the key would lose an email, against the rule of at least once. Use it? | No |
+
+**Answered by the owner, 2026-11-09** (Content round 3 #17 to #20, `docs/handoff/content-rounds.md`), not built yet:
+
+- **#1 Yes.** A nightly read of the contacts changed since the last run, each blacklisted one withdrawn as the webhook's unsubscribe
+  is. Planned against the per-list read `GET /v3/contacts/lists/{listId}/contacts?modifiedSince=…`, which Brevo documents as the
+  contacts modified since that date; its fields (`emailBlacklisted`) and paging are checked against Brevo's reference before it is built.
+- **#2 Yes, the list jobs.** `SyncSubscriberJob` and `RemoveNewsletterContactJob` keep trying for about a day, as `ProviderFailureRules`'
+  long waits do; the email jobs are unchanged.
+- **#3 Yes.** A queued email refused for a bad key or no credit raises a bell entry to the active Super Admins, as S10 does: a new kind,
+  its words in both languages.
+- **#6 The log line**, as built (`OpsServiceProvider::ONLY_LOGGED`).
+- #4, #5 and #7 stay as they are.
+
+### 9.7 Content's changes — **[ACCEPTED by the owner, 2026-11-10, with content.md; not built]**
+
+Content's spec settles §9.5 (content.md §1.7 #10, #13, §2.1, §2.3 O1 to O3, §9.4 A7). Applied in place when built: §1.6's S8 row, §1.7,
+§4.4, §4.15 O5 and O6, §5.
+
+1. **A draft notice** (closes §9.5 #1 and #4). A notice may be saved as a **Draft**: no time, never sent by the scheduler, written and
+   changed as any waiting one. `ops.notices.status` gains `DRAFT`, and `send_at` is null for a draft alone. **A campaign's page picks
+   it**: Content declares a port, `Content\Public\Contracts\CampaignNotices` (`drafts(StoreId, ?string $after, int $limit)`,
+   `named(StoreId, list $ids)`, each `{id, titleAr, titleEn, status}`), and **Ops binds it**, as it binds Access's `SecurityMessages`,
+   so nothing depends on Ops. `StartCampaignNotice` starts a `DRAFT` as it starts a waiting one, once per event, its other refusals
+   unchanged. A notice tied to a campaign that is cancelled before going live simply stays a draft. **O6** offers a fourth **When**,
+   **With a Campaign** ("Sent when a campaign that names it goes live."), saving a draft; **O5** shows its badge **Draft** gray.
+2. **S8's audience** (closes §9.5 #2; owner, Content round 4 #11): holders of **`content.campaign.manage`** in the store, by their
+   Campaign expiry switches, replacing `ops.message.send_many` in `AlertStaff`.
+3. **S8's link**: the bell and the email open `/admin/content/campaigns/runs/{run}`, the campaign's page, for whoever may open it; the
+   same words with no link for anyone else (`AlertLinks`). `campaignId` in Content's events is a run's id, one per store, and
+   `ContentApi::campaignForMessage` answers null unless the run is live, so an alert queued before End or Cancel sends nothing.
+4. **Two alerts a run**, 72 and 24 hours before the end (content.md §1.7 #11), each its own event: "once per event" sends both, and
+   "ends on :date" stays true for each. **§9.5 #3 is still open**: the words with `:campaign` wait for the full review of the words.

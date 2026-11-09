@@ -739,7 +739,7 @@ The owner was told "tell me any you'd reject; the rest stand" and rejected none 
 
 ### 9.4 Amendments other documents would need
 
-Accepted with this spec when the owner merges it; each module's builder is still asked before its rows are built (owner, 2026-10-28).
+Accepted with this spec when the owner merges it; each module's builder is still asked before its rows are built (owner, 2026-10-28). **Written into the documents on 2026-11-10**, each in its module's own style: handoff §0.1, §4.1, §4.4, §13.2, §14; platform.md §9.4; access.md amendment 97; catalog.md amendment 41; pricing.md §9.6; sync.md amendment 2; ops.md §9.6's answers and §9.7; sales.md §9.10; frontend.md §1.8, §2.3; `themes.css`'s header; promotions.md §9.2 #4. **A1's `deptrac.yaml` and A2's `config/database.php` change with the backend's first PR.**
 
 | # | Where | Change |
 |---|---|---|

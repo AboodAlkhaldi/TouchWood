@@ -144,6 +144,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-11-01 | §4.4 | **B2B → Payments**, for a store's bank account alone: the account moved to Payments, and B2B's company page reads it from there (b2b.md amendment 33, payments.md §9.10 #4) | Stage 7 step 8b, the owner's acceptance of amendment 33 |
 | 2026-11-02 | §14 | **Ops' menu:** the five reports are one Reports entry with the kinds as tabs, beside Daily Reports; Marketing gains Offer Notices and Customer Messages; SMS Countries goes under Store Settings (ops.md §4.15, §9.4) | Owner, Ops screens round 1 |
 | 2026-11-03 | §4.4, §10.2, §12.5 | **Shipping and Payments as built (stage 7)**: neither depends on Sales, and Sales reaches them through their Public contracts alone (§4.4); the shipping fee in the canonical amounts is the chosen carrier's price for the place, 0 once free shipping applies, or "to be set" by staff and left out of the total until set, and an online payment takes `order_total` while a payment request asks for exactly what an order is missing (§10.2); carriers, price groups, free shipping and the optional boxes as built (§12.5) | Stage 7 wrap-up, from the code (`docs/modules/shipping.md`, `docs/modules/payments.md`) |
+| 2026-11-10 | §4.1, §4.4, §13.2, §14 | **Content's rules** (`docs/modules/content.md`, accepted): `/` with no remembered store answers 302 to the base store's Arabic home instead of the country page (§4.1); **Content → Access**, only to declare its permissions (§4.4); a **campaign** is a named period with prices, run per store, and a **theme** is separate, made by a Super Admin from 11 parts; many campaigns at once, the lowest price winning, one theme per store at a time (§13.2); **one Content section** in the menu (§14) | Owner, Content rounds 1–4 and the spec's questions (2026-11-10) |
 
 ---
 
@@ -254,7 +255,9 @@ One codebase, one database, one deployment, serving three country stores at
 deploy, never a code change.
 
 `brand.com/` with no store segment redirects to the store remembered in a cookie; with no
-valid cookie it shows a page to choose a country. There is no IP-based country detection.
+valid cookie it ~~shows a page to choose a country~~ **answers 302 to the base store's Arabic home**, the page
+Google lists for the site's main address; a shopper changes store with the header's country switch (owner, 2026-11-10;
+`docs/modules/content.md` §1.14, Q20 (a)). There is no IP-based country detection.
 `brand.com/sa` with no language redirects to the visitor's remembered language, otherwise Arabic.
 Store and language cookies last one year. Emails and SMS use the customer's stored language, the
 admin panel the staff member's own; webhooks have none.
@@ -370,7 +373,7 @@ Payments   → Platform, Access   (Access only to declare its permissions and to
 Feedback   → Platform, Access, Catalog, Sales
 Sync       → Platform, Catalog, Pricing, Inventory, Access   (Access only to declare its permissions)
 Sales      → everything above except Feedback and Sync
-Content    → Platform, Catalog, Pricing
+Content    → Platform, Catalog, Pricing, Access   (Access only to declare its permissions, 2026-11-10)
 Ops        → every Public surface
 ```
 
@@ -380,7 +383,8 @@ needs Catalog, so no cycle can form; Catalog uses Access's public surface for th
 other use goes to the owner first (`docs/modules/catalog.md` §2.4). **Pricing, Inventory and Sync
 too** (owner, 2026-10-07), on the same terms. **Shipping and Payments too** (owner, 2026-10-28), on the
 same terms — and Payments also hears Access's `CustomerAnonymized`, to clear a customer's name, email
-and phone from its payment records (`docs/modules/payments.md` §6).
+and phone from its payment records (`docs/modules/payments.md` §6). **Content too** (owner, 2026-11-10; `docs/modules/content.md`
+§9.4 A1), on the same terms.
 
 Two modules have a wide fan-in for opposite reasons. **Sales** is the transaction and
 legitimately needs price, stock, discount, points, shipping and payment in one flow.
@@ -1615,6 +1619,20 @@ offers, Jeddah branch opening.
 `Content\Public\Events\CampaignExpiring`, `CampaignWentLive` (fired by nothing yet) and
 `Content\Public\Contracts\ContentApi::campaignForMessage`, answered by the placeholder `NoCampaignsYet`.
 
+**[REVISED by the owner, 2026-11-10; `docs/modules/content.md`]** The `campaigns` block above is replaced:
+
+- **A campaign and a theme are separate things.** A campaign is a named period with prices (Pricing's `CAMPAIGN`
+  kind); it picks its stores, and each store is a **run** with its own dates, prices, notice and state. A campaign
+  may link to a theme; they start and end together when the dates match.
+- **What a campaign discounts:** products, sizes, categories and brands, by a percentage off or a fixed price per
+  size. **The lowest price wins**, as for every price (§10.1), not "price-list priority"; a sale marked "always wins"
+  is the one exception. The store's discount ceiling limits a campaign as it does a sale.
+- **A theme is 11 parts** (content.md §1.8): announcement bar, hero artwork, promises row, points band, logos band,
+  product flag and ribbon, product badge, listing banner, cart message, footer artwork, page background at the edges
+  only. It changes no colour, radius or shadow token. A Super Admin makes it in the panel; **one theme live per store
+  at a time**, an overlapping one refused on save. The real themes are made with the owner as the stage's last step.
+- **The twelve presets** are not built as presets: each theme is made as data from those parts.
+
 ### 13.3 Ops
 
 Notifications, newsletters, subscribers, reports, exports.
@@ -1676,7 +1694,7 @@ with achieved and remaining.
 
 ```
 Products      Add product · All products · Categories · Category discounts · Brands
-              Custom labels · Variations · Colours · Warranty · Smart bar · Product apps
+              Custom labels · Variations · Colours · Warranty · Product apps
 Notes         Add note · Notes list          (internal notes on product / order / company)
 Wholesale     Add wholesale product · All wholesale products
 Sales         All orders · Store orders · Unpaid orders
@@ -1684,15 +1702,19 @@ Customers     Customer list · Company accounts · Favourited products
 Library       Media files
 Reports       Reports (Revenue · Product sales · Stock · Searches · Favourites, as tabs)
               · Daily reports
-Blog          All posts · Post categories
-Marketing     Campaigns · Pop-up offers · Alert offers · Newsletters · Subscribers
+Marketing     Newsletters · Subscribers
               · Coupons · Segments · Offer notices · Customer messages
+Content       Home page · Bars · Banners · Campaigns · Themes · Pop-ups · Pages · Blog · Projects · SEO
+              · Redirects
 Support       Product questions
 Points        Customers · Redemptions · Settings
 Payments      Bank payment settings · Bank transfer requests
 Staff         All staff · Employee permissions
 Configuration Account & settings · Store settings
 ```
+
+**[REVISED by the owner, 2026-11-10]** Content's screens are one **Content** section (`docs/modules/content.md` §4.3,
+Q12 (a)): the Blog section, Marketing's Campaigns, Pop-up offers and Alert offers, and Products' Smart bar move into it.
 
 Removed from the design's tree, because they are out of scope: warehouse pickup, wallet
 top-up requests, wallet top-up history, cashback settings, per-product cashback, offline
