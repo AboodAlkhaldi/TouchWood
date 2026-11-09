@@ -1,8 +1,6 @@
-import { type RefObject, useEffect, useRef, useState } from 'react';
-import { type InertiaFormProps, router, useForm } from '@inertiajs/react';
-import { ActionButton } from '@/components/ActionButton';
+import { useRef, useState } from 'react';
+import { type InertiaFormProps, router } from '@inertiajs/react';
 import { SelectField, TextField } from '@/components/Fields';
-import { PanelDialog } from '@/components/PanelDialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Field, FieldContent, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { NativeSelectOption } from '@/components/ui/native-select';
@@ -57,52 +55,6 @@ export function useAttributeChecks(form: InertiaFormProps<AttributeForm>, off = 
         { id: 'attribute-unit-ar', label: t('catalog::admin_attributes.field.unit_ar'), value: form.data.unit_ar, rules: unit, off },
         { id: 'attribute-unit-en', label: t('catalog::admin_attributes.field.unit_en'), value: form.data.unit_en, rules: unit, off },
     ]);
-}
-
-/** Add an attribute, from the list. */
-export function AttributeDialog({
-    open,
-    onOpenChange,
-    returnFocusTo,
-}: {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    returnFocusTo?: RefObject<HTMLElement | null>;
-}) {
-    const t = useTranslator();
-    const form = useForm<AttributeForm>(attributeForm(null));
-    const checks = useAttributeChecks(form);
-
-    useEffect(() => {
-        if (open) {
-            form.setDefaults(attributeForm(null));
-            form.reset();
-            form.clearErrors();
-        }
-    }, [open]);
-
-    function submit() {
-        checks.submit(() => form.post('/admin/attributes', { preserveScroll: true, onSuccess: () => onOpenChange(false) }));
-    }
-
-    return (
-        <PanelDialog
-            wide
-            open={open}
-            onOpenChange={onOpenChange}
-            returnFocusTo={returnFocusTo}
-            title={t('catalog::admin_attributes.add')}
-            description={t('catalog::admin_attributes.add_body')}
-            busy={form.processing}
-            confirm={
-                <ActionButton loading={form.processing} disabledReason={checks.reason} onClick={submit} data-test="confirm-attribute">
-                    {t('catalog::admin_attributes.add')}
-                </ActionButton>
-            }
-        >
-            <AttributeFields form={form} checks={checks} attribute={null} />
-        </PanelDialog>
-    );
 }
 
 /**

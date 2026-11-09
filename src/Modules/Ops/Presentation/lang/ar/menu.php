@@ -9,4 +9,5 @@ return [
     'messages' => 'رسائل العملاء',
     'subscribers' => 'المشتركون',
     'sms_countries' => 'دول الرسائل النصية',
+    'daily_reports' => 'التقارير اليومية',
 ];

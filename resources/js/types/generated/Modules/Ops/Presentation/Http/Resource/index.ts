@@ -35,6 +35,15 @@ export type DailyReportPageData = {
 reports: DailyReportData[],
 next: string | null,
 };
+export type DailyReportsScreenData = {
+reports: DailyReportData[],
+next: string | null,
+emails: DailyReportEmailData[],
+stores: StoreChoiceData[],
+emailStores: StoreChoiceData[],
+allStores: boolean,
+zones: Record<string, string>,
+};
 export type EmailLinkPageData = {
 title: string,
 text: string,

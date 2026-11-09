@@ -10,7 +10,8 @@ import { useTranslator } from '@/lib/t';
 import type { AttributeData, AttributesPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
 import { DragHandle, SortableGroup, SortableGroups, useSavedOrder, useSortableRow } from '../SortableList';
-import { AttributeDialog, AttributeMenu } from './AttributeDialog';
+import { AddAttributeDialog } from './AddAttributeDialog';
+import { AttributeMenu } from './AttributeDialog';
 import { DeleteAttributeDialog } from './DeleteAttributeDialog';
 
 /*
@@ -110,7 +111,7 @@ export default function Index({ attributes, mayChange }: AttributesPage) {
                 )}
             </div>
 
-            {dialog !== null && dialog.action === 'add' ? <AttributeDialog open onOpenChange={close} returnFocusTo={opener} /> : null}
+            {dialog !== null && dialog.action === 'add' ? <AddAttributeDialog open onOpenChange={close} returnFocusTo={opener} /> : null}
             {dialog !== null && dialog.action === 'delete' && dialog.attribute !== null ? (
                 <DeleteAttributeDialog attribute={dialog.attribute} open onOpenChange={close} returnFocusTo={opener} />
             ) : null}
