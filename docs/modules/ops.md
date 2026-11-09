@@ -1008,14 +1008,10 @@ reads the screens needed were added; what stays is what the code cannot give yet
    store, staff messages by audience: none exists, and the bell's number is the only count. **Not now** (owner, 2026-11-01).
 4. **No screen ties a notice to a campaign.** Sending it when the campaign goes live is built (§1.7), and waits on Content: to
    fire `CampaignWentLive`, and to hold the notice's id (§9.5). S8 has no link until Content has a campaign page (§1.6).
-5. **C11's link opens a page with no route yet.** The bell and the email open `/{store}/{locale}/orders/{number}/pay`
-   (payments.md §1.5), the screens session's (sales.md §9.9), not on main on 2026-11-03: until it lands the link answers 404.
-   **C11 can't fire yet either (2026-11-05).** `RequestOrderPaymentHandler` has no controller or route until Stage 7's step 12 screens
-   land (sales.md §9.9), and nothing else asks `PaymentsApi::requestPayment`, so no request is made and `PaymentRequested` never fires
-   outside the tests. C10's online-request branch waits with it: `OpenRequestPayment` and `PayOrderRequest` have no route either, so
-   today C10 goes only for a payment staff record by hand.
-6. **S7's and S7b's links open a page with no route yet.** The bell and the email open `/admin/payments/{id}` (payments.md §4.2), the
-   screens session's, not on main on 2026-11-05: until it lands the link answers 404. Built from the spec's address so nothing here changes when it does.
+5. ~~**C11's link opens a page with no route yet.**~~ Built (#358, 2026-11-08): staff's Request Payment, the event, and the bell's
+   and the email's link to `/{store}/{locale}/orders/{number}/pay`, followed to the page by `AlertLinksOpenTest`. C10's online-request branch has its routes too.
+6. ~~**S7's and S7b's links open a page with no route yet.**~~ Built (#358, 2026-11-08): `/admin/payments/{id}`, opened from the alert's
+   own link by `AlertLinksOpenTest`, for whoever holds `payments.payment.view`.
 
 ### 4.14 The SMS countries (§3; access.md amendment 90)
 
