@@ -1,7 +1,6 @@
 # Owner's reminders
 
-Copied from the previous agents' notes on 2026-11-05. Keep it current; this copy is now the one to update.
-
+Copied from the working notes on 2026-11-09. Keep it current; this copy is now the one to update.
 
 The owner (2026-10-27): "all sessions must put all their reminders in the same place, so when I ask I
 get all the held things". Every session adds its reminders HERE (not only in its own memory file),
@@ -14,12 +13,15 @@ item is still open before raising it; move done items to the Closed list with th
 
 ## Open
 
+### THE BIGGEST AND MOST IMPORTANT REMINDER (owner 2026-11-09)
+0. MUST be settled before the system is finished; the deadline is only days away. Build the full guidance files for us and for any agent who joins: (a) files that guide humans and agents on how and where to work in this project; (b) files describing EVERY handler in the system; (c) a diagram of how the whole system works and how each handler and each request comes in and finishes. An earlier session built such a file in the first steps only; this one must cover everything, so the owner can understand how each request is handled and other agents know where to go. List it FIRST in every "what's left".
+
 ### At hosting / launch
 1. (2026-11-03: owner tested Namecheap shared hosting: HTTPS on, port 443, REMOTE_ADDR the real IP, so NO trusted proxy is needed there; the code has none and needs none. Add one only if a CDN or Cloudflare is turned on later. On a signed-in page `data-page` must say "encryptHistory":true.) Set `SESSION_SECURE_COOKIE`; old note: `TRUSTED_PROXIES` once the host is chosen (handoff §15.4) — otherwise
    email-verification links answer 403 behind the host's proxy. (Access, [[touchwood-access-complete]])
 1b. At deploy (owner 2026-11-03): re-check on the new code: a temporary PHP check file shows HTTPS on, port 443, the real IP in REMOTE_ADDR; a signed-in page says "encryptHistory":true; Back after sign-out shows nothing; delete the check file. Goes in the commands file too.
-2. Lock the staging subdomain from the public — **but leave `/payments/notice/…` open**, or MyFatoorah's
-   payment notices cannot reach it. (Stage 7, owner asked 2026-10-27)
+2. Lock the staging subdomain (staging.touchwoodksa.com, owner 2026-11-09) from the public — **but leave `/payments/notice/…` open**, or MyFatoorah's
+   payment notices cannot reach it, **and `/sync/notify/…` open**, or Odoo's webhooks cannot. (Stage 7, owner asked 2026-10-27)
 3. On the real domain: enter the LIVE MyFatoorah key and secret again, and change the notice address in
    MyFatoorah's portal to the real domain. (Stage 7, payments.md §1.6)
 4. The server must run Laravel's scheduler (cron every minute) and a queue worker — every module's jobs
@@ -68,7 +70,7 @@ verified by the stage 7 session — raise only what is confirmed.)
     (b) Arabic for coupons is mixed: قسيمة 40 + قسائم 16 vs كوبون 21 in lang/ar (menu says القسائم, the
     spec's menu row الكوبونات, permissions كوبونات); owner picks one. ([[touchwood-stage6-screens]])
 
-12. Ops/SMS (2026-10-29): name the Saudi SMS provider (and later Egypt's). Corrected 2026-11-05: production refuses `log`, so until a provider is named a production server starts normally and every code fails when sent (a FAILED row, an error to the caller, S10b). The owner is deciding whether that stays.
+12. Ops/SMS (2026-10-29): name the Saudi SMS provider (and later Egypt's); until then codes go to the log in development only: in production `log` is refused, the server still starts, and every code fails when sent (owner deciding whether to refuse the start, 2026-11-05).
     Brevo: the owner HAS the key and adds it at staging (2026-11-03); sending-domain DNS still before real emails. ([[touchwood-stage-8-ops]])
 14. Brevo one-click unsubscribe (2026-10-30): Brevo's send API refuses standard headers, so our List-Unsubscribe
     header can't be sent; Brevo adds its own (unsubscribes at Brevo). Check with the real Brevo account that
@@ -95,11 +97,31 @@ verified by the stage 7 session — raise only what is confirmed.)
 
 22. BEFORE DEPLOYMENT (owner 2026-11-04): remove the development-only hand-off files from GitHub: docs/HANDOFF.md, docs/AGENT-BRIEF.md, docs/AGENT-HANDOFF.md, docs/handoff/, and ask the owner about the rest of docs/. Owner 2026-11-05, again: everything put on GitHub for the outside agent is development-only and comes off at the end. They are for the development stage only. The repo STAYS PUBLIC for now (owner 2026-11-04: going private loses the free unlimited CI minutes); deleting a file does not remove it from history. Raise it in every "what's left" and at launch.
 
-23. A sold-out product in an emptied category has no breadcrumb, though the category and everything above it now answer 200 (#344's review, 2026-11-05; ShopPages.php:205-207). Amendment 40(d) covers only the sub-category's own page. Owner's call.
+23. A sold-out product in an emptied category has no breadcrumb, though the category and everything above it now answer 200 (#344's review, 2026-11-05; ShopPages.php:205-207). Amendment 40(d) covers only the sub-category's own page. Owner's call. ([[touchwood-stage-8-ops]])
 
 24. Live server with no SMS provider (Ops final check, 2026-11-05): it starts normally, then every code fails when sent (a FAILED row, an error to the caller, S10b). Decide: refuse to start, as Brevo's key does (recommended, since sign-in codes are essential), or leave it. Owner's call. Choose the provider before go-live either way (reminder 12).
 25. docs/modules/ops.md's top line still says "DRAFT… Not accepted", though it was merged and built. Owner to confirm it's accepted, then change the line.
 26. Optional tests from the Ops final check: fire `GuestBecameCustomer`, `CustomerEmailVerified` and `CustomerUnblocked` in Ops' suite; schedule tests for 4 Ops jobs; `$timeout` on long Ops jobs once a worker command exists.
+
+27. Mixed reports with Odoo (owner 2026-11-05): the daily report and the list reports may later mix our site's data with Odoo's. The owner decides the sections and logic later; then possibly two sections, or a mixed file. Remind the owner when O8/O9 screens are built, and before any report logic changes. Built today: our site's data only.
+
+28. Panel header search (Ctrl/Cmd+K), one search for products and orders, promised "with Sales" (frontend.md:753-754, catalog.md:820): not built. Whole-project audit 2026-11-05.
+29. sales.md:1933 "still open for the owner": a staff-set shipping fee kept with a carrier picked can't be changed by Change Fee. Owner's call.
+30. Later features in specs with no owner: B2B colleagues sharing one company and the "Company staff" segment (b2b.md:1071); product video and add-ons (catalog.md §9.2 #2-3); bundles' own spec (promotions.md §9.2 #1; the design dropped them); HANDOFF §15.2 deferred list (abandoned cart, public order tracking, technical catalog PDF, guest price visibility). Owner: keep, drop, or schedule each.
+31. At hosting: the database users for the audit log and the CDN purge (platform.md §9.3, HANDOFF §15.4).
+32. Egypt's (and UAE's) payment gateway not chosen (HANDOFF §15.1, payments.md:1029).
+33. Live Odoo read-only test before a wired store opens (sync.md §9.1 #1): the adapter is tested only against a faked API.
+34. Content: should pop-ups target Promotions' segments (promotions.md §9.2 #4)? Not in content-rounds.md.
+35. Stale spec status lines to tidy: shipping.md:3 "draft", b2b.md:3 NOT ACCEPTED banner, docs/modules/README.md status table, catalog.md §9.7 29 [PROPOSED] picks (P26-P34 "wait for the owner's review"), [PROVISIONAL] markers in frontend.md and access.md, and done work still listed as open in pricing.md, inventory.md and its README, sales.md §9.2 #7. Owner confirms the picks; the text is then corrected.
+36. Stage 6 screens' open calls never recorded in the repo: a wholesale-only sale shows no struck price; the header count adds a query per signed-in shop page.
+37. Admin Home: no Sales, Catalog or Ops cards yet; the dashboard from the owner's references is not built.
+
+38. O9 Daily Reports, two questions before its build (2026-11-06; plan in session scratchpad plan-o9.md): Q1 a daily email an admin turned on for a store later switched off keeps sending but vanishes from the page: (a, rec) show their own such rows marked Off and still usable; (b) hide them; (c) show read-only. Q2 the Daily Reports menu icon: (a, rec) same document icon as Reports; (b) a new calendar-clock icon. Plus 12 small picks (P1-P12) to confirm. O8 #357 and O11-O13 #359 MERGED 2026-11-09 (main 0f2f8d7c), so O9 is the last Ops page and waits only on these answers. ANSWERED 2026-11-09: Q1 (a), Q2 (b) calendar with a clock, P1-P12 accepted; written into ops.md O9; PR #362 MERGED 2026-11-09 (4434e8ac) on the owner's word while CI was still running: check that CI run finished green. Stage 8 specs planning not told yet; branch, worktree ops-o9 and its DBs still there.
+
+39. With the real Brevo account (pairs with 14): check that Brevo's click tracking doesn't add query parameters to our signed confirm, leave and unsubscribe links, which would break their signatures (O11-O13 review, 2026-11-06, not checked). If it does, turn click tracking off for those emails.
+40. O11-O13 page weight, owner's call (2026-11-06): the newsletter box's loader adds about 0.3 KB to every shop page, and its words travel in every guest page's HTML (about 0.3-0.4 KB gzipped; the spec requires the words there). B2B Company is at 59.9 of 60 KB. JavaScriptBudgetTest gained a FRAMELESS_PAGES list for the email-link page.
+
+41. Codes layering, FOR LATER, NO ACTION NOW (owner 2026-11-09; raised with Odoo's team, who want changes): a layer above each variant, so one global code is the product itself with its variants inside it, and a store gets the upper code with its variants in a single product card. Today every variant has its own single code. Just settle it later.
 
 ## Closed
 - Flaky phone-width browser checks (old item 9b): DONE, #333 merged 2026-11-03 (fadb0b90); about 13 differently written checks unchanged.

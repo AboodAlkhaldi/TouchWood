@@ -1,6 +1,6 @@
 # Handoff: Stage 8 and Stage 9 of TouchWood
 
-Written 2026-11-05 for the agent taking over Stage 8 (Content, design, the remaining Ops screens) and Stage 9 (migration, wording,
+Written 2026-11-05 for the agent taking over Stage 8 (Content, design) and Stage 9 (migration, wording,
 hardening, launch). It replaces `docs/AGENT-BRIEF.md`, which was written for the Catalog screens: its §7 and §8 (Windows environment,
 traps) still hold, the rest is history.
 
@@ -37,7 +37,7 @@ The owner decides everything. You work the way the previous agents did; act like
 The owner agreed this split on 2026-11-04.
 
 **Stage 8: Content and design**
-1. Finish the remaining Ops screens: **O8 Reports** with the menu's `reports` section, **O9 Daily Reports**, **O11** newsletter box, **O12** consent switch and box, **O13** confirm, leave and unsubscribe pages; then empty ops.md §4.13 and the README row. Start from ops.md §4.15 "Where the build stands" and `src/Modules/Ops/README.md` "Continuing the screens".
+1. ~~Finish the remaining Ops screens.~~ Done: O1 to O13 are merged (last #362, 2026-11-09). The Home card goes with item 6.
 2. Settle themes with the owner first: what changes in each theme, default and campaign side by side. **Nothing gets built until that's decided.**
 3. Write the Content spec from `docs/handoff/content-rounds.md`, for the owner to accept: homepage, pages, banners, campaigns and their prices in Pricing, pop-ups, alert bar, smart bar, blog, projects, SEO, sitemap, redirects table.
 4. Rebuild the storefront to the owner's design at desktop, tablet and phone (78% of clicks are on phones), keeping what the design leaves out (`docs/handoff/design-compare.md`).
@@ -64,29 +64,24 @@ The owner agreed this split on 2026-11-04.
 
 **Everything touching Stage 7 stays with the Stage 7 sessions:** Payments, Shipping, their screens and the checkout. Don't touch those files; if a job needs to, ask the owner first.
 
-Two links wait on Stage 7's screens, which aren't started and wait for the owner to say Stage 7 is wrapped up:
-- `/{store}/{locale}/orders/{number}/pay`: the C11 email links to it, and it answers 404 until then.
-- `/admin/payments/{id}`: the S7 and S7b alerts link to it, for staff with `payments.payment.view`, and it answers 404 until then.
+Stage 7's screens are merged (#358): the payment-request page and `/admin/payments/{id}` are live, and the links Ops sends to them are tested end to end.
 
-`RequestOrderPaymentHandler` also has no controller or route until step 12's screens land, so no payment request can be made and C11 can't fire yet.
-
-## 4 · Where things stand (read from main 773320aa, 2026-11-05)
+## 4 · Where things stand (read from main 4434e8ac, 2026-11-09)
 
 This goes stale fast. Check with `gh pr list` and `git log` before relying on it.
 
 | Part | State |
 |---|---|
 | Stages 1–6 | Built and merged, tagged up to v0.8.0 |
-| Stage 7 backend, and its screens through checkout (#330) | Merged. v0.9.0 tagged at 0f25d4f7. Step 12's screens not started |
+| Stage 7 backend and all its screens | Merged, the last screens #358 |
 | Ops backend steps 1–10, Brevo failures, campaign events | Merged |
 | Stage 7's last events to Ops (C11, S6, overdue transfers) | Merged, #349 |
 | Late-payment alert (`LatePaymentRefundDue`, S7b) | Merged, #354 |
 | Final check of all Ops backend | Done 2026-11-05, by reading the code, no tests run: complete against the spec. Two owner calls are open (reminders 24, 25) |
-| Alert links: S3 and S4 name the store; S7 and S7b open the attempt | PR `fix/ops-alert-store-links`, in CI when this was written |
+| Alert links: S3 and S4 name the store; S7 and S7b open the attempt | Merged, #355 |
 | Sold-out follow-up | Merged, #344 |
 | Tests: saves below Show More on Stock, Low Stock and Sync | Merged, #350 |
-| Ops screens O1–O7, O10 | Merged |
-| Ops screens O8, O9, O11–O13 | **Yours** |
+| Ops screens O1–O13 | Merged, the last #357, #359, #362 |
 | Content, storefront rebuild, themes | **Yours.** `src/Modules/Content` holds only what Ops is built against: `Public` (`ContentApi`, `CampaignMessageDto`, `CampaignWentLive`, `CampaignExpiring`), the placeholder `NoCampaignsYet`, and its provider; the other folders are empty. Home is a placeholder |
 | Migration, hardening, launch | **Yours** |
 
