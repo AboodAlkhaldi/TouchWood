@@ -149,4 +149,8 @@ Answered: see "Round 3 answers" below. "rec" is what was recommended.
 
 ## Open owner calls for the spec
 
-All earlier ones are settled by rounds 3 and 4. What is still the owner's is the numbered list in `docs/modules/content.md` §9.2.
+None. All earlier ones were settled by rounds 3 and 4, and the spec's own questions on 2026-11-10 (below).
+
+## The spec's questions (owner, 2026-11-10)
+
+The 21 questions of `docs/modules/content.md` §9.2: "Yes, all rec", so each takes its recommended option (Q14 and Q16 (b), every other (a): Q5's campaign page included, as the one exception to the dropped Offers page; Q12 one Content section; Q19 Content first, then the shop pages rebuilt, then the themes; Q20 `/` forwards to the base store's Arabic home; Q21 home pages only). The 35 picks of §9.3: told "tell me any you'd reject; the rest stand", the owner rejected none.
