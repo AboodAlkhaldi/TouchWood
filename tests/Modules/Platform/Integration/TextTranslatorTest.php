@@ -197,8 +197,10 @@ it('is not ready with no token, and sends nothing then', function () {
     $stack->push(Middleware::history($sent));
     $translator = new DeepLTextTranslator('  ', new Client(['handler' => $stack]));
 
+    [$failed] = textTranslatorFailure($translator);
+
     expect($translator->isReady())->toBeFalse()
-        ->and(fn () => $translator->translate(['مرحبا'], 'ar', 'en'))->toThrow(TranslationFailed::class)
+        ->and($failed->reason)->toBe(TranslationFailure::Refused)
         ->and($sent)->toHaveCount(0);
 });
 
