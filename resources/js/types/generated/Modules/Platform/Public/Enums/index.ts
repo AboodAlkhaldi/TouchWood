@@ -7,3 +7,4 @@ export type PlaceKind = 'REGION' | 'CITY' | 'DISTRICT';
 export type SettingScope = 'GLOBAL' | 'STORE';
 export type SettingType = 'INTEGER' | 'BOOLEAN' | 'TEXT' | 'LIST';
 export type ShopperKind = 'GUEST' | 'INDIVIDUAL' | 'COMPANY';
+export type TranslationFailure = 'QUOTA' | 'BUSY' | 'REFUSED' | 'UNREACHABLE';

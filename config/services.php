@@ -41,6 +41,15 @@ return [
         'webhook_secret' => env('BREVO_WEBHOOK_SECRET', ''),
     ],
 
+    // Platform's machine translation (content.md §2.2): "fake" marks each text and sends nothing, for
+    // development and tests; "deepl" sends staff text to DeepL with DEEPL_API_KEY, the server's token, held
+    // by the owner. With "deepl" and no key, Translate is offered disabled ("Translation isn't set up on
+    // this server."). "fake" never runs in production.
+    'deepl' => [
+        'driver' => env('TEXT_TRANSLATOR', 'fake'),
+        'key' => env('DEEPL_API_KEY', ''),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

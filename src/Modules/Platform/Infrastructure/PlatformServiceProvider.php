@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use InvalidArgumentException;
 use Modules\Platform\Application\Audit\UnnamedStaff;
 use Modules\Platform\Application\AuditLog;
 use Modules\Platform\Application\FailedJobs\FailedJobs;
@@ -66,6 +67,8 @@ use Modules\Platform\Infrastructure\Eloquent\DatabaseSettings;
 use Modules\Platform\Infrastructure\Eloquent\DatabaseStoreCountries;
 use Modules\Platform\Infrastructure\Eloquent\EloquentCurrencyRepository;
 use Modules\Platform\Infrastructure\Eloquent\EloquentStoreRepository;
+use Modules\Platform\Infrastructure\External\DeepLTextTranslator;
+use Modules\Platform\Infrastructure\External\FakeTextTranslator;
 use Modules\Platform\Infrastructure\External\FinfoMediaInspector;
 use Modules\Platform\Infrastructure\External\InterventionImageVariantGenerator;
 use Modules\Platform\Infrastructure\External\LaravelMediaStorage;
@@ -100,6 +103,7 @@ use Modules\Platform\Public\Contracts\ShopFrameParts;
 use Modules\Platform\Public\Contracts\ShopperType;
 use Modules\Platform\Public\Contracts\StaffNames;
 use Modules\Platform\Public\Contracts\StoreChoices;
+use Modules\Platform\Public\Contracts\TextTranslator;
 use Modules\Platform\Public\Dto\HomeCardDto;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\PlatformPermissions;
@@ -165,6 +169,18 @@ final class PlatformServiceProvider extends ServiceProvider
         // Who may see an off store in the shop: nobody, unless a module says so (platform.md §2.7).
         $this->app->singleton(InMemoryOffStoreViewers::class);
         $this->app->alias(InMemoryOffStoreViewers::class, OffStoreViewers::class);
+
+        // Machine translation of staff text (content.md §2.2, row L1), an adapter chosen by configuration:
+        // DeepL with the server's token, or the fake that sends nothing - once for the process, so a test's
+        // settings of it reach the use case. The fake never runs in production, as Ops' "log" email driver.
+        $this->app->singleton(FakeTextTranslator::class);
+        $this->app->bind(TextTranslator::class, fn (Application $app): TextTranslator => match ($app->make('config')->get('services.deepl.driver')) {
+            'deepl' => new DeepLTextTranslator((string) $app->make('config')->get('services.deepl.key')),
+            'fake' => $app->environment('production')
+                ? throw new InvalidArgumentException('The "fake" translator sends nothing and never runs in production: set TEXT_TRANSLATOR to "deepl".')
+                : $app->make(FakeTextTranslator::class),
+            default => throw new InvalidArgumentException('TEXT_TRANSLATOR names no translator Platform has: "deepl" or "fake".'),
+        });
 
         // Modules register their admin menu entries here, Platform included: the menu is built from
         // what each person may do, and grows module by module (stage 2b, P6).
