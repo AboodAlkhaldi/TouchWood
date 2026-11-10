@@ -38,13 +38,16 @@ use Modules\Sync\Domain\ValueObject\ConnectionState;
 use Modules\Sync\Domain\ValueObject\ProviderKind;
 use Modules\Sync\Domain\ValueObject\ProviderValue;
 use Modules\Sync\Domain\ValueObject\ReadKind;
+use Modules\Sync\Application\Connections\InternalAddress;
 use Modules\Sync\Infrastructure\Provider\OdooAdapter;
+use Modules\Sync\Infrastructure\Provider\OdooAnswerTooLarge;
 use Modules\Sync\Infrastructure\Queue\ReadStoreJob;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
 use Tests\Modules\Pricing\Support\PricingFixtures as Rx;
+use Tests\Modules\Sync\Support\FakeHostAddresses;
 use Tests\Modules\Sync\Support\FakeProvider;
 
 use function Pest\Laravel\seed;
@@ -329,9 +332,16 @@ describe('the calls (§2.4)', function () {
     it('trims and asks each code once, and never asks a code that cannot be an Odoo id', function () {
         Http::fake(['example.odoo.com/*' => Http::response(odooJson([odooItem(7, 1.0, 1.0), odooItem(8, 2.0, 2.0)]))]);
 
-        // A leading zero, a letter, a sign, a point, a space inside, past 18 digits, 0, empty: none is an id.
-        expect(odooRead([' 7 ', '7', '0123', '12a', '-3', '1.5', '1 2', '1234567890123456789', '0', '', '8']))->toBe([['7', 1.0, 1.0], ['8', 2.0, 2.0]])
+        // A leading zero, a letter, a sign, a point, a space inside, past Odoo's int4, 0, empty: none is an id.
+        expect(odooRead([' 7 ', '7', '0123', '12a', '-3', '1.5', '1 2', '2147483648', '9999999999', '1234567890123456789', '0', '', '8']))->toBe([['7', 1.0, 1.0], ['8', 2.0, 2.0]])
             ->and(odooIdsAsked())->toBe([[7, 8]]);
+    });
+
+    it('asks Odoo\'s largest id, 2147483647, and nothing past it', function () {
+        Http::fake(['example.odoo.com/*' => Http::response(odooJson([odooItem(2147483647, 1.0, 1.0)]))]);
+
+        expect(odooRead(['2147483647', '2147483648']))->toBe([['2147483647', 1.0, 1.0]])
+            ->and(odooIdsAsked())->toBe([[2147483647]]);
     });
 
     it('asks nothing for no code, or none that can be an id', function () {
@@ -386,6 +396,155 @@ describe('the answer', function () {
         'an id too long for a whole number' => ['[{"id": 123456789012345678901234567890}]', 'an item has no whole-number id'],
         'one bad item among good ones' => ['[{"id": 1, "list_price": 1.0, "free_qty": 1.0}, {"id": false}]', 'an item has no whole-number id'],
     ]);
+});
+
+describe('one id Odoo refuses (§2.4, amendment 5)', function () {
+    it('asks halves until it finds the id refused, gives it back refused, and reads the rest', function (int $status) {
+        Http::fake(['example.odoo.com/*' => function (Request $request) use ($status) {
+            $ids = array_values(array_map(intval(...), (array) (json_decode($request->body(), true)['ids'] ?? [])));
+
+            return in_array(102, $ids, true)
+                ? Http::response(['error' => 'no access to one record'], $status)
+                : Http::response(odooJson(array_map(static fn (int $id): array => odooItem($id, (float) $id, 1.0), $ids)));
+        }]);
+
+        $values = iterator_to_array(odooAdapter()->read(odooConnection(), ['101', '102', '103']), false);
+
+        expect($values)->toEqual([
+            new ProviderValue('101', 101.0, 1.0),
+            new ProviderValue('103', 103.0, 1.0),
+            new ProviderValue('102', null, null, refused: $status),
+        ])
+            // All three, then 101 alone, then 102 and 103, then each.
+            ->and(odooIdsAsked())->toBe([[101, 102, 103], [101], [102, 103], [102], [103]]);
+    })->with(['403' => 403, '400' => 400, '404' => 404, '422' => 422]);
+
+    it('fails the read for a wrong token, too many calls, their fault or a redirect - never asking halves', function (int $status, string $reason) {
+        Http::fake(['example.odoo.com/*' => Http::response('', $status, $status === 429 ? ['Retry-After' => '1'] : [])]);
+
+        expect(odooFails(fn () => odooRead(['101', '102', '103'])))->toBe($reason)
+            ->and(array_map('count', odooIdsAsked()))->toBe($status === 429 ? [3, 3] : [3]);
+    })->with([
+        '401' => [401, 'Odoo refused the token (401).'],
+        '429' => [429, 'Odoo answered 429 (too many calls) twice.'],
+        '503' => [503, 'Odoo failed (503).'],
+        '302' => [302, 'Odoo answered 302.'],
+    ]);
+
+    it('takes more than 10 ids refused in one read for the token\'s: the read fails with Odoo\'s reason', function () {
+        // Ids 1-11 refused, 12-40 answered.
+        Http::fake(['example.odoo.com/*' => function (Request $request) {
+            $ids = array_values(array_map(intval(...), (array) (json_decode($request->body(), true)['ids'] ?? [])));
+
+            return min($ids) <= 11 ? Http::response('', 403) : Http::response(odooJson(array_map(static fn (int $id): array => odooItem($id), $ids)));
+        }]);
+
+        expect(odooFails(fn () => odooRead(array_map(static fn (int $n): string => (string) $n, range(1, 40)))))
+            ->toBe('Odoo refused access (403): the token\'s user may not read products.');
+    });
+
+    it('reads on with 10 ids refused, each given back refused', function () {
+        Http::fake(['example.odoo.com/*' => function (Request $request) {
+            $ids = array_values(array_map(intval(...), (array) (json_decode($request->body(), true)['ids'] ?? [])));
+
+            return min($ids) <= 10 ? Http::response('', 403) : Http::response(odooJson(array_map(static fn (int $id): array => odooItem($id), $ids)));
+        }]);
+
+        $values = iterator_to_array(odooAdapter()->read(odooConnection(), array_map(static fn (int $n): string => (string) $n, range(1, 40))), false);
+
+        expect(count($values))->toBe(40)
+            ->and(array_map(static fn (ProviderValue $value): string => $value->code, array_values(array_filter($values, static fn (ProviderValue $value): bool => $value->refused === 403))))
+            ->toBe(array_map('strval', range(1, 10)));
+    });
+
+    it('fails a read of more than one id whose every id is refused: the token\'s user may read none', function () {
+        Http::fake(['example.odoo.com/*' => Http::response('', 403)]);
+
+        expect(odooFails(fn () => odooRead(['1', '2', '3'])))->toBe('Odoo refused access (403): the token\'s user may not read products.');
+    });
+
+    it('gives a one-id call refused back as that code, refused, without failing', function () {
+        Http::fake(['example.odoo.com/*' => Http::response('', 403)]);
+
+        expect(iterator_to_array(odooAdapter()->read(odooConnection(), ['55']), false))->toEqual([new ProviderValue('55', null, null, refused: 403)])
+            ->and(odooIdsAsked())->toBe([[55]]);
+    });
+});
+
+describe('an answer past 5 MB (§2.4, amendment 5)', function () {
+    it('fails an answer whose Content-Length says more than 5 MB, or whose body is more, in a read and the test alike', function (array $headers, string $body) {
+        Http::fake(['example.odoo.com/*' => Http::response($body, 200, $headers)]);
+
+        expect(odooFails(fn () => odooRead(['1'])))->toBe("Odoo's answer is not as agreed: it is larger than 5 MB.")
+            ->and(odooFails(fn () => odooAdapter()->test(odooConnection())))->toBe("Odoo's answer is not as agreed: it is larger than 5 MB.");
+    })->with([
+        'its length said' => [['Content-Length' => (string) (OdooAdapter::MOST_ANSWER_BYTES + 1)], '[]'],
+        'its body' => [[], '['.str_repeat(' ', OdooAdapter::MOST_ANSWER_BYTES).']'],
+    ]);
+
+    it('reads an answer of 5 MB', function () {
+        Http::fake(['example.odoo.com/*' => Http::response('['.str_repeat(' ', OdooAdapter::MOST_ANSWER_BYTES - 2).']', 200, ['Content-Length' => (string) OdooAdapter::MOST_ANSWER_BYTES])]);
+
+        expect(odooRead(['1']))->toBe([]);
+    });
+
+    it('stops the transfer itself: its headers past 5 MB, or its progress past it', function () {
+        $sent = null;
+        Http::fake(['example.odoo.com/*' => function (Request $request, array $options) use (&$sent) {
+            $sent = $options;
+
+            return Http::response([]);
+        }]);
+        odooRead(['1']);
+
+        expect($sent['on_headers'] ?? null)->toBeCallable()
+            ->and($sent['progress'] ?? null)->toBeCallable()
+            ->and(fn () => $sent['on_headers'](new Psr7Response(200, ['Content-Length' => (string) (OdooAdapter::MOST_ANSWER_BYTES + 1)])))->toThrow(OdooAnswerTooLarge::class)
+            ->and(fn () => $sent['progress'](OdooAdapter::MOST_ANSWER_BYTES + 1, 0, 0, 0))->toThrow(OdooAnswerTooLarge::class)
+            ->and(fn () => $sent['progress'](0, OdooAdapter::MOST_ANSWER_BYTES + 1, 0, 0))->toThrow(OdooAnswerTooLarge::class);
+
+        // Within 5 MB, or its length unsaid: they let it come.
+        $sent['on_headers'](new Psr7Response(200, ['Content-Length' => (string) OdooAdapter::MOST_ANSWER_BYTES]));
+        $sent['on_headers'](new Psr7Response(200));
+        $sent['progress'](OdooAdapter::MOST_ANSWER_BYTES, OdooAdapter::MOST_ANSWER_BYTES, 0, 0);
+    });
+
+    it('says the transfer the callbacks stopped as too large, never as Odoo not reached', function () {
+        Http::fake(['example.odoo.com/*' => function (Request $request, array $options) {
+            try {
+                $options['progress'](0, OdooAdapter::MOST_ANSWER_BYTES + 1, 0, 0);
+            } catch (OdooAnswerTooLarge) {
+                // As cURL reports a transfer its progress callback stopped.
+            }
+
+            return Create::rejectionFor(new GuzzleHttp\Exception\ConnectException('cURL error 42: Callback aborted for '.ODOO_URL, $request->toPsrRequest()));
+        }]);
+
+        expect(odooFails(fn () => odooRead(['1'])))->toBe("Odoo's answer is not as agreed: it is larger than 5 MB.");
+    });
+});
+
+describe('the read\'s log line (§2.4, amendment 5)', function () {
+    it('logs one line a read - ids, calls, seconds - never a code or the token, a failed one too', function () {
+        $logged = [];
+        Event::listen(MessageLogged::class, function (MessageLogged $message) use (&$logged): void {
+            $logged[] = [$message->level, $message->message, $message->context];
+        });
+        Http::fake(['example.odoo.com/*' => Http::sequence()->push('[]')->push('[]')->push('', 503)]);
+        $codes = array_map(static fn (int $n): string => (string) (70000 + $n), range(1, 501));
+
+        odooRead($codes);
+        odooFails(fn () => odooRead(['70001']));
+
+        expect($logged)->toHaveCount(2)
+            ->and($logged[0][0])->toBe('info')
+            ->and($logged[0][1])->toBe('Sync read Odoo.')
+            ->and($logged[0][2])->toMatchArray(['store' => 'store-1', 'ids' => 501, 'calls' => 2, 'refused' => 0, 'done' => true])
+            ->and($logged[0][2]['seconds'])->toBeGreaterThanOrEqual(1.0)
+            ->and($logged[1][2])->toMatchArray(['ids' => 1, 'calls' => 1, 'done' => false])
+            ->and(json_encode($logged))->not->toContain('70001')
+            ->and(json_encode($logged))->not->toContain(ODOO_TOKEN);
+    });
 });
 
 describe('the pace (§2.4; §9.1 #8)', function () {
@@ -475,7 +634,8 @@ describe('failures: a short reason, never the body, the address or the token (§
     it('names what failed and its status code', function (int $status, string $reason) {
         Http::fake(['example.odoo.com/*' => Http::response(['error' => 'Body text with '.ODOO_TOKEN], $status)]);
 
-        $read = odooFails(fn () => odooRead(['1']));
+        // Two ids: a 403, 400 or 404 for every id of a read is not one id's (amendment 5), so it fails too.
+        $read = odooFails(fn () => odooRead(['1', '2']));
         $test = odooFails(fn () => odooAdapter()->test(odooConnection()));
 
         expect($read)->toBe($reason)
@@ -560,6 +720,35 @@ describe('failures: a short reason, never the body, the address or the token (§
 });
 
 describe('the address (§2.4)', function () {
+    it('knows an address inside our network - loopback, private, link-local, unique-local, unspecified - and one outside', function (string $ip, bool $inside) {
+        expect(InternalAddress::is($ip))->toBe($inside);
+    })->with([
+        '127.0.0.1' => ['127.0.0.1', true],
+        '127.255.255.254' => ['127.255.255.254', true],
+        '10.0.0.1' => ['10.0.0.1', true],
+        '172.16.0.1' => ['172.16.0.1', true],
+        '172.31.255.255' => ['172.31.255.255', true],
+        '172.15.255.255' => ['172.15.255.255', false],
+        '172.32.0.1' => ['172.32.0.1', false],
+        '192.168.1.1' => ['192.168.1.1', true],
+        '192.169.0.1' => ['192.169.0.1', false],
+        '169.254.169.254' => ['169.254.169.254', true],
+        '0.0.0.0' => ['0.0.0.0', true],
+        '8.8.8.8' => ['8.8.8.8', false],
+        '::1' => ['::1', true],
+        '::' => ['::', true],
+        'fe80::1' => ['fe80::1', true],
+        'febf::1' => ['febf::1', true],
+        'fec0::1' => ['fec0::1', false],
+        'fc00::1' => ['fc00::1', true],
+        'fdff::1' => ['fdff::1', true],
+        'fe00::1' => ['fe00::1', false],
+        '::ffff:10.0.0.1' => ['::ffff:10.0.0.1', true],
+        '::ffff:8.8.8.8' => ['::ffff:8.8.8.8', false],
+        '2001:4860:4860::8888' => ['2001:4860:4860::8888', false],
+        'not an IP' => ['odoo', true],
+    ]);
+
     it('takes the account\'s address alone, a closing slash dropped', function (string $given, string $kept) {
         expect(odooAdapter()->address($given))->toBe($kept);
     })->with([
@@ -626,6 +815,45 @@ describe('through Sync', function () {
 
         expect(DB::table('sync.connections')->value('address'))->toBe(ODOO_BASE);
         Http::assertSent(fn (Request $request): bool => $request->url() === ODOO_URL);
+    });
+
+    it('refuses an address inside our network, as written or as it resolves, before any call (§2.4)', function (string $address, array $resolves) {
+        Http::fake();
+        FakeHostAddresses::bound()->names = $resolves;
+
+        try {
+            app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('sa'), 'ODOO', $address, ODOO_TOKEN, 'notice-secret'));
+            $refused = null;
+        } catch (InvalidSyncInput $error) {
+            $refused = $error->context();
+        }
+
+        expect($refused)->toBe(['attribute' => 'address', 'rule' => 'address_internal'])
+            ->and(DB::table('sync.connections')->count())->toBe(0);
+        Http::assertNothingSent();
+    })->with([
+        'loopback' => ['https://127.0.0.1', []],
+        'private' => ['https://10.20.30.40', []],
+        'private 172.16/12' => ['https://172.20.0.5', []],
+        'private 192.168/16' => ['https://192.168.0.10:8443', []],
+        'link-local, the cloud\'s metadata' => ['https://169.254.169.254', []],
+        'unspecified' => ['https://0.0.0.0', []],
+        'IPv6 loopback' => ['https://[::1]', []],
+        'IPv6 link-local' => ['https://[fe80::1]', []],
+        'IPv6 unique-local' => ['https://[fd12:3456::1]', []],
+        'IPv4 written as IPv6' => ['https://[::ffff:10.0.0.1]', []],
+        'a name resolving inside' => ['https://odoo.internal', ['odoo.internal' => ['10.0.0.7']]],
+        'a name with one address inside' => ['https://example.odoo.com', ['example.odoo.com' => ['93.184.216.34', '192.168.5.5']]],
+    ]);
+
+    it('wires an address outside our network, as written or as it resolves', function () {
+        Http::fake(['example.odoo.com/*' => Http::response([]), '93.184.216.34/*' => Http::response([])]);
+        FakeHostAddresses::bound()->names = ['example.odoo.com' => ['93.184.216.34', '2606:2800:220:1::1']];
+
+        odooWire();
+        app(ChangeConnectionHandler::class)->handle(new ChangeConnection(Fx::storeId('sa'), 'ODOO', 'https://93.184.216.34', 'new-token', 'new-secret'));
+
+        expect(DB::table('sync.connections')->value('address'))->toBe('https://93.184.216.34');
     });
 
     it('refuses an address the HTTP client cannot call, by its own rule, before any call', function (string $address) {
@@ -933,6 +1161,28 @@ describe('through Sync', function () {
         expect(array_slice(odooIdsAsked(), 1))->toBe([[(int) $code], [(int) $other]]);
     });
 
+    it('reports a size whose id Odoo refuses alone as a bad value naming the status, and writes the rest', function () {
+        ['variants' => [$good, $refused], 'codes' => [$goodCode, $refusedCode]] = odooProduct(['10 cm', '20 cm']);
+        Http::fake(['example.odoo.com/*' => function (Request $request) use ($refusedCode) {
+            $ids = array_values(array_map(intval(...), (array) (json_decode($request->body(), true)['ids'] ?? [])));
+
+            return in_array((int) $refusedCode, $ids, true)
+                ? Http::response('', 403)
+                : Http::response(odooJson(array_map(static fn (int $id): array => odooItem($id, 40.0, 4.0), $ids)));
+        }]);
+        odooWire();
+
+        $read = odooRunWaiting();
+
+        expect(DB::table('sync.reads')->where('id', $read)->value('state'))->toBe('DONE')
+            ->and(Rx::retail('sa', $good)?->amount_minor)->toBe(4000)
+            ->and(Ix::stock('sa', $good)?->in_stock)->toBe(4)
+            ->and(Rx::retail('sa', $refused))->toBeNull()
+            ->and(json_decode((string) DB::table('sync.report_entries')->where('kind', 'BAD_VALUE')->whereNull('closed_at')->where('variant_id', $refused)->value('detail'), true))
+            ->toBe(['price' => null, 'stock' => null, 'refused' => 'both', 'provider_refused' => 403])
+            ->and(DB::table('sync.report_entries')->where('kind', 'BAD_VALUE')->where('variant_id', $good)->count())->toBe(0);
+    });
+
     it('reads nothing, and is done, in a store with no size', function () {
         Http::fake(['example.odoo.com/*' => Http::response([])]);
         odooWire();
@@ -945,10 +1195,13 @@ describe('through Sync', function () {
     });
 
     it('stores the short reason as a code and its values when a read fails, and never writes the token to a log, an exception or the audit', function (int $status, string $stored, string $english) {
-        odooProduct(['10 cm']);
-        Http::fake(['example.odoo.com/*' => Http::sequence()
-            ->push([])
-            ->push(['error' => 'Body text with '.ODOO_TOKEN], $status)]);
+        // Two sizes at least: a 403 for every id of a read is the token's, failing it (amendment 5).
+        odooProduct(['10 cm', '20 cm']);
+        $calls = 0;
+        Http::fake(['example.odoo.com/*' => function () use (&$calls, $status) {
+            // The wiring's test passes; every read call after it is refused.
+            return ++$calls === 1 ? Http::response([]) : Http::response(['error' => 'Body text with '.ODOO_TOKEN], $status);
+        }]);
         odooWire();
         $read = (string) DB::table('sync.reads')->where('state', 'QUEUED')->value('id');
         $logged = [];
@@ -982,7 +1235,8 @@ describe('through Sync', function () {
             ->and($failure?->getMessage())->toBe("The provider could not be read: {$english}")
             ->and($audit)->toContain($english)
             ->and($audit)->not->toContain(ODOO_TOKEN)
-            ->and($logged)->toHaveCount(1)
+            // The worker's line, and the read's own (amendment 5): neither with the token.
+            ->and($logged)->toHaveCount(2)
             ->and(implode("\n", $logged))->not->toContain(ODOO_TOKEN);
     })->with([
         'a wrong token' => [401, '{"code":"ODOO_REFUSED_TOKEN","values":{}}', 'Odoo refused the token (401).'],

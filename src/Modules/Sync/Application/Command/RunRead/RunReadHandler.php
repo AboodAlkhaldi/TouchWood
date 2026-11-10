@@ -340,6 +340,14 @@ final readonly class RunReadHandler
                 continue;
             }
 
+            // A code the provider refused on its own (Odoo's `403` or other `4xx` for one id, §2.4): no value
+            // came, so nothing is written; the size is reported as a bad value naming the status.
+            if ($value->refused !== null) {
+                $bad[$variant->id] = ['price' => null, 'stock' => null, 'refused' => 'both', 'provider_refused' => $value->refused];
+
+                continue;
+            }
+
             $refused = [];
 
             if ($value->price !== null) {

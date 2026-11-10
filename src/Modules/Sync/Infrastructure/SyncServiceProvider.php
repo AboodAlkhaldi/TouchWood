@@ -19,6 +19,7 @@ use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Pricing\Public\Contracts\StoreWiring as PricingWiring;
 use Modules\Pricing\Public\Events\CampaignReachChecked;
 use Modules\Pricing\Public\Events\DiscountReachChecked;
+use Modules\Sync\Application\Connections\HostAddresses;
 use Modules\Sync\Application\Connections\NoticeAddresses;
 use Modules\Sync\Application\Report\SyncDays;
 use Modules\Sync\Application\Report\SyncLog;
@@ -41,6 +42,7 @@ use Modules\Sync\Infrastructure\Eloquent\DatabaseSyncDays;
 use Modules\Sync\Infrastructure\Eloquent\DatabaseSyncLog;
 use Modules\Sync\Infrastructure\External\ConnectionWiring;
 use Modules\Sync\Infrastructure\External\UrlNoticeAddresses;
+use Modules\Sync\Infrastructure\Network\DnsHostAddresses;
 use Modules\Sync\Infrastructure\Listener\CloseReachedDiscounts;
 use Modules\Sync\Infrastructure\Listener\CloseRejoinedCampaigns;
 use Modules\Sync\Infrastructure\Listener\CloseSwitchedOnEntries;
@@ -81,6 +83,8 @@ final class SyncServiceProvider extends ServiceProvider
         $this->app->singleton(OdooAdapter::class);
         $this->app->bind(SyncWords::class, LangSyncWords::class);
         $this->app->bind(NoticeAddresses::class, UrlNoticeAddresses::class);
+        $this->app->bind(HostAddresses::class, DnsHostAddresses::class);
+        $this->app->bind(HostAddresses::class, DnsHostAddresses::class);
         // In place of Pricing's and Inventory's "no store is wired" (sync.md §2.2): registered after
         // them, so these bindings win.
         $this->app->bind(PricingWiring::class, ConnectionWiring::class);

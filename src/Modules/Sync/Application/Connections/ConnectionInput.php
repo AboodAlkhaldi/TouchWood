@@ -21,6 +21,7 @@ final readonly class ConnectionInput
 
     public function __construct(
         private ProviderAdapters $adapters,
+        private HostAddresses $hosts,
     ) {}
 
     public function provider(string $provider): ProviderKind
@@ -29,7 +30,7 @@ final readonly class ConnectionInput
     }
 
     /**
-     * HTTPS with a host and nothing else of a person's, then the provider's own shape (Odoo's: no query or
+     * HTTPS with a host and nothing else of a person's, the host never inside our network, then the provider's own shape (Odoo's: no query or
      * fragment, no path: the account's address alone, sync.md §2.4) - each refused by its own rule's words.
      */
     public function address(ProviderKind $provider, string $address): string
@@ -54,6 +55,15 @@ final readonly class ConnectionInput
 
         if (filter_var($address, FILTER_VALIDATE_URL) === false || ! is_array($parts) || ($parts['host'] ?? '') === '' || $port < 1) {
             throw new InvalidSyncInput('address', rule: InvalidSyncInput::ADDRESS_MALFORMED);
+        }
+
+        // Never a service inside our network (sync.md §2.4): the host, as written or as it resolves now, is
+        // no loopback, private, link-local, unique-local or unspecified address. A name resolving to nothing
+        // passes here; its test call fails as Odoo not reached.
+        foreach ($this->hosts->of((string) $parts['host']) as $ip) {
+            if (InternalAddress::is($ip)) {
+                throw new InvalidSyncInput('address', rule: InvalidSyncInput::ADDRESS_INTERNAL);
+            }
         }
 
         return $this->adapters->for($provider)->address($address);

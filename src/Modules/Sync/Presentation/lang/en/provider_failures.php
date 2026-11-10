@@ -21,4 +21,5 @@ return [
     'ODOO_NOT_JSON' => "Odoo's answer is not as agreed: it is not JSON.",
     'ODOO_ANSWER_NOT_LIST' => "Odoo's answer is not as agreed: it is not a list.",
     'ODOO_ITEM_WITHOUT_ID' => "Odoo's answer is not as agreed: an item has no whole-number id.",
+    'ODOO_ANSWER_TOO_LARGE' => "Odoo's answer is not as agreed: it is larger than 5 MB.",
 ];

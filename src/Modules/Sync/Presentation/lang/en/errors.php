@@ -66,6 +66,8 @@ return [
             'key_again' => 'Type the key again: the address changed.',
             'secret_again' => 'Type the secret again: the address changed.',
             'address_path' => 'Odoo\'s address is the account\'s address alone, with no path: https://example.odoo.com.',
+            // A host inside our network (sync.md §2.4): the key would go to one of our own services.
+            'address_internal' => 'The address can\'t point inside our network: its host is a local or private address.',
         ],
     ],
 

@@ -8,6 +8,8 @@ use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
+use Modules\Sync\Application\Connections\HostAddresses;
+use Tests\Modules\Sync\Support\FakeHostAddresses;
 
 abstract class TestCase extends BaseTestCase
 {
@@ -30,6 +32,9 @@ abstract class TestCase extends BaseTestCase
         // No test reaches the network. A real call would be slow, would decide the test by what a
         // service answers that day, and would tell a stranger which passwords we hash (step 7).
         Http::preventStrayRequests();
+
+        // Nor DNS: Sync's address rule resolves a provider's host (sync.md §2.4); a test names what it resolves to.
+        $this->app->instance(HostAddresses::class, new FakeHostAddresses);
     }
 
     /**

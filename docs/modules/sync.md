@@ -55,6 +55,8 @@ key, sent as its bearer token), the **notification secret** (§1.3), and the fie
 shown again** — the page shows only that they are set and when; a new value replaces the old one.
 
 - **The secret** is letters and digits only, 32 to 128 characters, since it sits in the address (§2.4).
+  **[WAITING: built with the webhook, §2.4]** - today the secret is any text of 1 to 1,000 characters, as the
+  key is; this rule comes with Odoo's webhook receiver.
 - **Saving tests the connection first**: one small read. If it fails, nothing is saved and the reason
   is shown (`sync.connection_failed`). *(§9.2 #10)*
 - Once saved, the store is wired **at that second**, and **a full read is queued at once** (§1.3). The
@@ -256,7 +258,7 @@ such ids answers an empty list (owner, 2026-11-09):
 
 | Field | Rule |
 |---|---|
-| `id` | A whole number: our code. Each code is **sent as a number** and the answer's `id` given back to the read as **our code as written**. Only a code written as Odoo writes an id is asked - digits, no leading zero, 18 at most (catalog codes are 1-10 digits); any other (`0123`) is not sent, and the night's read reports its size as not at the provider when it is switched on (§1.6) |
+| `id` | A whole number: our code. Each code is **sent as a number** and the answer's `id` given back to the read as **our code as written**. Only a code written as Odoo writes an id is asked - digits, no leading zero, **2,147,483,647 at most** (Odoo's ids are PostgreSQL `integer`s; catalog codes are 1-10 digits); any other (`0123`, `2147483648`) is not sent, and the night's read reports its size as not at the provider when it is switched on (§1.6) |
 | `list_price` | The price the shop shows, **without VAT and without any discount** (owner, 2026-11-09), in the store's currency. A number (`104.0`); passed on as it came, for Pricing to check (§1.4: 0 or below, or more decimals than the currency has, is a `BAD_VALUE`) - VAT is added at checkout, as for every price (pricing.md) |
 | `free_qty` | The stock available to order. A number: `577.0` is 577; **a fraction (`2.5`) is a `BAD_VALUE`, never rounded**; below 0 is kept as 0 and reported (§1.5) |
 
@@ -287,6 +289,26 @@ the read, which is **retried after 1, 5 and 15 minutes**, then reported as faile
 read succeeds (§1.7); what an earlier call of the same attempt gathered is not written (§1.7). In the test a
 `429` fails at once. **No redirect is followed**: the token would go with it. An id Odoo answers that was not
 asked is ignored; one answered twice is a `BAD_VALUE` for that size (both values skipped, §4.1.3).
+
+**One id Odoo refuses does not fail the read** (2026-11-10, the review of the read): a call of more than one id
+answered `403`, `400` or another `4xx` - never `401` (the token) nor `429` - is asked again in two halves, and so
+on, until the ids refused are found; each is a **`BAD_VALUE`** for its size (`detail.provider_refused`: the status;
+"The provider refused this code (403): the size keeps its price and stock."), the rest read on. A one-id call
+refused is that size's entry. **Past 10 ids refused in one read, or every id of a read of more than one**, it is
+the token, not an id: the read fails with Odoo's reason, as before. A one-id refusal found costs about two calls per halving (9 for 500 ids).
+
+**An answer is read 5 MB at most** - its `Content-Length`, then what has come, as it comes; past it, the call
+fails as `ODOO_ANSWER_TOO_LARGE` (a read and the test alike).
+
+**The address never points inside our network**: when wiring or changing it, its host - an IP as written, or what
+the name resolves to then - is refused if it is a loopback, private (RFC 1918), link-local, IPv6 unique-local or
+unspecified address, an IPv4 address written as IPv6 judged as the IPv4 it holds (`address_internal`, "The address
+can't point inside our network: its host is a local or private address."). A name that resolves to nothing passes:
+its test call fails as Odoo not reached. Checked when saved, not before each call.
+
+**Each read logs one line** (`Sync read Odoo.`, info): the store, how many ids, calls, seconds, ids refused and
+whether it ended - never a code, a price or the token - so a catalogue growing toward the job's 1,200 seconds is
+seen.
 A `list_price` or `free_qty` that is empty (Odoo writes `false`), or not a number, is a `BAD_VALUE` for that code
 alone and the read goes on.
 
@@ -295,7 +317,9 @@ never the provider's body, the address or the key: `sync::provider_failures`, bo
 (401), `ODOO_REFUSED_ACCESS` (403), `ODOO_REFUSED_REQUEST` (400), `ODOO_FAILED` (5xx, its status),
 `ODOO_ANSWERED` (any other status), `ODOO_TOO_MANY_CALLS` / `_TWICE`, `ODOO_UNREACHABLE` / `_WITHIN`,
 `ODOO_NO_ANSWER_WITHIN`, `ODOO_UNSENDABLE`, `ODOO_NOT_HTTPS`, `ODOO_NOT_JSON`, `ODOO_ANSWER_NOT_LIST`,
-`ODOO_ITEM_WITHOUT_ID`.
+`ODOO_ITEM_WITHOUT_ID`, `ODOO_ANSWER_TOO_LARGE`. A reason stored under a code this version no longer has (the
+custom API's paging ones), or with values it does not carry, is shown as "The provider could not be read." - never
+its JSON.
 
 **As built (2026-11-10, the read part):** `OdooAdapter` makes exactly these calls; the webhook below is not built
 yet - the notice receiver still takes the old signed `{"codes": [...]}` call and the Provider page still describes
@@ -578,7 +602,7 @@ Every error extends `SyncError` → `DomainError` ("sync.*"), with both language
 | `EntryNotDismissable` | CONFLICT | Dismissing a failed read's entry: it closes when a read works again (§9.3 #23) |
 | `EntryNotRetryable` | CONFLICT | Retry on an Offer Stopped or an Off or Draft entry, which a read never closes (Q27): staff open the offer or the product instead (screens step 6's review, 2026-10-19) |
 | `StoreOff` | FORBIDDEN | A Sync read or action - the report, a read, Sync now, Retry, Dismiss, the Provider page and its changes - in a store that is off, by someone who may not switch stores (pricing.md §4.3.1 Q1, shared by every stage 5 screen; screens step 6's review, 2026-10-19). The system's own reads of an off store go on (§1.1 rule 8) |
-| `InvalidSyncInput` | INVALID | A store that does not exist, an address that is not HTTPS, an empty key or secret, a provider we do not have — named by its field; an address also by the rule it broke (`address_https`, `address_malformed`, `address_query`, `address_path` - Odoo's takes no path; §2.4); a secret that is not 32 to 128 letters and digits (`secret`, rule `secret_format`) |
+| `InvalidSyncInput` | INVALID | A store that does not exist, an address that is not HTTPS, an empty key or secret, a provider we do not have — named by its field; an address also by the rule it broke (`address_https`, `address_malformed`, `address_query`, `address_path` - Odoo's takes no path; §2.4); a host that is, or resolves to, a loopback, private, link-local, unique-local or unspecified address (`address_internal`; §2.4); a secret that is not 32 to 128 letters and digits (`secret`, rule `secret_format`) - **[WAITING: built with the webhook, §1.2]** |
 
 A notification with a bad signature or an old timestamp is answered `401` with no body: it is not a
 staff error.
@@ -693,3 +717,4 @@ sections named.
 | 2 | §1.4, §1.6, §5, §6 | **A provider's price that makes a campaign skip a size** (content.md §1.7 #17, §9.4 A12; pricing.md §9.6 #5). Accepted with content.md; **built in Content PR 5** (2026-11-10): the entry's `detail` names every run skipping the size (`runs`, in id order), one rejoining leaves the others named, and a run new to an open entry tells staff again. The read writes its entries after Pricing's batch has committed, outside the store's lock, so it keeps only the runs Pricing still has skipping the size (`CampaignPrices::skippingRuns`): a run ended meanwhile is never named, re-opened or told again. An entry left naming no run is closed by `PRICING` (the coordinator's pick, 2026-11-10); the next read naming another run opens it again and tells staff. `DISCOUNT_SKIPPED` has the same window, but Pricing keeps no list of a discount's skips to read: left as it is. (a) **§1.4 #7**: a price that would take a scheduled or live campaign past the store's ceiling on a size is taken, and **the campaign skips that size** while it would be too deep, rejoining once the price allows, as a fixed-amount category discount (§1.4 #6). (b) **§1.6**: a new kind **`CAMPAIGN_SKIPPED`** — opened when a read makes a campaign skip a size, naming the size and the campaign (its run); closed by staff. **Open for the Pricing and Sync builders**: it is meant to close by itself when the size rejoins the campaign, or the campaign ends or is cancelled, but nothing yet tells Sync either moment; a discount's entry closes on Pricing's `DiscountReachChecked` (§6, §9.3 #28), and an event like it owed by Pricing is the likely way, settled when built. **Settled at the build (Content PR 5)**: Pricing's `CampaignReachChecked` (pricing.md §6.1) names the sizes it priced again and the runs still skipping them; Sync closes the rest, by `PRICING` (a read pricing the size within the ceiling closes it by `READ` too). **Not built yet**: the campaign's name and link in the Detail - the name is Content's and Sync has no arrow to Content; the entry keeps the run's id until a name source exists (PR 6). Its badge **Campaign Skipped** amber; its Detail "Past the ceiling at the provider's price." with the campaign named, a link when the reader may open it (both words for the wording review, reminder 16). (c) **`SyncNeedsAttention`** is sent for it as for `SALE_STOPPED`, `DISCOUNT_SKIPPED` and `READ_FAILED` (§6), so S4 reaches holders of `sync.report.view` by their switches (ops.md §1.6). (d) **§5**: `report_entries.kind`'s CHECK gains it, and the entry keeps the run's id in `detail`. Content's campaign page reads its skipped sizes from Pricing (pricing.md §9.6 #8, `CampaignPrices::skippedSizes`), not from Sync (the build coordinator's pick, 2026-11-10). | Owner, 2026-11-10 ("skip it from campaign so the new price active but no campaign and notice the staff about it so nothing is missed") |
 | 3 | §1.2, §1.3, §1.4, §2.1, §2.4, Y3, §9.1 | **Odoo's own API replaces the custom one.** `POST` to the account's `/json/2/product.product/read` with `ids` and `fields`, a plain list back, in Odoo's names (`id`, `list_price`, `free_qty`), which stay in the adapter. Every full read asks by our own codes; the hourly read reads everything; products Odoo has and we lack are not reported. The webhook is Odoo's built-in action, two rules to one address per store, the secret in the address; 600 calls a minute per store. Gone: `/touchwood/v1`, `changed_since`, paging, the signature headers and `{"codes": [...]}`. | Odoo's team has an API already; the custom one was never built. | Owner, 2026-11-09 (the request and answer as pasted; codes are Odoo ids; missing ids left out; `list_price` without VAT; limit raised; "Yes, add a secret") |
 | 4 | §1.2, §2.1, §2.4, Y3, §5, §7 | **The read part built** (2026-11-10): Sync Now, the hourly and the nightly reads call Odoo's `POST /json/2/product.product/read`. (a) **The address typed is the account's alone** (`https://<account>.odoo.com`); the path is Odoo's standard one and lives in the adapter; a path, a query or a fragment is refused under the box. (b) **500 ids a call**. (c) **Every full read asks every size not archived** (drafts and off sizes too), from Catalog's new `variantCodes` (catalog.md amendment 42). (d) **A code Odoo cannot have as an id** (a leading zero) is not sent; the night's read reports a switched-on one as Not at Provider. (e) **`403`** has its own reason, `ODOO_REFUSED_ACCESS`; an answer not a list, or an item with no whole-number id, fails the read (`ODOO_ANSWER_NOT_LIST`, `ODOO_ITEM_WITHOUT_ID`); the old paging reasons are gone. (f) `connections.last_read_at` dropped (the hourly read asked from it). (g) **The webhook waits**: the notice receiver is unchanged until Odoo's side is set up. | The owner's go for the read part (AskUserQuestion, 2026-11-10: "build the READ part now; the webhook receiver waits"); (a)-(f) are the build's picks within §2.4 | Owner, 2026-11-10; picks marked in the build's report |
+| 5 | §1.2, §2.4, §7 | **The read's review** (2026-11-10). (a) **One id Odoo refuses** (`403`, `400`, another `4xx`; never `401` or `429`) is found by asking halves and reported as a `BAD_VALUE` naming the status (`provider_refused`); the rest of the read goes on; past 10 in a read, or every id of a read of more than one, the read fails. (b) **Ids past 2,147,483,647** (Odoo's int4) are never sent, as other codes that cannot be ids. (c) **An answer past 5 MB** stops (`ODOO_ANSWER_TOO_LARGE`). (d) **No host inside our network** (`address_internal`), checked as saved. (e) **One log line per read**: ids, calls, seconds. (f) A stored reason whose code is gone reads "The provider could not be read." (g) The secret's 32-128 rule (§1.2, §7 `secret_format`) marked as waiting with the webhook. | The build coordinator's review of the read part (PR #377) | The build's picks: the BAD_VALUE kind, 10 ids, 5 MB, a new reason code for (c), the check at save time only |

@@ -62,6 +62,9 @@ final readonly class ProviderReason
     /** An item of the answer is not an object with a whole-number `id`. */
     public const string ITEM_WITHOUT_ID = 'ODOO_ITEM_WITHOUT_ID';
 
+    /** The answer runs past 5 MB (`OdooAdapter::MOST_ANSWER_BYTES`): not read on. */
+    public const string ANSWER_TOO_LARGE = 'ODOO_ANSWER_TOO_LARGE';
+
     /** Every code, each with the values it carries. */
     public const array CODES = [
         self::NOT_HTTPS => [],
@@ -79,6 +82,7 @@ final readonly class ProviderReason
         self::NOT_JSON => [],
         self::ANSWER_NOT_LIST => [],
         self::ITEM_WITHOUT_ID => [],
+        self::ANSWER_TOO_LARGE => [],
     ];
 
     /**
@@ -101,6 +105,21 @@ final readonly class ProviderReason
     public function stored(): string
     {
         return json_encode(['code' => $this->code, 'values' => (object) $this->values], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
+     * Whether it was stored as an adapter's reason - a JSON object with a text `code` and its `values` - whether
+     * or not this version still has that code or its values.
+     */
+    public static function looksStored(string $stored): bool
+    {
+        if (! str_starts_with($stored, '{')) {
+            return false;
+        }
+
+        $read = json_decode($stored, true);
+
+        return is_array($read) && is_string($read['code'] ?? null) && array_key_exists('values', $read);
     }
 
     /** A stored reason read back; null for anything else - a code of Sync's, or words as they came. */

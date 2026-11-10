@@ -21,4 +21,5 @@ return [
     'ODOO_NOT_JSON' => 'إجابة Odoo ليست كما اتُّفق: ليست JSON.',
     'ODOO_ANSWER_NOT_LIST' => 'إجابة Odoo ليست كما اتُّفق: ليست قائمة.',
     'ODOO_ITEM_WITHOUT_ID' => 'إجابة Odoo ليست كما اتُّفق: عنصر بلا معرّف عددي صحيح.',
+    'ODOO_ANSWER_TOO_LARGE' => 'إجابة Odoo ليست كما اتُّفق: حجمها أكبر من 5 MB.',
 ];

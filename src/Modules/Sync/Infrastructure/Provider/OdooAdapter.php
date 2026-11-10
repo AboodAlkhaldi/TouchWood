@@ -20,6 +20,8 @@ use Modules\Sync\Domain\Model\Connection;
 use Modules\Sync\Domain\Provider\ProviderAdapter;
 use Modules\Sync\Domain\ValueObject\ProviderReason;
 use Modules\Sync\Domain\ValueObject\ProviderValue;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Log\LoggerInterface;
 
 /**
  * **Odoo, read through its own JSON-2 API** (sync.md §2.4, owner 2026-11-09): `POST
@@ -39,6 +41,12 @@ use Modules\Sync\Domain\ValueObject\ProviderValue;
  *   read's retries are `ReadStoreJob`'s (§1.7).
  * - **The test** is the one call made in a web request: 10 seconds at most (§9.3 #21), so a `429` there
  *   fails at once rather than wait.
+ * - **One id Odoo refuses** (a `403` or another `4xx` but `401` and `429`) does not fail the read: the call is
+ *   cut in halves until the ids refused are found, each given back as refused - a bad value for its size - and
+ *   the rest read on. Past `MOST_REFUSED` ids, or every id of a read of more than one, it is the token, not
+ *   an id: the read fails with Odoo's reason.
+ * - **An answer past 5 MB** is not read on: its `Content-Length`, then what has come, stop it.
+ * - **Each read logs one line**: how many ids, calls and seconds - never a code or the token.
  */
 final class OdooAdapter implements ProviderAdapter
 {
@@ -73,17 +81,33 @@ final class OdooAdapter implements ProviderAdapter
     public const int MOST_RETRY_AFTER = 60;
 
     /**
-     * A code that can be an Odoo id: digits with no leading zero, 18 at most (it fits a whole number). Odoo
-     * never writes an id another way, so any other code is not asked (§2.4) - the night's read reports it as
-     * not at the provider when the size is switched on (§1.6).
+     * A code that can be an Odoo id: digits with no leading zero, up to `MOST_ID`. Odoo never writes an id
+     * another way, so any other code is not asked (§2.4) - the night's read reports it as not at the provider
+     * when the size is switched on (§1.6).
      */
-    private const string ODOO_ID = '/\A[1-9][0-9]{0,17}\z/';
+    private const string ODOO_ID = '/\A[1-9][0-9]{0,9}\z/';
+
+    /** Odoo's ids are PostgreSQL `integer`s (int4): none is larger, so a larger code is never sent (§2.4). */
+    public const int MOST_ID = 2147483647;
+
+    /** Ids one read may find refused by Odoo before it is taken for the token's refusal, failing the read. */
+    public const int MOST_REFUSED = 10;
+
+    /** An answer is read this far at most (§2.4): about 100 times what 500 ids take. */
+    public const int MOST_ANSWER_BYTES = 5 * 1024 * 1024;
 
     /** @var array<string, float> per store, when its last call ended - milliseconds */
     private array $lastCallEnded = [];
 
+    /** Calls made since the read began, for its one log line. */
+    private int $calls = 0;
+
+    /** Set by the HTTP client's callbacks when they stop an answer past `MOST_ANSWER_BYTES`. */
+    private bool $tooLarge = false;
+
     public function __construct(
         private readonly Factory $http,
+        private readonly LoggerInterface $log,
     ) {}
 
     /** Odoo asks for nothing beside the address, the key and the secret (§2.4). */
@@ -130,8 +154,9 @@ final class OdooAdapter implements ProviderAdapter
     }
 
     /**
-     * Our codes that can be Odoo ids, each once, 500 a call; one value for each id Odoo answers, under our code.
-     * An id Odoo does not have is left out of its answer, and so of this (§2.4).
+     * Our codes that can be Odoo ids, each once, 500 a call; one value for each id Odoo answers, under our code,
+     * and one marked refused for each id Odoo refuses. An id Odoo does not have is left out of its answer, and
+     * so of this (§2.4).
      */
     public function read(Connection $connection, array $codes): iterable
     {
@@ -150,22 +175,103 @@ final class OdooAdapter implements ProviderAdapter
         foreach ($codes as $code) {
             $code = trim($code);
 
-            if (preg_match(self::ODOO_ID, $code) === 1) {
+            if (preg_match(self::ODOO_ID, $code) === 1 && (int) $code <= self::MOST_ID) {
                 $codeOf[(int) $code] = $code;
             }
         }
 
-        foreach (array_chunk(array_keys($codeOf), self::MOST_IDS) as $ids) {
-            $asked = array_fill_keys($ids, true);
+        $this->calls = 0;
+        $began = self::now();
+        $refused = [];
+        $refusal = null;
+        $done = false;
 
-            foreach ($this->post($connection, $ids, self::READ_SECONDS) as [$id, $item]) {
-                // Only the ids asked: another the answer carries is left out, not reported (§2.4). One that
-                // comes twice is yielded twice: the read skips both and reports the size (§2.4).
-                if (isset($asked[$id])) {
-                    yield self::value($codeOf[$id], $item);
+        try {
+            foreach (array_chunk(array_keys($codeOf), self::MOST_IDS) as $ids) {
+                $asked = array_fill_keys($ids, true);
+
+                foreach ($this->split($connection, $ids, $refused, $refusal) as [$id, $item]) {
+                    // Only the ids asked: another the answer carries is left out, not reported (§2.4). One that
+                    // comes twice is yielded twice: the read skips both and reports the size (§2.4).
+                    if (isset($asked[$id])) {
+                        yield self::value($codeOf[$id], $item);
+                    }
                 }
             }
+
+            // Every id refused, more than one: the token's user may read none of them - the read fails as before.
+            if ($refusal !== null && count($refused) > 1 && count($refused) === count($codeOf)) {
+                throw $refusal;
+            }
+
+            foreach ($refused as $id => $status) {
+                yield new ProviderValue($codeOf[$id], null, null, refused: $status);
+            }
+
+            $done = true;
+        } finally {
+            // One line a read, so a catalogue growing toward the job's time limit is seen (no code, no token).
+            $this->log->info('Sync read Odoo.', [
+                'store' => $connection->storeId,
+                'ids' => count($codeOf),
+                'calls' => $this->calls,
+                'seconds' => round((self::now() - $began) / 1000, 1),
+                'refused' => count($refused),
+                'done' => $done,
+            ]);
         }
+    }
+
+    /**
+     * One call for these ids - or, when Odoo refuses it for one of them (`403` or another `4xx` but `401` and
+     * `429`), the two halves asked apart, and so on down to the id refused, kept in `$refused` with the status.
+     *
+     * @param  list<int>  $ids
+     * @param  array<int, int>  $refused  id => the status Odoo refused it with
+     * @param  ConnectionFailed|null  $refusal  the first refusal, for a read whose every id was refused
+     * @return list<array{int, array<array-key, mixed>}>
+     *
+     * @throws ConnectionFailed
+     */
+    private function split(Connection $connection, array $ids, array &$refused, ?ConnectionFailed &$refusal): array
+    {
+        try {
+            return $this->post($connection, $ids, self::READ_SECONDS);
+        } catch (ConnectionFailed $failed) {
+            $status = self::refusedFor($failed);
+
+            // Not an id's refusal - the token, their fault, a timeout - or so many ids refused it is the token.
+            if ($status === null || count($refused) >= self::MOST_REFUSED) {
+                throw $failed;
+            }
+
+            if (count($ids) === 1) {
+                $refused[$ids[0]] = $status;
+                $refusal ??= $failed;
+
+                return [];
+            }
+
+            $half = intdiv(count($ids), 2);
+
+            return [
+                ...$this->split($connection, array_slice($ids, 0, $half), $refused, $refusal),
+                ...$this->split($connection, array_slice($ids, $half), $refused, $refusal),
+            ];
+        }
+    }
+
+    /** The status of a refusal one id may cause: `403`, `400` or another `4xx` - never `401` (the token) or `429`. */
+    private static function refusedFor(ConnectionFailed $failed): ?int
+    {
+        $status = $failed->coded?->values['status'] ?? null;
+
+        return match ($failed->coded?->code) {
+            ProviderReason::REFUSED_ACCESS => 403,
+            ProviderReason::REFUSED_REQUEST => 400,
+            ProviderReason::ANSWERED => is_int($status) && $status >= 400 && $status < 500 ? $status : null,
+            default => null,
+        };
     }
 
     /**
@@ -204,6 +310,14 @@ final class OdooAdapter implements ProviderAdapter
             throw self::failed(self::refused($response->status()));
         }
 
+        // What the client's callbacks did not stop (an answer without its length, a test's fake): its length
+        // said, then its body.
+        $length = trim($response->header('Content-Length'));
+
+        if ((preg_match('/\A\d{1,18}\z/', $length) === 1 && (int) $length > self::MOST_ANSWER_BYTES) || strlen($response->body()) > self::MOST_ANSWER_BYTES) {
+            throw self::failed(new ProviderReason(ProviderReason::ANSWER_TOO_LARGE));
+        }
+
         return self::answer($response->body());
     }
 
@@ -215,6 +329,8 @@ final class OdooAdapter implements ProviderAdapter
     private function call(Connection $connection, array $ids, int $seconds): Response
     {
         $this->pace($connection->storeId);
+        $this->calls++;
+        $this->tooLarge = false;
 
         try {
             return $this->http
@@ -225,21 +341,63 @@ final class OdooAdapter implements ProviderAdapter
                 ->withoutRedirecting()
                 ->connectTimeout(min($seconds, self::CONNECT_SECONDS))
                 ->timeout($seconds)
+                ->withOptions(['on_headers' => $this->headersCheck(...), 'progress' => $this->progressCheck(...)])
                 ->post(rtrim($connection->address, '/').self::PATH, ['ids' => $ids, 'fields' => self::FIELDS]);
+        } catch (OdooAnswerTooLarge) {
+            throw self::failed(new ProviderReason(ProviderReason::ANSWER_TOO_LARGE));
         } catch (RequestException $error) {
+            if ($this->tooLarge) {
+                throw self::failed(new ProviderReason(ProviderReason::ANSWER_TOO_LARGE));
+            }
+
             // A status of 400 or more whose transfer then failed (a body too slow): judged by its status like
             // any answer - a 429 waited out - and its body, which its message holds, never read.
             return $error->response;
         } catch (ConnectionException $error) {
+            // A transfer the callbacks stopped, as the client reports it.
+            if ($this->tooLarge) {
+                throw self::failed(new ProviderReason(ProviderReason::ANSWER_TOO_LARGE));
+            }
+
             // Its message holds the address: never passed on, nor chained.
             throw self::failed(self::timedOut($error, $seconds) ?? new ProviderReason(ProviderReason::UNREACHABLE));
         } catch (HttpClientException) {
-            throw self::failed(new ProviderReason(ProviderReason::UNREACHABLE));
+            throw self::failed(new ProviderReason($this->tooLarge ? ProviderReason::ANSWER_TOO_LARGE : ProviderReason::UNREACHABLE));
         } catch (InvalidArgumentException) {
             // A request that cannot be written - a control character in the key, say: never the key itself.
             throw self::failed(new ProviderReason(ProviderReason::UNSENDABLE));
         } finally {
             $this->lastCallEnded[$connection->storeId] = self::now();
+        }
+    }
+
+    /**
+     * The answer's headers, as they come: a `Content-Length` past `MOST_ANSWER_BYTES` stops it before its body.
+     *
+     * @throws OdooAnswerTooLarge
+     */
+    private function headersCheck(ResponseInterface $response): void
+    {
+        $length = trim($response->getHeaderLine('Content-Length'));
+
+        if (preg_match('/\A\d{1,18}\z/', $length) === 1 && (int) $length > self::MOST_ANSWER_BYTES) {
+            $this->tooLarge = true;
+
+            throw new OdooAnswerTooLarge("Odoo's answer is too large.");
+        }
+    }
+
+    /**
+     * The transfer's progress, as it goes: past `MOST_ANSWER_BYTES` said or come, it stops.
+     *
+     * @throws OdooAnswerTooLarge
+     */
+    private function progressCheck(int|float $downloadTotal, int|float $downloaded): void
+    {
+        if ($downloadTotal > self::MOST_ANSWER_BYTES || $downloaded > self::MOST_ANSWER_BYTES) {
+            $this->tooLarge = true;
+
+            throw new OdooAnswerTooLarge("Odoo's answer is too large.");
         }
     }
 
