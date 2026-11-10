@@ -71,7 +71,11 @@ function queueConnectionsClasses(): array
     return $queued;
 }
 
-/** Its own timeout - `$timeout`, or Laravel's `#[Timeout]`, the longer if both -, or null when it states none. */
+/**
+ * Its own timeout - `$timeout`, or Laravel's `#[Timeout]`, the longer if both -, or null when it states none.
+ *
+ * @param  class-string  $class
+ */
 function queueConnectionsOwnTimeout(string $class): ?int
 {
     $reflection = new ReflectionClass($class);
@@ -88,7 +92,11 @@ function queueConnectionsOwnTimeout(string $class): ?int
     return $stated === [] ? null : max($stated);
 }
 
-/** Its own timeout, or the worker's when it states none. */
+/**
+ * Its own timeout, or the worker's when it states none.
+ *
+ * @param  class-string  $class
+ */
 function queueConnectionsTimeout(string $class): int
 {
     return queueConnectionsOwnTimeout($class) ?? QUEUE_CONNECTIONS_WORKER_TIMEOUT;
@@ -102,6 +110,8 @@ function queueConnectionsOnLong(string $source): bool
 
 /**
  * Built with stand-ins for its constructor's values - only plain values, which every long job takes.
+ *
+ * @param  class-string  $class
  */
 function queueConnectionsBuild(string $class): object
 {
@@ -124,6 +134,12 @@ function queueConnectionsBuild(string $class): object
     }
 
     return $reflection->newInstanceArgs($arguments);
+}
+
+/** The connection a queued job carries: `Queueable`'s public `$connection`, null when none was named. */
+function queueConnectionsConnectionOf(object $job): mixed
+{
+    return get_object_vars($job)['connection'] ?? null;
 }
 
 /** Its connection's `retry_after`, as config/queue.php reads it. */
@@ -190,7 +206,7 @@ it('puts every queued class that may outlast the normal connection on the long o
             $long[] = $class;
 
             expect(queueConnectionsOwnTimeout($class))->not->toBeNull("{$class} is on the long connection without a timeout of its own")
-                ->and(queueConnectionsBuild($class)->connection)->toBe(LongQueue::CONNECTION, "{$class} does not reach the long connection when built");
+                ->and(queueConnectionsConnectionOf(queueConnectionsBuild($class)))->toBe(LongQueue::CONNECTION, "{$class} does not reach the long connection when built");
         }
 
         $limit = $onLong ? $longLimit : $normalLimit;
@@ -213,14 +229,16 @@ it('sends each long job to the long connection, dispatched or scheduled', functi
     foreach ([RefreshSegmentsJob::class, PruneSyncLogJob::class, BuildSitemapsJob::class] as $class) {
         $event = collect(app(Schedule::class)->events())->first(static fn ($event): bool => $event->description === $class);
 
-        expect($event)->toBeInstanceOf(CallbackEvent::class, "{$class} is not scheduled");
+        if (! $event instanceof CallbackEvent) {
+            throw new LogicException("{$class} is not scheduled as a queued job");
+        }
 
         $callback = (fn () => $this->callback)->call($event);
         $callback();
     }
 
     foreach ([BringInImportJob::class, ReadStoreJob::class, CheckRedirectsJob::class, RefreshSegmentsJob::class, PruneSyncLogJob::class, BuildSitemapsJob::class] as $class) {
-        Queue::assertPushed($class, static fn (object $job): bool => $job->connection === LongQueue::CONNECTION);
+        Queue::assertPushed($class, static fn (object $job): bool => queueConnectionsConnectionOf($job) === LongQueue::CONNECTION);
     }
 });
 
@@ -229,7 +247,7 @@ it('writes a long job to the jobs table on the long queue, where the normal work
 
     BringInImportJob::dispatch('import');
 
-    expect(DB::table('jobs')->get(['queue'])->pluck('queue')->all())->toBe(['long'])
+    expect(DB::table('jobs')->pluck('queue')->all())->toBe(['long'])
         ->and(DB::table('jobs')->where('queue', config('queue.connections.'.QUEUE_CONNECTIONS_NORMAL.'.queue'))->count())->toBe(0);
 });
 
