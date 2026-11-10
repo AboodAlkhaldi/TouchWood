@@ -22,4 +22,12 @@ interface ReservedPaths
      * @throws \LogicException after boot, or for a malformed segment
      */
     public function reserve(string $module, string ...$segments): void;
+
+    /**
+     * Whether a top-level segment is one a module reserved - for a module that must refuse an address the site
+     * answers itself: Content's redirects never take an old address under "/admin" (content.md §1.15).
+     *
+     * @param  string  $segment  lowercase, as reserved
+     */
+    public function isReserved(string $segment): bool;
 }

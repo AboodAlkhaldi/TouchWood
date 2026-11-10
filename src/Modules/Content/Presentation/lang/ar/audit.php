@@ -54,4 +54,10 @@ return [
     'blog_category.changed' => 'عُدّلت فئة مدونة',
     'blog_category.deleted' => 'حُذفت فئة مدونة',
     'blog_categories.ordered' => 'أُعيد ترتيب فئات المدونة',
+    'seo.saved' => 'حُفظت إعدادات البحث الافتراضية',
+    'seo.image_detached' => 'أُزيلت صورة من إعدادات البحث الافتراضية',
+    'redirect.added' => 'أُضيف تحويل',
+    'redirect.changed' => 'عُدّل تحويل',
+    'redirect.deleted' => 'حُذف تحويل',
+    'redirect.count_reset' => 'صُفّر عدد زيارات تحويل',
 ];

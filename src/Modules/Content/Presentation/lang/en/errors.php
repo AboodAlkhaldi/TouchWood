@@ -45,6 +45,8 @@ return [
             'order' => 'The list changed meanwhile. Open the page again.',
             'duplicate' => 'The :attribute is on the list already.',
             'state' => 'This can\'t be done now: the item has moved on.',
+            'title_pattern' => 'The :attribute holds :title, where a page\'s own title goes.',
+            'robots_path' => 'Each line is a path of the shop without its store and language, such as /brands/old, of :max characters at most.',
             // The same refusals, on the line of the typed text they are on (§1.2).
             'too_long_line' => 'Line :line: the :attribute holds more than :max characters.',
             'required_line' => 'Line :line: type the :attribute.',
@@ -59,6 +61,7 @@ return [
             'table_rows_line' => 'Line :line: a table has 1 to :max rows under its heading.',
             'too_many_blocks_line' => 'Line :line: the :attribute holds more than :max paragraphs, headings, lists, images and tables.',
             'too_many_items_line' => 'Line :line: a list holds :max items at most.',
+            'robots_path_line' => 'Line :line: a path of the shop without its store and language, such as /brands/old, of :max characters at most.',
         ],
     ],
     'missing_english' => [
@@ -117,10 +120,27 @@ return [
     'redirect_invalid' => [
         'title' => 'Check the redirect',
         'detail' => 'This redirect is not valid.',
+        'rules' => [
+            'old_path' => 'The old address is a path on this site, such as /flash-deals.',
+            'old_store' => 'The old address begins with a store\'s code, where the new site answers. Leave the line out.',
+            'old_reserved' => 'The old address begins with a path the site uses itself. Leave the line out.',
+            'new_path' => 'The new address is a page of the shop with its store and language, such as /sa/ar/categories/chairs.',
+            'new_store' => 'The new address begins with no store\'s code.',
+            'taken' => 'Another line has this old address already.',
+            'twice' => 'This old address is on the sheet twice: only the first is read.',
+            'not_forwarding' => 'This line\'s new address doesn\'t forward anywhere. Check the addresses again.',
+        ],
     ],
     'sheet_refused' => [
         'title' => 'Check the sheet',
         'detail' => 'This sheet can\'t be read.',
+        'rules' => [
+            'type' => 'Upload an xlsx or csv file.',
+            'too_large' => 'The sheet is over 2 MB. Split it into smaller sheets.',
+            'too_many_lines' => 'The sheet holds over 5,000 lines. Split it into smaller sheets.',
+            'headings' => 'The first row holds the headings Old Address and New Address.',
+            'empty' => 'The sheet holds no line under its headings.',
+        ],
     ],
     'translation_unavailable' => [
         'title' => 'Not translated',
@@ -293,5 +313,18 @@ return [
         'link_text' => 'link\'s words',
         'link_text_ar' => 'Arabic link words',
         'link_text_en' => 'English link words',
+        // PR 4: SEO defaults and the redirects.
+        'site_name' => 'site name',
+        'site_name_ar' => 'Arabic site name',
+        'site_name_en' => 'English site name',
+        'title_pattern' => 'title pattern',
+        'title_pattern_ar' => 'Arabic title pattern',
+        'title_pattern_en' => 'English title pattern',
+        'description' => 'description',
+        'description_ar' => 'Arabic description',
+        'description_en' => 'English description',
+        'share_image' => 'share image',
+        'robots_extra' => 'robots lines',
+        'sheet' => 'sheet',
     ],
 ];

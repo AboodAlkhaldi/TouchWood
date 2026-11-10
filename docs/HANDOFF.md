@@ -1814,14 +1814,18 @@ Decide these when the owning module is reached; do not design them now.
     payment check's own claim, 320 s).
   - `php artisan queue:work database-long --queue=long --timeout=60` — the long jobs: Catalog's
     product import (`BringInImportJob`, 3600 s), Promotions' nightly segments (`RefreshSegmentsJob`,
-    3600 s), Sync's store reads (`ReadStoreJob`, 1200 s) and its log prune (`PruneSyncLogJob`, 900 s).
-    Its `retry_after` is **3700 s**, above the longest.
+    3600 s), Sync's store reads (`ReadStoreJob`, 1200 s) and its log prune (`PruneSyncLogJob`, 900 s),
+    Content's Check Addresses (`CheckRedirectsJob`, 1200 s) and sitemaps' build (`BuildSitemapsJob`,
+    600 s). Its `retry_after` is **3700 s**, above the longest. Content's two still delete a copy
+    should one be handed out (`RunOnce`).
 
   A job that states its own `$timeout` keeps it; `--timeout=60` is only for a job that states none
   (Laravel's default, the one the jobs' comments count on). The env values, as in `.env.example`:
   `QUEUE_CONNECTION=database`, `QUEUE_LONG_CONNECTION=database-long`, `DB_QUEUE_RETRY_AFTER=330`,
-  `DB_QUEUE_LONG=long`, `DB_QUEUE_LONG_RETRY_AFTER=3700`. Both workers connect to PostgreSQL
-  directly, never through a transaction pooler. Without the long worker, the long jobs wait in the
+  `DB_QUEUE_LONG=long`, `DB_QUEUE_LONG_RETRY_AFTER=3700`. **Both workers connect to PostgreSQL
+  directly, never through a transaction-mode pooler** (PgBouncer in `transaction` mode): Content's
+  jobs hold session advisory locks for as long as they run (`RunOnce`, `OneSitemapBuild`), which such
+  a pooler hands to other clients between statements. Without the long worker, the long jobs wait in the
   `jobs` table and never run. Platform's `QueueConnectionsTest` fails for a new job whose `$timeout`
   is within 30 s of the normal limit and is not on the long connection (`LongQueue`).
 - **Sync's notifications** (Sync step 5b): when Ops listens to `SyncNeedsAttention`, its listener
