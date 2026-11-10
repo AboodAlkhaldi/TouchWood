@@ -126,10 +126,10 @@ No test calls MyFatoorah: `Support/FakeMyFatoorah` stands in.
 
 ## Go-live
 
-1. Set `DB_QUEUE_RETRY_AFTER=330` at hosting. The check job and the notice job may run 300 s (`$timeout = 300`), a check's
-   own claim lasts 320 s, and the queue's `retry_after` must be longer than both or a second worker picks a running job up.
-   `config/queue.php` reads it for the default `database` connection (`env('DB_QUEUE_RETRY_AFTER', 90)`); `.env.example`
-   does not set it, so it is 90 until hosting sets it.
+1. The queue's `retry_after` is 330 s (`DB_QUEUE_RETRY_AFTER`, `config/queue.php`'s default and `.env.example`'s). The
+   check job and the notice job may run 300 s (`$timeout = 300`), a check's own claim lasts 320 s, and the queue's
+   `retry_after` must be longer than both or a second worker picks a running job up. They stay on the normal connection;
+   HANDOFF's deploy notes say which two workers run.
 2. Done (2026-11-03): Ops listens to `TransferOverdue` (`AlertStaff`, ops.md S6). Sales marks an order told when it fires the
    event, so an order marked while nobody listened would never be told again (sales.md §9.9 #13).
 3. The KSA MyFatoorah key, and one real-money test: only a Kuwait test key exists today (the owner's note; nothing in the

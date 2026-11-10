@@ -450,8 +450,8 @@ visibility (public or private) comes from each disk's own configuration; the cod
 The server needs:
 - **PHP extensions** `gd` (built with AVIF and WebP), `exif` and `fileinfo`. `composer.json`
   requires them, and a test fails if GD cannot write AVIF or WebP.
-- **A queue worker** for variant generation. The job stops after 80 seconds, below the queue's
-  90-second `retry_after`.
+- **A queue worker** for variant generation (the normal one; HANDOFF's deploy notes run two). The job
+  stops after 80 seconds, below the queue's 330-second `retry_after`.
 - **The scheduler** (`php artisan schedule:work`, or cron running `schedule:run`) for the
   stuck-image sweep, which it queues as a job — so the queue worker runs the sweep too.
 
