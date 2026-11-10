@@ -233,6 +233,48 @@ it('turns the sidebar into the slide-in menu on a phone, opens a screen from it,
     $page->assertNoJavaScriptErrors();
 });
 
+it('draws the design\'s phone top bar, and switches the language in one press on the rail too', function () {
+    // Round 3 #13 and #14 (owner, 2026-11-10). Two stores, so View Store is its menu.
+    $staffId = Fx::staffWith([AccessPermissions::STAFF_VIEW, AccessPermissions::ROLE_MANAGE, PlatformPermissions::STORE_VIEW], ['sa', 'ae'], RoleLevel::Admin);
+    $page = panelFrameSignIn($staffId);
+    expect(signedInToPanel($page))->toBeTrue();
+    $page->navigate('/admin/roles', BROWSER_PAGE_LOAD);
+
+    $size = static fn (string $selector, string $what): mixed => $page->script("(() => { const el = document.querySelector('{$selector}'); const box = el.getBoundingClientRect(); return {$what}; })()");
+    $font = static fn (string $selector): mixed => $page->script("getComputedStyle(document.querySelector('{$selector}')).fontSize");
+
+    // A computer: the trail, View Store with its name, the page's title at 24 px.
+    expect(browserUntil($page, "document.querySelector('[data-test=\"view-store\"]') !== null && document.querySelector('h1') !== null"))->toBeTrue()
+        ->and($font('h1'))->toBe('24px')
+        ->and($size('[data-test="view-store"]', 'box.width > box.height'))->toBeTrue('View Store lost its name on a computer');
+
+    // The rail of icons: the language is still one press, its name the icon's tip.
+    $page->click('[data-sidebar="trigger"]');
+    expect(browserUntil($page, "document.querySelector('[data-slot=\"sidebar\"]')?.dataset.state === 'collapsed'"))->toBeTrue();
+    $page->click('[data-test="language"]');
+    expect(browserUntil($page, "document.documentElement.lang === 'ar' && document.documentElement.dir === 'rtl'"))->toBeTrue('one press did not switch the language');
+    $page->click('[data-test="language"]');
+    expect(browserUntil($page, "document.documentElement.lang === 'en'"))->toBeTrue();
+
+    // A phone: the menu button 44 px, the page's name in the bar at 16 px, View Store its icon alone and still named,
+    // the title 20 px - and nothing wider than the screen.
+    $page->resize(375, 812);
+    $page->navigate('/admin/roles', BROWSER_PAGE_LOAD);
+    expect(browserUntil($page, "document.querySelector('[data-test=\"menu-button\"]')?.getBoundingClientRect().width === 44"))->toBeTrue('the menu button is not 44 px')
+        ->and($size('[data-test="menu-button"]', 'box.height'))->toBe(44)
+        ->and($font('[data-test="trail-page"]'))->toBe('16px')
+        ->and($font('h1'))->toBe('20px')
+        ->and($size('[data-test="view-store"]', '[Math.round(box.width), Math.round(box.height)]'))->toBe([36, 36])
+        ->and($page->script("document.querySelector('[data-test=\"view-store\"]').getAttribute('aria-label')"))->toBe('View Store')
+        ->and($page->script("document.querySelector('[data-test=\"view-store\"]').innerText.trim()"))->toBe('')
+        ->and($size('header', 'box.right <= window.innerWidth'))->toBeTrue('the top bar is wider than the screen')
+        ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the page scrolls sideways');
+
+    // Its menu of stores still opens from the icon.
+    $page->click('[data-test="view-store"]')->assertVisible('[data-test="view-store-ae"]');
+    $page->assertNoJavaScriptErrors();
+});
+
 it('draws thin scrollbars that keep the page\'s room, dark ones in dark mode', function () {
     // The rules are the whole system's, so the sign-in page shows them as well as any.
     $light = visit('/admin/sign-in');

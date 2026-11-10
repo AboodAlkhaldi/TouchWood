@@ -12,6 +12,9 @@ import type { SharedProps } from '@/types/page';
 | amendment 64): with one store the button opens it; with more, a short menu of the person's stores -
 | a Super Admin's off ones too, marked Off. No store, no button. The address is written out: the route
 | helper would add its weight to every admin page (frontend.md §5's page budget).
+|
+| On a phone (under shadcn's md) it is its icon alone, the design's phone top bar (round 3 #14): the name stays
+| its accessible name, and the menu of stores still opens from it.
 */
 
 export function ViewStoreButton() {
@@ -19,6 +22,9 @@ export function ViewStoreButton() {
     const t = useTranslator();
     const stores = viewStores ?? [];
     const open = (code: string) => router.post('/admin/staff-view', { store: code });
+    const name = t('admin.staff_view.open');
+    // Square on a phone, the icon only, as tall as the bell beside it.
+    const phone = 'max-md:size-9 max-md:px-0';
 
     if (stores.length === 0) {
         return null;
@@ -28,9 +34,9 @@ export function ViewStoreButton() {
         const only = stores[0];
 
         return (
-            <Button variant="outline" size="sm" data-test="view-store" onClick={() => (only === undefined ? undefined : open(only.code))}>
+            <Button variant="outline" size="sm" className={phone} aria-label={name} data-test="view-store" onClick={() => (only === undefined ? undefined : open(only.code))}>
                 <StoreIcon aria-hidden="true" />
-                {t('admin.staff_view.open')}
+                <span className="max-md:hidden">{name}</span>
             </Button>
         );
     }
@@ -38,10 +44,10 @@ export function ViewStoreButton() {
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" data-test="view-store">
+                <Button variant="outline" size="sm" className={phone} aria-label={name} data-test="view-store">
                     <StoreIcon aria-hidden="true" />
-                    {t('admin.staff_view.open')}
-                    <ChevronDown aria-hidden="true" className="opacity-60" />
+                    <span className="max-md:hidden">{name}</span>
+                    <ChevronDown aria-hidden="true" className="opacity-60 max-md:hidden" />
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-48">
