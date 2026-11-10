@@ -67,15 +67,31 @@ final class InMemoryUnmatchedAddresses implements UnmatchedAddresses
     }
 
     /**
+     * The request's answer, asked the way every place asks (content.md §2.3 row L2): a GET or a HEAD only,
+     * with the address as `pathOf()` gives it; anything else is never asked about.
+     */
+    public function answerRequest(Request $request): ?RedirectResponse
+    {
+        if (! in_array($request->getMethod(), ['GET', 'HEAD'], true)) {
+            return null;
+        }
+
+        $path = self::pathOf($request);
+
+        return $path === null ? null : $this->answer($path);
+    }
+
+    /**
      * The address a request asked for, as an answer is given it: decoded, with its leading slash and any
-     * trailing one, without the query string. Null for one that does not decode to UTF-8: no answer can
-     * name it.
+     * trailing one, without the query string. Null - never asked about - for one that does not decode to
+     * UTF-8, or that holds a control character (`%00`) or a backslash (`%5C`): no old address is either,
+     * and an answer that copied one into a Location header could send a browser elsewhere.
      */
     public static function pathOf(Request $request): ?string
     {
         $path = '/'.ltrim(rawurldecode($request->getPathInfo()), '/');
 
-        return preg_match('//u', $path) === 1 ? $path : null;
+        return preg_match('//u', $path) === 1 && preg_match('/[\p{Cc}\\\\]/u', $path) !== 1 ? $path : null;
     }
 
     private function underReserved(string $path): bool

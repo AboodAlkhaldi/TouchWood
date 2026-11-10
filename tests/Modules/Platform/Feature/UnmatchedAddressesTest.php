@@ -7,8 +7,11 @@ use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use Inertia\Testing\AssertableInertia;
+use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Presentation\Http\InMemoryUnmatchedAddresses;
 use Modules\Platform\Public\Contracts\UnmatchedAddress;
 use Modules\Platform\Public\Contracts\UnmatchedAddresses;
@@ -110,7 +113,10 @@ describe('with an answer registered', function () {
         // away on a real server first, so the address is read from the request itself here.
         expect(InMemoryUnmatchedAddresses::pathOf(Request::create('/'.rawurlencode('مدونة').'/?x=1')))->toBe('/مدونة/')
             ->and(InMemoryUnmatchedAddresses::pathOf(Request::create('/old/page/')))->toBe('/old/page/')
-            ->and(InMemoryUnmatchedAddresses::pathOf(Request::create('/%C3%28')))->toBeNull();
+            ->and(InMemoryUnmatchedAddresses::pathOf(Request::create('/%C3%28')))->toBeNull()
+            ->and(InMemoryUnmatchedAddresses::pathOf(Request::create('/%00x')))->toBeNull()
+            ->and(InMemoryUnmatchedAddresses::pathOf(Request::create('/%5Cevil.com')))->toBeNull()
+            ->and(InMemoryUnmatchedAddresses::pathOf(Request::create('/a%09b')))->toBeNull();
     });
 
     it('answers not found, the page byte for byte as before, when the answer has nothing', function () {
@@ -153,17 +159,53 @@ describe('with an answer registered', function () {
         expect(RecordingUnmatchedAddress::$asked)->toBe([]);
     });
 
-    it('never asks about a page that exists, nor a not-found a page gave', function () {
+    it('never asks about a page that exists', function () {
         unmatchedRegisterRecorder();
-        RecordingUnmatchedAddress::$targets = ['/sa' => '/elsewhere', '/sa/en/nothing-here' => '/elsewhere'];
+        RecordingUnmatchedAddress::$targets = ['/sa' => '/elsewhere', '/sa/ar' => '/elsewhere'];
 
-        // A real store's code still goes to its home, as before.
+        // A real store's code still goes to its home, as before, and its home is its home.
         get('/sa')->assertRedirect('/sa/ar');
-        // The shop's own not-found, under a store and a language.
-        get('/sa/en/nothing-here')->assertNotFound();
+        get('/sa/ar')->assertOk();
 
         expect(RecordingUnmatchedAddress::$asked)->toBe([]);
     });
+
+    it('asks about an address under a store that no page answers, and keeps the shop\'s own not-found when nobody answers (PR 2 review)', function () {
+        unmatchedRegisterRecorder();
+        RecordingUnmatchedAddress::$targets = ['/sa/ar/old-page' => '/sa/ar/pages/about'];
+
+        get('/sa/ar/old-page')->assertStatus(301)->assertRedirect('/sa/ar/pages/about');
+        get('/sa/en/nothing-here')->assertNotFound()->assertInertia(fn (AssertableInertia $page) => $page->component('Storefront/Error'));
+        // A form sent there is never asked about.
+        post('/sa/ar/old-page')->assertNotFound();
+
+        expect(RecordingUnmatchedAddress::$asked)->toBe(['/sa/ar/old-page', '/sa/en/nothing-here']);
+    });
+
+    it('asks about a first word that names no store before a language, never about an off store (PR 2 review)', function () {
+        unmatchedRegisterRecorder();
+        RecordingUnmatchedAddress::$targets = ['/shop/en/x' => '/sa/en', '/eg/ar/x' => '/sa/ar'];
+        DB::table('platform.stores')->where('code', 'eg')->update(['is_active' => false]);
+        app(StoreDirectory::class)->invalidate();
+
+        get('/shop/en/x')->assertStatus(301)->assertRedirect('/sa/en');
+        // An off store is a 404 as if it were never there: nothing is asked.
+        get('/eg/ar/x')->assertNotFound();
+        post('/shop/en/x')->assertNotFound();
+
+        expect(RecordingUnmatchedAddress::$asked)->toBe(['/shop/en/x']);
+    });
+
+    it('never asks about an address holding a control character or a backslash, which stays a plain 404', function (string $path) {
+        unmatchedRegisterRecorder();
+        RecordingUnmatchedAddress::$targets = [rawurldecode($path) => '/sa/ar'];
+
+        $response = get($path);
+
+        $response->assertNotFound();
+        expect(RecordingUnmatchedAddress::$asked)->toBe([])
+            ->and($response->headers->get('Location'))->toBeNull();
+    })->with(['/%00x', '/%5Cevil.com', '/sa/ar/%5Cevil.com', '/shop/en/%01x', '/a%0Db']);
 
     it('asks about a HEAD as about a GET', function () {
         unmatchedRegisterRecorder();

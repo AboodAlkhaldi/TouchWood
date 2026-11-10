@@ -30,9 +30,7 @@ final readonly class StoreWithoutLanguageController
     public function __invoke(Request $request, string $store, InMemoryUnmatchedAddresses $addresses): Response
     {
         if ($this->platform->storeByCode($store) === null) {
-            $path = InMemoryUnmatchedAddresses::pathOf($request);
-
-            return ($path === null ? null : $addresses->answer($path)) ?? abort(404);
+            return $addresses->answerRequest($request) ?? abort(404);
         }
 
         // The query string travels on: ad and campaign parameters (utm_source, gclid) must survive.

@@ -19,6 +19,7 @@ use Modules\Platform\Public\Contracts\TextTranslator;
 use Modules\Platform\Public\Contracts\TranslationFailed;
 use Modules\Platform\Public\Enums\TranslationFailure;
 use Psr\Http\Client\ClientInterface;
+use Psr\Log\LoggerInterface;
 use SensitiveParameter;
 use Shared\Domain\Text\LatinDigits;
 use Throwable;
@@ -60,6 +61,7 @@ final readonly class DeepLTextTranslator implements TextTranslator
     public function __construct(
         #[SensitiveParameter] private string $key,
         private ?ClientInterface $http = null,
+        private ?LoggerInterface $logger = null,
     ) {}
 
     public function isReady(): bool
@@ -140,7 +142,16 @@ final readonly class DeepLTextTranslator implements TextTranslator
             // Tag handling only when asked: whether the marks survive in Arabic is for the real account to show.
             return $translator->translateText($texts, $source, $target, $keepMarks ? [TranslateTextOptions::TAG_HANDLING => 'xml'] : []);
         } catch (Throwable $failure) {
-            throw new TranslationFailed(self::reason($failure));
+            $reason = self::reason($failure);
+
+            // For whoever keeps the server: the reason and the service's status, never the token, the text
+            // or the service's answer - the library's message holds the answer, so it is never written.
+            $this->logger?->warning('Machine translation failed.', [
+                'reason' => $reason->value,
+                'status' => $failure instanceof DeepLException && is_int($failure->httpStatusCode) ? $failure->httpStatusCode : null,
+            ]);
+
+            throw new TranslationFailed($reason);
         }
     }
 

@@ -35,12 +35,10 @@ final readonly class AnswerUnmatchedAddresses
         /** @var Response $response */
         $response = $next($request);
 
-        if ($response->getStatusCode() !== 404 || $request->route() !== null || ! in_array($request->getMethod(), ['GET', 'HEAD'], true)) {
+        if ($response->getStatusCode() !== 404 || $request->route() !== null) {
             return $response;
         }
 
-        $path = InMemoryUnmatchedAddresses::pathOf($request);
-
-        return ($path === null ? null : $this->addresses->answer($path)) ?? $response;
+        return $this->addresses->answerRequest($request) ?? $response;
     }
 }

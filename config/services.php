@@ -41,12 +41,13 @@ return [
         'webhook_secret' => env('BREVO_WEBHOOK_SECRET', ''),
     ],
 
-    // Platform's machine translation (content.md §2.2): "fake" marks each text and sends nothing, for
-    // development and tests; "deepl" sends staff text to DeepL with DEEPL_API_KEY, the server's token, held
-    // by the owner. With "deepl" and no key, Translate is offered disabled ("Translation isn't set up on
-    // this server."). "fake" never runs in production.
+    // Platform's machine translation (content.md §2.2): "deepl" sends staff text to DeepL with DEEPL_API_KEY,
+    // the server's token, held by the owner; "fake" marks each text and sends nothing. Left empty, it is
+    // "fake" in development and tests and "deepl" in production - where, with no key, Translate is offered
+    // disabled ("Translation isn't set up on this server.") rather than failing. "fake" set by name in
+    // production is refused.
     'deepl' => [
-        'driver' => env('TEXT_TRANSLATOR', 'fake'),
+        'driver' => env('TEXT_TRANSLATOR', ''),
         'key' => env('DEEPL_API_KEY', ''),
     ],
 

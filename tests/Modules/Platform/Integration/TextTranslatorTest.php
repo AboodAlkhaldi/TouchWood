@@ -18,6 +18,7 @@ use Modules\Platform\Public\Contracts\TranslationFailed;
 use Modules\Platform\Public\Enums\TranslationFailure;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use Psr\Log\LoggerInterface;
 
 /*
 | The translator (content.md §2.2, §1.3; platform.md row L1), against a stand-in for DeepL: a PSR-18 client
@@ -38,7 +39,7 @@ function textTranslatorOver(array $answers, ArrayObject $sent): DeepLTextTransla
     $stack = HandlerStack::create(new MockHandler($answers));
     $stack->push(Middleware::history($sent));
 
-    return new DeepLTextTranslator(TEXT_TRANSLATOR_TOKEN, new Client(['handler' => $stack]));
+    return new DeepLTextTranslator(TEXT_TRANSLATOR_TOKEN, new Client(['handler' => $stack]), app(LoggerInterface::class));
 }
 
 /**
@@ -176,9 +177,34 @@ it('keeps the token and the service\'s words out of the failure and every log li
         ->and($everything)->not->toContain(TEXT_TRANSLATOR_TOKEN)
         ->and($everything)->not->toContain('secret-token')
         ->and($everything)->not->toContain('Service words')
+        // Nor the text sent.
+        ->and($everything)->not->toContain('نص عربي')
         // The token went where it belongs, and nowhere else.
         ->and(textTranslatorRequest($sent)->getHeaderLine('Authorization'))->toContain(TEXT_TRANSLATOR_TOKEN);
 })->with([403, 456, 500, 'connection']);
+
+it('logs each failure for whoever keeps the server: its reason and the service\'s status, nothing else', function (int|string $answer, string $reason, ?int $status) {
+    $sent = new ArrayObject;
+    $failure = is_int($answer)
+        ? textTranslatorRefusal($answer)
+        : new ConnectException('cURL error 7: '.TEXT_TRANSLATOR_TOKEN, new Request('POST', '/v2/translate'));
+    $logged = [];
+    Event::listen(MessageLogged::class, function (MessageLogged $event) use (&$logged): void {
+        $logged[] = ['message' => $event->message, 'context' => $event->context, 'level' => $event->level];
+    });
+
+    try {
+        textTranslatorOver([$failure], $sent)->translate(['نص عربي'], 'ar', 'en');
+    } catch (TranslationFailed) {
+    }
+
+    expect($logged)->toBe([['message' => 'Machine translation failed.', 'context' => ['reason' => $reason, 'status' => $status], 'level' => 'warning']]);
+})->with([
+    'the allowance' => [456, 'QUOTA', 456],
+    'a bad token' => [403, 'REFUSED', 403],
+    'busy' => [529, 'BUSY', 529],
+    'no connection' => ['connection', 'UNREACHABLE', null],
+]);
 
 it('runs one try of 15 seconds at most, logs nothing and sends nothing about the machine', function () {
     $options = (new DeepLTextTranslator(TEXT_TRANSLATOR_TOKEN))->options();
@@ -228,14 +254,33 @@ it('binds the fake for development and tests, and DeepL with the server\'s token
     expect(fn () => app(TextTranslator::class))->toThrow(InvalidArgumentException::class);
 });
 
-it('never runs the fake in production', function () {
+it('never runs the fake in production when it is named there', function () {
     app()->detectEnvironment(fn (): string => 'production');
+    config(['services.deepl.driver' => 'fake']);
 
     try {
         expect(fn () => app(TextTranslator::class))->toThrow(InvalidArgumentException::class, 'never runs in production');
     } finally {
         app()->detectEnvironment(fn (): string => 'testing');
     }
+});
+
+it('is DeepL in production when nothing is set, and not ready with no key: "not set up", never a failure', function (?string $driver) {
+    app()->detectEnvironment(fn (): string => 'production');
+    config(['services.deepl.driver' => $driver, 'services.deepl.key' => '']);
+
+    try {
+        expect(app(TextTranslator::class))->toBeInstanceOf(DeepLTextTranslator::class)
+            ->and(app(TextTranslator::class)->isReady())->toBeFalse();
+    } finally {
+        app()->detectEnvironment(fn (): string => 'testing');
+    }
+})->with(['unset' => [null], 'empty' => ['']]);
+
+it('is the fake off production when nothing is set', function () {
+    config(['services.deepl.driver' => null]);
+
+    expect(app(TextTranslator::class))->toBeInstanceOf(FakeTextTranslator::class);
 });
 
 it('gives a fake answer anyone can tell from a real one, and fails when told to', function () {

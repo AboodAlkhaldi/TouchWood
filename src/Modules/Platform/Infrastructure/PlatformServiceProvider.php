@@ -180,10 +180,11 @@ final class PlatformServiceProvider extends ServiceProvider
 
         // Machine translation of staff text (content.md §2.2, row L1), an adapter chosen by configuration:
         // DeepL with the server's token, or the fake that sends nothing - once for the process, so a test's
-        // settings of it reach the use case. The fake never runs in production, as Ops' "log" email driver.
+        // settings of it reach the use case. Unset, the fake off production and DeepL on it, where no key is
+        // "not set up" and never a 500; the fake named in production is refused, as Ops' "log" email driver.
         $this->app->singleton(FakeTextTranslator::class);
-        $this->app->bind(TextTranslator::class, fn (Application $app): TextTranslator => match ($app->make('config')->get('services.deepl.driver')) {
-            'deepl' => new DeepLTextTranslator((string) $app->make('config')->get('services.deepl.key')),
+        $this->app->bind(TextTranslator::class, fn (Application $app): TextTranslator => match ($app->make('config')->get('services.deepl.driver') ?: ($app->environment('production') ? 'deepl' : 'fake')) {
+            'deepl' => new DeepLTextTranslator((string) $app->make('config')->get('services.deepl.key'), logger: $app->make(LoggerInterface::class)),
             'fake' => $app->environment('production')
                 ? throw new InvalidArgumentException('The "fake" translator sends nothing and never runs in production: set TEXT_TRANSLATOR to "deepl".')
                 : $app->make(FakeTextTranslator::class),
