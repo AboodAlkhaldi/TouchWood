@@ -346,7 +346,7 @@ wins (§2.7). Screens the design does not show are derived from its look (§2.1)
     `resources/js/pages/` or `resources/js/components/` (outside the token file).
   - The theme is chosen **on the server** and rendered into the page, as light and dark already are
     (§2.1), so a campaign theme arrives with no flash and SSR is unaffected.
-  - Where a campaign's values will come from — a record in Promotions (stage 6), with dates — is not
+  - Where a campaign's values will come from — ~~a record in Promotions (stage 6), with dates~~ (Content's, below) — is not
     this stage's business. What this stage guarantees is that adding one later is **data and a
     stylesheet, never a change to a component**. Nothing here assumes only two themes exist.
   - **[REVISED by the owner, 2026-11-10; content.md §1.8]** A campaign's look is a **theme**, Content's: **the 11

@@ -16,14 +16,15 @@
 |
 | The values are the design handoff of 2026-09-22 (docs/design/v2), read from its own token block.
 | Its names there are the hex digits themselves (--k0B3B63); here they say what they are for, so a
-| campaign can change what navy means without every component having to know it changed.
+| component never needs to know a value changed. (That a campaign could change what navy means was
+| the plan of 2026-09-22; replaced 2026-11-10, below: a theme changes no colour.)
 |
-| ## A campaign and a mode are two different things (owner, 2026-09-22)
+| ## A campaign and a mode are two different things (owner, 2026-09-22; partly replaced, below)
 |
-| A **mode** is light or dark. A **campaign** is a dress - National Day, Ramadan, a sale - and each
-| campaign has its own light and its own dark. What is written here is the campaign every store
-| wears until it is told otherwise; the owner calls it the base one, and it is a campaign like any
-| other rather than a special case.
+| A **mode** is light or dark. A **campaign** is a dress - National Day, Ramadan, a sale. (That each
+| campaign has its own light and its own dark is replaced: one set of artwork serves both.) What
+| is written here is the look every store wears until a theme dresses it; the owner calls it the
+| base one.
 |
 |     <html data-campaign="national-day" data-mode="dark">
 |
@@ -120,15 +121,15 @@
     /*
     | What the shop sits on (owner, 2026-09-22).
     |
-    | Held as a whole `background` value rather than a colour, because a campaign may want a colour,
-    | a gradient, a photograph, or several things layered over one another - lanterns, a pattern, a
-    | flag - and CSS already lets one property carry all of that:
+    | Held as a whole `background` value rather than a colour, so several images can be layered. (The
+    | plan of 2026-09-22 let a campaign put a colour or a gradient here; since 2026-11-10 a theme puts
+    | artwork only, at the page's edges: content.md §1.8 part 11, Q7 (a).) The example is that plan's:
     |
     |     --tw-backdrop: url('/storage/campaigns/national-day/lanterns.png') center / cover no-repeat,
     |                    linear-gradient(#0b3b63, #07273e);
     |
-    | The admin panel sets it; nothing in a component knows or cares which of those it turned out
-    | to be.
+    | Content's server sets it from a theme's artwork; nothing in a component knows or cares what it
+    | holds.
     */
     --tw-backdrop: var(--tw-page);
 }

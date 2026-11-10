@@ -1127,7 +1127,7 @@ shipping, and `TotalsDto`, with Sales's §9.5 #1; handoff §10.2 amended with it
 
 Content's campaigns price through the `CAMPAIGN` kind reserved in §2.5 (content.md §1.7, §2.3 P1, §9.4 A6). Content
 keeps the campaign, its stores and a draft's choices; **Pricing holds and applies the prices from the moment a run is
-scheduled**. Applied in place when built: §1.6 step 2, §2.5, §5, §9.1 #4.
+scheduled**. Still to be applied in place when built: §1.6 step 2, §2.1's contract list, §5 (§2.5 and §9.1 #4 point here already).
 
 1. **What a campaign prices** (owner, 2026-11-09, Content round 4 #2): products, sizes, categories and brands, each a
    percentage off; products and sizes may also take **a fixed price per size**; categories and brands a percentage only.
@@ -1137,7 +1137,7 @@ scheduled**. Applied in place when built: §1.6 step 2, §2.5, §5, §9.1 #4.
    wholesale line pays the lower of the campaign and its band.
 3. **Resolution** (§1.6): a running campaign is one more candidate, **the lowest price winning**; many campaigns may run
    at once. **A sale or category discount marked "always wins" beats a cheaper campaign** while both run (content.md Q4
-   (a)), and still never a wholesale band. Among equal prices the order already in code stands: `SALE`, `CATEGORY`,
+   (a); the category discount inferred from Q4's reason, "the mark keeps its one meaning"), and still never a wholesale band. Among equal prices the order already in code stands: `SALE`, `CATEGORY`,
    `CAMPAIGN`, `QUANTITY`, `BASE` (`PriceResolution::RANK`).
 4. **The ceiling** (§1.12; content.md Q2 (a)): a campaign deeper than the store's ceiling is refused when saved, naming
    the products (`pricing.over_ceiling`). `CeilingCheck` and its two guards cover campaigns: a retail price, or a lower
@@ -1145,7 +1145,7 @@ scheduled**. Applied in place when built: §1.6 step 2, §2.5, §5, §9.1 #4.
 5. **A wired store** (owner, 2026-11-10; content.md §1.7 #17): a provider's price that would take a campaign past the
    ceiling on a size **is taken, and the campaign skips that size**, as a fixed-amount category discount does (§2.6,
    sync.md §9.3 #17); it rejoins by itself once the price allows. `ProviderPricesResult` names the size and the
-   campaign, for Sync's `CAMPAIGN_SKIPPED` (sync.md §9.5 amendment 2).
+   campaign, for Sync's `CAMPAIGN_SKIPPED` (sync.md §9.5 amendment 2), and `skippedSizes` (#8) lists them for the campaign's page. **Open with Sync**: an event, like `DiscountReachChecked`, telling Sync when a size rejoins or a campaign ends, so its entry closes (sync.md amendment 2 (b)).
 6. **A category or brand target follows its products** (content.md Q18 (a)): a product moved in gains the price at
    once and one moved out loses it, through `ProductChanged` and `CategoryMoved`, as a category discount does (§6.2);
    products and sizes picked by name stay as picked. A brand's products come from Catalog (`CatalogApi::productIdsOfBrands`,
@@ -1162,6 +1162,7 @@ scheduled**. Applied in place when built: §1.6 step 2, §2.5, §5, §9.1 #4.
    | `save(StoreId, string $runId, CampaignPriceSetDto, $start, $end): void` | Called only when a run is scheduled: writes or replaces the run's prices and candidates inside the caller's transaction, under that store's pricing lock |
    | `changeEnd(StoreId, string $runId, $end)` · `endNow(StoreId, string $runId)` · `remove(StoreId, string $runId)` | The run's life |
    | `read(StoreId, string $runId): ?CampaignPriceSetDto` · `productIds(StoreId, string $runId, ?string $after, int $limit)` | The campaign's form, and the shop's campaign page |
+   | `skippedSizes(StoreId, string $runId): list<string>` | The sizes the run skips now in a wired store (#5), for the campaign's page; one query. Pricing decides the skip, so it answers, and Content needs no arrow to Sync (the build coordinator's pick, 2026-11-10) |
 
    `CampaignPriceSetDto`: `lines` (`RETAIL`, `WHOLESALE`, `BOTH`), `targets` (each `{kind: PRODUCT, SIZE, CATEGORY or
    BRAND, id, percentBp}` or `{kind: SIZE, id, amount: Money}`), `leftOut` product ids. The tables are written with the

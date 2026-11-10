@@ -1251,7 +1251,8 @@ rows into `coupon_assignments` and they are static from then on. Without this, a
 a "hasn't ordered in 6 months" segment loses their coupon the instant they order — the
 opposite of the intent.
 
-Segments are reusable: newsletters, pop-up targeting, notifications. Not coupon-only.
+Segments are reusable: newsletters, ~~pop-up targeting~~ (none at launch: one pop-up for everyone, owner 2026-11-09;
+`docs/modules/content.md` §1.10), notifications. Not coupon-only.
 
 ### 11.3 The discount ceiling
 
@@ -1625,13 +1626,14 @@ offers, Jeddah branch opening.
   kind); it picks its stores, and each store is a **run** with its own dates, prices, notice and state. A campaign
   may link to a theme; they start and end together when the dates match.
 - **What a campaign discounts:** products, sizes, categories and brands, by a percentage off or a fixed price per
-  size. **The lowest price wins**, as for every price (§10.1), not "price-list priority"; a sale marked "always wins"
-  is the one exception. The store's discount ceiling limits a campaign as it does a sale.
+  size. **The lowest price wins**, as for every price (§10.1), not "price-list priority"; a sale or category discount marked "always
+  wins" is the one exception (inferred from content.md Q4 (a)'s reason, "the mark keeps its one meaning"; pricing.md §1.3). The store's discount ceiling limits a campaign as it does a sale.
 - **A theme is 11 parts** (content.md §1.8): announcement bar, hero artwork, promises row, points band, logos band,
   product flag and ribbon, product badge, listing banner, cart message, footer artwork, page background at the edges
   only. It changes no colour, radius or shadow token. A Super Admin makes it in the panel; **one theme live per store
   at a time**, an overlapping one refused on save. The real themes are made with the owner as the stage's last step.
-- **The twelve presets** are not built as presets: each theme is made as data from those parts.
+- **The twelve presets** are not built as presets: each theme is made in the panel from those parts (inferred from Content
+  round 4 #3: a Super Admin creates each theme by filling the parts).
 
 ### 13.3 Ops
 
