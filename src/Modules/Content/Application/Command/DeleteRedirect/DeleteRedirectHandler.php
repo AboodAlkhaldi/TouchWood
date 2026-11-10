@@ -38,6 +38,6 @@ final readonly class DeleteRedirectHandler
             $line = $this->redirects->find($command->line, lock: true) ?? throw new ContentNotFound;
             $this->redirects->delete($line->oldPath);
             $this->platform->recordAudit(ContentAudit::entry('content.redirect.deleted', RedirectAudit::SUBJECT, RedirectAudit::subject($line->oldPath), null, RedirectAudit::diff($line, null)));
-        });
+        }, 3);
     }
 }

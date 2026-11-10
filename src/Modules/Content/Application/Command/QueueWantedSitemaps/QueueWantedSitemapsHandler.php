@@ -48,6 +48,6 @@ final readonly class QueueWantedSitemapsHandler
             $this->jobs->buildSitemaps();
 
             return true;
-        });
+        }, 3);
     }
 }

@@ -96,7 +96,7 @@ final readonly class UploadRedirectSheetHandler
         $this->db->transaction(function () use ($id, $checked, $now): void {
             $this->uploads->pruneBefore($now->modify('-24 hours'));
             $this->uploads->add($id, $checked, $this->access->staffId(), $now);
-        });
+        }, 3);
 
         return $id;
     }

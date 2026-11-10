@@ -67,12 +67,12 @@ final readonly class BuildSitemapsHandler
                 $parts[$index + 1] = ['file_key' => $key, 'urls' => $file['urls']];
             }
 
-            $replaced = $this->db->transaction(fn (): array => $this->seo->replaceSitemap($store->id, $parts, Moments::now()));
+            $replaced = $this->db->transaction(fn (): array => $this->seo->replaceSitemap($store->id, $parts, Moments::now()), 3);
             $this->files->delete($replaced);
             $built[$store->code] = array_sum(array_column($parts, 'urls'));
         }
 
-        $removed = $this->db->transaction(fn (): array => $this->seo->removeSitemapsBut(array_map(static fn ($store): string => $store->id, $onStores)));
+        $removed = $this->db->transaction(fn (): array => $this->seo->removeSitemapsBut(array_map(static fn ($store): string => $store->id, $onStores)), 3);
         $this->files->delete($removed);
 
         return $built;

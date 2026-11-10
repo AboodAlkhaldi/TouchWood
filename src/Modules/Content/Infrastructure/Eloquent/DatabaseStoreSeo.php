@@ -51,7 +51,8 @@ final readonly class DatabaseStoreSeo implements StoreSeo
 
     public function saveDefaults(SeoDefaults $defaults): void
     {
-        $this->db->table('content.seo_defaults')->updateOrInsert(['store_id' => $defaults->storeId], [
+        // A share image deleted between its check and this write is refused as the check would have said.
+        ForeignKeyRefusals::guard(fn () => $this->db->table('content.seo_defaults')->updateOrInsert(['store_id' => $defaults->storeId], [
             'site_name_ar' => $defaults->siteNameAr,
             'site_name_en' => $defaults->siteNameEn,
             'title_pattern_ar' => $defaults->titlePatternAr,
@@ -62,7 +63,7 @@ final readonly class DatabaseStoreSeo implements StoreSeo
             'robots_extra' => implode("\n", $defaults->robotsLines),
             'updated_by' => $defaults->updatedBy,
             'updated_at' => Rows::at($defaults->updatedAt),
-        ]);
+        ]));
     }
 
     public function robotsLines(): array

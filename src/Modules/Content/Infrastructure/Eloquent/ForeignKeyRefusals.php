@@ -34,6 +34,8 @@ final class ForeignKeyRefusals
         'poi_media' => ['images', InvalidContentInput::IMAGE_FILE],
         'pri_media' => ['images', InvalidContentInput::IMAGE_FILE],
         'pp_media' => ['photos', InvalidContentInput::IMAGE_FILE],
+        // PR 4: SEO defaults' share image.
+        'seo_defaults_share' => ['share_image', InvalidContentInput::IMAGE_FILE],
     ];
 
     /**

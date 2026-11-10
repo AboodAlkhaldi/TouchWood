@@ -74,7 +74,7 @@ final readonly class SaveSeoDefaultsHandler
             $saved = new SeoDefaults($store->id, $siteName['ar'], $siteName['en'], $pattern['ar'], $pattern['en'], $description['ar'], $description['en'], $image['share_image'], $robots, $staffId, Moments::now());
             $this->seo->saveDefaults($saved);
             $this->platform->recordAudit(ContentAudit::entry('content.seo.saved', 'content.seo', $store->id, $store->id, ContentAudit::diff($before?->fields() ?? [], $saved->fields())));
-        });
+        }, 3);
     }
 
     /**

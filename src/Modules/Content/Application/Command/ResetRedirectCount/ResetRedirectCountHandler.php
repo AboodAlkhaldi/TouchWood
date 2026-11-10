@@ -44,6 +44,6 @@ final readonly class ResetRedirectCountHandler
 
             $this->redirects->resetCount($line->oldPath);
             $this->platform->recordAudit(ContentAudit::entry('content.redirect.count_reset', RedirectAudit::SUBJECT, RedirectAudit::subject($line->oldPath), null, AuditChanges::none()->changed('visits', $line->visits, 0)));
-        });
+        }, 3);
     }
 }

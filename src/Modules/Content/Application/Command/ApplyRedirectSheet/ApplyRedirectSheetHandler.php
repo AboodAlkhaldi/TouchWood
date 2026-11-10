@@ -85,6 +85,6 @@ final readonly class ApplyRedirectSheetHandler
             $this->uploads->applied(strtolower(trim($command->uploadId)), $now);
 
             return $counts;
-        });
+        }, 3);
     }
 }

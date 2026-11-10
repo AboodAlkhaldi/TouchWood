@@ -59,7 +59,7 @@ final readonly class AddRedirectHandler
             $line = new Redirect($old, $new, 0, null, Redirect::HAND, null, null, null, $by);
             $this->redirects->add($line);
             $this->platform->recordAudit(ContentAudit::entry('content.redirect.added', RedirectAudit::SUBJECT, RedirectAudit::subject($old), null, RedirectAudit::diff(null, $line)));
-        });
+        }, 3);
 
         return $old;
     }

@@ -45,6 +45,6 @@ final readonly class RequestRedirectCheckHandler
             $this->jobs->checkRedirects();
 
             return true;
-        });
+        }, 3);
     }
 }

@@ -51,6 +51,6 @@ final readonly class UseFinalAddressHandler
             $changed = $line->goingTo($this->rules->newPath($line->checkFinalPath));
             $this->redirects->update($changed);
             $this->platform->recordAudit(ContentAudit::entry('content.redirect.changed', RedirectAudit::SUBJECT, RedirectAudit::subject($line->oldPath), null, RedirectAudit::diff($line, $changed)));
-        });
+        }, 3);
     }
 }

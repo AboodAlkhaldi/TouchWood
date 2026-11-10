@@ -46,6 +46,6 @@ final readonly class RequestSitemapRebuildHandler
             $this->jobs->buildSitemaps();
 
             return true;
-        });
+        }, 3);
     }
 }
