@@ -121,6 +121,13 @@ An uploaded file in object storage (handoff §5.5). Global, not store-scoped.
 - The original file is immutable. Replacing an image means uploading a new Media.
 - `checksum` is the SHA-256 of the original bytes. **[DECIDED 2026-09-16]** Uploading an
   identical **public** image returns the existing Media instead of creating a duplicate.
+  **[DECIDED 2026-11-10, P10 (a)]** If that Media's variants **failed**, uploading it again is
+  how the person asks for them again ("Upload this image again."): they are queued once more
+  exactly as `RetryMediaVariants` queues them — `FAILED` → `PENDING`, `READY` when the job
+  succeeds — audited as that retry, marked `by_upload`. The upload's own permission is enough:
+  retrying needs `platform.media.upload`, which an upload through the library already holds, and a
+  module's upload may retry the image it may upload. Two uploads of it at once queue it once (each
+  reads the row again under its lock). An existing `PENDING` or `READY` Media is returned unchanged.
   **Private files are never deduplicated:** two companies uploading the same receipt get two
   separate Media, so neither ever sees the other's file name or shares its document.
 - **[DECIDED 2026-09-16] Every original is kept private**, public images included: a phone photo
@@ -138,7 +145,8 @@ An uploaded file in object storage (handoff §5.5). Global, not store-scoped.
   - **[DECIDED 2026-09-18]** Only **public** images get variants. Private files
     (documents, receipts), including private JPEG and PNG, are served as uploaded: variants exist
     for CDN display, and private files never go through the CDN.
-  - The job tries three times; then the image is `FAILED` and staff can retry it.
+  - The job tries three times; then the image is `FAILED` and staff can retry it, or upload the
+    same image again (above).
     **[DECIDED 2026-09-18]** It waits 10 seconds before the second try and 60 before the third,
     and each try is stopped after 80 seconds.
   - **[DECIDED 2026-09-16] A lost job is recovered.** If the job never runs — the queue was down
@@ -216,7 +224,9 @@ A permanent record of who changed what.
   their module.
 - **[DECIDED 2026-09-18] Not audited:** uploading a public image identical to one already stored
   (nothing is created; the existing image is returned), and the system's own maintenance (the
-  variants job and the stuck-image sweep). Every change a person makes is audited.
+  variants job and the stuck-image sweep). Every change a person makes is audited — so an
+  identical upload that queues a failed image's variants again **is** audited, as
+  `platform.media.variants_retried` marked `by_upload` (§1.4, 2026-11-10).
 - **[DECIDED 2026-09-18] The correlation id is always ours.** Every request gets a new ULID;
   an `X-Correlation-Id` sent by the caller is ignored, so nobody can write an id of their choice
   into the audit log.
@@ -480,7 +490,7 @@ stay reserved: each reaches every store at once. Deleting a currency no store us
 | `DeleteCurrency` — only while no store, on or off, uses it (`CurrencyInUse`); audited (§9.7) | Super Admin | `platform.currency.delete` (reserved) | Global |
 | `ViewSettings` | Staff | `platform.settings.view` | That store; ``GLOBAL` keys need all-stores access |
 | `UpdateSetting` | Staff | **The permission in the setting's definition**, e.g. `loyalty.settings.update`. Platform's own settings (the media upload limits) use `platform.settings.update` **[DECIDED 2026-09-18]** | That store; `GLOBAL` keys need all-stores access |
-| `UploadMedia` | Staff | `platform.media.upload` | Global (media belongs to no store) |
+| `UploadMedia` — the same public image again returns it, and queues its variants again if they failed (§1.4) | Staff | `platform.media.upload` (no other for that retry) | Global (media belongs to no store) |
 | `UpdateMediaAltText` | Staff | `platform.media.update` **[DECIDED 2026-09-18]** — handoff lists only upload and delete | Global |
 | `DeleteMedia` — detaches it from every module that uses it, or refuses if any use blocks (§1.4) | Staff | `platform.media.delete`, plus each module's own permission for the change it makes | Global; each module checks its stores |
 | `RetryMediaVariants` — a `FAILED` image, or one `PENDING` for 15 minutes | Staff | `platform.media.upload` | Global |
@@ -544,7 +554,7 @@ Platform shows them on an admin screen (frontend.md E7):
       │      └─────────┘                     └───────┘
       │        │     ▲
       │        │     │
-      │        │     │ RetryMediaVariants (staff)
+      │        │     │ RetryMediaVariants (staff), or the same image uploaded again
       │        ▼     │
       │      ┌────────┐
       │      │ FAILED │ ◀── entered when 3 attempts fail
