@@ -189,7 +189,7 @@ it('sends a press with no bold or link as plain text, as before, its words as ty
         ->and($translated->texts)->toBe(['\[en\] من 5 < 10 & أكثر', '[en] أ & ب']);
 });
 
-it('drops the marks of a box whose answer is not the tags sent, and only that box\'s, and the press goes on', function (string $broken) {
+it('drops the marks of a box whose answer is not the tags sent, and only that box\'s, and the press goes on', function (string $broken, string $words) {
     translateAsEditorOf(ContentPermissions::PAGE_MANAGE);
     $calls = new ArrayObject;
     app()->instance(TextTranslator::class, translateAnswering(static fn (string $xml): string => match ($xml) {
@@ -205,23 +205,76 @@ it('drops the marks of a box whose answer is not the tags sent, and only that bo
         ['text' => 'عنوان & وصف', 'rich' => false],
     ]);
 
-    // The first box's two blocks as plain words: no mark, and no tag of the answer made one.
-    expect($translated->texts[0])->not->toContain('**')
-        ->and($translated->texts[0])->not->toContain('](')
-        ->and($translated->texts[0])->not->toContain('<')
+    // The first box's two blocks as plain words, exactly: no mark, and no tag of the answer made one.
+    expect($translated->texts[0])->toBe($words."\n\n".$words)
         ->and($translated->lostMarks)->toBe([2, 0, 0])
         // The other boxes as they came.
         ->and(array_slice($translated->texts, 1))->toBe(['A **second** cabinet', 'Title & description']);
 })->with([
-    'the tags lost' => ['Wood cabinet and guide'],
-    'a tag not sent' => ['<b>Wood</b> cabinet and <a i="0">guide</a> <script>alert(1)</script>'],
-    'a link index changed' => ['<b>Wood</b> cabinet and <a i="1">guide</a>'],
-    'a link twice' => ['<b>Wood</b> <a i="0">cabinet</a> and <a i="0">guide</a>'],
-    'a link given an address' => ['<b>Wood</b> cabinet and <a i="0" href="javascript:alert(1)">guide</a>'],
-    'a bold lost' => ['Wood cabinet and <a i="0">guide</a>'],
-    'nested otherwise' => ['<b>Wood <a i="0">guide</a></b> cabinet'],
-    'not XML' => ['<b>Wood cabinet & <a i="0">guide'],
+    'the tags lost' => ['Wood cabinet and guide', 'Wood cabinet and guide'],
+    'a tag not sent' => ['<b>Wood</b> cabinet and <a i="0">guide</a> <script>alert(1)</script>', 'Wood cabinet and guide alert(1)'],
+    'a link index changed' => ['<b>Wood</b> cabinet and <a i="1">guide</a>', 'Wood cabinet and guide'],
+    'a link given an address' => ['<b>Wood</b> cabinet and <a i="0" href="javascript:alert(1)">guide</a>', 'Wood cabinet and guide'],
+    'nested otherwise' => ['<b>Wood <a i="0">guide</a></b> cabinet', 'Wood guide cabinet'],
+    'not XML' => ['<b>Wood cabinet & <a i="0">guide', 'Wood cabinet & guide'],
+    'a link of spaces trimmed away' => ['<b>Wood</b> cabinet and guide <a i="0"> </a>', 'Wood cabinet and guide'],
 ]);
+
+it('keeps the marks when the service splits a bold or gives a link two places, each place with our address', function () {
+    translateAsEditorOf(ContentPermissions::PAGE_MANAGE);
+    app()->instance(TextTranslator::class, translateAnswering(static fn (string $xml): string => match ($xml) {
+        'خزانة <b>خشب الزان</b> و<a i="0">دليل</a>' => '<b>Beech</b> <b>wood</b> <a i="0">cabinet</a>, see the <a i="0">guide</a>',
+        default => throw new LogicException("Not expected: {$xml}"),
+    }, new ArrayObject));
+
+    $translated = translatePress('page', Fx::storeId('sa'), [['text' => 'خزانة **خشب الزان** و[دليل](/pages/guide)', 'rich' => true]]);
+
+    expect($translated->texts)->toBe(['**Beech** **wood** [cabinet](/pages/guide), see the [guide](/pages/guide)'])
+        ->and($translated->lostMarks)->toBe([0]);
+});
+
+it('checks an answer of no words on its words, not its XML: a rich box falls back, keeping that block\'s Arabic', function () {
+    translateAsEditorOf(ContentPermissions::PAGE_MANAGE);
+    app()->instance(TextTranslator::class, translateAnswering(static fn (string $xml): string => match ($xml) {
+        // Tags and an entity, and no words.
+        'خزانة <b>خشب</b>' => '<b>&#32;</b> ',
+        'فقرة <a i="0">ثانية</a>' => 'A <a i="0">second</a> paragraph',
+        'عنوان' => 'Title',
+        default => throw new LogicException("Not expected: {$xml}"),
+    }, new ArrayObject));
+
+    $translated = translatePress('page', Fx::storeId('sa'), [
+        ['text' => "خزانة **خشب**\n\nفقرة [ثانية](/pages/b)", 'rich' => true],
+        ['text' => 'عنوان', 'rich' => false],
+    ]);
+
+    // The box's marks dropped and counted; the block with no words keeps its Arabic for the person to type over.
+    expect($translated->texts)->toBe(["خزانة خشب\n\nA second paragraph", 'Title'])
+        ->and($translated->lostMarks)->toBe([2, 0]);
+});
+
+it('refuses a plain box\'s answer of no words in a call sent as XML, as any empty answer is refused', function (string $answer) {
+    translateAsEditorOf(ContentPermissions::PAGE_MANAGE);
+    app()->instance(TextTranslator::class, translateAnswering(static fn (string $xml): string => match ($xml) {
+        'خزانة <b>خشب</b>' => '<b>Wood</b> cabinet',
+        'عنوان' => $answer,
+        default => throw new LogicException("Not expected: {$xml}"),
+    }, new ArrayObject));
+
+    expect(translateRefusal('page', Fx::storeId('sa'), [['text' => 'خزانة **خشب**', 'rich' => true], ['text' => 'عنوان', 'rich' => false]]))
+        ->toBe(TranslationUnavailable::UNREACHABLE);
+})->with([
+    'a tag alone' => ['<x/>'],
+    'an entity of a space' => ['&#32;'],
+]);
+
+it('sends a plain box\'s control characters as spaces in a call sent as XML, which XML 1.0 forbids', function () {
+    translateAsEditorOf(ContentPermissions::PAGE_MANAGE);
+
+    translatePress('page', Fx::storeId('sa'), [['text' => 'خزانة **خشب**', 'rich' => true], ['text' => "أ\x0Bب\x01ج", 'rich' => false]]);
+
+    expect(translateFake()->calls()[0]['texts'])->toBe(['خزانة <b>خشب</b>', 'أ ب ج']);
+});
 
 it('sends no link\'s address to the service, and gives it back on the answer\'s words (DeepL over its stand-in)', function () {
     translateAsEditorOf(ContentPermissions::PAGE_MANAGE);

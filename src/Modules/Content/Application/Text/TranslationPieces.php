@@ -79,7 +79,7 @@ final class TranslationPieces
         $document = self::walk($text->toArray(), function (array $runs) use ($translated, &$next, &$refused): ?array {
             $sent = TranslationTags::encode($runs);
             $answer = $translated[$next++] ?? null;
-            $read = $answer === null ? null : TranslationTags::parse($answer, $sent['links'], $sent['bolds']);
+            $read = $answer === null ? null : TranslationTags::parse($answer, $sent['links']);
             $refused = $refused || $read === null;
 
             return $read;

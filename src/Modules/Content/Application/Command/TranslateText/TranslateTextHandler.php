@@ -200,14 +200,22 @@ final readonly class TranslateTextHandler
             $mine = array_slice($translated, $at, $count);
             $at += $count;
 
-            // An empty answer is no translation of a text that had words.
-            if (count($mine) !== $count || in_array('', array_map(trim(...), $mine), true)) {
+            if (count($mine) !== $count) {
+                throw new TranslationUnavailable(TranslationUnavailable::UNREACHABLE);
+            }
+
+            // Each answer's words: in a call sent as XML, read back from XML with every tag taken out.
+            $words = $tagged ? array_map(TranslationTags::plain(...), $mine) : $mine;
+            $empty = in_array('', array_map(trim(...), $words), true);
+
+            // An answer of no words is no translation of a text that had words: the press is refused, but for
+            // a rich box sent as XML, which falls back below (the words checked, never the raw XML).
+            if ($empty && ! ($tagged && $box['rich'] !== null)) {
                 throw new TranslationUnavailable(TranslationUnavailable::UNREACHABLE);
             }
 
             if ($box['rich'] === null) {
-                // A plain box in a call sent as XML: its words read back from XML, any tag taken out.
-                $texts[] = LatinDigits::of(trim($tagged ? TranslationTags::plain($mine[0]) : $mine[0]));
+                $texts[] = LatinDigits::of(trim($words[0]));
                 $lost[] = 0;
 
                 continue;
@@ -224,8 +232,10 @@ final readonly class TranslateTextHandler
             }
 
             // Text the service returns is treated as typed text: the same limits, the same checks (§1.3).
+            // A block whose answer held no words keeps its own Arabic words, plain, for the person to see and
+            // type over (the build's pick, PR #372 review): the box falls back rather than the press failing.
             try {
-                $plain = $tagged ? array_map(TranslationTags::plain(...), $mine) : $mine;
+                $plain = array_map(static fn (string $answer, string $source): string => trim($answer) === '' ? $source : $answer, $words, $box['pieces']);
                 $texts[] = MarkText::marks(TranslationPieces::rebuild('body', $box['rich'], $plain));
             } catch (InvalidContentInput) {
                 throw new TranslationUnavailable(TranslationUnavailable::UNREACHABLE);

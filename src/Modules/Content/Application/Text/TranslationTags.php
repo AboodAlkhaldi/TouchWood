@@ -9,12 +9,15 @@ namespace Modules\Content\Application\Text;
  * `<b>words</b>`, a link as `<a i="0">words</a>`, where `i` is the link's place in the line and **its address
  * stays here** - the service never sees it, so it cannot change it. A link holds its bold inside it
  * (`<a i="0"><b>words</b></a>`); runs side by side with the same link are one `<a>`. Text has `&`, `<` and
- * `>` written as `&amp;`, `&lt;` and `&gt;`.
+ * `>` written as `&amp;`, `&lt;` and `&gt;`, and no control character XML 1.0 forbids.
  *
- * **The answer is read strictly** (`parse()`): only the tags sent, `<b>` holding words alone, `<a i="N">`
- * holding words and `<b>`, each link's index one sent and seen once, as many `<b>` as were sent, every `&`
- * one of XML's entities. Anything else is no answer for the marks, and the caller drops them for that box
- * (`plain()`): **a tag the service writes never becomes a mark it did not come from**.
+ * **The answer is read for what carries weight** (`parse()`): only `<b>` and `<a i="N">` with an N that was
+ * sent, `<b>` holding words alone, `<a>` holding words and `<b>`, every link sent there at least once, every
+ * `&` one of XML's entities, no other tag or attribute. The service may split or join bold as it moves the
+ * words, and may give one link to two places - the address is still ours - so neither the number of `<b>`
+ * nor of each `<a>` is held to what was sent (coordinator's pick, PR #372 review). Anything else is no
+ * answer for the marks, and the caller drops them for that box (`plain()`): **a tag the service writes never
+ * becomes a mark it did not come from**.
  */
 final class TranslationTags
 {
@@ -30,17 +33,19 @@ final class TranslationTags
     /** A line break, a control character, or a line or paragraph separator: a space in one line of runs. */
     private const string LINE_BREAK = '/[\p{Cc}\p{Zl}\p{Zp}]+/u';
 
+    /** A control character XML 1.0 forbids: every one but the tab, the line feed and the carriage return. */
+    private const string NOT_XML = '/[^\P{Cc}\t\n\r]/u';
+
     /**
-     * The runs as sent, the addresses of their links by index, and how many `<b>` the line holds.
+     * The runs as sent, and the addresses of their links by index.
      *
      * @param  list<array<string, mixed>>  $runs  a line's runs, as RichText keeps them
-     * @return array{xml: string, links: list<string>, bolds: int}
+     * @return array{xml: string, links: list<string>}
      */
     public static function encode(array $runs): array
     {
         $xml = '';
         $links = [];
-        $bolds = 0;
         $open = null;
 
         foreach ($runs as $run) {
@@ -58,33 +63,30 @@ final class TranslationTags
             }
 
             $words = self::escape(is_string($run['text'] ?? null) ? $run['text'] : '');
-
-            if (($run['bold'] ?? false) === true) {
-                $xml .= '<b>'.$words.'</b>';
-                $bolds++;
-            } else {
-                $xml .= $words;
-            }
+            $xml .= ($run['bold'] ?? false) === true ? '<b>'.$words.'</b>' : $words;
         }
 
-        return ['xml' => $open === null ? $xml : $xml.'</a>', 'links' => $links, 'bolds' => $bolds];
+        return ['xml' => $open === null ? $xml : $xml.'</a>', 'links' => $links];
     }
 
-    /** Words as XML text: `&`, `<` and `>` written as their entities. */
+    /**
+     * Words as XML text: `&`, `<` and `>` written as their entities, and each control character XML 1.0
+     * forbids (a plain box may hold a vertical tab) a space. The words are UTF-8: the use case checks it.
+     */
     public static function escape(string $words): string
     {
-        return strtr($words, ['&' => '&amp;', '<' => '&lt;', '>' => '&gt;']);
+        return strtr(preg_replace(self::NOT_XML, ' ', $words) ?? $words, ['&' => '&amp;', '<' => '&lt;', '>' => '&gt;']);
     }
 
     /**
      * The runs the translated line holds, each link's address given back by its index; null when the answer
-     * is not the tags sent, properly nested as sent. Kept to one line, trimmed at its edges.
+     * holds a tag not sent, is not nested as sent, leaves out a link, or loses one at the line's edge. Kept to
+     * one line, trimmed at its edges.
      *
      * @param  list<string>  $links  the addresses `encode()` gave, by index
-     * @param  int  $bolds  the `<b>` `encode()` wrote
      * @return list<array<string, mixed>>|null
      */
-    public static function parse(string $answer, array $links, int $bolds): ?array
+    public static function parse(string $answer, array $links): ?array
     {
         $parts = preg_split(self::PARTS, $answer, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
 
@@ -97,8 +99,6 @@ final class TranslationTags
         $boldHasWords = false;
         $link = null;
         $linkHasWords = false;
-        $seen = [];
-        $boldsSeen = 0;
 
         foreach ($parts as $part) {
             if ($part === '<b>') {
@@ -107,7 +107,6 @@ final class TranslationTags
                 }
 
                 [$bold, $boldHasWords] = [true, false];
-                $boldsSeen++;
 
                 continue;
             }
@@ -125,12 +124,11 @@ final class TranslationTags
             if (preg_match(self::LINK_OPEN, $part, $found) === 1) {
                 $index = (int) $found[1];
 
-                // Never inside a bold or another link, never an index not sent, never one seen already.
-                if ($bold || $link !== null || ! isset($links[$index]) || isset($seen[$index])) {
+                // Never inside a bold or another link, never an index not sent.
+                if ($bold || $link !== null || ! isset($links[$index])) {
                     return null;
                 }
 
-                $seen[$index] = true;
                 [$link, $linkHasWords] = [$index, false];
 
                 continue;
@@ -158,7 +156,7 @@ final class TranslationTags
             $linkHasWords = $linkHasWords || $link !== null;
         }
 
-        if ($bold || $link !== null || count($seen) !== count($links) || $boldsSeen !== $bolds) {
+        if ($bold || $link !== null) {
             return null;
         }
 
@@ -206,7 +204,8 @@ final class TranslationTags
 
     /**
      * The segments as runs on one line: line breaks as spaces, the line's edges trimmed, each link's
-     * address by its index. Null for a line of no words.
+     * address by its index. Null for a line of no words, for words that are not UTF-8, and for a line that
+     * lost a link sent - left out, or holding only spaces at an edge that is trimmed away.
      *
      * @param  list<array{text: string, bold: bool, link: int|null}>  $segments
      * @param  list<string>  $links
@@ -214,10 +213,46 @@ final class TranslationTags
      */
     private static function runs(array $segments, array $links): ?array
     {
-        $runs = [];
+        $kept = [];
 
         foreach ($segments as $segment) {
-            $run = ['text' => (string) preg_replace(self::LINE_BREAK, ' ', $segment['text'])];
+            $text = preg_replace(self::LINE_BREAK, ' ', $segment['text']);
+
+            // Words that are not UTF-8: no answer for the marks.
+            if ($text === null) {
+                return null;
+            }
+
+            $kept[] = ['text' => $text, 'bold' => $segment['bold'], 'link' => $segment['link']];
+        }
+
+        // The line's edges trimmed, as every piece is: a segment left with nothing is dropped. Each turn takes
+        // one off or stops, so neither loop outlasts the segments.
+        while ($kept !== [] && ltrim($kept[0]['text']) === '') {
+            array_shift($kept);
+        }
+
+        while ($kept !== [] && rtrim($kept[count($kept) - 1]['text']) === '') {
+            array_pop($kept);
+        }
+
+        if ($kept === []) {
+            return null;
+        }
+
+        // Every link sent is still there, at least once.
+        $present = array_unique(array_filter(array_column($kept, 'link'), is_int(...)));
+
+        if (count($present) !== count($links)) {
+            return null;
+        }
+
+        $runs = [];
+        $last = count($kept) - 1;
+
+        foreach ($kept as $at => $segment) {
+            $text = $at === 0 ? ltrim($segment['text']) : $segment['text'];
+            $run = ['text' => $at === $last ? rtrim($text) : $text];
 
             if ($segment['bold']) {
                 $run['bold'] = true;
@@ -229,23 +264,6 @@ final class TranslationTags
 
             $runs[] = $run;
         }
-
-        // The line's edges trimmed, as every piece is: a run left with nothing is dropped. Each turn takes
-        // one run off or stops, so neither loop outlasts the runs.
-        while ($runs !== [] && ltrim($runs[0]['text']) === '') {
-            array_shift($runs);
-        }
-
-        while ($runs !== [] && rtrim($runs[count($runs) - 1]['text']) === '') {
-            array_pop($runs);
-        }
-
-        if ($runs === []) {
-            return null;
-        }
-
-        $runs[0]['text'] = ltrim($runs[0]['text']);
-        $runs[count($runs) - 1]['text'] = rtrim($runs[count($runs) - 1]['text']);
 
         return $runs;
     }
