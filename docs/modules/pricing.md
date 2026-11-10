@@ -1142,11 +1142,24 @@ scheduled**. Applied in place with the build: §1.6 step 2, §2.1's contract lis
 - **A run's price on a size** is said by its most particular target: the size's own, else its product's, else the
   lowest of its categories' (its own and every one above) and its brand's; left-out products are left out of
   categories and brands only - a product or size picked by name stays as picked (#1, #6).
-- **A fixed price at or above the retail price** is not refused: the preview says `not_below_retail`, and it simply never
-  wins (as a sale above it, §1.3). A size with no price is skipped and listed.
-- **A run's prices are fixed once it runs**: `save` on a running or ended run is refused (`pricing.not_changeable`), as
-  a running sale changes only its end; `remove` refuses a run that started (end it instead); `endNow` removes one not
-  started; a run Pricing does not hold is nothing to end or remove (a campaign may carry no prices).
+- **A fixed price at or above the retail price** is not refused: the preview says `not_below_retail`, and it is **never
+  a candidate** - not even a tie with the retail price - so it never wins and an order line never says `CAMPAIGN` at
+  the price it would pay anyway (the review, 2026-11-10). A size with no price is skipped and listed.
+- **"Started" is Pricing's to judge, by the run's own dates** (the coordinator's pick, 2026-11-10): Content's state can
+  lag (a store off, its go-live tick not yet run). **A run past its start refuses a change of its prices** -
+  `save` on a running or ended run is `pricing.not_changeable`, as a running sale changes only its end - and Content's
+  screen shows it as not editable. **Content's Cancel calls `endNow`**: it removes a run not started (or started this
+  very second) and ends a started one now. `remove` refuses a run that started; `changeEnd`, `endNow` and `remove`
+  on a run Pricing does not hold change nothing (a campaign may carry no prices).
+- **Every moment to the whole second** (the review, 2026-11-10): Pricing's tables keep `timestamp(0)`, which PostgreSQL
+  rounds half up - an End Now at 10:00:00.7 would be kept as 10:00:01, still running when its sizes are priced again,
+  its price left on the shop's cards; a fraction in a start or an end would queue a timed task that never matches.
+  A run's start and end, `changeEnd`'s end and `endNow`'s now are taken down to the second (`WholeSecond`), and so are
+  a sale's and a category discount's (their inputs, End and a provider-stopped sale's end).
+- **The drawer and the product page** list the runs pricing a size (`ReachingCampaign`, `ProductCampaign`), read from
+  the size's candidates: no query more.
+- **`campaign_skips`** keys its run and that run's store together (a skip is never another store's), and its store
+  as every Pricing table does.
 - **`preview` takes an optional `$runId`** (the run being changed, so it is not its own other offer); the other offers
   are sales, category discounts and other runs whose dates and lines meet.
 - **No audit entry in Pricing**: Content audits the campaign (content.md §1.1 #13).
