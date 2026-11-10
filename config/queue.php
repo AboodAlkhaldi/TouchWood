@@ -26,11 +26,14 @@ return [
     | longer than `retry_after`. A job that may run longer than the normal
     | connection's limit is queued here instead (`LongQueue`, Platform), and
     | its own worker runs it: `queue:work database-long --queue=long`. Tests
-    | set it to `sync`, as they set the default (owner, 2026-11-10).
+    | set it to `sync`, as they set the default (owner, 2026-11-10). Left
+    | unset where the default connection is `sync` (a local machine with no
+    | worker), it is `sync` too, so a long job never waits on a queue that
+    | nothing reads.
     |
     */
 
-    'long_connection' => env('QUEUE_LONG_CONNECTION', 'database-long'),
+    'long_connection' => env('QUEUE_LONG_CONNECTION', env('QUEUE_CONNECTION') === 'sync' ? 'sync' : 'database-long'),
 
     /*
     |--------------------------------------------------------------------------
