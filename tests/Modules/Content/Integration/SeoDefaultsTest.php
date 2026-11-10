@@ -6,6 +6,7 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Modules\Content\Application\Command\RequestSitemapRebuild\RequestSitemapRebuild;
 use Modules\Content\Application\Command\RequestSitemapRebuild\RequestSitemapRebuildHandler;
 use Modules\Content\Application\Command\SaveSeoDefaults\SaveSeoDefaults;
@@ -16,7 +17,11 @@ use Modules\Content\Domain\Exception\ImageNotReady;
 use Modules\Content\Domain\Exception\InvalidContentInput;
 use Modules\Content\Domain\Exception\MissingEnglish;
 use Modules\Content\Domain\Exception\StoreOff;
+use Modules\Content\Infrastructure\Media\ContentMediaUsage;
 use Modules\Content\Infrastructure\Queue\BuildSitemapsJob;
+use Modules\Platform\Application\Command\DeleteMedia\DeleteMedia;
+use Modules\Platform\Application\Command\DeleteMedia\DeleteMediaHandler;
+use Modules\Platform\Domain\Exception\MediaInUse;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Content\Support\ContentFixtures as Cx;
@@ -124,6 +129,18 @@ it('refuses a robots line that is no shop path, naming its line, and more than 5
     'too long' => ['/'.str_repeat('a', 200), 1],
     'too many' => [implode("\n", array_map(static fn (int $n): string => "/p{$n}", range(1, 51))), null],
 ]);
+
+it('blocks the delete of the share image the defaults use: they are live once saved', function () {
+    Storage::fake('local');
+    $image = Cx::image();
+    seoSave(['shareMediaId' => $image]);
+
+    expect(array_map(static fn ($use): array => [$use->subjectType, $use->subjectId, $use->blocksDelete], app(ContentMediaUsage::class)->usesOf($image)))->toBe([['content.seo', Fx::storeId('sa'), true]]);
+
+    Fx::actAsStaff(Fx::staff(superAdmin: true));
+    expect(fn () => app(DeleteMediaHandler::class)->handle(new DeleteMedia($image)))->toThrow(MediaInUse::class)
+        ->and(DB::table('content.seo_defaults')->value('share_media_id'))->toBe($image);
+});
 
 it('takes a share image only once its sizes are ready', function () {
     expect(fn () => seoSave(['shareMediaId' => Cx::image('PENDING')]))->toThrow(ImageNotReady::class)

@@ -68,6 +68,8 @@ it('marks each line by what its new address answers', function () {
     Rx::line('/gone', '/sa/ar/categories/no-such-category');
     Rx::line('/off', '/eg/ar');
     Rx::storeOn('eg', false);
+    $probe = new AppAddressProbe;
+    app()->instance(AddressProbe::class, $probe);
 
     expect(checkRedirectsRun())->toBeNull();
 
@@ -77,8 +79,8 @@ it('marks each line by what its new address answers', function () {
         ->and(checkRedirectsMark('/off'))->toBe([Redirect::STORE_OFF, null]);
 
     // An off store's address is not asked.
-    $probe = app(AddressProbe::class);
-    expect($probe instanceof AppAddressProbe && ! in_array('/eg/ar', $probe->asked, true) && in_array('/sa/ar', $probe->asked, true))->toBeTrue();
+    expect($probe->asked)->toContain('/sa/ar')
+        ->and(in_array('/eg/ar', $probe->asked, true))->toBeFalse();
 });
 
 it('keeps a line\'s last mark when its address gave no answer, and marks nothing changed meanwhile', function () {

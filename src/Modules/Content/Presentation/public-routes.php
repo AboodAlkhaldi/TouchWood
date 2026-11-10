@@ -13,7 +13,8 @@ use Modules\Content\Presentation\Http\Controller\SitemapController;
 | so no shop route takes it first.
 */
 
-Route::get('robots.txt', RobotsController::class)->name('storefront.content.robots');
-Route::get('sitemap.xml', [SitemapController::class, 'index'])->name('storefront.content.sitemap-index');
-Route::get('{store}/sitemap.xml', [SitemapController::class, 'store'])->name('storefront.content.sitemap');
-Route::get('{store}/sitemap-{part}.xml', [SitemapController::class, 'part'])->where('part', '[1-9][0-9]{0,3}')->name('storefront.content.sitemap-part');
+// Unnamed: no page links to them, so they stay out of every shop page's route list (Ziggy's storefront group).
+Route::get('robots.txt', RobotsController::class);
+Route::get('sitemap.xml', [SitemapController::class, 'index']);
+Route::get('{store}/sitemap.xml', [SitemapController::class, 'store']);
+Route::get('{store}/sitemap-{part}.xml', [SitemapController::class, 'part'])->where('part', '[1-9][0-9]{0,3}');
