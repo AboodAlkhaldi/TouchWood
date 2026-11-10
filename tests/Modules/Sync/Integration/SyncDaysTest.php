@@ -294,7 +294,7 @@ it('answers every store and day asked, empty ones and an off store in zeros, in 
         ->and($empty->readsStopped)->toBe($empty->readsDone)
         ->and([$empty->pricesChanged, $empty->stockChanged, $empty->skipped])->toBe([0, 0, 0])
         ->and(array_sum($empty->problemsOpened))->toBe(0)
-        ->and(array_keys($empty->problemsOpened))->toHaveCount(8)
+        ->and(array_keys($empty->problemsOpened))->toHaveCount(9)
         ->and($empty->complete)->toBeTrue()
         ->and(syncDaysAsk([], '2026-10-20', '2026-10-21'))->toBe([]);
 });

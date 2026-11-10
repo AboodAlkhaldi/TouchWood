@@ -219,6 +219,11 @@ describe('what a run prices (§9.6 #1, #2)', function () {
             ->and(Rx::told('sa', $eighty))->toBe([7500, 10000, 'SAR'])
             ->and(campaignPrices()->read(campaignSa(), strtoupper($run))?->targets)->toHaveCount(4)
             ->and(campaignPrices()->read(campaignSa(), $run)?->leftOut)->toBe([$shop['inTop']['product']]);
+
+        // Priced again for another reason, a left-out product still takes nothing from its category.
+        Rx::set('sa', [$shop['inTop']['variants'][0] => '110']);
+
+        expect(campaignUnit($shop['inTop']['variants'][0]))->toBe(11000);
     });
 
     it('takes the lowest of a size\'s categories and brand, and a left-out product keeps a target picked by name', function () {
