@@ -239,12 +239,12 @@ final readonly class RunReadHandler
     }
 
     /**
-     * What staff are told of (sync.md §9.3 #18): a sale stopped, a discount skipped, a read failed -
+     * What staff are told of (sync.md §9.3 #18; §9.5 amendment 2 (c)): a sale stopped, a discount or a campaign skipped, a read failed -
      * each entry once, in one event a read, when the read ends. Ops sends it.
      */
     private function announce(StoreId $store, string $readId): void
     {
-        $opened = $this->entries->announce($store, [ReportKind::SaleStopped, ReportKind::DiscountSkipped, ReportKind::ReadFailed]);
+        $opened = $this->entries->announce($store, [ReportKind::SaleStopped, ReportKind::DiscountSkipped, ReportKind::CampaignSkipped, ReportKind::ReadFailed]);
 
         if ($opened !== []) {
             $this->events->dispatch(new SyncNeedsAttention((string) Str::uuid(), $store->value, $readId, $opened, CarbonImmutable::now()));
@@ -423,9 +423,13 @@ final readonly class RunReadHandler
         $this->reported($store, $read->id, ReportKind::OffOrDraftPriced, array_map(static fn (string $variantId): array => ['code' => null, 'variantId' => $variantId, 'saleId' => null, 'detail' => ['price' => self::cut($priceIn[$variantId] ?? null)]], $prices->offOrDraft ?? []));
         $this->reported($store, $read->id, ReportKind::SaleStopped, array_map(static fn (array $stopped): array => ['code' => null, 'variantId' => $stopped['variantId'], 'saleId' => $stopped['saleId'], 'detail' => ['outcome' => $stopped['outcome']]], $prices->salesStopped ?? []));
         $this->reported($store, $read->id, ReportKind::DiscountSkipped, array_map(static fn (array $skipped): array => ['code' => null, 'variantId' => $skipped['variantId'], 'saleId' => null, 'detail' => ['discount' => $skipped['discountId']]], $prices->discountsSkipped ?? []));
+        // The run's id kept in the entry (amendment 2 (d)): its name and page are Content's.
+        $this->reported($store, $read->id, ReportKind::CampaignSkipped, array_map(static fn (array $skipped): array => ['code' => null, 'variantId' => $skipped['variantId'], 'saleId' => null, 'detail' => ['run' => $skipped['runId']]], $prices->campaignsSkipped ?? []));
 
-        // Right again: a good value, a size checked and not archived, a discount reaching it, a size found.
+        // Right again: a good value, a size checked and not archived, a discount or a run reaching it, a size found.
         $skippedNow = array_column($prices->discountsSkipped ?? [], 'variantId');
+        $campaignSkippedNow = array_column($prices->campaignsSkipped ?? [], 'variantId');
+        $this->entries->close($store, ReportKind::CampaignSkipped, [], array_values(array_diff($prices->changed ?? [], $campaignSkippedNow)), self::CLOSED_BY_READ);
         $this->entries->close($store, ReportKind::BadValue, [], array_values(array_diff($sizes, array_keys($bad))), self::CLOSED_BY_READ);
         $this->entries->close($store, ReportKind::ArchivedSkipped, [], array_values(array_diff($checked, $archived)), self::CLOSED_BY_READ);
         $this->entries->close($store, ReportKind::DiscountSkipped, [], array_values(array_diff($prices->changed ?? [], $skippedNow)), self::CLOSED_BY_READ);
