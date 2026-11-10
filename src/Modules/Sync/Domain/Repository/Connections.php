@@ -36,13 +36,11 @@ interface Connections
     public function save(Connection $connection, bool $new): bool;
 
     /**
-     * A read succeeded (sync.md §4): working again, no error. One that covers every change up to its
-     * start - the hour's, a full read's - moves the time the next hourly read asks from to that start
-     * (and the last full read, for a full one); a notice's or one code's does not, so a lost notice is
-     * still caught within the hour (§1.3). Never locks the row: a read must not take it after Pricing's
-     * or Inventory's store lock, which unwiring takes after it.
+     * A read succeeded (sync.md §4): working again, no error; a full read's start kept as the last full
+     * read (`$fullReadAt`), null for any other. Never locks the row: a read must not take it after
+     * Pricing's or Inventory's store lock, which unwiring takes after it.
      */
-    public function markRead(StoreId $store, ?DateTimeImmutable $changesUpTo, bool $full): void;
+    public function markRead(StoreId $store, ?DateTimeImmutable $fullReadAt): void;
 
     /**
      * When this store's present wiring began - null when not wired. A read compares it before each batch:

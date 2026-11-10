@@ -85,6 +85,23 @@ final readonly class DatabaseApiReads implements ApiReads
             ->all()));
     }
 
+    public function variantCodes(): array
+    {
+        $codes = [];
+
+        // One query: about 700 products today, a few thousand sizes - two short columns each.
+        foreach ($this->db->table('catalog.variants as v')
+            ->join('catalog.products as p', 'p.id', '=', 'v.product_id')
+            ->where('v.is_archived', false)
+            ->where('p.stage', '<>', ProductStage::Archived->value)
+            ->orderBy('v.id')
+            ->get(['v.id', 'v.code']) as $row) {
+            $codes[(string) $row->id] = (string) $row->code;
+        }
+
+        return $codes;
+    }
+
     public function variantIdsByCodes(array $codes): array
     {
         $ids = [];

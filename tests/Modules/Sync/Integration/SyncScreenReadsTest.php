@@ -198,7 +198,7 @@ describe('the status line (S8, Q29, Q35)', function () {
             ->and($provider->failure)->toEqual(new FailureView(null, null, 'Odoo answered 503.'));
     });
 
-    it('says the provider\'s reason kept as a code and its values in the page\'s language, and one stored before the codes as it is (stage 5 step 10)', function (string $locale, string $failed, string $late, string $unreached, string $pages) {
+    it('says the provider\'s reason kept as a code and its values in the page\'s language, and one stored before the codes as it is (stage 5 step 10)', function (string $locale, string $failed, string $late, string $unreached, string $answered) {
         syncShownReader();
         app()->setLocale($locale);
         $said = static function (string $stored): ?string {
@@ -211,14 +211,14 @@ describe('the status line (S8, Q29, Q35)', function () {
             ->and($said((new ProviderReason(ProviderReason::NO_ANSWER_WITHIN, ['seconds' => 30]))->stored()))->toBe($late)
             // 10 and 30 alike: the number never comes before a counted noun in Arabic (the review of step 10).
             ->and($said((new ProviderReason(ProviderReason::UNREACHABLE_WITHIN, ['seconds' => 10]))->stored()))->toBe($unreached)
-            ->and($said((new ProviderReason(ProviderReason::TOO_MANY_PAGES, ['pages' => 200]))->stored()))->toBe($pages)
+            ->and($said((new ProviderReason(ProviderReason::ANSWERED, ['status' => 404]))->stored()))->toBe($answered)
             ->and($said('The provider could not be read: Odoo failed (503).'))->toBe('The provider could not be read: Odoo failed (503).')
             // Not a reason of ours: a code unknown, or values it does not carry, shown as stored.
             ->and($said('{"code":"ODOO_FAILED","values":{}}'))->toBe('{"code":"ODOO_FAILED","values":{}}')
             ->and($said('{"code":"NOT_OURS","values":{}}'))->toBe('{"code":"NOT_OURS","values":{}}');
     })->with([
-        'English' => ['en', 'Odoo failed (503).', 'Odoo did not answer within 30 seconds.', 'Odoo could not be reached within 10 seconds.', "Odoo's items run past 200 pages."],
-        'Arabic' => ['ar', 'تعطّل Odoo (503).', 'لم يُجب Odoo خلال المهلة المحددة بالثواني (30).', 'تعذّر الوصول إلى Odoo خلال المهلة المحددة بالثواني (10).', 'تجاوزت عناصر Odoo الحدّ الأقصى للصفحات (200).'],
+        'English' => ['en', 'Odoo failed (503).', 'Odoo did not answer within 30 seconds.', 'Odoo could not be reached within 10 seconds.', 'Odoo answered 404.'],
+        'Arabic' => ['ar', 'تعطّل Odoo (503).', 'لم يُجب Odoo خلال المهلة المحددة بالثواني (30).', 'تعذّر الوصول إلى Odoo خلال المهلة المحددة بالثواني (10).', 'أجاب Odoo بـ 404.'],
     ]);
 
     it('says Not Wired for a store with no connection, its reads still kept (Q35)', function () {
@@ -369,6 +369,8 @@ describe('Reads (ListSyncReads, Y1)', function () {
 
     it('names who asked (Q36), counts a failed read from what it wrote (Q30), and writes its reason', function () {
         ['variants' => [$size]] = syncShownProduct();
+        // It answers a code we do not have though not asked, as a provider might (§2.4: Odoo answers only ours).
+        FakeProvider::bound()->answersUnasked = true;
         FakeProvider::bound()->values = [new ProviderValue(syncShownCode($size), '120.50', 7), new ProviderValue('987654', '5', 1)];
         $read = syncShownRun();
         // Failed after writing: its own counts never written.

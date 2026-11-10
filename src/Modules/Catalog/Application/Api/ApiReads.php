@@ -39,6 +39,11 @@ interface ApiReads
     public function switchedOnVariantIds(string $storeId): array;
 
     /**
+     * @return array<string, string> variant id => code, every variant not archived of a product not archived (amendment 42)
+     */
+    public function variantCodes(): array;
+
+    /**
      * @param  list<string>  $variantIds
      * @return array<string, VariantDto> keyed by id
      */

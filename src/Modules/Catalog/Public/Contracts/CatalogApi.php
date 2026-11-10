@@ -97,6 +97,15 @@ interface CatalogApi
     public function switchedOnVariantIds(StoreId $store): array;
 
     /**
+     * For Sync's whole reads (amendment 42; sync.md §2.4: Odoo is asked by our own codes): **every size's
+     * code** - each variant not archived, of a product not archived, drafts and sizes switched off in every
+     * store included - keyed by variant id, in no particular order. One query.
+     *
+     * @return array<string, string>
+     */
+    public function variantCodes(): array;
+
+    /**
      * **Many variants in one read**, keyed by id, an unknown id left out (amendment 16(i)): a few
      * queries however many, so a page of Pricing's or Inventory's keeps its budget.
      *

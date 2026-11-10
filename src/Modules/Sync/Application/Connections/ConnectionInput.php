@@ -30,7 +30,7 @@ final readonly class ConnectionInput
 
     /**
      * HTTPS with a host and nothing else of a person's, then the provider's own shape (Odoo's: no query or
-     * fragment, its path ending in `/touchwood/v1`, sync.md §2.4) - each refused by its own rule's words.
+     * fragment, no path: the account's address alone, sync.md §2.4) - each refused by its own rule's words.
      */
     public function address(ProviderKind $provider, string $address): string
     {

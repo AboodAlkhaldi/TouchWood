@@ -65,7 +65,7 @@ return [
             // A key or a secret left empty while the address changes (owner, 2026-10-20).
             'key_again' => 'Type the key again: the address changed.',
             'secret_again' => 'Type the secret again: the address changed.',
-            'address_path' => 'Odoo\'s address must end in /touchwood/v1.',
+            'address_path' => 'Odoo\'s address is the account\'s address alone, with no path: https://example.odoo.com.',
         ],
     ],
 

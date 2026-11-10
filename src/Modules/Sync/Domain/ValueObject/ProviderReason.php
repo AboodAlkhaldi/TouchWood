@@ -7,8 +7,8 @@ namespace Modules\Sync\Domain\ValueObject;
 use InvalidArgumentException;
 
 /**
- * **Why a provider's adapter could not read it**, kept as a code and its values - a status code, seconds,
- * pages - and written in the reader's language when shown, under "The provider said:" (sync.md §4.1.1,
+ * **Why a provider's adapter could not read it**, kept as a code and its values - a status code, seconds -
+ * and written in the reader's language when shown, under "The provider said:" (sync.md §4.1.1,
  * stage 5 step 10), as Sync's own reasons are (`ReadFailure`, Q31). Stored in the same columns as those -
  * a read's `error`, a failing store's `last_error`, a failed read's report entry - as a JSON object, so
  * it is never mistaken for a code of Sync's or for a provider's own words: a reason stored before the
@@ -20,9 +20,6 @@ use InvalidArgumentException;
  */
 final readonly class ProviderReason
 {
-    /** Odoo's items run past the most pages a read asks: `pages`. */
-    public const string TOO_MANY_PAGES = 'ODOO_TOO_MANY_PAGES';
-
     /** The address is not HTTPS: the token never leaves on plain HTTP. */
     public const string NOT_HTTPS = 'ODOO_NOT_HTTPS';
 
@@ -32,7 +29,11 @@ final readonly class ProviderReason
     /** A `429` again after waiting it out once. */
     public const string TOO_MANY_CALLS_TWICE = 'ODOO_TOO_MANY_CALLS_TWICE';
 
+    /** A `401`: the token is wrong or revoked. */
     public const string REFUSED_TOKEN = 'ODOO_REFUSED_TOKEN';
+
+    /** A `403`: the token's user may not read Odoo's products. */
+    public const string REFUSED_ACCESS = 'ODOO_REFUSED_ACCESS';
 
     public const string REFUSED_REQUEST = 'ODOO_REFUSED_REQUEST';
 
@@ -55,23 +56,19 @@ final readonly class ProviderReason
 
     public const string NOT_JSON = 'ODOO_NOT_JSON';
 
-    public const string ITEMS_NOT_LIST = 'ODOO_ITEMS_NOT_LIST';
+    /** The answer is JSON but not a list (sync.md §2.4). */
+    public const string ANSWER_NOT_LIST = 'ODOO_ANSWER_NOT_LIST';
 
-    public const string ITEM_WITHOUT_CODE = 'ODOO_ITEM_WITHOUT_CODE';
-
-    public const string EMPTY_PAGE_NAMES_NEXT = 'ODOO_EMPTY_PAGE_NAMES_NEXT';
-
-    public const string PAGES_REPEAT = 'ODOO_PAGES_REPEAT';
-
-    public const string NEXT_NOT_TEXT = 'ODOO_NEXT_NOT_TEXT';
+    /** An item of the answer is not an object with a whole-number `id`. */
+    public const string ITEM_WITHOUT_ID = 'ODOO_ITEM_WITHOUT_ID';
 
     /** Every code, each with the values it carries. */
     public const array CODES = [
-        self::TOO_MANY_PAGES => ['pages'],
         self::NOT_HTTPS => [],
         self::TOO_MANY_CALLS => [],
         self::TOO_MANY_CALLS_TWICE => [],
         self::REFUSED_TOKEN => [],
+        self::REFUSED_ACCESS => [],
         self::REFUSED_REQUEST => [],
         self::FAILED => ['status'],
         self::ANSWERED => ['status'],
@@ -80,11 +77,8 @@ final readonly class ProviderReason
         self::NO_ANSWER_WITHIN => ['seconds'],
         self::UNSENDABLE => [],
         self::NOT_JSON => [],
-        self::ITEMS_NOT_LIST => [],
-        self::ITEM_WITHOUT_CODE => [],
-        self::EMPTY_PAGE_NAMES_NEXT => [],
-        self::PAGES_REPEAT => [],
-        self::NEXT_NOT_TEXT => [],
+        self::ANSWER_NOT_LIST => [],
+        self::ITEM_WITHOUT_ID => [],
     ];
 
     /**

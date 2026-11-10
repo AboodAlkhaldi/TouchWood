@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Modules\Sync\Infrastructure\Provider;
 
-use DateTimeImmutable;
 use Generator;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory;
@@ -23,9 +22,12 @@ use Modules\Sync\Domain\ValueObject\ProviderReason;
 use Modules\Sync\Domain\ValueObject\ProviderValue;
 
 /**
- * **Odoo, read through the API its team builds for us** (sync.md §2.4, accepted 2026-10-19): HTTPS `GET`s
- * only, at the store's address (`…/touchwood/v1`), signed in with `Authorization: Bearer <key>`. Four
- * calls: every item paged by `after`, what changed since a time, named codes 500 a call, and the test.
+ * **Odoo, read through its own JSON-2 API** (sync.md §2.4, owner 2026-11-09): `POST
+ * {account}/json/2/product.product/read` with `{"ids": [...], "fields": ["list_price", "free_qty"]}`, signed
+ * in with `Authorization: Bearer <token>` - the store's key. Our codes ARE Odoo's `product.product` ids, so a
+ * read asks by our own codes, 500 a call, and gets a bare JSON list back; an id Odoo does not have is simply
+ * left out of it. Odoo's names (`id`, `list_price`, `free_qty`) stay here: the rest of Sync says code, price
+ * and stock.
  *
  * - **Pace**: one call at a time - the read waits for each answer - and at least 1 second between the end
  *   of a store's call and its next one (§9.1 #8). The adapter is one per worker (bound once), so a store's
@@ -33,20 +35,27 @@ use Modules\Sync\Domain\ValueObject\ProviderValue;
  *   fakes.
  * - **Errors**: a `429` waits `Retry-After` (60 seconds at most) and asks once more; anything else fails
  *   with a short reason - what failed and its status code, kept as a code and its values (`ProviderReason`)
- *   and written in the reader's language - never the provider's body, the address or the key (§2.1). The read's retries are `ReadStoreJob`'s (§1.7).
+ *   and written in the reader's language - never the provider's body, the address or the token (§2.1). The
+ *   read's retries are `ReadStoreJob`'s (§1.7).
  * - **The test** is the one call made in a web request: 10 seconds at most (§9.3 #21), so a `429` there
  *   fails at once rather than wait.
  */
 final class OdooAdapter implements ProviderAdapter
 {
-    /** Items a page (§2.4 call 1, 2). */
-    public const int PAGE = 1000;
+    /** Odoo's standard JSON-2 path for reading variants, after the account's address (§2.4). */
+    public const string PATH = '/json/2/product.product/read';
 
-    /** Codes a call (§2.4 call 3); a longer list is asked in several calls. */
-    public const int MOST_CODES = 500;
+    /** The two fields read, in Odoo's names: the price shown without VAT, and the stock free to order (§2.4). */
+    public const array FIELDS = ['list_price', 'free_qty'];
 
-    /** How far their clock may be off: an hourly read asks from the last read's start less this (§2.4 call 2). */
-    public const int CLOCK_SLACK_MINUTES = 5;
+    /**
+     * Ids a call (§2.4). 678 in one call worked on the owner's account (2026-11-10); 500 keeps each body
+     * small (about 4 KB) and well inside it - the build's pick, lowered if Odoo's team names a smaller limit.
+     */
+    public const int MOST_IDS = 500;
+
+    /** The test's one id (§2.4): a `200` proves the address and the token, whether or not it exists. */
+    public const int TEST_ID = 1;
 
     /** Between a store's calls, at least (§9.1 #8). */
     public const int GAP_MILLISECONDS = 1000;
@@ -60,14 +69,15 @@ final class OdooAdapter implements ProviderAdapter
     /** Reaching Odoo - before any answer - takes this long at most, in a read and the test alike. */
     public const int CONNECT_SECONDS = 10;
 
-    /** Pages a read asks at most: 200,000 items (§2.4 As built) - past them, the read fails. */
-    public const int MOST_PAGES = 200;
-
     /** A `429`'s `Retry-After` is waited this long at most (§2.4). */
     public const int MOST_RETRY_AFTER = 60;
 
-    /** Odoo's path: the store's address ends in it (§2.4). */
-    public const string PATH = '/touchwood/v1';
+    /**
+     * A code that can be an Odoo id: digits with no leading zero, 18 at most (it fits a whole number). Odoo
+     * never writes an id another way, so any other code is not asked (§2.4) - the night's read reports it as
+     * not at the provider when the size is switched on (§1.6).
+     */
+    private const string ODOO_ID = '/\A[1-9][0-9]{0,17}\z/';
 
     /** @var array<string, float> per store, when its last call ended - milliseconds */
     private array $lastCallEnded = [];
@@ -82,15 +92,15 @@ final class OdooAdapter implements ProviderAdapter
         return [];
     }
 
-    /** The API of §2.4 is built against (Q38). */
+    /** Odoo's own API, built against (Q38). */
     public function ready(): bool
     {
         return true;
     }
 
     /**
-     * `https://<the account's address>/touchwood/v1` (§2.4): no query or fragment, the path ending in
-     * `/touchwood/v1`, a closing slash dropped. The shared rule has checked HTTPS and the host already.
+     * The account's address alone - `https://<account>.odoo.com` (§2.4): no path, query or fragment; a closing
+     * slash dropped. The path is Odoo's own and added here. The shared rule has checked HTTPS and the host.
      */
     public function address(string $address): string
     {
@@ -106,103 +116,53 @@ final class OdooAdapter implements ProviderAdapter
             throw new InvalidSyncInput('address', rule: InvalidSyncInput::ADDRESS_MALFORMED);
         }
 
-        $path = $parts['path'] ?? '';
-
-        if (! str_ends_with($path, self::PATH)) {
+        if (($parts['path'] ?? '') !== '') {
             throw new InvalidSyncInput('address', rule: InvalidSyncInput::ADDRESS_PATH);
         }
 
         return $address;
     }
 
-    /** `GET /items?limit=1` (§2.4 call 4). */
+    /** One call naming id 1, the answer a list (§2.4). */
     public function test(Connection $connection): void
     {
-        $this->get($connection, ['limit' => '1'], self::TEST_SECONDS, waitWhenTooMany: false);
+        $this->post($connection, [self::TEST_ID], self::TEST_SECONDS, waitWhenTooMany: false);
     }
 
     /**
-     * Named codes (call 3), what changed since a time (call 2), or every item (call 1) - one value a code
-     * as Odoo wrote it; a code the account does not have is simply not there (`missing` is not part of the
-     * answer since the file of 2026-10-22, and ignored if sent).
+     * Our codes that can be Odoo ids, each once, 500 a call; one value for each id Odoo answers, under our code.
+     * An id Odoo does not have is left out of its answer, and so of this (§2.4).
      */
-    public function read(Connection $connection, ?array $codes, ?DateTimeImmutable $changedSince): iterable
+    public function read(Connection $connection, array $codes): iterable
     {
-        if ($codes !== null) {
-            return $this->named($connection, $codes);
-        }
-
-        // From the last read's start less the most their clock may be off, so a change at the edge is read
-        // twice, never missed (§2.4 call 2).
-        return $this->paged($connection, $changedSince === null ? [] : [
-            'changed_since' => Carbon::instance($changedSince)->utc()->subMinutes(self::CLOCK_SLACK_MINUTES)->format('Y-m-d\TH:i:s\Z'),
-        ]);
+        return $this->asked($connection, $codes);
     }
 
     /**
-     * Calls 1 and 2: page after page, until `next` is null.
-     *
-     * @param  array<string, string>  $query
-     * @return Generator<int, ProviderValue>
-     */
-    private function paged(Connection $connection, array $query): Generator
-    {
-        $after = null;
-        $asked = [];
-        $pages = 0;
-
-        do {
-            // A read has an end: past 200 pages (200,000 items), it fails rather than ask on for ever.
-            if (++$pages > self::MOST_PAGES) {
-                throw self::failed(new ProviderReason(ProviderReason::TOO_MANY_PAGES, ['pages' => self::MOST_PAGES]));
-            }
-
-            $answer = $this->get($connection, [...$query, 'limit' => (string) self::PAGE, ...($after === null ? [] : ['after' => $after])], self::READ_SECONDS);
-            $values = self::values($answer);
-
-            yield from $values;
-
-            $after = self::next($answer);
-
-            if ($after !== null) {
-                // A page with nothing on it still naming a next one, or a page asked before: their pages would
-                // go round for ever.
-                if ($values === []) {
-                    throw self::malformed(ProviderReason::EMPTY_PAGE_NAMES_NEXT);
-                }
-
-                if (isset($asked[$after])) {
-                    throw self::malformed(ProviderReason::PAGES_REPEAT);
-                }
-
-                $asked[$after] = true;
-            }
-        } while ($after !== null);
-    }
-
-    /**
-     * Call 3: the codes, 500 a call.
-     *
      * @param  list<string>  $codes
      * @return Generator<int, ProviderValue>
      */
-    private function named(Connection $connection, array $codes): Generator
+    private function asked(Connection $connection, array $codes): Generator
     {
-        // Trimmed, then each once, before the calls are cut: " 7 " and "7" are one code (§1.1 rule 5). A code
-        // holding a comma cannot be named in the list: it is not asked - the full and hourly reads cover it.
-        $codes = array_values(array_unique(array_filter(
-            array_map(trim(...), $codes),
-            static fn (string $code): bool => $code !== '' && ! str_contains($code, ','),
-        )));
+        // Trimmed (§1.1 rule 5), then by the id each one is: digits with no leading zero are one id each.
+        $codeOf = [];
 
-        foreach (array_chunk($codes, self::MOST_CODES) as $some) {
-            $asked = array_fill_keys($some, true);
+        foreach ($codes as $code) {
+            $code = trim($code);
 
-            // Only the codes asked: another the answer carries is left out, not reported (§2.4). Its `next`
-            // is not followed - a call of 500 codes fits one page.
-            foreach (self::values($this->get($connection, ['codes' => implode(',', $some)], self::READ_SECONDS)) as $value) {
-                if (isset($asked[trim($value->code)])) {
-                    yield $value;
+            if (preg_match(self::ODOO_ID, $code) === 1) {
+                $codeOf[(int) $code] = $code;
+            }
+        }
+
+        foreach (array_chunk(array_keys($codeOf), self::MOST_IDS) as $ids) {
+            $asked = array_fill_keys($ids, true);
+
+            foreach ($this->post($connection, $ids, self::READ_SECONDS) as [$id, $item]) {
+                // Only the ids asked: another the answer carries is left out, not reported (§2.4). One that
+                // comes twice is yielded twice: the read skips both and reports the size (§2.4).
+                if (isset($asked[$id])) {
+                    yield self::value($codeOf[$id], $item);
                 }
             }
         }
@@ -211,12 +171,12 @@ final class OdooAdapter implements ProviderAdapter
     /**
      * One call, at the store's pace; a `429` waited out and asked once more.
      *
-     * @param  array<string, string>  $query
-     * @return array<mixed>
+     * @param  list<int>  $ids
+     * @return list<array{int, array<array-key, mixed>}> each item with its id
      *
      * @throws ConnectionFailed
      */
-    private function get(Connection $connection, array $query, int $seconds, bool $waitWhenTooMany = true): array
+    private function post(Connection $connection, array $ids, int $seconds, bool $waitWhenTooMany = true): array
     {
         // The address rule refuses another already (`ConnectionInput`); the token never leaves on plain HTTP.
         if (! str_starts_with(strtolower($connection->address), 'https://')) {
@@ -226,7 +186,7 @@ final class OdooAdapter implements ProviderAdapter
         $waited = false;
 
         while (true) {
-            $response = $this->call($connection, $query, $seconds);
+            $response = $this->call($connection, $ids, $seconds);
 
             if ($response->status() !== 429) {
                 break;
@@ -248,24 +208,24 @@ final class OdooAdapter implements ProviderAdapter
     }
 
     /**
-     * @param  array<string, string>  $query
+     * @param  list<int>  $ids
      *
      * @throws ConnectionFailed
      */
-    private function call(Connection $connection, array $query, int $seconds): Response
+    private function call(Connection $connection, array $ids, int $seconds): Response
     {
         $this->pace($connection->storeId);
 
         try {
             return $this->http
-                ->baseUrl($connection->address)
                 ->withToken($connection->key)
                 ->acceptJson()
+                ->asJson()
                 // A redirect would carry the token to another address, or to plain HTTP.
                 ->withoutRedirecting()
                 ->connectTimeout(min($seconds, self::CONNECT_SECONDS))
                 ->timeout($seconds)
-                ->get('items?'.self::query($query));
+                ->post(rtrim($connection->address, '/').self::PATH, ['ids' => $ids, 'fields' => self::FIELDS]);
         } catch (RequestException $error) {
             // A status of 400 or more whose transfer then failed (a body too slow): judged by its status like
             // any answer - a 429 waited out - and its body, which its message holds, never read.
@@ -300,22 +260,6 @@ final class OdooAdapter implements ProviderAdapter
         return Carbon::now()->getPreciseTimestamp(3);
     }
 
-    /**
-     * The query as §2.4 writes it: its commas and colons left as they are.
-     *
-     * @param  array<string, string>  $query
-     */
-    private static function query(array $query): string
-    {
-        $pairs = [];
-
-        foreach ($query as $name => $value) {
-            $pairs[] = $name.'='.strtr(rawurlencode($value), ['%2C' => ',', '%3A' => ':']);
-        }
-
-        return implode('&', $pairs);
-    }
-
     /** `Retry-After` in seconds, 60 at most; unsaid or not a number, the most (§2.4). */
     private static function retryAfter(Response $response): int
     {
@@ -347,6 +291,7 @@ final class OdooAdapter implements ProviderAdapter
     {
         return match (true) {
             $status === 401 => new ProviderReason(ProviderReason::REFUSED_TOKEN),
+            $status === 403 => new ProviderReason(ProviderReason::REFUSED_ACCESS),
             $status === 400 => new ProviderReason(ProviderReason::REFUSED_REQUEST),
             $status >= 500 => new ProviderReason(ProviderReason::FAILED, ['status' => $status]),
             default => new ProviderReason(ProviderReason::ANSWERED, ['status' => $status]),
@@ -354,90 +299,55 @@ final class OdooAdapter implements ProviderAdapter
     }
 
     /**
-     * The answer's JSON object.
+     * The answer: a JSON list of objects, each with a whole-number `id` (§2.4) - each item with its id.
      *
-     * @return array<mixed>
+     * @return list<array{int, array<array-key, mixed>}>
      *
      * @throws ConnectionFailed
      */
     private static function answer(string $body): array
     {
         try {
-            // A long number kept as written, as text (a code).
+            // An id too long for a whole number kept as text - so refused below, never rounded to another id.
             $answer = json_decode($body, true, 64, JSON_THROW_ON_ERROR | JSON_BIGINT_AS_STRING);
         } catch (JsonException) {
-            throw self::malformed(ProviderReason::NOT_JSON);
+            throw self::failed(new ProviderReason(ProviderReason::NOT_JSON));
         }
 
-        if (! is_array($answer) || ! array_key_exists('items', $answer) || ! is_array($answer['items']) || ! array_is_list($answer['items'])) {
-            throw self::malformed(ProviderReason::ITEMS_NOT_LIST);
+        if (! is_array($answer) || ! array_is_list($answer)) {
+            throw self::failed(new ProviderReason(ProviderReason::ANSWER_NOT_LIST));
         }
 
-        return $answer;
-    }
+        $items = [];
 
-    /**
-     * Each item as a value: its code as text exactly as written (a number taken as its digits), its price
-     * and its stock as they came - Pricing, Inventory and Sync check them (§1.4, §1.5). Other fields ignored.
-     *
-     * @param  array<mixed>  $answer
-     * @return list<ProviderValue>
-     *
-     * @throws ConnectionFailed
-     */
-    private static function values(array $answer): array
-    {
-        $values = [];
+        foreach ($answer as $item) {
+            $id = is_array($item) ? ($item['id'] ?? null) : null;
 
-        /** @var list<mixed> $items */
-        $items = $answer['items'];
-
-        foreach ($items as $item) {
-            $code = is_array($item) ? ($item['code'] ?? null) : null;
-            $code = is_int($code) ? (string) $code : $code;
-
-            if (! is_string($code) || trim($code) === '') {
-                throw self::malformed(ProviderReason::ITEM_WITHOUT_CODE);
+            if (! is_array($item) || ! is_int($id)) {
+                throw self::failed(new ProviderReason(ProviderReason::ITEM_WITHOUT_ID));
             }
 
-            /** @var array<string, mixed> $item */
-            $price = $item['price'] ?? null;
-            $available = $item['available'] ?? null;
-
-            // Every item carries both (§2.4's answer): one null or left out is a bad value for that code - the
-            // other still taken when it is good - never "not sent".
-            $missing = array_values(array_filter(['price' => $price === null ? 'price' : null, 'stock' => $available === null ? 'stock' : null]));
-
-            $values[] = new ProviderValue($code, $price, $available, $missing);
+            $items[] = [$id, $item];
         }
 
-        return $values;
+        return $items;
     }
 
     /**
-     * The next page's `after`, or null on the last page.
+     * One item as a value under our code: its price and its stock as they came - Pricing, Inventory and Sync
+     * check them (§1.4, §1.5): `104.0` is a price, `577.0` a stock of 577, `false` (an empty field in Odoo) or a
+     * fraction a bad value for that code alone. One null or left out is named `missing`, a bad value too -
+     * the other still taken when it is good. Other fields ignored.
      *
-     * @param  array<mixed>  $answer
-     *
-     * @throws ConnectionFailed
+     * @param  array<array-key, mixed>  $item
      */
-    private static function next(array $answer): ?string
+    private static function value(string $code, array $item): ProviderValue
     {
-        $next = $answer['next'] ?? null;
+        $price = $item['list_price'] ?? null;
+        $stock = $item['free_qty'] ?? null;
+        $missing = array_values(array_filter(['price' => $price === null ? 'price' : null, 'stock' => $stock === null ? 'stock' : null]));
 
-        return match (true) {
-            // Odoo writes an empty field as `false`: the last page, as null is.
-            $next === null, $next === false => null,
-            is_int($next) => (string) $next,
-            is_string($next) && $next !== '' => $next,
-            default => throw self::malformed(ProviderReason::NEXT_NOT_TEXT),
-        };
-    }
-
-    /** An answer not as agreed (§2.4): what was wrong with it, as its code. */
-    private static function malformed(string $code): ConnectionFailed
-    {
-        return self::failed(new ProviderReason($code));
+        return new ProviderValue($code, $price, $stock, $missing);
     }
 
     /**
