@@ -4,7 +4,6 @@ import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
 import { TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
-import { Note } from '@/components/Note';
 import { PanelDialog } from '@/components/PanelDialog';
 import { Time } from '@/components/Time';
 import { Badge } from '@/components/ui/badge';
@@ -18,12 +17,11 @@ import type { StoreFileItemData, StoreFilePage } from '@/types/generated/Modules
 import { nameIn, useLocale } from '../parts';
 
 /*
-| One store file (catalog.md §4.4 S10, §1.3; amendment 6(g)), with no uploader shown: a Note, once -
-| the prices and stock are shown and not kept until Pricing and Inventory exist -, then the items:
-| number · code · its product (a link to its page) · price · stock · where it stands now (Ready · Not
-| Ready and what it lacks · Archived · Already On · Unknown Code), or what was done (Switched On ·
-| Removed). Ticked open items: **Switch On Selected**, **Remove Selected…**; and **Switch On Every
-| Ready One**. An unknown code: **Correct Code…**, checked again. A product not ready is completed in
+| One store file (catalog.md §4.4 S10, §1.3; amendments 6(g), 42), with no uploader shown: the items -
+| number · code · its product (a link to its page) · where it stands now (Ready · Not Ready and what it
+| lacks · Archived · Already On · Unknown Code), or what was done (Switched On · Removed). No price and
+| no stock: a store's come from Odoo. Ticked open items: **Switch On Selected**, **Remove Selected…**;
+| and **Switch On Every Ready One**. An unknown code: **Correct Code…**, checked again. A product not ready is completed in
 | its own page, then switched on here.
 */
 
@@ -35,7 +33,7 @@ const STANDING_TONE: Record<string, Tone> = {
     UNKNOWN: 'red-subtle',
 };
 
-export default function Show({ id, fileName, uploadedAt, storeCode, storeName, pricesKept, items }: StoreFilePage) {
+export default function Show({ id, fileName, uploadedAt, storeCode, storeName, items }: StoreFilePage) {
     const t = useTranslator();
     const locale = useLocale();
     const [selected, setSelected] = useState<string[]>([]);
@@ -67,7 +65,6 @@ export default function Show({ id, fileName, uploadedAt, storeCode, storeName, p
                 <p className="text-copy-14 text-ink-muted">
                     <Time value={uploadedAt} mode="absolute" />
                 </p>
-                {pricesKept ? null : <Note data-test="prices-note">{t('catalog::admin_store_files.prices_note')}</Note>}
 
                 <div className="flex flex-wrap items-center gap-3">
                     <ActionButton type="button" loading={busy} disabledReason={noneChosen ?? notReady} onClick={() => switchOn(chosen)} data-test="switch-on-selected">
@@ -107,8 +104,6 @@ export default function Show({ id, fileName, uploadedAt, storeCode, storeName, p
                                 <TableHead className="text-end">{t('catalog::admin_store_files.column.number')}</TableHead>
                                 <TableHead>{t('catalog::admin_store_files.column.code')}</TableHead>
                                 <TableHead>{t('catalog::admin_store_files.column.product')}</TableHead>
-                                <TableHead className="text-end">{t('catalog::admin_store_files.column.price')}</TableHead>
-                                <TableHead className="text-end">{t('catalog::admin_store_files.column.stock')}</TableHead>
                                 <TableHead>{t('catalog::admin_store_files.column.standing')}</TableHead>
                                 <TableHead className="w-12">
                                     <span className="sr-only">{t('catalog::admin.column.actions')}</span>
@@ -183,10 +178,6 @@ function Row({
                     '—'
                 )}
             </TableCell>
-            <TableCell className="tw-figure text-end">
-                <bdi dir="ltr">{item.price}</bdi>
-            </TableCell>
-            <TableCell className="tw-figure text-end">{item.stock === null ? '—' : figureOf(item.stock)}</TableCell>
             <TableCell>
                 <div className="grid gap-1">
                     {isOpen && item.standing !== null ? (
@@ -203,11 +194,6 @@ function Row({
                             {t('catalog::admin_store_files.lacks')} {item.missing.map((rule) => t(`catalog::admin_products.missing.${rule}`)).join(locale === 'ar' ? '، ' : ', ')}
                         </span>
                     ) : null}
-                    {item.lines.map((line) => (
-                        <span key={line} className="text-copy-13 text-ink-muted">
-                            {line}
-                        </span>
-                    ))}
                 </div>
             </TableCell>
             <TableCell className="text-end">

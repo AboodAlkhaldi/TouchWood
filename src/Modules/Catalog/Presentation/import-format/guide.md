@@ -1,21 +1,30 @@
 # TouchWood product files — how to fill them
 
 > **What this folder is.** The agreed format of the two files that bring products into TouchWood's
-> catalog, kept here so the owner — and any agent — can always find it: this guide, and a complete
-> example of each file. The owner fills real files from it, often with another AI agent's help. The
-> Catalog import (stage 4, step 6) reads **exactly** this format. **Change it only with the owner's
-> agreement**, and change the guide, both examples and `catalog.md` §1.12 together.
+> catalog: this guide, and a complete example of each file. It lives **inside the app**, in the
+> Catalog module (`src/Modules/Catalog/Presentation/import-format/`), and the panel shows it ("How to
+> fill the files", linked from both upload pages) with both examples to download (owner, 2026-11-10,
+> catalog.md amendment 42).
+> The owner fills real files from it, often with another AI agent's help. The Catalog import reads
+> **exactly** this format. **Change it only with the owner's agreement**, and change the guide, both
+> examples and `catalog.md` §1.12 together.
 
 Two kinds of file go into the catalog (catalog.md §1.12 and §1.3, amendment 6, agreed with the owner
-on 2026-10-05). This guide is written so a person, or another AI agent, can fill them exactly.
+on 2026-10-05; amendment 42, 2026-11-10). This guide is written so a person, or another AI agent, can
+fill them exactly.
 
 | File | Who uploads it | What it does |
 |---|---|---|
 | **Products file** — [`products.example.json`](products.example.json) | A Super Admin | Brings new products into the catalog, or updates existing ones — **never on sale by itself**: it names no store, price or stock. Uploaded **alone** (no photos) or **inside a zip with its photos** |
-| **Store file** — [`store-fill.example.json`](store-fill.example.json) | An admin of one store | Switches existing, ready products on in that store (publishes them), with their prices and stock |
+| **Store file** — [`store-fill.example.json`](store-fill.example.json) | An admin of one store | Switches existing, ready products on in that store (publishes them) — **codes only**: a store's prices and stock come from Odoo |
 
 Both files are **UTF-8 JSON**. Write Arabic as Arabic letters, not escapes. Every text is one line
 unless this guide says otherwise.
+
+> **Codes — the rule both files share.** A code is **1 to 10 digits, written as text in quotes**:
+> `"1304"`, never `1304` — a file with a code written as a number is refused. It is the product's id in
+> Odoo (its `product.product` id): **every variant has its own**. Arabic digits (`"١٣٠٤"`) are read as
+> `1304`, as every number in the system is saved in 0-9.
 
 ---
 
@@ -37,7 +46,7 @@ unless this guide says otherwise.
 | Field | Required | Type | Rules |
 |---|---|---|---|
 | `name` | **Yes** | `{"ar": text, "en": text}` | `ar` is **required**; `en` is optional but **needed for the product to be ready**. Each at most 200 characters. |
-| `slug` | No | `{"ar": text, "en": text}` | The web address. Left out, it is made from the name. `ar`: Arabic letters, digits and single hyphens; `en`: `a-z`, digits and single hyphens (`soft-close-runner`). |
+| `slug` | No | `{"ar": text, "en": text}` | The web address. Left out, it is made from the name. `ar`: Arabic letters, digits and single hyphens; `en`: `a-z`, digits and single hyphens (`soft-close-runner`). Each at most 200 characters. |
 | `description` | No | `{"ar": text, "en": text}` | Both are **needed for the product to be ready**. At most 20,000 characters each. May span lines — see §1.4. |
 | `brand` | No | number or text | The brand's **number** as the panel shows it (`2`) — best, no typo possible — or its name in Arabic or English. Left out, the default brand (TouchWood). The brand must already be in the catalog. |
 | `category` | No | text | The path from the top, names separated by ` / ` (space, slash, space): `"Kitchens / Drawers / Runners"`. It must end at a category with **no sub-categories**. **Needed for the product to be ready.** |
@@ -56,16 +65,17 @@ with no `values`. **Every variant has its own code** ("Codes" below).
 
 | Field | Required | Type | Rules |
 |---|---|---|---|
-| `code` | **Yes** | text of digits | **1 to 10 digits, written as text**: `"1304"`, never `1304` (a number would lose leading zeros). Arabic digits (`"١٣٠٤"`) are read as `1304`, as every number in the system is saved in 0-9. **Its own**: no other variant in the file has it. |
-| `values` | When the product has more than one variant | `{attribute: value}` | Its value of each attribute that makes the product's variants, by name: `{"Length": "45 cm", "Finish": "Zinc"}`. **Every variant of a product names the same attributes**; the first variant's order is the order shoppers choose in. Two variants of one product never have the same values. A product with one variant may have none (no sizes or finishes). |
-| `details` | No | `{attribute: …}` | Information-only attributes. Each is **either** text in both languages `{"ar": "فولاذ", "en": "Steel"}` (each at most 200 characters) **or** a number (`35`, at most 9 digits and 3 decimals, read with the attribute's unit). At most 100. |
+| `code` | **Yes** | text of digits | **1 to 10 digits, written as text in quotes**: `"1304"`, never `1304` ("Codes" at the top) — its id in Odoo. Arabic digits (`"١٣٠٤"`) are read as `1304`. **Its own**: no other variant in the file has it. |
+| `values` | When the product has more than one variant | `{attribute: value}` | Its value of each attribute that makes the product's variants, by name: `{"Length": "45 cm", "Finish": "Zinc"}`. **At most 10 attributes** make a product's variants. **Every variant of a product names the same attributes**; the first variant's order is the order shoppers choose in. Two variants of one product never have the same values. A product with one variant may have none (no sizes or finishes). |
+| `details` | No | `{attribute: …}` | Information-only attributes. Each is **either** text in both languages `{"ar": "فولاذ", "en": "Steel"}` (each at most 200 characters) **or** a number (`35`, at most 9 digits before the point and 3 after, a minus allowed, read with the attribute's unit). At most 100. |
 | `weight_g` | No | whole number | Grams, 1 to 1,000,000. |
 | `length_mm`, `width_mm`, `height_mm` | No | whole numbers | Millimetres, 1 to 1,000,000. |
-| `photos` | No | list of text | This variant's own photos, paths inside the zip, at most 10. |
+| `photos` | No | list of text | This variant's own photos, paths inside the zip, at most 10, each once. |
 
 **Codes.** **Every variant has its own code** — the runner in 45 cm and in 50 cm has two codes, as
-each size and each colour is its own item in the supplier's system (owner, 2026-10-09). **Two
-variants never share a code**, in one product or in two: a file where they do is refused, both listed.
+each size and each colour is its own product in Odoo, with its own id (owner, 2026-10-09; 2026-11-09).
+**Two variants never share a code**, in one product or in two: a file where they do is refused, both
+listed.
 (In a spreadsheet, the rows of one item's sizes and colours are **one product** with several variants,
 each row with its own code; the same code on two rows is a mistake to fix in the source.)
 
@@ -73,10 +83,10 @@ each row with its own code; the same code on two rows is a mistake to fix in the
 
 Brands, categories, attributes, values and warranties are written **by name**, as they
 appear in the panel, in **Arabic or English** — a brand also **by its number**, written as a number:
-`2`, not `"2"` (in quotes it is read as a name). A category's name never holds a `/`: it separates the
-levels of a path. Names are matched
-ignoring upper/lower case, extra spaces, Arabic marks (tashkeel) and letter forms (أ/إ/آ = ا, ة = ه,
-ى = ي).
+`2`, not `"2"` (in quotes it is read as a name). **Each name is at most 100 characters** — a brand, a
+warranty, an attribute, a value, and each level of a category's path. A category's name never holds a
+`/`: it separates the levels of a path. Names are matched ignoring upper/lower case, extra spaces,
+Arabic marks (tashkeel) and letter forms (أ/إ/آ = ا, ة = ه, ى = ي).
 
 **Brands, warranties and attributes must already be in the catalog** — add them in the panel before
 uploading. **Values and categories may be new.**
@@ -131,17 +141,19 @@ Anything missing can also be completed later in the product page.
 
 ### 1.7 What refuses the whole file
 
-The file is refused, **every problem listed**, if: it is not valid JSON or not this format; a field
-has the wrong type; a product has no Arabic name or no variant; a code is not 1–10 digits; two
-variants share a code (in one product or in two); two variants of one product have the same values;
-the variants of one product name different attributes; a product with more than one variant has a
-variant with no values; a photo named in the JSON is
-not in the zip (or photos are named in a JSON uploaded alone); a number is out of range; a list is too
-long; the file is over its limits. Nothing is kept from a refused file.
+The file is refused, **every problem listed** (the first 500), if: it is not valid JSON or not this
+format; a field has the wrong type or is not a field of the format; a product has no Arabic name or no
+variant; a code is not 1–10 digits, or is written as a number rather than in quotes; two variants share
+a code (in one product or in two); two variants of one product have the same values; the variants of
+one product name different attributes, or more than 10; a product with more than one variant has a
+variant with no values; a name is over 100 characters; a photo named in the JSON is not in the zip
+(or photos are named in a JSON uploaded alone); a number is out of range; a list is too long; the file
+is over its limits. Nothing is kept from a refused file.
 
-A product that still has a `stores` field is refused too: prices and stock come with each store's own
-file (§2). So is one with an `attribute_set`: there are no attribute sets — each variant's `values`
-name the attributes that make the product's variants (owner, 2026-10-09).
+A product that still has a `stores` field is refused too: a store's admins switch products on with
+their store file (§2), and a store's prices and stock come from Odoo. So is one with an
+`attribute_set`: there are no attribute sets — each variant's `values` name the attributes that make
+the product's variants (owner, 2026-10-09).
 
 Once the file is in its format, it is read against the catalog, and also refused — every problem of
 this second reading listed — if:
@@ -187,8 +199,8 @@ them.
 {
   "format": "touchwood-store-fill/1",
   "items": [
-    { "code": "1304", "price": 120.5, "stock": 40 },
-    { "code": "1305", "price": 125 }
+    { "code": "1304" },
+    { "code": "1305" }
   ]
 }
 ```
@@ -196,11 +208,10 @@ them.
 - `format` must be exactly `"touchwood-store-fill/1"`.
 - `items` holds **1 to 1,000** items, **each code once**. The file is at most **2 MB**. The store is
   the one whose page it is uploaded from — the file does not name it.
-- `code` — **required**, 1 to 10 digits **as text**; Arabic digits are read as 0-9.
-- `price` — **required**, a number of at least 0 with at most 6 decimal places, in the store's
-  currency.
-- `stock` — optional, a whole number from 0 to 2,147,483,647.
-- **Until Pricing and Inventory exist (stage 5) prices and stock are shown but not kept.**
+- `code` — **required**, the only field of an item: 1 to 10 digits **as text, in quotes** ("Codes"
+  at the top); Arabic digits are read as 0-9.
+- **No `price` and no `stock`**: a store's prices and stock come from Odoo (owner, 2026-11-10). A file
+  that still has either is refused, the field named.
 
 **It never creates or changes a product.** Every code must belong to a product already in the
 catalog. Its page shows each item: ready (switching it on chooses the variant carrying that code),

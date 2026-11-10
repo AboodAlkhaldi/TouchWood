@@ -107,7 +107,7 @@ describe('a products file names no store (9(a))', function () {
         } catch (ImportRefused $refused) {
         }
 
-        expect($refused->problems ?? null)->toBe([['at' => 'product 1 › stores', 'problem' => "not in a products file: each store's own file brings its prices and stock"]]);
+        expect($refused->problems ?? null)->toBe([['at' => 'product 1 › stores', 'problem' => "not in a products file: a store's admins switch products on with their store file; prices and stock come from Odoo"]]);
     });
 });
 

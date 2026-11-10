@@ -8,7 +8,7 @@ use Shared\Domain\Error\ErrorCategory;
 
 /**
  * A product file or a store file not in its format (catalog.md §1.12, §1.3; the guide in
- * docs/modules/catalog-import/): refused whole, **every problem listed** — where it is (the product
+ * Presentation/import-format/): refused whole, **every problem listed** — where it is (the product
  * or item, counted from 1, and the field) and what the field must be — so the file is fixed once,
  * not one error at a time. Nothing of a refused file is kept.
  */

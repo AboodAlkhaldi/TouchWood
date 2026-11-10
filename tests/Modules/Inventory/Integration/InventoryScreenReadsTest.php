@@ -27,8 +27,6 @@ use Modules\Inventory\Application\Command\SetStock\SetStock;
 use Modules\Inventory\Application\Command\SetStock\SetStockHandler;
 use Modules\Inventory\Application\Command\SetStockDependent\SetStockDependent;
 use Modules\Inventory\Application\Command\SetStockDependent\SetStockDependentHandler;
-use Modules\Inventory\Application\Command\SetStockFromFile\SetStockFromFile;
-use Modules\Inventory\Application\Command\SetStockFromFile\SetStockFromFileHandler;
 use Modules\Inventory\Application\InventoryPermissions;
 use Modules\Inventory\Application\Query\AddSizeChoices\AddSizeChoices;
 use Modules\Inventory\Application\Query\AddSizeChoices\AddSizeChoicesHandler;
@@ -62,8 +60,9 @@ use Modules\Inventory\Domain\Exception\QuantityInvalid;
 use Modules\Inventory\Domain\Exception\StockBelowZero;
 use Modules\Inventory\Domain\Exception\StoreOff;
 use Modules\Inventory\Domain\Exception\ThresholdInvalid;
+use Modules\Inventory\Domain\Repository\StockMovements;
+use Modules\Inventory\Domain\ValueObject\MovementReason;
 use Modules\Inventory\Infrastructure\Catalog\ProductStockSection;
-use Modules\Inventory\Infrastructure\Queue\SetStockFromFileJob;
 use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Inventory\Public\Contracts\ProviderStock;
 use Modules\Inventory\Public\Contracts\StoreWiring;
@@ -342,8 +341,10 @@ describe('a size\'s history (StockHistory)', function () {
         app(InventoryApi::class)->ship($order, [new HoldLineDto($size, 1)]);
         $admin = Fx::staffWith([CatalogPermissions::LISTING_FILL], ['sa'], RoleLevel::Admin);
         Fx::actAsStaff($admin);
-        // Queued by the admin, run by the queue as the system on their behalf.
-        SetStockFromFileJob::dispatch(Ix::storeId('sa'), $size, 20, 'file:history');
+        // A line a store file wrote before Catalog's amendment 42 (codes only since): still read as the
+        // file's, naming whoever switched it on.
+        app(StockMovements::class)->record(StoreId::fromString(Ix::storeId('sa')), $size, MovementReason::File, 8, 20, null, 'file:history');
+        DB::table('inventory.stock')->where('store_id', Ix::storeId('sa'))->where('variant_id', $size)->update(['in_stock' => 20]);
         Ix::count('sa', [$size => 21]);
         Fx::actAsStaff($huda);
 
@@ -744,7 +745,7 @@ describe('the review\'s points (step 4)', function () {
             ->and($rows(fn () => app(SetLowStockThresholdHandler::class)->handle(new SetLowStockThreshold($sa, [$b => 1, strtoupper($b) => null]))))->toEqualCanonicalizing([$b, strtoupper($b)]);
     });
 
-    it('counts a size the store does not sell only when its product is ready; the store file is not held to it', function () {
+    it('counts a size the store does not sell only when its product is ready', function () {
         $draft = Px::product('Draft');
         $draftSize = Px::variant($draft, '7300002');
         $readyElsewhere = stockProduct('Ready', stores: []);
@@ -758,9 +759,8 @@ describe('the review\'s points (step 4)', function () {
             ->and(Ix::stock('sa', $readyElsewhere['variants'][0]))->toBeNull();
 
         app(SetStockHandler::class)->handle(new SetStock($sa, [$readyElsewhere['variants'][0] => 2]));
-        Fx::asSystem(fn () => app(SetStockFromFileHandler::class)->handle(new SetStockFromFile($sa, $draftSize, 6, 'file:draft')));
 
-        expect([Ix::stock('sa', $readyElsewhere['variants'][0])?->in_stock, Ix::stock('sa', $draftSize)?->in_stock])->toBe([2, 6]);
+        expect([Ix::stock('sa', $readyElsewhere['variants'][0])?->in_stock, Ix::stock('sa', $draftSize)])->toBe([2, null]);
     });
 
     it('names a return\'s order in the history, and a Super Admin as hidden to anyone else', function () {

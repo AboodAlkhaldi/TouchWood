@@ -9,7 +9,6 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Access\Public\Enums\PermissionGroup;
-use Modules\Catalog\Public\Contracts\ImportSections;
 use Modules\Catalog\Public\Contracts\ProductStoreSections;
 use Modules\Catalog\Public\Contracts\ShopProductSections;
 use Modules\Catalog\Public\Events\CategoryMoved;
@@ -54,7 +53,6 @@ use Modules\Pricing\Infrastructure\Eloquent\DatabaseSales;
 use Modules\Pricing\Infrastructure\Eloquent\DatabaseUnpricedCounts;
 use Modules\Pricing\Infrastructure\Eloquent\DatabaseWholesaleBands;
 use Modules\Pricing\Infrastructure\External\NoStoreWired;
-use Modules\Pricing\Infrastructure\Import\PriceImportSection;
 use Modules\Pricing\Infrastructure\Listener\RecountUnpricedSizes;
 use Modules\Pricing\Infrastructure\Listener\RepriceForDiscounts;
 use Modules\Pricing\Infrastructure\Queue\CheckPriceWindowsJob;
@@ -122,9 +120,6 @@ final class PricingServiceProvider extends ServiceProvider
         Event::listen(CategoryMoved::class, [RepriceForDiscounts::class, 'categoryMoved']);
         // In a wired store the ceiling decides what a fixed amount reaches (sync.md §9.3 #17).
         Event::listen(SettingChanged::class, [RepriceForDiscounts::class, 'ceilingChanged']);
-
-        // Its part of a store file (§1.8): the price each item sets, kept when the item is switched on.
-        $this->app->make(ImportSections::class)->register('pricing', PriceImportSection::class);
 
         // Its part of a product's Stores tab (§4.3.3; Catalog's amendment 23(e)): one read for every card.
         $this->app->make(ProductStoreSections::class)->register('pricing', ProductPricesSection::class);

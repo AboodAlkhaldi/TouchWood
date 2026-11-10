@@ -11,7 +11,7 @@ use Modules\Catalog\Public\Contracts\ProductStoreSections;
 
 /**
  * **The product page's store sections** (catalog.md amendment 23(e)), collected from the service
- * providers of the modules above Catalog, as the import's sections are (`InMemoryImportSections`). The
+ * providers of the modules above Catalog, as Platform collects its `MediaUsages`. The
  * classes are resolved only when a product's Stores tab is read, so registering costs nothing on any
  * other request; and resolved each time, so one may depend on the person reading.
  */

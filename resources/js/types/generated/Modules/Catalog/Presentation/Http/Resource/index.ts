@@ -525,15 +525,12 @@ export type StoreFileItemData = {
 id: string,
 number: number,
 code: string,
-price: string,
-stock: number | null,
 state: string,
 standing: string | null,
 productId: string | null,
 productNameAr: string | null,
 productNameEn: string | null,
 missing: string[],
-lines: string[],
 };
 export type StoreFilePage = {
 id: string,
@@ -542,7 +539,6 @@ uploadedAt: string,
 storeCode: string,
 storeName: string,
 storeTimezone: string,
-pricesKept: boolean,
 items: StoreFileItemData[],
 };
 export type StoreFileRowData = {

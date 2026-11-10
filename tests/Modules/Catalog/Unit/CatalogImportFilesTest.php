@@ -8,17 +8,19 @@ use Modules\Catalog\Application\Import\FileVariant;
 use Modules\Catalog\Application\Import\ProductsFile;
 use Modules\Catalog\Application\Import\StoreFillFile;
 use Modules\Catalog\Domain\Exception\ImportRefused;
+use Modules\Catalog\Domain\ValueObject\ProductCode;
+use Modules\Catalog\Presentation\Http\Controller\ImportGuideController;
 
 /*
-| The two files, read and checked (catalog.md §1.12, §1.3, amendment 6; the guide in
-| docs/modules/catalog-import/): the guide's own examples read as the guide says; every rule of its
+| The two files, read and checked (catalog.md §1.12, §1.3, amendment 6; the guide in the module's
+| Presentation/import-format/, amendment 42): the guide's own examples read as the guide says; every rule of its
 | §1.7 and §2 refuses a file; every problem is collected, never only the first; descriptions turn
 | into the structured text the panel keeps.
 */
 
 function catalogImportExample(string $file): string
 {
-    return (string) file_get_contents(dirname(__DIR__, 4).'/docs/modules/catalog-import/'.$file);
+    return (string) file_get_contents(ImportGuideController::FOLDER.$file);
 }
 
 /**
@@ -37,6 +39,16 @@ function catalogImportProduct(string $code = '1304'): array
         ],
         'photos' => ['photos/a.jpg'],
     ];
+}
+
+/**
+ * As many variant-making attributes as asked, one value each.
+ *
+ * @return array<string, string>
+ */
+function catalogImportValues(int $count): array
+{
+    return array_combine(array_map(static fn (int $n): string => "Attribute {$n}", range(1, $count)), array_map(static fn (int $n): string => "Value {$n}", range(1, $count)));
 }
 
 /**
@@ -91,11 +103,12 @@ describe('the guide\'s examples', function () {
     it('reads the example store file', function () {
         $items = StoreFillFile::read(catalogImportExample('store-fill.example.json'))->items;
 
-        expect(array_map(static fn ($item): array => [$item->number, $item->code, $item->price, $item->stock], $items))->toBe([
-            [1, '1304', '120.5', 40],
-            [2, '1314', '129.5', 25],
-            [3, '1305', '125', null],
-            [4, '2001', '18', 300],
+        // Codes only (amendment 42): a store's prices and stock come from Odoo.
+        expect(array_map(static fn ($item): array => [$item->number, $item->code], $items))->toBe([
+            [1, '1304'],
+            [2, '1314'],
+            [3, '1305'],
+            [4, '2001'],
         ]);
     });
 
@@ -146,7 +159,15 @@ describe('what refuses a product file', function () {
         'filters not lists of values' => [fn (array $p) => [...$p, 'filters' => ['Use' => 'Kitchen']], 'product 1 › filters › Use', 'list of value names'],
         'more than 20 related products' => [fn (array $p) => [...$p, 'related' => array_map(static fn (int $n): string => (string) (2000 + $n), range(1, 21))], 'product 1 › related', 'at most 20'],
         'a related code not digits' => [fn (array $p) => [...$p, 'goes_with' => ['20x1']], 'product 1 › goes_with', 'digits'],
-        'a store named in a products file' => [fn (array $p) => [...$p, 'stores' => ['sa' => ['price' => 1]]], 'product 1 › stores', "not in a products file: each store's own file brings its prices and stock"],
+        'a store named in a products file' => [fn (array $p) => [...$p, 'stores' => ['sa' => ['price' => 1]]], 'product 1 › stores', "not in a products file: a store's admins switch products on with their store file; prices and stock come from Odoo"],
+        // The limits the guide states (amendment 42).
+        'more than 10 attributes making the variants' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => catalogImportValues(11)]]], 'product 1 › variants 1 › values', 'at most 10 attributes'],
+        'a brand name over 100 characters' => [fn (array $p) => [...$p, 'brand' => str_repeat('b', 101)], 'product 1 › brand', 'at most 100 characters'],
+        'a warranty name over 100 characters' => [fn (array $p) => [...$p, 'warranty' => str_repeat('w', 101)], 'product 1 › warranty', 'at most 100 characters'],
+        'a category level over 100 characters' => [fn (array $p) => [...$p, 'category' => 'Kitchens / '.str_repeat('c', 101)], 'product 1 › category', 'at most 100 characters'],
+        'an attribute name over 100 characters' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => [str_repeat('a', 101) => '60 cm']]]], 'product 1 › variants 1 › values › '.str_repeat('a', 101), 'at most 100 characters'],
+        'a value name over 100 characters' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => ['Width' => str_repeat('v', 101)]]]], 'product 1 › variants 1 › values › Width', 'at most 100 characters'],
+        'a slug over 200 characters' => [fn (array $p) => [...$p, 'slug' => ['en' => str_repeat('s', 201)]], 'product 1 › slug › en', '200'],
         'two products sharing a code' => [fn (array $p) => [$p, catalogImportProduct('1304')], 'products 1, 2', 'the code 1304 on two products: two variants never share a code'],
         'two variants alike, their attribute named in digits' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => ['2' => '60 cm']], ['code' => '2', 'values' => ['2' => '60 CM']]]], 'product 1 › variants 2 › values', 'never alike'],
     ]);
@@ -177,6 +198,20 @@ describe('what refuses a product file', function () {
     it('takes a file that keeps every rule', function () {
         expect(catalogImportProblems([catalogImportProduct('1'), catalogImportProduct('2')]))->toBe([]);
     });
+
+    it('takes a product at the limits the guide states: 10 attributes making its variants, names of 100 characters', function () {
+        $name = static fn (string $letter): string => str_repeat($letter, ProductsFile::NAME_MAX);
+
+        expect(catalogImportProblems([[
+            ...catalogImportProduct(),
+            'brand' => $name('b'),
+            'warranty' => $name('w'),
+            'category' => $name('c').' / '.$name('d'),
+            'variants' => [
+                ['code' => '1', 'values' => [...catalogImportValues(ProductsFile::VARIANT_ATTRIBUTES_MAX - 1), $name('a') => $name('v')]],
+            ],
+        ]]))->toBe([]);
+    });
 });
 
 describe('what refuses a store file', function () {
@@ -191,24 +226,23 @@ describe('what refuses a store file', function () {
         expect(array_column($problems, 'at'))->toContain($at)
             ->and(implode(' | ', array_column(array_filter($problems, static fn (array $item): bool => $item['at'] === $at), 'problem')))->toContain($problem);
     })->with([
-        'another format' => ['{"format": "touchwood-products/1", "items": [{"code": "1", "price": 1}]}', 'format', 'touchwood-store-fill/1'],
+        'another format' => ['{"format": "touchwood-products/1", "items": [{"code": "1"}]}', 'format', 'touchwood-store-fill/1'],
         'no items' => ['{"format": "touchwood-store-fill/1", "items": []}', 'items', '1 to 1,000'],
-        'no price' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304"}]}', 'item 1 › price', 'at least 0'],
-        'a code written as a number' => ['{"format": "touchwood-store-fill/1", "items": [{"code": 1304, "price": 1}]}', 'item 1 › code', 'in quotes'],
-        'a code twice' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 1}, {"code": "1304", "price": 2}]}', 'item 2 › code', 'item 1 names it'],
-        'a field the format does not have' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 1, "store": "sa"}]}', 'item 1 › store', 'not a field'],
-        'a stock below 0' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 1, "stock": -1}]}', 'item 1 › stock', 'from 0 to 2,147,483,647'],
-        // Amendment 11(d): what its column holds, and a price never rounded.
-        'a stock past the column' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 1, "stock": 2147483648}]}', 'item 1 › stock', 'from 0 to 2,147,483,647'],
-        'a price of seven decimal places' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 19.9999999}]}', 'item 1 › price', 'at most 6 decimal places'],
-        'a price past 25 digits' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 1e26}]}', 'item 1 › price', 'at most 6 decimal places'],
+        'an item with no code' => ['{"format": "touchwood-store-fill/1", "items": [{}]}', 'item 1 › code', 'in quotes'],
+        'a code written as a number' => ['{"format": "touchwood-store-fill/1", "items": [{"code": 1304}]}', 'item 1 › code', 'in quotes'],
+        'a code of 11 digits' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "12345678901"}]}', 'item 1 › code', '1 to 10'],
+        'a code twice' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304"}, {"code": "1304"}]}', 'item 2 › code', 'item 1 names it'],
+        'a field the format does not have' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "store": "sa"}]}', 'item 1 › store', 'not a field'],
+        // Amendment 42: the columns the format dropped, refused with why.
+        'a price' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 120.5}]}', 'item 1 › price', "a store's prices come from Odoo"],
+        'a stock' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "stock": 40}]}', 'item 1 › stock', "a store's stock comes from Odoo"],
+        'an empty price' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": null}]}', 'item 1 › price', "a store's prices come from Odoo"],
     ]);
 
-    it('keeps a price as the file wrote it, up to 6 decimal places, and the largest stock its column holds', function () {
-        $items = StoreFillFile::read('{"format": "touchwood-store-fill/1", "items": ['
-            .'{"code": "1", "price": 120.5, "stock": 2147483647}, {"code": "2", "price": 0.000001}, {"code": "3", "price": -0.0}, {"code": "4", "price": 19.99}, {"code": "5", "price": 7}]}')->items;
+    it('reads an item as its code alone', function () {
+        $items = StoreFillFile::read('{"format": "touchwood-store-fill/1", "items": [{"code": "1"}, {"code": "0012"}]}')->items;
 
-        expect(array_map(static fn ($item): array => [$item->price, $item->stock], $items))->toBe([['120.5', 2147483647], ['0.000001', null], ['0', null], ['19.99', null], ['7', null]]);
+        expect(array_map(static fn ($item): array => (array) $item, $items))->toBe([['number' => 1, 'code' => '1'], ['number' => 2, 'code' => '0012']]);
     });
 });
 
@@ -255,15 +289,35 @@ describe('every number in Latin digits (amendment 12)', function () {
     });
 
     it('reads a store file\'s code typed in Arabic digits as the 0-9 code, the same code as 1304', function () {
-        expect(StoreFillFile::read('{"format": "touchwood-store-fill/1", "items": [{"code": "١٣٠٤", "price": 1}]}')->items[0]->code)->toBe('1304');
+        expect(StoreFillFile::read('{"format": "touchwood-store-fill/1", "items": [{"code": "١٣٠٤"}]}')->items[0]->code)->toBe('1304');
 
         try {
-            StoreFillFile::read('{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 1}, {"code": "١٣٠٤", "price": 2}]}');
+            StoreFillFile::read('{"format": "touchwood-store-fill/1", "items": [{"code": "1304"}, {"code": "١٣٠٤"}]}');
             $problems = [];
         } catch (ImportRefused $refused) {
             $problems = $refused->problems;
         }
 
         expect($problems)->toBe([['at' => 'item 2 › code', 'problem' => '1304 again: item 1 names it already']]);
+    });
+});
+
+describe('the guide', function () {
+    it('states the limits the code holds', function () {
+        $guide = catalogImportExample(ImportGuideController::GUIDE);
+
+        expect($guide)
+            // The code rule, at the top and in each file's part.
+            ->toContain('A code is **1 to '.ProductCode::MAX_DIGITS.' digits, written as text in quotes**')
+            ->toContain('`"1304"`, never `1304`')
+            ->toContain('`products` holds **1 to '.number_format(ProductsFile::MAX_PRODUCTS).' products**. The JSON is at most **'.(ProductsFile::MAX_BYTES / 1024 / 1024).' MB**')
+            ->toContain('**At most '.ProductsFile::VARIANT_ATTRIBUTES_MAX.' attributes** make a product\'s variants')
+            ->toContain('**Each name is at most '.ProductsFile::NAME_MAX.' characters**')
+            ->toContain('paths inside the zip**, at most '.ProductsFile::GALLERY_MAX.', each once')
+            ->toContain('paths inside the zip, at most '.ProductsFile::VARIANT_PHOTOS_MAX.', each once')
+            ->toContain('`items` holds **1 to '.number_format(StoreFillFile::MAX_ITEMS).'** items, **each code once**. The file is at most **'.(StoreFillFile::MAX_BYTES / 1024 / 1024).' MB**')
+            ->toContain('**No `price` and no `stock`**')
+            // Nothing left of the store file's old columns, or of the time before Pricing and Inventory.
+            ->and([str_contains($guide, '"price":'), str_contains($guide, '"stock":'), str_contains($guide, 'stage 5')])->toBe([false, false, false]);
     });
 });

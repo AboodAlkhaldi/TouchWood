@@ -88,7 +88,7 @@ describe('discarding a products file', function () {
 
     it('is a Super Admin\'s, and a store\'s file is not one', function () {
         $import = Ix::uploadProducts([Ix::product('1')]);
-        $fill = app(UploadStoreFillHandler::class)->handle(new UploadStoreFill(Fx::storeId('sa'), Ix::temp(json_encode(['format' => 'touchwood-store-fill/1', 'items' => [['code' => '1', 'price' => 1]]], JSON_THROW_ON_ERROR)), 'prices.json'));
+        $fill = app(UploadStoreFillHandler::class)->handle(new UploadStoreFill(Fx::storeId('sa'), Ix::temp(json_encode(['format' => 'touchwood-store-fill/1', 'items' => [['code' => '1']]], JSON_THROW_ON_ERROR)), 'prices.json'));
 
         expect(fn () => catalogDiscardImport($fill))->toThrow(ListItemNotFound::class);
 

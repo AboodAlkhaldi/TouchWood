@@ -6,6 +6,7 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariant;
 use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariantHandler;
@@ -28,9 +29,10 @@ use function Pest\Laravel\seed;
 
 /*
 | The admins' store file (catalog.md §1.3; amendment 6(g), (h)): `catalog.listing.fill` in that store,
-| an admin role's job. Codes and prices, stock optional; it never creates or changes a product. Its
-| items are switched on in the store — the variant carrying each code of a ready product — chosen or
-| every one ready; an unknown code is corrected or removed. Everything audited in the store.
+| an admin role's job. Codes only - a store's prices and stock come from Odoo (amendment 42); it never
+| creates or changes a product. Its items are switched on in the store — the variant carrying each
+| code of a ready product — chosen or every one ready; an unknown code is corrected or removed.
+| Everything audited in the store.
 */
 
 uses(RefreshDatabase::class);
@@ -78,36 +80,39 @@ describe('the file', function () {
     it('is kept with its items open, as the file gave them, audited in the store, changing no product', function () {
         $products = DB::table('catalog.products')->count();
 
-        $id = catalogFill([['code' => '1304', 'price' => 120.5, 'stock' => 40], ['code' => '1305', 'price' => 125]]);
+        $id = catalogFill([['code' => '1304'], ['code' => '1305']]);
 
         $import = DB::table('catalog.imports')->where('id', $id)->first() ?? throw new LogicException('No file.');
         expect([$import->kind, $import->state, $import->store_id, $import->file_name])->toBe(['STORE_FILL', 'OPEN', Fx::storeId('sa'), 'sa-prices.json'])
-            ->and(DB::table('catalog.store_fill_items')->where('import_id', $id)->orderBy('number')->get(['number', 'code', 'price', 'stock', 'state'])->map(fn ($row): array => (array) $row)->all())
+            ->and(DB::table('catalog.store_fill_items')->where('import_id', $id)->orderBy('number')->get(['number', 'code', 'state'])->map(fn ($row): array => (array) $row)->all())
             ->toBe([
-                ['number' => 1, 'code' => '1304', 'price' => '120.5', 'stock' => 40, 'state' => 'OPEN'],
-                ['number' => 2, 'code' => '1305', 'price' => '125', 'stock' => null, 'state' => 'OPEN'],
+                ['number' => 1, 'code' => '1304', 'state' => 'OPEN'],
+                ['number' => 2, 'code' => '1305', 'state' => 'OPEN'],
             ])
+            // Nothing keeps a price or a stock any more (amendment 42).
+            ->and(Schema::hasColumn('catalog.store_fill_items', 'price') || Schema::hasColumn('catalog.store_fill_items', 'stock'))->toBeFalse()
             ->and(DB::table('platform.audit_entries')->where('action', 'catalog.store_fill.added')->where('subject_id', $id)->value('store_id'))->toBe(Fx::storeId('sa'))
             ->and(DB::table('catalog.products')->count())->toBe($products);
     });
 
     it('is refused when not in its format, every problem listed', function () {
         try {
-            catalogFill([['code' => '1304', 'price' => 1], ['code' => '1304', 'price' => -2]]);
+            catalogFill([['code' => '1304'], ['code' => '1304', 'price' => 2, 'stock' => 5]]);
         } catch (ImportRefused $refused) {
         }
 
         expect($refused->problems ?? null)->toBe([
+            ['at' => 'item 2 › price', 'problem' => "not in a store file: a store's prices come from Odoo"],
+            ['at' => 'item 2 › stock', 'problem' => "not in a store file: a store's stock comes from Odoo"],
             ['at' => 'item 2 › code', 'problem' => '1304 again: item 1 names it already'],
-            ['at' => 'item 2 › price', 'problem' => 'a number of at least 0, with at most 6 decimal places'],
         ])->and(DB::table('catalog.imports')->count())->toBe(0);
     });
 
     it('is an admin role\'s job in that store only', function () {
-        expect(fn () => catalogFill([['code' => '1', 'price' => 1]], 'eg'))->toThrow(Unauthorized::class);
+        expect(fn () => catalogFill([['code' => '1']], 'eg'))->toThrow(Unauthorized::class);
 
         Fx::actAsStaff(Fx::staff(superAdmin: true));
-        expect(catalogFill([['code' => '1', 'price' => 1]], 'eg'))->toBeString();
+        expect(catalogFill([['code' => '1']], 'eg'))->toBeString();
     });
 });
 
@@ -118,7 +123,7 @@ describe('switching on', function () {
         $code = (string) DB::table('catalog.variants')->where('id', $sixty)->value('code');
         $draft = Px::product();
         Px::variant($draft, '7700');
-        $import = catalogFill([['code' => $code, 'price' => 10], ['code' => '999999', 'price' => 1], ['code' => '7700', 'price' => 2]]);
+        $import = catalogFill([['code' => $code], ['code' => '999999'], ['code' => '7700']]);
 
         expect(app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($import, null)))->toBe(1)
             ->and(catalogFillStates($import))->toBe(['ON', 'OPEN', 'OPEN'])
@@ -133,7 +138,7 @@ describe('switching on', function () {
         $eighty = $ready['variants'][1];
         $code = (string) DB::table('catalog.variants')->where('id', $eighty)->value('code');
         Fx::asSystem(fn () => app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($eighty)));
-        $import = catalogFill([['code' => $code, 'price' => 10]]);
+        $import = catalogFill([['code' => $code]]);
 
         expect(app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($import, null)))->toBe(0)
             ->and(catalogFillStates($import))->toBe(['OPEN'])
@@ -145,7 +150,7 @@ describe('switching on', function () {
     it('names a chosen item that cannot be switched on, and switches on none', function () {
         $ready = Px::ready();
         $code = (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
-        $import = catalogFill([['code' => $code, 'price' => 10], ['code' => '999999', 'price' => 1]]);
+        $import = catalogFill([['code' => $code], ['code' => '999999']]);
 
         expect(fn () => app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($import, [catalogFillItem($import, 1), catalogFillItem($import, 2)])))
             ->toThrow(InvalidCatalogAttribute::class, 'Invalid item 2: an open item whose code a ready product holds');
@@ -158,7 +163,7 @@ describe('mending the file', function () {
     it('corrects an open item\'s code, to one no other item has', function () {
         $ready = Px::ready();
         $code = (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
-        $import = catalogFill([['code' => '999999', 'price' => 10], ['code' => '5', 'price' => 1]]);
+        $import = catalogFill([['code' => '999999'], ['code' => '5']]);
         $item = catalogFillItem($import, 1);
 
         expect(fn () => app(CorrectStoreFillCodeHandler::class)->handle(new CorrectStoreFillCode($import, $item, '5')))->toThrow(InvalidCatalogAttribute::class, 'a code no other item of the file has')
@@ -172,7 +177,7 @@ describe('mending the file', function () {
     });
 
     it('removes open items, kept on the page as removed', function () {
-        $import = catalogFill([['code' => '999999', 'price' => 10], ['code' => '5', 'price' => 1]]);
+        $import = catalogFill([['code' => '999999'], ['code' => '5']]);
 
         expect(app(RemoveStoreFillItemsHandler::class)->handle(new RemoveStoreFillItems($import, [catalogFillItem($import, 1)])))->toBe(1)
             ->and(catalogFillStates($import))->toBe(['REMOVED', 'OPEN'])

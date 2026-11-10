@@ -17,8 +17,8 @@ use Shared\Application\Unauthorized;
 
 /**
  * **Uploading an admins' store file** (catalog.md §1.3; amendment 6(g), (h)): `catalog.listing.fill`
- * in that store — admin roles only. The file is read and checked whole (`StoreFillFile`: codes, prices,
- * stock, each code once, 1,000 items, 2 MB) and refused with every problem listed, or kept as the
+ * in that store — admin roles only. The file is read and checked whole (`StoreFillFile`: codes only,
+ * each code once, 1,000 items, 2 MB) and refused with every problem listed, or kept as the
  * store's file with its items open. **It never creates or changes a product**: whether each code is
  * the catalog's, and its product ready, is read on the page. Audited in the store.
  */
