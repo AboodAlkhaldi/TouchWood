@@ -465,13 +465,13 @@ panel to the shop **as themselves**, sees it as a visitor does plus the stores t
 and cannot order; and moves back.
 
 - **View Store**, in the admin panel's header, opens a store's shop home page, **in the same tab**
-  **[PROVISIONAL]**, in the panel's language — every store offers both (platform.md §1.6). **Which
+  **[ACCEPTED as built, owner 2026-11-10; was PROVISIONAL]**, in the panel's language — every store offers both (platform.md §1.6). **Which
   store** (owner, 2026-10-06, amendment 64): with one store the button opens it; with two or more a
   short menu lists the stores the person may view — their own stores that are on; a Super Admin every
   store, an off one marked Off. No store, no button. Every
   active staff member may — admins, Super Admins and staff (the owner's words): an automatic
   permission, `access.staff_view.open`.
-- **A pass, not a session** **[PROVISIONAL]**: opening it creates a row in `access.staff_views` and
+- **A pass, not a session** **[ACCEPTED as built, owner 2026-11-10; was PROVISIONAL]**: opening it creates a row in `access.staff_views` and
   a random token in its own cookie, `tw_staff_view` — path `/`, HTTP-only, SameSite Lax, encrypted as
   every cookie is, **stored only as a hash** (as a trusted browser's). No secret is written in an
   address, a link or a log, and **the admin cookie stays on `/admin`**. The shop reads the pass on
@@ -490,7 +490,7 @@ and cannot order; and moves back.
     signing in or registering there ends the view;
   - the frame says so (frontend.md §2.3): a line under the header with **Back to Admin Panel**, and
     the person menu holds their name, **Admin Panel** and **Leave Staff View**, with no Sign in.
-- **A pass ends with the admin session it came from** **[PROVISIONAL]**: it keeps a hash of that
+- **A pass ends with the admin session it came from** **[ACCEPTED as built, owner 2026-11-10; was PROVISIONAL]**: it keeps a hash of that
   session's id, and every shop page checks the session's row is still there — so it ends once that
   session is signed out, ended from another device (the account's sessions list), replaced by
   signing in again, found idle, expired or out of date on a panel request, or ended by **sign out

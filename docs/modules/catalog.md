@@ -1684,8 +1684,9 @@ are the owner's, its picks (P26–P34) wait for the owner's review of it.
 
 Mine — but for P22's price, which is the stage 5 session's — written 2026-10-07 while the owner was
 away; the owner chose to have them **built as recommended** and to review them with the built screens
-("B"). Each says what it costs to change later. **P26–P34 are amendment 16's (2026-10-09) and wait for
-the owner's review of it before they are built**, unlike the rest.
+("B"). Each says what it costs to change later. **P26–P34 are amendment 16's (2026-10-09)**: built with
+it and **confirmed by the owner as built, 2026-11-10** — they waited for the owner's review of it before
+they were built, unlike the rest.
 
 | # | Proposal | Built as | Changing it later |
 |---|---|---|---|
