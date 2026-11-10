@@ -47,6 +47,9 @@ final class InMemoryAdminMenu implements AdminMenu
         'reports',
         // Handoff §14 places Marketing after Customers and before Points (platform.md §9.4).
         'marketing',
+        // Content's one section, after Marketing, holds all eleven of its screens (content.md §4.3, Q12 (a),
+        // owner 2026-11-10; row L3). Its entries register with their screens.
+        'content',
         // Handoff §14 places Support after Marketing and before Points (platform.md §9.4).
         'support',
         // Handoff §14 places Points after Support and before Staff (platform.md §9.4).

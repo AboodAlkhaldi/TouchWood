@@ -10,6 +10,7 @@ import {
     Gift,
     Heart,
     Image,
+    LayoutTemplate,
     UserRound,
     LayoutDashboard,
     MapPin,
@@ -53,6 +54,8 @@ const ICONS = {
     pricing: BadgePercent,
     points: Coins,
     marketing: Megaphone,
+    // Content's one section (content.md §4.3): what the shop says and how it is dressed.
+    content: LayoutTemplate,
     // Sync's area and its screens (sync.md §4.1.2, platform.md §9.4).
     sync: RefreshCw,
     // Shipping's area and its Carriers (shipping.md §4.1 part 1): one new icon, the one a carrier is.

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Modules\Platform\Presentation\Http\Controller;
 
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Modules\Platform\Presentation\Http\InMemoryUnmatchedAddresses;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
@@ -16,6 +19,11 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  * middleware answers it not found first, with Laravel's page, as before. Anything else sent here (a POST,
  * say) is answered not found as before, by Laravel's own page.
  *
+ * Before that, a read (GET or HEAD) is offered to the modules' answers for an address nobody answers
+ * (content.md §2.3 row L2), so an old address under a store - /sa/ar/old-page - can be sent on to its new
+ * page. Not in the spec's two places: the coordinator's pick of the PR 2 review (2026-11-10), with the same
+ * rules - reads only, the path alone, nothing of the session.
+ *
  * Which store an address names is Platform's subject (ResolveStore), so the address is Platform's to
  * answer. `{store}` never matches a reserved path - /admin, /build, /storage, /api, /up (ReservedPaths) -
  * so neither does this.
@@ -25,8 +33,8 @@ final readonly class ShopNotFoundController
     /** The addresses under /{store}/{locale}/ it answers: any of one segment or more. */
     public const string PATHS = '.+';
 
-    public function __invoke(): never
+    public function __invoke(Request $request, InMemoryUnmatchedAddresses $addresses): RedirectResponse
     {
-        throw new NotFoundHttpException;
+        return $addresses->answerRequest($request) ?? throw new NotFoundHttpException;
     }
 }
