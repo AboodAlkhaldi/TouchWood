@@ -423,8 +423,20 @@ final readonly class RunReadHandler
         $this->reported($store, $read->id, ReportKind::OffOrDraftPriced, array_map(static fn (string $variantId): array => ['code' => null, 'variantId' => $variantId, 'saleId' => null, 'detail' => ['price' => self::cut($priceIn[$variantId] ?? null)]], $prices->offOrDraft ?? []));
         $this->reported($store, $read->id, ReportKind::SaleStopped, array_map(static fn (array $stopped): array => ['code' => null, 'variantId' => $stopped['variantId'], 'saleId' => $stopped['saleId'], 'detail' => ['outcome' => $stopped['outcome']]], $prices->salesStopped ?? []));
         $this->reported($store, $read->id, ReportKind::DiscountSkipped, array_map(static fn (array $skipped): array => ['code' => null, 'variantId' => $skipped['variantId'], 'saleId' => null, 'detail' => ['discount' => $skipped['discountId']]], $prices->discountsSkipped ?? []));
-        // The run's id kept in the entry (amendment 2 (d)): its name and page are Content's.
-        $this->reported($store, $read->id, ReportKind::CampaignSkipped, array_map(static fn (array $skipped): array => ['code' => null, 'variantId' => $skipped['variantId'], 'saleId' => null, 'detail' => ['run' => $skipped['runId']]], $prices->campaignsSkipped ?? []));
+        // Every run skipping the size kept in its one entry (amendment 2 (d)), in id order: their names and pages
+        // are Content's. A run new to an open entry tells staff again (`ReportEntries::open`).
+        $runsOf = [];
+
+        foreach ($prices->campaignsSkipped ?? [] as $skipped) {
+            $runsOf[$skipped['variantId']][$skipped['runId']] = true;
+        }
+
+        $this->reported($store, $read->id, ReportKind::CampaignSkipped, array_map(static function (string $variantId, array $runs): array {
+            $runs = array_map('strval', array_keys($runs));
+            sort($runs);
+
+            return ['code' => null, 'variantId' => $variantId, 'saleId' => null, 'detail' => ['runs' => $runs]];
+        }, array_map('strval', array_keys($runsOf)), array_values($runsOf)));
 
         // Right again: a good value, a size checked and not archived, a discount or a run reaching it, a size found.
         $skippedNow = array_column($prices->discountsSkipped ?? [], 'variantId');

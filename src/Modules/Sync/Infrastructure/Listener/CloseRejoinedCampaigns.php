@@ -33,8 +33,16 @@ final readonly class CloseRejoinedCampaigns
                 return;
             }
 
-            $rejoined = array_values(array_diff($event->variantIds, array_column($event->skipped, 'variantId')));
+            $runs = [];
+
+            foreach ($event->skipped as $skipped) {
+                $runs[$skipped['variantId']][] = $skipped['runId'];
+            }
+
+            $rejoined = array_values(array_diff($event->variantIds, array_map('strval', array_keys($runs))));
             $this->entries->close($store, ReportKind::CampaignSkipped, [], $rejoined, 'PRICING');
+            // A size some run still skips keeps its entry, naming those runs alone.
+            $this->entries->keepCampaignRuns($store, $runs);
         } catch (Throwable $error) {
             report($error);
         }

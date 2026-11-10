@@ -55,8 +55,10 @@ final readonly class DatabaseReportEntries implements ReportEntries
                 'INSERT INTO sync.report_entries (store_id, kind, code, variant_id, sale_id, detail, opened_at, seen_at) VALUES '.implode(', ', $values)
                 ." ON CONFLICT (store_id, kind, COALESCE(code, ''), COALESCE(variant_id, '')) WHERE closed_at IS NULL"
                 .' DO UPDATE SET seen_at = EXCLUDED.seen_at, detail = EXCLUDED.detail, sale_id = EXCLUDED.sale_id,'
-                // Another sale stopped, or another discount skipped, on the size: told again (§9.3 #18).
-                ." announced_at = CASE WHEN sync.report_entries.sale_id IS DISTINCT FROM EXCLUDED.sale_id OR sync.report_entries.detail->'discount' IS DISTINCT FROM EXCLUDED.detail->'discount' THEN NULL ELSE sync.report_entries.announced_at END",
+                // Another sale stopped, or another discount skipped, on the size: told again (§9.3 #18) - and a
+                // campaign run not yet among those skipping it (§9.5 amendment 2); one rejoining tells nothing.
+                ." announced_at = CASE WHEN sync.report_entries.sale_id IS DISTINCT FROM EXCLUDED.sale_id OR sync.report_entries.detail->'discount' IS DISTINCT FROM EXCLUDED.detail->'discount'"
+                ." OR NOT (COALESCE(EXCLUDED.detail->'runs', '[]'::jsonb) <@ COALESCE(sync.report_entries.detail->'runs', '[]'::jsonb)) THEN NULL ELSE sync.report_entries.announced_at END",
                 $bindings,
             );
         }
@@ -123,6 +125,19 @@ final readonly class DatabaseReportEntries implements ReportEntries
         } while ($batch === self::PRUNE_BATCH);
 
         return $deleted;
+    }
+
+    public function keepCampaignRuns(StoreId $store, array $runs): void
+    {
+        // Only ever a run taken out: one that started skipping since is the next read's to name - and to tell
+        // staff of, as a run new to the entry (`open`) - never slipped in here unannounced.
+        foreach ($runs as $variantId => $ofSize) {
+            $this->db->update(
+                "UPDATE sync.report_entries SET detail = jsonb_set(detail, '{runs}', COALESCE((SELECT jsonb_agg(run ORDER BY run) FROM jsonb_array_elements_text(COALESCE(detail->'runs', '[]'::jsonb)) AS run WHERE run = ANY(?::text[])), '[]'::jsonb))"
+                ." WHERE store_id = ? AND kind = ? AND closed_at IS NULL AND COALESCE(code, '') = '' AND variant_id = ?",
+                ['{'.implode(',', array_map(static fn (string $run): string => preg_replace('/[^0-9a-z]/', '', strtolower($run)) ?? '', array_values(array_unique($ofSize)))).'}', $store->value, ReportKind::CampaignSkipped->value, (string) $variantId],
+            );
+        }
     }
 
     public function closeSwitchedOn(StoreId $store, array $variantIds): int
