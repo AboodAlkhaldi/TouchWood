@@ -10,6 +10,7 @@ use Modules\Catalog\Public\Dto\CategoryPathDto;
 use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Platform\Public\Dto\StoreDto;
 use Modules\Platform\Public\Dto\TranslatedTextDto;
+use Modules\Pricing\Application\Query\ViewSizePrices\ReachingCampaign;
 use Modules\Pricing\Application\Query\ViewSizePrices\ReachingDiscount;
 use Modules\Pricing\Application\Query\ViewSizePrices\ReachingSale;
 use Modules\Pricing\Domain\Exception\PriceNotPositive;
@@ -19,6 +20,7 @@ use Modules\Pricing\Domain\ValueObject\Candidate;
 use Modules\Pricing\Domain\ValueObject\CategoryDiscount;
 use Modules\Pricing\Domain\ValueObject\Sale;
 use Modules\Pricing\Domain\ValueObject\WindowState;
+use Modules\Pricing\Public\Enums\PriceKind;
 use Shared\Domain\ValueObject\Money;
 
 /**
@@ -99,6 +101,47 @@ final readonly class ReachViews
                 $discount->endsAt?->format(DateTimeInterface::ATOM),
                 $discount->alwaysWins,
                 $winner !== null && $winner->sourceId === $discount->id,
+            );
+        }
+
+        return $reaching;
+    }
+
+    /**
+     * The campaign runs pricing the size (§9.6 #7), read from its candidates alone - a run's candidates are
+     * exactly the sizes it prices, never one it skips - so the drawer names them for no query. Its name is
+     * Content's: the screen says "Campaign".
+     *
+     * @param  list<Candidate>  $candidates  the size's candidates
+     * @return list<ReachingCampaign>
+     */
+    public function campaigns(array $candidates, DateTimeImmutable $now, StoreDto $store): array
+    {
+        $winner = PriceResolution::resolve($candidates, SaleMode::Retail, 1, $now);
+        $runs = [];
+
+        foreach ($candidates as $candidate) {
+            // An ended run's candidates stay until its sizes are written again: never listed as reaching it.
+            if ($candidate->kind !== PriceKind::Campaign || $candidate->sourceId === null || $candidate->startsAt === null
+                || ($candidate->endsAt !== null && $candidate->endsAt <= $now)) {
+                continue;
+            }
+
+            $runs[$candidate->sourceId] ??= ['candidate' => $candidate, 'modes' => []];
+            $runs[$candidate->sourceId]['modes'][$candidate->mode->value] = true;
+        }
+
+        $reaching = [];
+
+        foreach ($runs as $runId => ['candidate' => $candidate, 'modes' => $modes]) {
+            $reaching[] = new ReachingCampaign(
+                (string) $runId,
+                WindowState::of($candidate->startsAt ?? $now, $candidate->endsAt, $now)->value,
+                count($modes) === 2 ? 'BOTH' : (string) array_key_first($modes),
+                $this->views->money($candidate->amount, $store),
+                ($candidate->startsAt ?? $now)->format(DateTimeInterface::ATOM),
+                $candidate->endsAt?->format(DateTimeInterface::ATOM),
+                $winner !== null && $winner->sourceId === (string) $runId,
             );
         }
 

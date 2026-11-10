@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Modules\Sync\Domain\ValueObject;
 
 /**
- * What a Sync report entry is about (sync.md §1.6; §9.3 #17): a code we do not have, or the whole store
+ * What a Sync report entry is about (sync.md §1.6; §9.3 #17; §9.5 amendment 2): a code we do not have, or the whole store
  * (a failed read), or a size of ours - every other kind.
  */
 enum ReportKind: string
@@ -18,4 +18,5 @@ enum ReportKind: string
     case BadValue = 'BAD_VALUE';
     case ReadFailed = 'READ_FAILED';
     case DiscountSkipped = 'DISCOUNT_SKIPPED';
+    case CampaignSkipped = 'CAMPAIGN_SKIPPED';
 }

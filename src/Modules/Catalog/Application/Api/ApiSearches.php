@@ -54,6 +54,12 @@ interface ApiSearches
     public function productIdsInCategories(array $categoryIds): array;
 
     /**
+     * @param  list<string>  $brandIds
+     * @return array<string, list<string>>
+     */
+    public function productIdsOfBrands(array $brandIds): array;
+
+    /**
      * @param  list<string>  $variantIds
      * @return array<string, WholesaleTermsDto>
      */

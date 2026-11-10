@@ -36,7 +36,7 @@ interface PriceCandidates
     public function inStores(array $stores, array $variantIds): array;
 
     /**
-     * Every candidate of the sizes a sale or a category discount reaches on a retail line at that moment -
+     * Every candidate of the sizes a sale, a category discount or a campaign reaches on a retail line at that moment -
      * the sizes that may be on sale then (the Prices screen's **On Sale Now**, §4.3.3 P1).
      *
      * @return array<string, list<Candidate>> variant id => its candidates there, every mode

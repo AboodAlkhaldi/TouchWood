@@ -9,16 +9,19 @@ use DateTimeInterface;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Dto\ProductDto;
 use Modules\Catalog\Public\Enums\ProductStage;
+use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Platform\Public\Dto\StoreDto;
+use Modules\Pricing\Application\Query\OverlapsFor\OverlappingCampaign;
 use Modules\Pricing\Application\Query\OverlapsFor\OverlappingDiscount;
 use Modules\Pricing\Application\Query\OverlapsFor\OverlappingSale;
 use Modules\Pricing\Application\Query\PreviewCategoryDiscount\DiscountPreview;
 use Modules\Pricing\Application\Query\PreviewCategoryDiscount\PreviewProduct;
 use Modules\Pricing\Application\Query\PreviewCategoryDiscount\PreviewSize;
 use Modules\Pricing\Domain\Repository\CategoryDiscounts;
-use Modules\Pricing\Domain\Repository\RetailPrices;
+use Modules\Pricing\Domain\Repository\PriceCandidates;
 use Modules\Pricing\Domain\Repository\Sales;
 use Modules\Pricing\Domain\ValueObject\CategoryDiscount;
+use Modules\Pricing\Public\Enums\PriceKind;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -27,10 +30,12 @@ use Shared\Domain\ValueObject\StoreId;
  * and on its page after - totals over every product it reaches in the store, then the products 20 at a
  * time by name, each priced size's retail price, its new price and the difference, or why it is skipped
  * (Q9); the products it leaves out; the sizes of the category with no price; and what it overlaps in its
- * dates - the sales on those sizes and the other discounts on the same products (§1.3's note).
+ * dates - the sales on those sizes, the other discounts on the same products (§1.3's note) and the
+ * campaign runs on those sizes (§9.6 #7).
  *
  * Its reads follow the category, not the store: the category's products (Catalog), their sizes in one
- * read, their prices a read a thousand sizes - never the store's whole price list - plus the overlap note
+ * read, their prices a read a thousand sizes (their candidates, which hold the retail price and the campaign
+ * runs alike) - never the store's whole price list - plus the overlap note
  * (about four reads of Catalog for each other discount not ended: README, "Known costs").
  */
 final readonly class DiscountPreviewer
@@ -43,13 +48,14 @@ final readonly class DiscountPreviewer
 
     public function __construct(
         private DiscountCoverage $coverage,
-        private RetailPrices $retailPrices,
+        private PriceCandidates $candidates,
         private CatalogApi $catalog,
         private Sales $sales,
         private CategoryDiscounts $discounts,
         private CeilingCheck $ceiling,
         private PriceViews $views,
         private Words $words,
+        private OfferNames $names,
     ) {}
 
     public function preview(StoreDto $store, CategoryDiscount $discount, ?string $after = null): DiscountPreview
@@ -74,10 +80,20 @@ final readonly class DiscountPreviewer
             }
         }
 
-        $retail = [];
+        // The sizes' candidates, a read a thousand: each one's retail price (its retail line's base) and the
+        // campaign runs pricing it (§9.6 #7) in one read, as the materialized candidates hold both (§1.6).
+        $retail = $candidates = [];
 
         foreach (array_chunk(array_keys($productOf), self::CHUNK) as $chunk) {
-            $retail += $this->retailPrices->forVariants($storeId, $chunk);
+            $candidates += $this->candidates->forVariants($storeId, array_map('strval', $chunk));
+        }
+
+        foreach ($candidates as $variantId => $ofSize) {
+            foreach ($ofSize as $candidate) {
+                if ($candidate->kind === PriceKind::Base && $candidate->mode === SaleMode::Retail) {
+                    $retail[(string) $variantId] = $candidate->amount;
+                }
+            }
         }
 
         // In a wired store a fixed amount skips a size it would take past the ceiling (sync.md §9.3 #17).
@@ -134,6 +150,15 @@ final readonly class DiscountPreviewer
             ))),
             $this->overlappingSales($storeId, $discount, array_merge(...array_values($byProduct))),
             $this->overlappingDiscounts($storeId, $discount, $products),
+            // The campaign runs on the same sizes in its dates, on a line it prices too (§9.6 #7).
+            array_map(fn (array $run): OverlappingCampaign => new OverlappingCampaign(
+                $run['runId'],
+                $run['lines'],
+                $run['startsAt']->format(DateTimeInterface::ATOM),
+                $run['endsAt']?->format(DateTimeInterface::ATOM),
+                $run['variantIds'],
+                $this->names->campaign(),
+            ), CampaignCoverage::runsIn($candidates, $discount->startsAt, $discount->endsAt, $discount->lines)),
         );
     }
 
