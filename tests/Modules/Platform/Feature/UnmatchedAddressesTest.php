@@ -8,9 +8,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Modules\Platform\Presentation\Http\InMemoryUnmatchedAddresses;
 use Modules\Platform\Public\Contracts\UnmatchedAddress;
 use Modules\Platform\Public\Contracts\UnmatchedAddresses;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\Modules\Platform\Support\RecordingUnmatchedAddress;
 
@@ -36,6 +38,23 @@ beforeEach(function () {
 function unmatchedNotFoundPage(string $path): string
 {
     return (string) app(ExceptionHandler::class)->render(Request::create($path), new NotFoundHttpException)->getContent();
+}
+
+/**
+ * The keys of the session the request was answered with.
+ *
+ * @param  TestResponse<Response>  $response
+ * @return list<string>
+ */
+function unmatchedSessionKeys(TestResponse $response): array
+{
+    $request = $response->baseRequest;
+
+    if (! $request instanceof Request || ! $request->hasSession()) {
+        throw new LogicException('The request had no session.');
+    }
+
+    return array_map(strval(...), array_keys($request->session()->all()));
 }
 
 function unmatchedRegisterRecorder(): void
@@ -159,15 +178,18 @@ describe('with an answer registered', function () {
         unmatchedRegisterRecorder();
         RecordingUnmatchedAddress::$targets = ['/blog' => '/sa/ar/blog'];
 
-        get('/contact')->assertNotFound();
-        $afterNotFound = array_keys(app('session.store')->all());
+        // What the shop's session middleware itself keeps, on the same route by the branch that never asks.
+        $framework = unmatchedSessionKeys(get('/sa')->assertRedirect('/sa/ar'));
+        $afterAnswer = unmatchedSessionKeys(get('/blog')->assertRedirect('/sa/ar/blog'));
+        $afterNotFound = unmatchedSessionKeys(get('/contact')->assertNotFound());
 
-        get('/blog')->assertRedirect('/sa/ar/blog');
-        $afterAnswer = array_keys(app('session.store')->all());
-        sort($afterNotFound);
+        sort($framework);
         sort($afterAnswer);
+        sort($afterNotFound);
 
-        expect($afterAnswer)->toBe($afterNotFound);
+        expect($framework)->not->toBe([])
+            ->and($afterAnswer)->toBe($framework)
+            ->and($afterNotFound)->toBe($framework);
     });
 });
 
