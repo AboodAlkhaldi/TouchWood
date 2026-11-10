@@ -67,6 +67,34 @@ final readonly class DatabaseMarketingQueries implements MarketingQueries
         ));
     }
 
+    public function couponCounts(StoreId $store, ?string $codeStart, DateTimeImmutable $now): array
+    {
+        $counts = array_fill_keys(array_map(static fn (CouponState $state): string => $state->value, CouponState::cases()), 0);
+
+        if ($codeStart !== null && preg_match('/\A[A-Z0-9-]{1,30}\z/', $codeStart) !== 1) {
+            return $counts;
+        }
+
+        $at = Moment::of($now);
+        // One query, each coupon's state worked out as CouponStates::of does: ended, then off, then not started, else active.
+        $query = $this->db->table('promotions.coupons')->where('store_id', $store->value)
+            ->selectRaw("CASE WHEN (ends_at IS NOT NULL AND ends_at <= ?) OR (max_uses_total IS NOT NULL AND uses_total >= max_uses_total) THEN 'ENDED'"
+                ." WHEN NOT active THEN 'INACTIVE' WHEN starts_at > ? THEN 'SCHEDULED' ELSE 'ACTIVE' END AS state", [$at, $at])
+            ->selectRaw('count(*) AS total')
+            ->groupByRaw('1');
+
+        if ($codeStart !== null) {
+            $query->where('code', 'like', $codeStart.'%');
+        }
+
+        foreach ($query->get()->all() as $row) {
+            /** @var stdClass $row */
+            $counts[(string) $row->state] = (int) $row->total;
+        }
+
+        return $counts;
+    }
+
     public function couponRow(StoreId $store, string $couponId, DateTimeImmutable $now): ?CouponRow
     {
         $row = $this->db->table('promotions.coupons')->where('store_id', $store->value)->where('id', strtolower($couponId))->first();

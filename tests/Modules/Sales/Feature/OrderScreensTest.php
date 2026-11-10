@@ -43,15 +43,15 @@ beforeEach(function () {
     Queue::fake();
 });
 
-/** An order placed in 'sa' (two of a 100.00 size, one of a 50.00), waiting for approval, paid by staff contact. */
-function orderScreensOrder(bool $wired = false): string
+/** An order placed in 'sa' unless told (two of a 100.00 size, one of a 50.00), waiting for approval, paid by staff contact. */
+function orderScreensOrder(bool $wired = false, string $storeCode = 'sa'): string
 {
     // Placed as the customer, then the real ActorContext given back, so the requests after it read who is
     // acting from their own session (as LoyaltyScreensTest's aside).
     $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
 
     try {
-        $ready = Cx::ready();
+        $ready = Cx::ready(storeCode: $storeCode);
 
         // Wired to a provider before it is placed, its first size's sales made to hang on its stock (§1.5).
         if ($wired) {
@@ -59,7 +59,7 @@ function orderScreensOrder(bool $wired = false): string
             app(InventoryApi::class)->makeStockDependent(StoreId::fromString(Fx::storeId('sa')), [$ready['variants'][0]]);
         }
 
-        return Cx::place(Cx::start($ready['address'])->id)->id;
+        return Cx::place(Cx::start($ready['address'], storeCode: $storeCode)->id, $storeCode)->id;
     } finally {
         app()->scoped(ActorContext::class, $previous);
         app()->forgetScopedInstances();
@@ -173,6 +173,41 @@ describe('P1 · Orders', function () {
             ->and([array_column($theirs['orders'], 'id'), $theirs['tab'], $theirs['customerId']])->toBe([[$found], 'ALL', $customer])
             ->and($theirs['customerName'])->not->toBeNull()
             ->and(array_column($tooShort['orders'], 'id'))->toBe([$other, $found]);
+    });
+
+    it('counts each tab\'s orders for the store and the search shown, each count what its tab lists', function () {
+        // Round 3 #11 (owner, 2026-11-10): underlined tabs with counts.
+        $approved = orderScreensOrder();
+        $waiting = orderScreensOrder();
+        $browser = orderScreensStaff([SalesPermissions::ORDER_VIEW, SalesPermissions::ORDER_APPROVE]);
+        $browser->post("/admin/orders/{$approved}/approve")->assertRedirect();
+        $number = (string) DB::table('sales.orders')->where('id', $waiting)->value('number');
+
+        $counts = orderScreensProps($browser, '/admin/orders', 'Sales/Admin/Orders/Index')['counts'];
+        $listed = [];
+
+        foreach (array_keys($counts) as $tab) {
+            $listed[$tab] = count(orderScreensProps($browser, "/admin/orders?tab={$tab}", 'Sales/Admin/Orders/Index')['orders']);
+        }
+
+        expect($counts)->toBe(['ALL' => 2, 'UNPAID' => 2, 'SHORT' => 0, 'WAITING_APPROVAL' => 1, 'TO_SHIP' => 1, 'SHIPPED' => 0, 'TRANSFERS_TO_CHECK' => 0])
+            ->and($listed)->toBe($counts)
+            // The search narrows the counts as it narrows the list; one customer's orders show no tabs, so no counts.
+            ->and(orderScreensProps($browser, '/admin/orders?q='.urlencode($number), 'Sales/Admin/Orders/Index')['counts'])
+            ->toMatchArray(['ALL' => 1, 'WAITING_APPROVAL' => 1, 'TO_SHIP' => 0])
+            ->and(orderScreensProps($browser, '/admin/orders?customer='.DB::table('sales.orders')->where('id', $waiting)->value('customer_id'), 'Sales/Admin/Orders/Index')['counts'])->toBe([]);
+    });
+
+    it('counts only the orders of the stores the reader covers', function () {
+        orderScreensOrder();
+        // One placed in the Emirates' store, which a Saudi reader does not cover.
+        orderScreensOrder(storeCode: 'ae');
+
+        $saudi = orderScreensProps(orderScreensStaff([SalesPermissions::ORDER_VIEW], ['sa']), '/admin/orders', 'Sales/Admin/Orders/Index')['counts'];
+        $both = orderScreensProps(orderScreensStaff([SalesPermissions::ORDER_VIEW], ['sa', 'ae']), '/admin/orders', 'Sales/Admin/Orders/Index')['counts'];
+
+        expect([$saudi['ALL'], $saudi['WAITING_APPROVAL']])->toBe([1, 1])
+            ->and([$both['ALL'], $both['WAITING_APPROVAL']])->toBe([2, 2]);
     });
 });
 
@@ -296,9 +331,10 @@ describe('P2 · An order', function () {
         // amendment 90); 14 with stage 7 step 6 — the store's boxes, for the box suggestion (gap 5.1; no
         // choice: it is worked out live, never stored). The carriers are read only for staff who ship.
         // Three more from stage 7 step 12, for an order still missing money: the open request, whether a payment is open, and the attempts (payments.md §4.2).
+        // The list 6 since round 3 #11 (2026-11-10): every tab's count, one grouped query.
         expect(orderScreensOwnQueries($browser, "/admin/orders/{$order}"))->toBe(17)
             ->and(orderScreensOwnQueries($browser, '/admin/orders'))->toBe($one)
-            ->and($one)->toBe(5);
+            ->and($one)->toBe(6);
     });
 });
 

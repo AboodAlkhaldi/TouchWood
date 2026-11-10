@@ -42,6 +42,24 @@ final readonly class DatabaseStaffReturnReads implements StaffReturnReads
         return array_values(array_map(static fn (stdClass $row): array => (array) $row, $query->get()->all()));
     }
 
+    public function counts(?array $storeIds): array
+    {
+        $query = $this->db->table('sales.returns AS r')->groupBy('r.status')->select('r.status')->selectRaw('count(*) AS returns');
+
+        if ($storeIds !== null) {
+            $query->whereIn('r.store_id', $storeIds);
+        }
+
+        $counts = [];
+
+        foreach ($query->get()->all() as $row) {
+            /** @var stdClass $row */
+            $counts[(string) $row->status] = (int) $row->returns;
+        }
+
+        return $counts;
+    }
+
     public function returnOf(string $returnId): ?array
     {
         $row = $this->db->table('sales.returns AS r')->join('sales.orders AS o', 'o.id', '=', 'r.order_id')

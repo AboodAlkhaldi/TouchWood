@@ -15,6 +15,7 @@ final class ReturnsPage extends Data
      * @param  list<ReturnRowData>  $returns
      * @param  list<SalesStoreData>  $stores
      * @param  list<string>  $tabs
+     * @param  array<string, int>  $counts  each tab's returns for this store (round 3 #11); none on a later page
      */
     public function __construct(
         public array $returns,
@@ -24,5 +25,6 @@ final class ReturnsPage extends Data
         public array $stores,
         public array $tabs,
         public ?string $storeTimezone,
+        public array $counts,
     ) {}
 }

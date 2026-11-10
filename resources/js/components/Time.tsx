@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import { usePage } from '@inertiajs/react';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
+import { cn } from '@/lib/cn';
 import { intlLocale } from '@/lib/digits';
 import type { SharedProps } from '@/types/page';
 
@@ -139,10 +140,12 @@ type Props = {
     focusable?: boolean;
     /** After a leading word ("Joined 5h ago"), so "yesterday" is not given a capital mid-sentence. */
     inSentence?: boolean;
+    /** Placing only: `relative z-10` lifts it over a row's stretched link, so its card still opens on hover. */
+    className?: string;
     'data-test'?: string;
 };
 
-export function Time({ value, mode = 'relative', focusable = true, inSentence = false, ...rest }: Props) {
+export function Time({ value, mode = 'relative', focusable = true, inSentence = false, className, ...rest }: Props) {
     const { locale } = usePage<SharedProps>().props;
     const zone = useStoreZone();
     const described = useId();
@@ -150,7 +153,7 @@ export function Time({ value, mode = 'relative', focusable = true, inSentence = 
 
     if (mode === 'absolute') {
         return (
-            <time {...rest} dateTime={value} className="tw-figure">
+            <time {...rest} dateTime={value} className={cn('tw-figure', className)}>
                 {full}
             </time>
         );
@@ -168,7 +171,7 @@ export function Time({ value, mode = 'relative', focusable = true, inSentence = 
                     tabIndex={focusable ? 0 : undefined}
                     aria-describedby={described}
                     suppressHydrationWarning
-                    className="tw-figure cursor-default underline decoration-dotted decoration-line-strong underline-offset-4"
+                    className={cn('tw-figure cursor-default underline decoration-dotted decoration-line-strong underline-offset-4', className)}
                 >
                     {short}
                 </time>

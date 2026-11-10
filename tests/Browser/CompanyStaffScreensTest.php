@@ -303,7 +303,7 @@ it('lays a type list out in the page\'s language, and keeps it right to left aft
         ->assertPresent('[data-test="column-position"]')
         ->assertSeeIn('[data-test="column-name-first"]', 'English Name');
 
-    $page->click('[data-test="person-menu"]')->click('[data-test="language"]');
+    $page->click('[data-test="language"]');
     expect(browserUntil($page, "document.documentElement.lang === 'ar'"))->toBeTrue();
 
     $page->assertSeeIn('[data-test="column-name-first"]', 'الاسم بالعربية');

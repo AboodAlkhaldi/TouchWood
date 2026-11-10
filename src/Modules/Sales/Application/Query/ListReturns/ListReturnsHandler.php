@@ -38,6 +38,9 @@ final readonly class ListReturnsHandler
     /** The "Closed" tab: every return that ended without a refund (owner, R1-50). */
     public const string CLOSED_ALL = 'CLOSED_ALL';
 
+    /** The states the "Closed" tab gathers. */
+    private const array CLOSED = [ReturnState::REFUSED, ReturnState::WITHDRAWN, ReturnState::CLOSED];
+
     public function __construct(
         private Authorizer $authorizer,
         private ActorContext $actors,
@@ -60,7 +63,7 @@ final readonly class ListReturnsHandler
         $asked = $query->status === null ? null : strtoupper(trim($query->status));
         $statuses = match (true) {
             $asked === null => null,
-            $asked === self::CLOSED_ALL => [ReturnState::REFUSED, ReturnState::WITHDRAWN, ReturnState::CLOSED],
+            $asked === self::CLOSED_ALL => self::CLOSED,
             in_array($asked, self::STATES, true) => [$asked],
             default => throw new InvalidSalesAttribute('status', 'a return\'s state, or CLOSED_ALL'),
         };
@@ -92,6 +95,27 @@ final readonly class ListReturnsHandler
                 $this->reader->exponent((string) $row['currency_code']),
             ), $page),
             count($rows) > self::PAGE && $page !== [] ? (string) $page[count($page) - 1]['id'] : null,
+            $query->counted ? $this->counts($stores) : [],
         );
+    }
+
+    /**
+     * Each state's returns and the Closed tab's - the states it gathers - so a tab counts what it would list.
+     *
+     * @param  list<string>|null  $stores
+     * @return array<string, int>
+     */
+    private function counts(?array $stores): array
+    {
+        $found = $this->reads->counts($stores);
+        $counts = [];
+
+        foreach (self::STATES as $state) {
+            $counts[$state] = $found[$state] ?? 0;
+        }
+
+        $counts[self::CLOSED_ALL] = array_sum(array_map(static fn (string $state): int => $counts[$state], self::CLOSED));
+
+        return $counts;
     }
 }

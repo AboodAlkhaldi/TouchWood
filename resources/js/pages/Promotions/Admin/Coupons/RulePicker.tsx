@@ -134,14 +134,15 @@ export function RulePicker({
             }
         >
             <Tabs value={tab} onValueChange={(next) => (next === 'product' || next === 'category' || next === 'brand' ? setTab(next) : undefined)}>
-                <TabsList aria-label={t('promotions::admin_coupons.picker.tabs_label')}>
-                    <TabsTrigger value="category" data-test="picker-category">
+                {/* Underlined as every tab now (round 3 #11); no count, since a tab here chooses what to pick from (K1). */}
+                <TabsList variant="line" className="h-10 w-full max-w-full min-w-0 justify-start overflow-x-auto border-b border-line p-0" aria-label={t('promotions::admin_coupons.picker.tabs_label')}>
+                    <TabsTrigger value="category" data-test="picker-category" className="flex-none px-3 text-label-14">
                         {t('promotions::admin_coupons.target.category')}
                     </TabsTrigger>
-                    <TabsTrigger value="brand" data-test="picker-brand">
+                    <TabsTrigger value="brand" data-test="picker-brand" className="flex-none px-3 text-label-14">
                         {t('promotions::admin_coupons.target.brand')}
                     </TabsTrigger>
-                    <TabsTrigger value="product" data-test="picker-product">
+                    <TabsTrigger value="product" data-test="picker-product" className="flex-none px-3 text-label-14">
                         {t('promotions::admin_coupons.target.product')}
                     </TabsTrigger>
                 </TabsList>

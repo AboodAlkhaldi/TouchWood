@@ -9,9 +9,11 @@ final readonly class StaffReturnsPage
 {
     /**
      * @param  list<StaffReturnRow>  $returns
+     * @param  array<string, int>  $counts  each state's returns for the same stores, and CLOSED_ALL's, when asked; else none
      */
     public function __construct(
         public array $returns,
         public ?string $next,
+        public array $counts = [],
     ) {}
 }

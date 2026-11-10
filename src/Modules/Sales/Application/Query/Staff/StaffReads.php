@@ -42,6 +42,15 @@ interface StaffReads
      */
     public function orders(?array $storeIds, string $filter, ?string $afterOrderId, int $limit, ?string $q = null, ?string $customerId = null): array;
 
+    /**
+     * How many orders each filter lists for these stores (null: every store) and this search - every one of
+     * FILTERS, ALL included - in one query (round 3 #11: a count on each tab).
+     *
+     * @param  list<string>|null  $storeIds
+     * @return array<string, int>
+     */
+    public function counts(?array $storeIds, ?string $q = null): array;
+
     /** @return array<string, mixed>|null */
     public function order(string $orderId): ?array;
 

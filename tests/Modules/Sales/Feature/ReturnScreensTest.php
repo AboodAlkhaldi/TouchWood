@@ -50,14 +50,14 @@ beforeEach(function () {
  *
  * @return array{order: string, return: string}
  */
-function returnScreensReturn(): array
+function returnScreensReturn(string $storeCode = 'sa'): array
 {
     $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
 
     try {
-        $ready = Cx::ready();
-        $order = Cx::place(Cx::start($ready['address'])->id)->id;
-        Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL], ['sa']));
+        $ready = Cx::ready(storeCode: $storeCode);
+        $order = Cx::place(Cx::start($ready['address'], storeCode: $storeCode)->id, $storeCode)->id;
+        Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL], [$storeCode]));
         app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
         DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor')]);
         app(ShipOrderHandler::class)->handle(new ShipOrder($order, otherCarrier: 'SMSA', trackingNumber: null));
@@ -76,10 +76,11 @@ function returnScreensReturn(): array
 
 /**
  * @param  list<string>  $permissions
+ * @param  list<string>  $stores
  */
-function returnScreensStaff(array $permissions): AdminBrowser
+function returnScreensStaff(array $permissions, array $stores = ['sa']): AdminBrowser
 {
-    $staffId = Fx::staffWith($permissions, ['sa']);
+    $staffId = Fx::staffWith($permissions, $stores);
     $browser = new AdminBrowser('10.9.3.'.random_int(20, 250));
 
     $browser->post('/admin/sign-in', [
@@ -154,4 +155,54 @@ it('refuses a return with a reason, and refuses a reader without the job', funct
         ->and(AdminBrowser::flashed($refused, 'status'))->toBe('Return refused.')
         ->and(DB::table('sales.returns')->where('id', $return)->value('staff_reason'))->toBe('Outside the window')
         ->and(array_column(returnScreensProps(returnScreensStaff(RETURN_SCREENS_ALL), '/admin/returns?tab=CLOSED_ALL', 'Sales/Admin/Returns/Index')['returns'], 'id'))->toBe([$return]);
+});
+
+it('counts each tab\'s returns, each count what its tab lists, in a fixed few queries of its own', function () {
+    // Round 3 #11 (owner, 2026-11-10): underlined tabs with counts; the Closed tab gathers refused, withdrawn and closed.
+    ['return' => $refused] = returnScreensReturn();
+    returnScreensReturn();
+    returnScreensStaff(RETURN_SCREENS_ALL)->post("/admin/returns/{$refused}/refuse", ['reason' => 'Outside the window']);
+    $browser = returnScreensStaff(RETURN_SCREENS_ALL);
+
+    $counts = returnScreensProps($browser, '/admin/returns', 'Sales/Admin/Returns/Index')['counts'];
+    $listed = [];
+
+    foreach (array_keys($counts) as $tab) {
+        $listed[$tab] = count(returnScreensProps($browser, "/admin/returns?tab={$tab}", 'Sales/Admin/Returns/Index')['returns']);
+    }
+
+    $own = static function (AdminBrowser $browser): int {
+        $browser->get('/admin/returns')->assertOk();
+        /** @var ArrayObject<int, string> $sql */
+        $sql = new ArrayObject;
+        DB::listen(function ($query) use ($sql): void {
+            foreach (debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS) as $frame) {
+                if (str_contains(str_replace(chr(92), '/', $frame['file'] ?? ''), '/src/Modules/Sales/')) {
+                    $sql[] = $query->sql;
+
+                    return;
+                }
+            }
+        });
+        $browser->get('/admin/returns')->assertOk();
+
+        return count($sql);
+    };
+
+    expect($counts)->toBe(['REQUESTED' => 1, 'ACCEPTED' => 0, 'RECEIVED' => 0, 'COMPLETED' => 0, 'CLOSED_ALL' => 1])
+        ->and($listed)->toBe($counts)
+        // 6, first recorded 2026-11-10: the tabs' counts one grouped query of them, 5 without it.
+        ->and($own($browser))->toBe(6);
+});
+
+it('counts only the returns of the stores the reader covers', function () {
+    returnScreensReturn();
+    // One asked in the Emirates' store, which a Saudi reader does not cover.
+    returnScreensReturn('ae');
+
+    $saudi = returnScreensProps(returnScreensStaff([SalesPermissions::ORDER_VIEW]), '/admin/returns', 'Sales/Admin/Returns/Index')['counts'];
+    $both = returnScreensProps(returnScreensStaff([SalesPermissions::ORDER_VIEW], ['sa', 'ae']), '/admin/returns', 'Sales/Admin/Returns/Index')['counts'];
+
+    expect($saudi['REQUESTED'])->toBe(1)
+        ->and($both['REQUESTED'])->toBe(2);
 });
