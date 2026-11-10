@@ -64,7 +64,7 @@ it('writes a pop-up with its preview, saves it as a draft, schedules it and ends
     // Ended, it is history: its page shows it, read only, with neither Schedule nor Save Draft.
     $page->click("[data-test=\"popup-{$id}\"]");
     expect(browserSoon($page, "window.location.pathname === '/admin/content/popups/{$id}' && document.querySelector('[data-test=\"ended-note\"]') !== null"))->toBeTrue()
-        ->and($page->script("document.querySelector('[data-test=\"schedule\"]') === null && document.querySelector('[data-test=\"save-draft\"]') === null && document.querySelector('#name').disabled && document.querySelector('#title_en').disabled"))->toBeTrue();
+        ->and($page->script("document.querySelector('[data-test=\"schedule\"]') === null && document.querySelector('[data-test=\"save-draft\"]') === null && document.querySelector('#name').matches(':disabled') && document.querySelector('#title_en').matches(':disabled')"))->toBeTrue();
     $page->assertNoJavaScriptErrors();
 });
 

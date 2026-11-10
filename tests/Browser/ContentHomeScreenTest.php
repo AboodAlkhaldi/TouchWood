@@ -56,7 +56,7 @@ it('fills a section with Translate, shows it, refuses one without English, and m
     expect(browserSoon($page, "window.location.pathname === '/admin/content/home' && document.body.textContent.includes('Section saved')"))->toBeTrue()
         // View Home Page, Edit as each section's own control, and the summary in the panel's language, not the Arabic.
         ->and($page->script("document.querySelector('[data-test=\"preview-home\"]') !== null && document.querySelector('[data-test=\"section-PROJECTS\"] [data-test=\"edit-section\"]')?.getAttribute('href') === '/admin/content/home/{$projects}'"))->toBeTrue()
-        ->and((string) $page->script("document.querySelector('[data-test=\"section-PROJECTS\"]').textContent"))->not->toContain("مشاريعنا {$run}");
+        ->and((string) $page->script("document.querySelector('[data-test=\"section-PROJECTS\"]').textContent"))->toContain("[en] مشاريعنا {$run}"); // the fake translator's English
 
     // Its switch shows it.
     $page->click('[data-test="section-PROJECTS"] [data-test="show"]');

@@ -93,7 +93,7 @@ it('shows an ended banner read only, and warns of a phone image only under twice
 
     $page->navigate("/admin/content/banners/{$ended}", BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"ended-note\"]') !== null && document.querySelector('[data-test=\"image-phone_image\"]') !== null"))->toBeTrue()
-        ->and($page->script("document.querySelector('[data-test=\"schedule\"]') === null && document.querySelector('[data-test=\"save-draft\"]') === null && document.querySelector('#name').disabled && document.querySelector('[data-test=\"image-phone_image-choose\"]').disabled"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=\"schedule\"]') === null && document.querySelector('[data-test=\"save-draft\"]') === null && document.querySelector('#name').matches(':disabled') && document.querySelector('[data-test=\"image-phone_image-choose\"]').matches(':disabled')"))->toBeTrue()
         ->and($page->script("document.querySelector('[data-test=\"image-phone_image-small\"]') === null"))->toBeTrue();
 
     $page->navigate("/admin/content/banners/{$draft}", BROWSER_SLOW_PAGE_LOAD);
