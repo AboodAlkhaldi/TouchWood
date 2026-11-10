@@ -101,6 +101,7 @@ return [
 
     'fields' => [
         'amount' => 'price',
+        'campaign' => 'campaign',
         'ends_at' => 'end',
         'filter' => 'filter',
         'left_out' => 'left-out product',
@@ -113,6 +114,7 @@ return [
         'starts_at' => 'start',
         'state' => 'state',
         'store' => 'store',
+        'target' => 'campaign item',
         'variant' => 'size',
     ],
 ];

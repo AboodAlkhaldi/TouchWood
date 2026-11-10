@@ -150,8 +150,9 @@ For a line — a size, its sale mode, a quantity — in a store, at a moment:
 1. **No retail price → no price.** The line is "unpriced" (`CartPricesDto::unpriced`).
 2. The candidates: **the retail price**; **every sale running** on the size; **every category discount
    running** whose lines include this mode and which does not leave the product out (a fixed amount
-   not skipping it); and, **on a wholesale line**, the band with the highest start at or below the
-   quantity. Campaign prices join in stage 8.
+   not skipping it); **every campaign run running** whose lines include this mode and which reaches the
+   size (§9.6; never "always wins", never an archived size); and, **on a wholesale line**, the band with
+   the highest start at or below the quantity.
 3. **An "always wins" sale or discount running on the size** (§1.3) is the unit price, every other
    sale and discount set aside — on a wholesale line, the lower of it and the band — **while it is at or
    below the retail price**; above it, it has stopped winning and the others count again (owner,
@@ -290,6 +291,9 @@ store's currency. **On `main` since #97.**
 | `pricesForEdit(StoreId $store, list<KeptPartDto> $kept, list<CartLineDto> $added, int $taxRateBasisPoints): CartPricesDto` **[PROPOSED]** | Sales (staff edited an order before it ships) | §1.11: the kept parts as they are, the added lines priced now (a wholesale one by the band for its new total), the order's VAT rate. A variant and mode may appear more than once among the parts; once among the added lines (`pricing.duplicate_lines`). `validUntil` from the added lines only. |
 | `wholesaleBands(StoreId $store, list<string> $variantIds): array<string, list<WholesaleBandDto>>` | Sales's order edit and the shop's product page (stage 6, 2026-10-27) | Each size's wholesale bands in the store — `WholesaleBandDto{fromQuantity, unit}`, lowest start first, without VAT; a size with none left out. One query however many. |
 | `salesNamed(list<string> $saleIds, array<string, VariantDto> $knownVariants = []): list<OfferNameDto>` · `discountsNamed(list<string> $discountIds): list<OfferNameDto>` | Sync's report (stage 5's screens step 2) | Each id in the order asked: whether the sale or discount still exists and, while it does, its short description in the reader's language - "−10% · 60 cm, 80 cm" (a percentage or its price, then its sizes by their values, "One Size" for a product with one), "Kitchens: 50.00 off" with the currency's sign. A fixed few queries however many. The sizes a caller read already (`$knownVariants`, Catalog's, by id) are not read again - Sync's report names its sizes first (Sync's screens step 6, its budget). |
+
+**`Public/Contracts/CampaignPrices`** (Content, stage 8): `preview`, `save`, `changeEnd`, `endNow`, `remove`,
+`read`, `productIds`, `skippedSizes` - §9.6 #8, as built.
 
 `totals` may be called more than once while Sales builds a quote: with the coupon and points first
 (for `goods_total`, which free shipping and points earning bind to), then with the shipping, which only
@@ -862,7 +866,11 @@ amendment 4(h)). Money: `bigint` minor units + `char(3)` currency, CHECK the amo
 | `pricing.category_discounts` | `id` ULID PK · `store_id` · `category_id` FK `catalog.categories` CASCADE (Catalog deletes only an empty category: its discounts reach nothing and go with it, the audit log keeping them; step 6 review) · `percent_bp` NULL / `amount_minor` NULL (exactly one) · `currency_code` NULL · `lines` CHECK (`RETAIL`, `WHOLESALE`, `BOTH`) · `starts_at` · `ends_at` NULL CHECK > `starts_at` · `always_wins` boolean · `created_at` |
 | `pricing.category_discount_exclusions` | (`discount_id` FK CASCADE, `product_id` FK CASCADE) PK |
 | `pricing.unpriced_counts` | `store_id` PK FK `platform.stores` RESTRICT · `unpriced` int NULL CHECK ≥ 0 · `counted_at` NULL (both or neither) · `recount_queued` boolean - Needs a Price's count kept per store (owner Q43; as Inventory's `low_counts`): one recount waits per store, its mark taken after the change commits |
-| `pricing.price_candidates` | `id` bigint PK · `store_id` · `variant_id` · `mode` CHECK (`RETAIL`, `WHOLESALE`) · `from_quantity` · `amount_minor` · `currency_code` · `kind` · `always_wins` boolean · `source_id` NULL (the sale or discount) · `starts_at` NULL · `ends_at` NULL · index (`store_id`, `variant_id`, `mode`) — **the materialized candidates (§1.6), rewritten per size by every change** |
+| `pricing.price_candidates` | `id` bigint PK · `store_id` · `variant_id` · `mode` CHECK (`RETAIL`, `WHOLESALE`) · `from_quantity` · `amount_minor` · `currency_code` · `kind` · `always_wins` boolean · `source_id` NULL (the sale, discount or campaign run; required for those three) · `starts_at` NULL · `ends_at` NULL · index (`store_id`, `variant_id`, `mode`) — **the materialized candidates (§1.6), rewritten per size by every change** |
+| `pricing.campaign_sets` | `run_id` ULID PK (Content's run) · `store_id` FK `platform.stores` RESTRICT · `lines` CHECK (`RETAIL`, `WHOLESALE`, `BOTH`) · `starts_at` · `ends_at` CHECK > `starts_at` (never NULL: a campaign has an end) · `created_at` · `updated_at` — one set per run (§9.6) |
+| `pricing.campaign_targets` | (`run_id` FK CASCADE, `kind` CHECK (`PRODUCT`, `SIZE`, `CATEGORY`, `BRAND`), `target_id`) PK · `percent_bp` NULL CHECK 1–9999 / `amount_minor` NULL CHECK > 0, a `SIZE`'s only · `currency_code` NULL — exactly one of the two. No key on `target_id`: what it reaches is read when prices are written |
+| `pricing.campaign_left_out` | (`run_id` FK CASCADE, `product_id` FK CASCADE) PK — left out of the run's categories and brands |
+| `pricing.campaign_skips` | (`run_id` FK CASCADE, `variant_id` FK CASCADE) PK · `store_id` — the sizes a run skips now in a wired store (§9.6 #5), written with the sizes' candidates; read by `skippedSizes` |
 
 The timed tasks (§1.10) are queued jobs delayed to their moment; they need no table — each reads
 the sale or discount as it is when it runs.
@@ -881,6 +889,7 @@ added when a consumer appears). The first consumer is Sync:
 | Event | When | For |
 |---|---|---|
 | `DiscountReachChecked` (`eventId`, `storeId`, `variantIds` - the sizes priced again, `skipped` - of them, each a fixed-amount discount still leaves out past the ceiling, `occurredAt`) | A **wired** store's sizes have their candidates written again while it has a category discount, or as a discount is added, changed, ended or removed, and at the daily check and the repair - so the last one ending is told too. After the change commits. No other price costs a look at the wiring | Sync closes a "discount skipped" entry the moment the discount reaches its size again (sync.md §9.3 #28; owner, 2026-10-18) |
+| `CampaignReachChecked` (`eventId`, `storeId`, `variantIds` - the sizes priced again, `skipped` - of them, each `{runId, variantId}` a campaign run still skips past the ceiling, `occurredAt`) | The same moments for campaign runs (§9.6 #5): a **wired** store's sizes written again while it has a run not ended, or as a run is saved, changed, ended or removed, its timed task, the daily check. After the change commits | Sync closes a "campaign skipped" entry the moment no run skips its size any more (sync.md §9.5 amendment 2 (b), settled at the build: this event, by `PRICING`) |
 
 ### 6.2 Consumed
 
@@ -1123,11 +1132,44 @@ order_total    = goods_total + vat + shipping
 **Applied in place** (stage 7 step 6, 2026-10-30): §1.7's formula, the `totals()` row of §2 and its note on the
 shipping, and `TotalsDto`, with Sales's §9.5 #1; handoff §10.2 amended with it.
 
-### 9.6 Stage 8 — **[ACCEPTED by the owner, 2026-11-10, with content.md; not built]**: campaign prices
+### 9.6 Stage 8 — **[ACCEPTED by the owner, 2026-11-10, with content.md; built in Content's PR 5]**: campaign prices
 
 Content's campaigns price through the `CAMPAIGN` kind reserved in §2.5 (content.md §1.7, §2.3 P1, §9.4 A6). Content
 keeps the campaign, its stores and a draft's choices; **Pricing holds and applies the prices from the moment a run is
-scheduled**. Still to be applied in place when built: §1.6 step 2, §2.1's contract list, §5 (§2.5 and §9.1 #4 point here already).
+scheduled**. Applied in place with the build: §1.6 step 2, §2.1's contract list, §5, §6.1 (§2.5 and §9.1 #4 point here already).
+
+**As built — the builder's picks** (Content PR 5, 2026-11-10; none is an owner decision):
+- **A run's price on a size** is said by its most particular target: the size's own, else its product's, else the
+  lowest of its categories' (its own and every one above) and its brand's; left-out products are left out of
+  categories and brands only - a product or size picked by name stays as picked (#1, #6).
+- **A fixed price at or above the retail price** is not refused: the preview says `not_below_retail`, and it is **never
+  a candidate** - not even a tie with the retail price - so it never wins and an order line never says `CAMPAIGN` at
+  the price it would pay anyway (the review, 2026-11-10). A size with no price is skipped and listed.
+- **"Started" is Pricing's to judge, by the run's own dates** (the coordinator's pick, 2026-11-10): Content's state can
+  lag (a store off, its go-live tick not yet run). **A run past its start refuses a change of its prices** -
+  `save` on a running or ended run is `pricing.not_changeable`, as a running sale changes only its end - and Content's
+  screen shows it as not editable. **Content's Cancel calls `endNow`**: it removes a run not started (or started this
+  very second) and ends a started one now. `remove` refuses a run that started; `changeEnd`, `endNow` and `remove`
+  on a run Pricing does not hold change nothing (a campaign may carry no prices).
+- **Every moment to the whole second** (the review, 2026-11-10): Pricing's tables keep `timestamp(0)`, which PostgreSQL
+  rounds half up - an End Now at 10:00:00.7 would be kept as 10:00:01, still running when its sizes are priced again,
+  its price left on the shop's cards; a fraction in a start or an end would queue a timed task that never matches.
+  A run's start and end, `changeEnd`'s end and `endNow`'s now are taken down to the second (`WholeSecond`), and so are
+  a sale's and a category discount's (their inputs, End and a provider-stopped sale's end). A sale or category
+  discount ended in the very second it started is removed, as a run's End Now removes one (the second review).
+- **The drawer and the product page** list the runs pricing a size (`ReachingCampaign`, `ProductCampaign`), read from
+  the size's candidates: no query more.
+- **`campaign_skips`** keys its run and that run's store together (a skip is never another store's), and its store
+  as every Pricing table does.
+- **`preview` takes an optional `$runId`** (the run being changed, so it is not its own other offer); the other offers
+  are sales, category discounts and other runs whose dates and lines meet.
+- **No audit entry in Pricing**: Content audits the campaign (content.md §1.1 #13).
+- **#5's open point, settled**: Pricing publishes `CampaignReachChecked` (§6.1), as `DiscountReachChecked`; Sync closes
+  the entry by `PRICING`. The skips are kept in `pricing.campaign_skips`, written with the sizes' candidates, so
+  `skippedSizes` is one query.
+- **An archived size or product** loses its campaign candidates when archived (`VariantArchived`, `ProductArchived` and
+  their restores write the product's sizes again in stores with a run); sales and discounts keep theirs, as before.
+- In Pricing's own screens a campaign is named "A campaign" (`names.campaign`): its name is Content's.
 
 1. **What a campaign prices** (owner, 2026-11-09, Content round 4 #2): products, sizes, categories and brands, each a
    percentage off; products and sizes may also take **a fixed price per size**; categories and brands a percentage only.
@@ -1141,11 +1183,12 @@ scheduled**. Still to be applied in place when built: §1.6 step 2, §2.1's cont
    `CAMPAIGN`, `QUANTITY`, `BASE` (`PriceResolution::RANK`).
 4. **The ceiling** (§1.12; content.md Q2 (a)): a campaign deeper than the store's ceiling is refused when saved, naming
    the products (`pricing.over_ceiling`). `CeilingCheck` and its two guards cover campaigns: a retail price, or a lower
-   ceiling, that would take a scheduled or live campaign past it is held back, naming the campaigns.
+   ceiling, that would take a scheduled or live campaign past it is held back, naming the campaigns (as built: by what
+   they were set on - the products, categories and brands - since a campaign's name is Content's).
 5. **A wired store** (owner, 2026-11-10; content.md §1.7 #17): a provider's price that would take a campaign past the
    ceiling on a size **is taken, and the campaign skips that size**, as a fixed-amount category discount does (§2.6,
    sync.md §9.3 #17); it rejoins by itself once the price allows. `ProviderPricesResult` names the size and the
-   campaign, for Sync's `CAMPAIGN_SKIPPED` (sync.md §9.5 amendment 2), and `skippedSizes` (#8) lists them for the campaign's page. **Open with Sync**: an event, like `DiscountReachChecked`, telling Sync when a size rejoins or a campaign ends, so its entry closes (sync.md amendment 2 (b)).
+   campaign, for Sync's `CAMPAIGN_SKIPPED` (sync.md §9.5 amendment 2), and `skippedSizes` (#8) lists them for the campaign's page. **Settled at the build**: `CampaignReachChecked` (§6.1), like `DiscountReachChecked`, tells Sync when a size rejoins or a campaign ends, so its entry closes (sync.md amendment 2 (b)).
 6. **A category or brand target follows its products** (content.md Q18 (a)): a product moved in gains the price at
    once and one moved out loses it, through `ProductChanged` and `CategoryMoved`, as a category discount does (§6.2);
    products and sizes picked by name stay as picked. A brand's products come from Catalog (`CatalogApi::productIdsOfBrands`,
@@ -1163,6 +1206,7 @@ scheduled**. Still to be applied in place when built: §1.6 step 2, §2.1's cont
    | `changeEnd(StoreId, string $runId, $end)` · `endNow(StoreId, string $runId)` · `remove(StoreId, string $runId)` | The run's life |
    | `read(StoreId, string $runId): ?CampaignPriceSetDto` · `productIds(StoreId, string $runId, ?string $after, int $limit)` | The campaign's form, and the shop's campaign page |
    | `skippedSizes(StoreId, string $runId): list<string>` | The sizes the run skips now in a wired store (#5), for the campaign's page; one query. Pricing decides the skip, so it answers, and Content needs no arrow to Sync (the build coordinator's pick, 2026-11-10) |
+   | `skippingRuns(StoreId, list<string> $variantIds): array<string, list<string>>` (added with the second review) | Of these sizes, the runs skipping each now; one query. For Sync's read, which reports after Pricing's batch has committed: it names only the runs still skipping |
 
    `CampaignPriceSetDto`: `lines` (`RETAIL`, `WHOLESALE`, `BOTH`), `targets` (each `{kind: PRODUCT, SIZE, CATEGORY or
    BRAND, id, percentBp}` or `{kind: SIZE, id, amount: Money}`), `leftOut` product ids. The tables are written with the

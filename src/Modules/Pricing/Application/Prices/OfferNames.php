@@ -92,6 +92,12 @@ final readonly class OfferNames
         return $names;
     }
 
+    /** A campaign run in a line of text: its name is Content's, so Pricing says only what it is (§9.6). */
+    public function campaign(): string
+    {
+        return $this->words->line('names.campaign');
+    }
+
     /** Basis points as a percentage, its decimals only where it has them: 1000 → "10", 1250 → "12.5". */
     public static function percent(int $basisPoints): string
     {

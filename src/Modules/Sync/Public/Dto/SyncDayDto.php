@@ -8,7 +8,7 @@ namespace Modules\Sync\Public\Dto;
  * One store's Sync day (sync.md amendment 1): the reads that finished that day, counted per read kind
  * (`NOTIFIED`, `HOURLY`, `NIGHTLY`, `NOW`, `CODE`, every kind present) as done, failed or stopped by Sync
  * itself; what those reads changed and skipped, in total; and the report entries opened that day, per
- * report kind (the eight of sync.md §1.6, every kind present). `day` is the store's own calendar day,
+ * report kind (the nine of sync.md §1.6 - `CAMPAIGN_SKIPPED` since amendment 2 - every kind present). `day` is the store's own calendar day,
  * `Y-m-d`. `complete` is false for a day that began more than 90 days ago, when Sync no longer keeps all
  * of it (§1.6).
  */

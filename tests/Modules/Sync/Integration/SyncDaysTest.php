@@ -244,7 +244,7 @@ it('counts the entries opened that day, per kind, every kind named', function ()
 
     expect($day->problemsOpened)->toBe([
         'UNKNOWN_CODE' => 2, 'NOT_IN_PROVIDER' => 0, 'ARCHIVED_SKIPPED' => 0, 'OFF_OR_DRAFT_PRICED' => 0,
-        'SALE_STOPPED' => 1, 'BAD_VALUE' => 0, 'READ_FAILED' => 1, 'DISCOUNT_SKIPPED' => 1,
+        'SALE_STOPPED' => 1, 'BAD_VALUE' => 0, 'READ_FAILED' => 1, 'DISCOUNT_SKIPPED' => 1, 'CAMPAIGN_SKIPPED' => 0,
     ]);
 });
 
@@ -294,7 +294,7 @@ it('answers every store and day asked, empty ones and an off store in zeros, in 
         ->and($empty->readsStopped)->toBe($empty->readsDone)
         ->and([$empty->pricesChanged, $empty->stockChanged, $empty->skipped])->toBe([0, 0, 0])
         ->and(array_sum($empty->problemsOpened))->toBe(0)
-        ->and(array_keys($empty->problemsOpened))->toHaveCount(8)
+        ->and(array_keys($empty->problemsOpened))->toHaveCount(9)
         ->and($empty->complete)->toBeTrue()
         ->and(syncDaysAsk([], '2026-10-20', '2026-10-21'))->toBe([]);
 });

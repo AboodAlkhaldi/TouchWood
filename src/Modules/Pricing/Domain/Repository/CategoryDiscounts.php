@@ -54,11 +54,6 @@ interface CategoryDiscounts
     public function list(StoreId $store, DateTimeImmutable $now, ?WindowState $state, WindowOrder $order, ?array $after, int $limit): array;
 
     /**
-     * @return list<string> the stores with a discount not ended by then - where a product moving matters
-     */
-    public function storesWithDiscounts(DateTimeImmutable $at): array;
-
-    /**
      * The daily safety check's read (§1.10): every discount, in any store, whose start or end fell
      * after `$from` and by `$to`.
      *

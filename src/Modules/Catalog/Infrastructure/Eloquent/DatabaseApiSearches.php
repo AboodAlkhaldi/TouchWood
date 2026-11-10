@@ -250,6 +250,24 @@ final readonly class DatabaseApiSearches implements ApiSearches
         return $found;
     }
 
+    public function productIdsOfBrands(array $brandIds): array
+    {
+        $asked = self::ids($brandIds);
+
+        if ($asked === []) {
+            return [];
+        }
+
+        $found = array_fill_keys($asked, []);
+
+        // Every brand asked, joined to its products: one query for all.
+        foreach ($this->db->select('SELECT p.brand_id, p.id FROM catalog.products p WHERE p.brand_id = ANY(?::text[]) ORDER BY p.brand_id, p.id', [self::array($asked)]) as $row) {
+            $found[(string) $row->brand_id][] = (string) $row->id;
+        }
+
+        return $found;
+    }
+
     public function activeCategoryIds(): array
     {
         return array_values(array_map(static fn (mixed $id): string => (string) $id, $this->db->table('catalog.categories')->where('is_active', true)->orderBy('id')->pluck('id')->all()));

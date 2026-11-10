@@ -62,6 +62,7 @@ return [
         'BAD_VALUE' => 'Bad Value',
         'READ_FAILED' => 'Read Failed',
         'DISCOUNT_SKIPPED' => 'Discount Skipped',
+        'CAMPAIGN_SKIPPED' => 'Campaign Skipped',
     ],
     'kind_count' => ':kind (:count)',
 
@@ -98,6 +99,7 @@ return [
             'read_failed' => 'The read failed.',
             'discount_skipped' => 'Past the ceiling at the provider\'s price.',
             'discount_removed' => 'Discount removed',
+            'campaign_skipped' => 'Past the ceiling at the provider\'s price.',
         ],
         'menu' => [
             'retry' => 'Retry Read',

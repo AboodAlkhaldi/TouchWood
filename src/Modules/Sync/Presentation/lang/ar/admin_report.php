@@ -62,6 +62,7 @@ return [
         'BAD_VALUE' => 'قيمة غير صالحة',
         'READ_FAILED' => 'فشلت القراءة',
         'DISCOUNT_SKIPPED' => 'خصم مُتجاوَز',
+        'CAMPAIGN_SKIPPED' => 'حملة مُتجاوَزة',
     ],
     'kind_count' => ':kind (:count)',
 
@@ -98,6 +99,7 @@ return [
             'read_failed' => 'فشلت القراءة.',
             'discount_skipped' => 'يتجاوز الحدّ الأقصى للخصم بسعر المزوّد.',
             'discount_removed' => 'الخصم محذوف',
+            'campaign_skipped' => 'يتجاوز الحدّ الأقصى للخصم بسعر المزوّد.',
         ],
         'menu' => [
             'retry' => 'إعادة القراءة',
