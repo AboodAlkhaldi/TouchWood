@@ -23,6 +23,7 @@ use Modules\Catalog\Public\Dto\FoundProductsDto;
 use Modules\Catalog\Public\Dto\FoundVariantsDto;
 use Modules\Catalog\Public\Dto\ProductDto;
 use Modules\Catalog\Public\Dto\SearchSummaryDto;
+use Modules\Catalog\Public\Dto\SitemapEntriesDto;
 use Modules\Catalog\Public\Dto\StoreVariantDto;
 use Modules\Catalog\Public\Dto\VariantDto;
 use Modules\Catalog\Public\Enums\ProductStage;
@@ -38,6 +39,9 @@ final readonly class CatalogApiImpl implements CatalogApi
 {
     /** The most phrases a page of `searchSummary` holds (amendment 37). */
     public const int SUMMARY_MAX = 1000;
+
+    /** The most entries a page of `sitemapEntries` holds (amendment 41(b)). */
+    public const int SITEMAP_MAX = 1000;
 
     public function __construct(
         private ProductRepository $products,
@@ -295,6 +299,11 @@ final readonly class CatalogApiImpl implements CatalogApi
     public function searchSummary(?StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to, ?string $after = null, int $limit = 100): SearchSummaryDto
     {
         return $this->log->summary($store?->value, $from, $to, $after, min(max($limit, 1), self::SUMMARY_MAX));
+    }
+
+    public function sitemapEntries(StoreId $store, ?string $after, int $limit): SitemapEntriesDto
+    {
+        return $this->reads->sitemapEntries($store->value, $after, min(max($limit, 1), self::SITEMAP_MAX));
     }
 
     public function resolveVariant(string $productId, array $valueIds): ?string

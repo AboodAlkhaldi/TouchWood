@@ -8,6 +8,7 @@ use Modules\Catalog\Public\Dto\BrandDto;
 use Modules\Catalog\Public\Dto\LineFactsDto;
 use Modules\Catalog\Public\Dto\ProductCardDto;
 use Modules\Catalog\Public\Dto\ProductDto;
+use Modules\Catalog\Public\Dto\SitemapEntriesDto;
 use Modules\Catalog\Public\Dto\StoreVariantDto;
 use Modules\Catalog\Public\Dto\VariantBriefDto;
 use Modules\Catalog\Public\Dto\VariantDto;
@@ -108,4 +109,10 @@ interface ApiReads
      * @return array<string, LineFactsDto> keyed by variant id (amendment 18)
      */
     public function lineFacts(array $variantIds): array;
+
+    /**
+     * A page of the store's sitemap entries (amendment 41(b)), in one query: categories, brands, then products,
+     * each by id, after `after` (`{rank}:{id}`, as `next` gives it; anything else starts from the first).
+     */
+    public function sitemapEntries(string $storeId, ?string $after, int $limit): SitemapEntriesDto;
 }
