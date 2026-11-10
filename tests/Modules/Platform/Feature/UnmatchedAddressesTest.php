@@ -136,7 +136,7 @@ describe('with an answer registered', function () {
         get($path);
 
         expect(RecordingUnmatchedAddress::$asked)->toBe([]);
-    })->with(['/admin/x', '/admin/sign-in/x', '/build/x.js', '/api/x', '/up/x', '/storage/x', '/ADMIN/sign-in/x']);
+    })->with(['/admin/x', '/admin/sign-in/x', '/build/x.js', '/api/x', '/up/x', '/storage/x', '/ADMIN/sign-in/x', '/payments/x']);
 
     it('never asks about anything but a read', function () {
         unmatchedRegisterRecorder();
@@ -150,7 +150,8 @@ describe('with an answer registered', function () {
 
     it('never asks about a read of an address only a POST answers, which stays "method not allowed"', function () {
         unmatchedRegisterRecorder();
-        // Payments' notice address: its first segment reserved by nobody, so only the 404 rule keeps it out.
+        // Payments' notice address: a GET of it is 405, not 404, so the 404 rule keeps it out (its first segment is
+        // reserved too, since 2026-11-10).
         $path = '/payments/notice/'.strtolower((string) Str::ulid()).'/test';
         RecordingUnmatchedAddress::$targets = [$path => '/sa/ar'];
 

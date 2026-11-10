@@ -1849,6 +1849,18 @@ Decide these when the owning module is reached; do not design them now.
   server's request body limit must allow 500 MB on the admin's `/admin/imports`. Below that, Laravel
   answers a larger upload with its 413 page before the import can say why (the local default is
   2 MB / 8 MB).
+- **Staging runs with `APP_ENV=staging`, not `production`, until a real SMS provider is built** (owner,
+  2026-11-10). Outside production the `log` SMS provider is allowed, so sign-in and phone codes are written
+  to the server's log (`LogSmsSender`), where they can be read. Staging's `.env` must then set by hand: **`APP_DEBUG=false`** (staging is reachable from outside, and a debug
+  page shows code and settings; nothing ties it to `APP_ENV`, and `.env.example` has it true);
+  **`TEXT_TRANSLATOR=deepl`** with its key (an empty driver means the
+  fake translator everywhere but production); **`SESSION_SECURE_COOKIE=true`** (it defaults to true only
+  when `APP_ENV=production`, `config/session.php`); and **`OPS_EMAIL_DRIVER=brevo` and
+  `OPS_NEWSLETTER_DRIVER=brevo`** with Brevo's key and secrets, since outside production `log` is accepted
+  for both and the start-up check that refuses a server that cannot deliver
+  (`OpsServiceProvider::requireRealDelivery`) does not run. The generated `/robots.txt` says `Disallow: /`
+  outside production (Content, `RobotsFile`), which is right for staging. On the real domain
+  `APP_ENV=production`.
 - **The `docs/` folder ships with the application**: the panel's files guide
   (`/admin/import-guide`) is read from `docs/modules/catalog-import/` - the guide and its two
   example files. A deploy that leaves `docs/` out breaks that page and its downloads.

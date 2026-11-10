@@ -38,10 +38,12 @@ use Throwable;
  * inside it, becomes a fresh `TranslationFailed` holding only its reason and no previous exception - the
  * library's carries the service's answer, and a frame of its own may hold the token among its arguments.
  *
- * **Not verified without the real account** (content.md §2.2, §9 P1; PARKED for the owner): that the
- * account takes Arabic as a source, that `en-US` is the American English code it takes (`GET /v3/languages`
- * answers both), and whether marks survive in Arabic with `tag_handling` "xml" (§1.3 (a) or (b)). The codes
- * below are the library's own constants for Arabic and American English.
+ * **Verified on the real account** (content.md §1.3, the owner's key, 2026-11-10, through this class): the
+ * account takes Arabic as a source and `en-US` as the target, the library's own constants below; and with
+ * `tag_handling` "xml", `خزانة <b>خشب الزان</b> مع <b>ضمان سنتين</b>.` came back as
+ * `<b>Beech wood</b> cabinet with <b>a two-year warranty</b>.` - the tags on the right words, reordered.
+ * Not tried on the account: a link's tag (`<a i="0">`, Content's) - an answer that loses or changes it is
+ * read as no answer for the marks, and Content drops that box's marks.
  */
 final readonly class DeepLTextTranslator implements TextTranslator
 {
@@ -139,7 +141,7 @@ final readonly class DeepLTextTranslator implements TextTranslator
         try {
             $translator = new Translator($this->key, $this->options());
 
-            // Tag handling only when asked: whether the marks survive in Arabic is for the real account to show.
+            // Tag handling only when asked: the texts are then XML, and so are the answers.
             return $translator->translateText($texts, $source, $target, $keepMarks ? [TranslateTextOptions::TAG_HANDLING => 'xml'] : []);
         } catch (Throwable $failure) {
             $reason = self::reason($failure);

@@ -4,11 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Platform\Application\Command\RetryMediaVariants;
 
-use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
-use Modules\Platform\Application\Audit\MediaAudit;
-use Modules\Platform\Application\AuditLog;
-use Modules\Platform\Application\Media\MediaVariantsQueue;
+use Modules\Platform\Application\Media\MediaVariantsRetry;
 use Modules\Platform\Application\Media\PrivateMedia;
 use Modules\Platform\Domain\Exception\MediaNotFound;
 use Modules\Platform\Domain\Repository\MediaRepository;
@@ -20,6 +17,8 @@ use Shared\Application\PermissionScope;
  * Staff queue variant generation again (Platform spec §4.1): for a FAILED image, or for one stuck
  * in PENDING longer than Media::STALE_PENDING_MINUTES because its job was lost. To anyone who may
  * not see private files, a private file does not exist here either (b2b.md amendment 8(a)).
+ *
+ * The retry itself (MediaVariantsRetry) is the one an upload of the same failed image makes too.
  */
 final readonly class RetryMediaVariantsHandler
 {
@@ -29,8 +28,7 @@ final readonly class RetryMediaVariantsHandler
         private Authorizer $authorizer,
         private MediaRepository $media,
         private PrivateMedia $private,
-        private MediaVariantsQueue $variants,
-        private AuditLog $auditLog,
+        private MediaVariantsRetry $retry,
         private ConnectionInterface $db,
     ) {}
 
@@ -41,12 +39,8 @@ final readonly class RetryMediaVariantsHandler
         $this->db->transaction(function () use ($command) {
             $media = $this->media->lockById($command->mediaId) ?? throw new MediaNotFound($command->mediaId);
             $this->private->reach($media, $command->mediaId);
-            [$before, $queuedBefore] = [$media->variantsStatus(), $media->variantsQueuedAt()];
 
-            $media->retryVariants(CarbonImmutable::now());
-            $this->media->update($media);
-            $this->auditLog->record(MediaAudit::variantsRetried($media, $before, $queuedBefore));
-            $this->variants->generate($media->id());
+            $this->retry->retry($media);
         });
     }
 }
