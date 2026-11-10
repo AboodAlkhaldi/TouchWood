@@ -311,7 +311,7 @@ describe('the tables hold the rules, a NULL included (lessons 35, 162)', functio
     it('refuses a scheduled theme with no English name, a store\'s end before its start, a part of no kind, a slot of none', function () {
         themesSuper();
         $theme = themesDraft(nameEn: null, parts: [['part' => 'FOOTER', 'images' => ['BAND:any' => Cx::image()]]]);
-        $refused = static fn (callable $write) => expect(fn () => DB::transaction($write))->toThrow(QueryException::class);
+        $refused = static fn (Closure $write) => expect(fn () => DB::transaction(static fn (): mixed => $write()))->toThrow(QueryException::class);
 
         $refused(fn () => DB::table('content.themes')->where('id', $theme)->update(['is_scheduled' => true]));
         $refused(fn () => DB::table('content.themes')->where('id', $theme)->update(['slug' => 'base']));

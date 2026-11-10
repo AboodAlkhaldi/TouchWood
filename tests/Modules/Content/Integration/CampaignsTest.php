@@ -636,7 +636,10 @@ describe('the ending alerts, one test per row of §1.7 #11', function () {
         campaignsAt('2026-11-11 10:00:00+00', 47);
         expect(campaignsAlerts($run))->toBe(0);
         campaignsAt('2026-11-11 10:00:00+00', 48);
-        expect(campaignsAlerts($run))->toBe(1);
+        // A second job that judged the alert due before the first stamped it: its stamp changes nothing, so it fires
+        // nothing (§1.7 #11, "goes once").
+        expect(campaignsAlerts($run))->toBe(1)
+            ->and(app(Campaigns::class)->stampWarning($run, 72, CarbonImmutable::now()->toDateTimeImmutable()))->toBeFalse();
         campaignsAt('2026-11-11 10:00:00+00', 95);
         expect(campaignsAlerts($run))->toBe(1);
         campaignsAt('2026-11-11 10:00:00+00', 96);
