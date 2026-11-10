@@ -50,6 +50,6 @@ final readonly class BannersHandler
         $banner = $this->banners->find($bannerId);
         $this->access->authorize(self::PERMISSION, $banner?->storeId, item: true);
 
-        return $banner === null ? [] : ['id' => $banner->id, ...$banner->fields(), 'images' => $banner->images, 'version' => $banner->version];
+        return $banner === null ? [] : ['id' => $banner->id, 'store_id' => $banner->storeId, ...$banner->fields(), 'images' => $banner->images, 'version' => $banner->version];
     }
 }

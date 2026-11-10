@@ -162,8 +162,10 @@ step branches under them: they left a tangled history, with no version marking w
   it and the rest of the request reads the cache; and never inside a transaction opened after the
   request began, where a check made after its locks must see what was committed meanwhile
   (amendment 65 (h), kept by the owner, 2026-10-09). Nothing is kept beyond the request or the job.
-- Background jobs run from the `jobs` table: a worker must run (`php artisan queue:work`), and the
-  scheduler (`php artisan schedule:work`) for scheduled tasks.
+- Background jobs run from the `jobs` table: two workers must run, the normal one and the one for
+  long jobs (HANDOFF's deploy notes), and the scheduler (`php artisan schedule:work`) for scheduled
+  tasks. A job that may run past 300 s takes the long connection in its constructor (`LongQueue`);
+  Platform's `QueueConnectionsTest` says when.
 - Schedule work with `$schedule->job(...)`, never `command()` or `call()`: scheduled work is queued as
   a job, so its audit source is JOB (owner, 2026-09-18).
 - If Redis is ever reintroduced, `VersionedCache` falls back to replacing the version after commit;

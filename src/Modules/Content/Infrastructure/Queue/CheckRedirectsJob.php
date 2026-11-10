@@ -10,6 +10,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Modules\Content\Application\Command\CheckRedirects\CheckRedirects;
 use Modules\Content\Application\Command\CheckRedirects\CheckRedirectsHandler;
+use Modules\Platform\Public\LongQueue;
 
 /**
  * Check Addresses (content.md §1.15, W11), a page of lines a job: each page done queues the next, so no run lasts
@@ -24,17 +25,22 @@ final class CheckRedirectsJob implements ShouldQueue
     /** Three tries (platform.md §3); a page asked again marks its lines again, which is harmless. */
     public int $tries = 3;
 
-    /** A hundred lines, each asked within ten seconds and a few hops: well inside twenty minutes. */
+    /**
+     * A hundred lines, each asked within ten seconds and a few hops: well inside twenty minutes. On the long
+     * connection, whose `retry_after` (3700 s) is above it; each next page too, built by this constructor.
+     */
     public int $timeout = 1200;
 
     public function __construct(
         public readonly ?string $after = null,
-    ) {}
+    ) {
+        $this->onConnection(LongQueue::connection());
+    }
 
     /**
-     * A copy a second worker takes of a page still running, or done (its `retry_after` is shorter than this job's
-     * timeout), deletes itself: run again it would ask the page's addresses twice and queue the next page twice,
-     * doubling the chain at each long page (PR 4 review).
+     * A copy a second worker takes of a page still running, or done, should the queue hand one out, deletes itself:
+     * run again it would ask the page's addresses twice and queue the next page twice, doubling the chain at each
+     * long page (PR 4 review).
      *
      * @return list<object>
      */

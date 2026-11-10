@@ -108,6 +108,11 @@ const ICONS = {
     // Ops' Reports section and its entry (ops.md §4.15, the menu): an icon the panel already draws (owner, 2026-11-05).
     reports: FileText,
     daily_reports: CalendarClock,
+    // Content's screens (content.md §4.3), each with its page: icons the panel already draws.
+    home_page: LayoutTemplate,
+    bars: Megaphone,
+    banners: Image,
+    popups: MessageCircleQuestion,
 } as const;
 
 type Props = {

@@ -93,6 +93,35 @@ final readonly class ContentAccess
         return $held === null || in_array(strtolower($storeId), array_map(static fn (StoreId $store): string => $store->value, $held), true);
     }
 
+    /**
+     * A screen's store asked for by its code and not offered (`StoreChoices` answers alike for every store it does not
+     * offer): when it is a store that is off and the person holds the job there, it is refused as off (`StoreOff`, §1.1
+     * rule 7), in its own words, not as a page they may not open. A store they hold nothing in stays the plain refusal,
+     * so a code never tells which stores there are.
+     *
+     * @throws StoreOff
+     */
+    public function refuseIfOff(?string $code, string $permission): void
+    {
+        $asked = strtolower(trim((string) $code));
+
+        if ($asked === '') {
+            return;
+        }
+
+        foreach ($this->platform->allStores() as $store) {
+            if ($store->code !== $asked || $store->isActive) {
+                continue;
+            }
+
+            $held = $this->authorizer->storesWith($permission);
+
+            if ($held === null || in_array($store->id, array_map(static fn (StoreId $each): string => $each->value, $held), true)) {
+                throw new StoreOff;
+            }
+        }
+    }
+
     /** The staff member acting, for `created_by` and `updated_by`; null for the system. */
     public function staffId(): ?string
     {

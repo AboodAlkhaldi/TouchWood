@@ -74,8 +74,10 @@ use Modules\Content\Infrastructure\Sheets\OpenSpoutSheetReader;
 use Modules\Content\Presentation\Http\RedirectAnswer;
 use Modules\Content\Public\Contracts\CampaignNotices;
 use Modules\Content\Public\Contracts\ContentApi;
+use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\UnmatchedAddresses;
+use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Events\MediaVariantsReady;
 use Modules\Platform\Public\Events\StoreActivated;
 use Modules\Platform\Public\Events\StoreCreated;
@@ -157,6 +159,14 @@ final class ContentServiceProvider extends ServiceProvider
         foreach ([ProductArchived::class, ProductMadeReady::class, StoreListingChanged::class] as $event) {
             Event::listen($event, [QueueSitemapBuild::class, 'catalog']);
         }
+
+        // The Content section's entries (§4.3, Q12 (a)), each landing with its screen (PR 7), never before.
+        $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('content', 'home_page', 'content', 'content.admin.home', ContentPermissions::HOMEPAGE_MANAGE, 10, icon: 'home_page'),
+            new MenuEntryDto('content', 'bars', 'content', 'content.admin.bars', ContentPermissions::BAR_MANAGE, 20, icon: 'bars'),
+            new MenuEntryDto('content', 'banners', 'content', 'content.admin.banners', ContentPermissions::BANNER_MANAGE, 30, icon: 'banners'),
+            new MenuEntryDto('content', 'popups', 'content', 'content.admin.popups', ContentPermissions::POPUP_MANAGE, 60, icon: 'popups'),
+        );
 
         // An old site's address on a line of the redirects answers 301 where nothing else answers (§1.15, row L2).
         $this->app->make(UnmatchedAddresses::class)->register(RedirectAnswer::class);
