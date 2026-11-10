@@ -113,7 +113,7 @@ it('adds a country, changes its calling code, removes it, and fits a phone', fun
             ->and(DB::table('ops.sms_countries')->where('country_code', 'AE')->exists())->toBeFalse();
 
         // And in Arabic: right to left, its calling codes still left to right in Latin digits, and it fits a phone.
-        $page->click('[data-test="person-menu"]')->click('[data-test="language"]')->assertSee('دول الرسائل النصية');
+        $page->click('[data-test="language"]')->assertSee('دول الرسائل النصية');
         expect($page->script('document.documentElement.dir'))->toBe('rtl')
             ->and($page->script("document.querySelector('[data-test=\"country-SA\"] [data-test=\"calling-code\"]').textContent"))->toBe('+966');
         $page->resize(375, 812);

@@ -279,8 +279,8 @@ it('switches the account screen\'s language both ways, whatever language the acc
     $page = accountScreenSignedIn()->navigate('/admin/account');
     $page->assertSee('الحساب والإعدادات');
 
-    $page->click('[data-test="person-menu"]')
-        ->assertSeeIn('[data-test="language"]', 'English')
+    // One press (round 3 #13): the sidebar's own button, no menu opened first.
+    $page->assertSeeIn('[data-test="language"]', 'English')
         ->click('[data-test="language"]')
         ->assertSee('Account & Settings');
 
@@ -288,8 +288,7 @@ it('switches the account screen\'s language both ways, whatever language the acc
         ->and($page->script('document.documentElement.dir'))->toBe('ltr');
 
     // And back: the menu offers the language the page is not in - the step that used to be stuck.
-    $page->click('[data-test="person-menu"]')
-        ->assertSeeIn('[data-test="language"]', 'العربية')
+    $page->assertSeeIn('[data-test="language"]', 'العربية')
         ->click('[data-test="language"]')
         ->assertSee('الحساب والإعدادات');
 
