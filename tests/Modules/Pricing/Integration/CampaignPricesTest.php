@@ -663,6 +663,38 @@ describe('its life (§9.6 #7, #8)', function () {
             ->and(campaignUnit($size))->toBe(10000);
     });
 
+    it('removes a sale and a category discount ended in the very second they started', function () {
+        $shop = campaignShop();
+        [$a, $b] = $shop['inChild']['variants'];
+        Rx::switchOn('sa', [$a]);
+        CarbonImmutable::setTestNow('2026-11-10 10:05:00+00');
+        $sale = Fx::asSystem(fn (): string => app(AddSaleHandler::class)->handle(new AddSale(Rx::storeId('sa'), null, [$a], null, '90', null, null)));
+        $discount = Fx::asSystem(fn (): string => app(AddCategoryDiscountHandler::class)->handle(new AddCategoryDiscount(Rx::storeId('sa'), $shop['child'], '20', null, 'BOTH', null, null)));
+        CarbonImmutable::setTestNow('2026-11-10 10:05:00.400000+00');
+
+        Fx::asSystem(fn () => app(EndSaleHandler::class)->handle(new EndSale($sale)));
+        Fx::asSystem(fn () => app(EndCategoryDiscountHandler::class)->handle(new EndCategoryDiscount($discount)));
+
+        expect(DB::table('pricing.sales')->where('id', $sale)->exists())->toBeFalse()
+            ->and(DB::table('pricing.category_discounts')->where('id', $discount)->exists())->toBeFalse()
+            ->and(Fx::audits('pricing.sale.removed', $sale))->toBe(1)
+            ->and(Fx::audits('pricing.category_discount.removed', $discount))->toBe(1)
+            ->and([Rx::told('sa', $a)[0] ?? null, Rx::told('sa', $b)[0] ?? null])->toBe([10000, 10000]);
+    });
+
+    it('lists no run in the drawer or on the product page once it has ended, its candidates not yet written again', function () {
+        $shop = campaignShop();
+        [$a, $b] = $shop['inChild']['variants'];
+        campaignSave(campaignRun(), [campaignPercent(CampaignTargetKind::Product, $shop['inChild']['product'], 1000)], end: '2026-11-10 10:30:00+00');
+        // Its end's timed task not run yet: the candidates are still there.
+        CarbonImmutable::setTestNow('2026-11-10 10:31:00+00');
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+        expect(array_filter(Rx::candidates('sa', $a), static fn (string $line): bool => str_contains($line, 'CAMPAIGN')))->not->toBe([])
+            ->and(app(ViewSizePricesHandler::class)->handle(new ViewSizePrices(Rx::storeId('sa'), $a))->campaigns)->toBe([])
+            ->and(app(ViewProductPricesHandler::class)->handle(new ViewProductPrices($shop['inChild']['product'], [$a, $b], [Rx::storeId('sa')]))[0]->campaigns)->toBe([]);
+    });
+
     it('ends a sale and a category discount at the whole second too', function () {
         $shop = campaignShop();
         [$a, $b] = $shop['inChild']['variants'];

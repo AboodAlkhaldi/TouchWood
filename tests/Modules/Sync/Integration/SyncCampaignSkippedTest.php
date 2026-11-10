@@ -20,8 +20,10 @@ use Modules\Pricing\Application\Command\ApplyPriceWindow\ApplyPriceWindowHandler
 use Modules\Pricing\Application\PricingSettings;
 use Modules\Pricing\Infrastructure\Queue\ApplyPriceWindowJob;
 use Modules\Pricing\Public\Contracts\CampaignPrices;
+use Modules\Pricing\Public\Contracts\ProviderPrices;
 use Modules\Pricing\Public\Dto\CampaignPriceSetDto;
 use Modules\Pricing\Public\Dto\CampaignTargetDto;
+use Modules\Pricing\Public\Dto\ProviderPricesResult;
 use Modules\Pricing\Public\Enums\CampaignLines;
 use Modules\Pricing\Public\Enums\CampaignTargetKind;
 use Modules\Sync\Application\Command\RunRead\RunRead;
@@ -29,6 +31,7 @@ use Modules\Sync\Application\Command\RunRead\RunReadHandler;
 use Modules\Sync\Application\Command\WireStore\WireStore;
 use Modules\Sync\Application\Command\WireStore\WireStoreHandler;
 use Modules\Sync\Domain\Repository\Reads;
+use Modules\Sync\Domain\Repository\ReportEntries;
 use Modules\Sync\Domain\ValueObject\ProviderValue;
 use Modules\Sync\Domain\ValueObject\ReadKind;
 use Modules\Sync\Public\Events\SyncNeedsAttention;
@@ -225,4 +228,79 @@ it('tells staff again when another run starts skipping a size already open, neve
 
     expect(syncCampaignEntry($a)['runs'] ?? null)->toBe([$second]);
     Event::assertNotDispatched(SyncNeedsAttention::class);
+});
+
+it('never opens, nor tells again, an entry for a run that ended between Pricing\'s batch and the read\'s report', function () {
+    ['sizes' => [$a], 'run' => $first] = syncCampaignSkipped();
+    // The run ends at once: its own end closes the entry.
+    app(CampaignPrices::class)->endNow(StoreId::fromString(Fx::storeId('sa')), $first);
+    expect(syncCampaignEntry($a)['open'] ?? null)->toBeFalse();
+
+    $late = syncCampaignRun([$a => 7000]);
+    // The read's batch commits with the run skipping the size, then the run ends before the read reports.
+    $real = app(ProviderPrices::class);
+    app()->instance(ProviderPrices::class, new class($real, $late) implements ProviderPrices
+    {
+        public function __construct(private ProviderPrices $real, private string $run) {}
+
+        public function apply(StoreId $store, array $prices, string $readRef): ProviderPricesResult
+        {
+            $result = $this->real->apply($store, $prices, $readRef);
+            app(CampaignPrices::class)->endNow($store, $this->run);
+
+            return $result;
+        }
+    });
+    Event::fake([SyncNeedsAttention::class]);
+
+    syncCampaignRead([$a => '125']);
+
+    expect(DB::table('sync.report_entries')->where('kind', 'CAMPAIGN_SKIPPED')->whereNull('closed_at')->count())->toBe(0)
+        // The read's own record names only what it reported: the run Pricing no longer has skipping, never.
+        ->and(DB::table('sync.read_reports')->where('kind', 'CAMPAIGN_SKIPPED')->where('variant_id', $a)->where('detail->runs', 'like', "%{$late}%")->count())->toBe(0);
+    Event::assertNotDispatched(SyncNeedsAttention::class);
+});
+
+it('closes an entry left naming no run, and the next read naming another run opens it again and tells staff', function () {
+    ['sizes' => [$a], 'run' => $first] = syncCampaignSkipped();
+    // Another run starts skipping the size between reads: Pricing knows, the entry still names the first.
+    $second = syncCampaignRun([$a => 7000]);
+    expect(syncCampaignEntry($a)['runs'] ?? null)->toBe([$first]);
+
+    app(CampaignPrices::class)->endNow(StoreId::fromString(Fx::storeId('sa')), $first);
+
+    expect(syncCampaignEntry($a))->toBe(['open' => false, 'closedBy' => 'PRICING', 'runs' => [], 'told' => true]);
+
+    Event::fake([SyncNeedsAttention::class]);
+    syncCampaignRead([$a => '125']);
+
+    expect(syncCampaignEntry($a))->toBe(['open' => true, 'closedBy' => null, 'runs' => [$second], 'told' => true]);
+    Event::assertDispatched(SyncNeedsAttention::class, static fn (SyncNeedsAttention $event): bool => ($event->opened['CAMPAIGN_SKIPPED'] ?? 0) === 1);
+});
+
+it('narrows every size\'s entry in one statement, writing only those whose runs change', function () {
+    $store = StoreId::fromString(Fx::storeId('sa'));
+    [$a, $b, $c] = ['01kaaaaaaaaaaaaaaaaaaaaaaa', '01kbbbbbbbbbbbbbbbbbbbbbbb', '01kccccccccccccccccccccccc'];
+    [$one, $two] = ['01krunrunrunrunrunrunrun01', '01krunrunrunrunrunrunrun02'];
+
+    foreach ([$a => [$one, $two], $b => [$one], $c => [$one]] as $size => $runs) {
+        DB::table('sync.report_entries')->insert(['store_id' => $store->value, 'kind' => 'CAMPAIGN_SKIPPED', 'variant_id' => $size, 'detail' => json_encode(['runs' => $runs]), 'opened_at' => now(), 'seen_at' => now()]);
+    }
+
+    $entries = app(ReportEntries::class);
+    $queries = [];
+    DB::listen(static function ($query) use (&$queries): void {
+        $queries[] = $query->sql;
+    });
+
+    // a loses the second run, b keeps its one (not written), c is left naming none (closed).
+    $written = $entries->keepCampaignRuns($store, [$a => [$one], $b => [$one], $c => [$two]], 'PRICING');
+    $runs = static fn (string $size): mixed => json_decode((string) DB::table('sync.report_entries')->where('variant_id', $size)->value('detail'), true)['runs'] ?? null;
+
+    expect(count($queries))->toBe(1)
+        ->and($written)->toBe(2)
+        ->and([$runs($a), $runs($b), $runs($c)])->toBe([[$one], [$one], []])
+        ->and(DB::table('sync.report_entries')->where('variant_id', $c)->value('closed_by'))->toBe('PRICING')
+        ->and(DB::table('sync.report_entries')->whereIn('variant_id', [$a, $b])->whereNull('closed_at')->count())->toBe(2)
+        ->and($entries->keepCampaignRuns($store, [$a => [$one], $b => [$one]], 'PRICING'))->toBe(0);
 });

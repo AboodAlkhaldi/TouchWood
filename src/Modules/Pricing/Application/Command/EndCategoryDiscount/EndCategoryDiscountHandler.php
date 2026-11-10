@@ -41,8 +41,18 @@ final readonly class EndCategoryDiscountHandler
             $now = WholeSecond::now();
             $before = $this->discounts->find($command->discountId) ?? throw new CategoryDiscountNotFound;
 
-            if (! $before->running($now) || $before->startsAt >= $now) {
+            if (! $before->running($now)) {
                 throw new NotChangeable;
+            }
+
+            // Started this very second, it has no time to end at: removed, as a sale (the second review of
+            // Content PR 5).
+            if ($before->startsAt >= $now) {
+                $sizes = array_keys($this->coverage->pricedSizes($storeId, [$before]));
+                $this->discounts->remove($before->id);
+                $this->writer->refresh($storeId, $sizes, discountsChanged: true);
+
+                return [null, [DiscountAudit::entry('pricing.category_discount.removed', $before, null, $store->currencyExponent)]];
             }
 
             $after = new CategoryDiscount($before->id, $before->storeId, $before->categoryId, $before->percentBasisPoints, $before->amount, $before->lines, $before->startsAt, $now, $before->alwaysWins, $before->excludedProductIds);

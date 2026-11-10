@@ -127,17 +127,33 @@ final readonly class DatabaseReportEntries implements ReportEntries
         return $deleted;
     }
 
-    public function keepCampaignRuns(StoreId $store, array $runs): void
+    public function keepCampaignRuns(StoreId $store, array $runs, string $closedBy): int
     {
-        // Only ever a run taken out: one that started skipping since is the next read's to name - and to tell
-        // staff of, as a run new to the entry (`open`) - never slipped in here unannounced.
-        foreach ($runs as $variantId => $ofSize) {
-            $this->db->update(
-                "UPDATE sync.report_entries SET detail = jsonb_set(detail, '{runs}', COALESCE((SELECT jsonb_agg(run ORDER BY run) FROM jsonb_array_elements_text(COALESCE(detail->'runs', '[]'::jsonb)) AS run WHERE run = ANY(?::text[])), '[]'::jsonb))"
-                ." WHERE store_id = ? AND kind = ? AND closed_at IS NULL AND COALESCE(code, '') = '' AND variant_id = ?",
-                ['{'.implode(',', array_map(static fn (string $run): string => preg_replace('/[^0-9a-z]/', '', strtolower($run)) ?? '', array_values(array_unique($ofSize)))).'}', $store->value, ReportKind::CampaignSkipped->value, (string) $variantId],
-            );
+        if ($runs === []) {
+            return 0;
         }
+
+        $keep = [];
+
+        foreach ($runs as $variantId => $ofSize) {
+            $keep[(string) $variantId] = array_values(array_unique(array_map('strval', $ofSize)));
+        }
+
+        // One statement for every size: each open entry's runs narrowed to those still skipping it - only ever a
+        // run taken out; one that started skipping since is the next read's to name, and to tell staff of
+        // (`open`). Only a row whose runs change is written; one left naming none is closed (the coordinator's
+        // pick, 2026-11-10): the next read naming another run opens it again, and tells staff.
+        return $this->db->update(
+            'UPDATE sync.report_entries AS e SET detail = jsonb_set(e.detail, \'{runs}\', n.runs),'
+            ." closed_at = CASE WHEN n.runs = '[]'::jsonb THEN ? ELSE e.closed_at END,"
+            ." closed_by = CASE WHEN n.runs = '[]'::jsonb THEN ? ELSE e.closed_by END"
+            .' FROM (SELECT o.id, COALESCE((SELECT jsonb_agg(run ORDER BY run) FROM jsonb_array_elements_text(COALESCE(o.detail->\'runs\', \'[]\'::jsonb)) AS run'
+            .' WHERE run IN (SELECT jsonb_array_elements_text(k.value))), \'[]\'::jsonb) AS runs'
+            .' FROM sync.report_entries AS o JOIN jsonb_each(?::jsonb) AS k ON k.key = o.variant_id'
+            ." WHERE o.store_id = ? AND o.kind = ? AND o.closed_at IS NULL AND COALESCE(o.code, '') = '') AS n"
+            ." WHERE e.id = n.id AND COALESCE(e.detail->'runs', '[]'::jsonb) IS DISTINCT FROM n.runs",
+            [CarbonImmutable::now(), $closedBy, json_encode((object) $keep, JSON_THROW_ON_ERROR), $store->value, ReportKind::CampaignSkipped->value],
+        );
     }
 
     public function closeSwitchedOn(StoreId $store, array $variantIds): int

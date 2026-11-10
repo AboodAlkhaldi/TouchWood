@@ -36,12 +36,21 @@ final readonly class EndSaleHandler
 
         $this->change->run($storeId, function () use ($command, $storeId, $store): array {
             // Ended at the second now began, as kept (`WholeSecond`): never a second later, still running when
-            // its sizes are priced again. One started this very second has no time to end at.
+            // its sizes are priced again.
             $now = WholeSecond::now();
             $before = $this->sales->find($command->saleId) ?? throw new SaleNotFound;
 
-            if (! $before->running($now) || $before->startsAt >= $now) {
+            if (! $before->running($now)) {
                 throw new NotChangeable;
+            }
+
+            // Started this very second, it has no time to end at: removed, as the provider's price removes one
+            // (and as a campaign run's End Now; the second review of Content PR 5).
+            if ($before->startsAt >= $now) {
+                $this->sales->remove($before->id);
+                $this->writer->refresh($storeId, $before->variantIds);
+
+                return [null, [SaleAudit::entry('pricing.sale.removed', $before, null, $store->currencyExponent)]];
             }
 
             $after = new Sale($before->id, $before->storeId, $before->productId, $before->percentBasisPoints, $before->price, $before->startsAt, $now, $before->alwaysWins, $before->variantIds);

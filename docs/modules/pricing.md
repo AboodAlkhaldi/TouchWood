@@ -1155,7 +1155,8 @@ scheduled**. Applied in place with the build: §1.6 step 2, §2.1's contract lis
   rounds half up - an End Now at 10:00:00.7 would be kept as 10:00:01, still running when its sizes are priced again,
   its price left on the shop's cards; a fraction in a start or an end would queue a timed task that never matches.
   A run's start and end, `changeEnd`'s end and `endNow`'s now are taken down to the second (`WholeSecond`), and so are
-  a sale's and a category discount's (their inputs, End and a provider-stopped sale's end).
+  a sale's and a category discount's (their inputs, End and a provider-stopped sale's end). A sale or category
+  discount ended in the very second it started is removed, as a run's End Now removes one (the second review).
 - **The drawer and the product page** list the runs pricing a size (`ReachingCampaign`, `ProductCampaign`), read from
   the size's candidates: no query more.
 - **`campaign_skips`** keys its run and that run's store together (a skip is never another store's), and its store
@@ -1205,6 +1206,7 @@ scheduled**. Applied in place with the build: §1.6 step 2, §2.1's contract lis
    | `changeEnd(StoreId, string $runId, $end)` · `endNow(StoreId, string $runId)` · `remove(StoreId, string $runId)` | The run's life |
    | `read(StoreId, string $runId): ?CampaignPriceSetDto` · `productIds(StoreId, string $runId, ?string $after, int $limit)` | The campaign's form, and the shop's campaign page |
    | `skippedSizes(StoreId, string $runId): list<string>` | The sizes the run skips now in a wired store (#5), for the campaign's page; one query. Pricing decides the skip, so it answers, and Content needs no arrow to Sync (the build coordinator's pick, 2026-11-10) |
+   | `skippingRuns(StoreId, list<string> $variantIds): array<string, list<string>>` (added with the second review) | Of these sizes, the runs skipping each now; one query. For Sync's read, which reports after Pricing's batch has committed: it names only the runs still skipping |
 
    `CampaignPriceSetDto`: `lines` (`RETAIL`, `WHOLESALE`, `BOTH`), `targets` (each `{kind: PRODUCT, SIZE, CATEGORY or
    BRAND, id, percentBp}` or `{kind: SIZE, id, amount: Money}`), `leftOut` product ids. The tables are written with the

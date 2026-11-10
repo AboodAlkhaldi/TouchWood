@@ -14,6 +14,7 @@ use Modules\Inventory\Public\Contracts\ProviderStock;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
+use Modules\Pricing\Public\Contracts\CampaignPrices;
 use Modules\Pricing\Public\Contracts\ProviderPrices;
 use Modules\Sync\Application\Report\SyncWords;
 use Modules\Sync\Application\SyncPermissions;
@@ -77,6 +78,7 @@ final readonly class RunReadHandler
         private Dispatcher $events,
         private SyncWords $words,
         private ConnectionInterface $db,
+        private CampaignPrices $campaigns,
     ) {}
 
     /**
@@ -431,16 +433,26 @@ final readonly class RunReadHandler
             $runsOf[$skipped['variantId']][$skipped['runId']] = true;
         }
 
-        $this->reported($store, $read->id, ReportKind::CampaignSkipped, array_map(static function (string $variantId, array $runs): array {
-            $runs = array_map('strval', array_keys($runs));
+        // Written after Pricing's batch committed, outside its lock: a run ended or changed meanwhile may skip the
+        // size no more. Only the runs Pricing still keeps skipping it are named - never one re-opened, or
+        // told again, after its own end closed the entry (the second review of Content PR 5).
+        $still = $runsOf === [] ? [] : $this->campaigns->skippingRuns($store, array_map('strval', array_keys($runsOf)));
+        $campaignEntries = [];
+
+        foreach ($runsOf as $variantId => $runs) {
+            $runs = array_values(array_intersect(array_map('strval', array_keys($runs)), $still[(string) $variantId] ?? []));
             sort($runs);
 
-            return ['code' => null, 'variantId' => $variantId, 'saleId' => null, 'detail' => ['runs' => $runs]];
-        }, array_map('strval', array_keys($runsOf)), array_values($runsOf)));
+            if ($runs !== []) {
+                $campaignEntries[] = ['code' => null, 'variantId' => (string) $variantId, 'saleId' => null, 'detail' => ['runs' => $runs]];
+            }
+        }
+
+        $this->reported($store, $read->id, ReportKind::CampaignSkipped, $campaignEntries);
 
         // Right again: a good value, a size checked and not archived, a discount or a run reaching it, a size found.
         $skippedNow = array_column($prices->discountsSkipped ?? [], 'variantId');
-        $campaignSkippedNow = array_column($prices->campaignsSkipped ?? [], 'variantId');
+        $campaignSkippedNow = array_column($campaignEntries, 'variantId');
         $this->entries->close($store, ReportKind::CampaignSkipped, [], array_values(array_diff($prices->changed ?? [], $campaignSkippedNow)), self::CLOSED_BY_READ);
         $this->entries->close($store, ReportKind::BadValue, [], array_values(array_diff($sizes, array_keys($bad))), self::CLOSED_BY_READ);
         $this->entries->close($store, ReportKind::ArchivedSkipped, [], array_values(array_diff($checked, $archived)), self::CLOSED_BY_READ);

@@ -77,4 +77,14 @@ interface CampaignPrices
      * @return list<string>
      */
     public function skippedSizes(StoreId $store, string $runId): array;
+
+    /**
+     * Of these sizes, the runs skipping each now in the store (§9.6 #5), in id order - a size none skips left
+     * out; one query. For Sync's read, which writes its report after Pricing's batch has committed and so
+     * outside the store's lock: it keeps only the runs still skipping, never one ended meanwhile.
+     *
+     * @param  list<string>  $variantIds
+     * @return array<string, list<string>> size id => run ids
+     */
+    public function skippingRuns(StoreId $store, array $variantIds): array;
 }

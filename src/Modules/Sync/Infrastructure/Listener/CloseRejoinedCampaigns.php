@@ -41,8 +41,8 @@ final readonly class CloseRejoinedCampaigns
 
             $rejoined = array_values(array_diff($event->variantIds, array_map('strval', array_keys($runs))));
             $this->entries->close($store, ReportKind::CampaignSkipped, [], $rejoined, 'PRICING');
-            // A size some run still skips keeps its entry, naming those runs alone.
-            $this->entries->keepCampaignRuns($store, $runs);
+            // A size some run still skips keeps its entry, naming those runs alone - closed if none it named is left.
+            $this->entries->keepCampaignRuns($store, $runs, 'PRICING');
         } catch (Throwable $error) {
             report($error);
         }

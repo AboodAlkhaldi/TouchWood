@@ -121,7 +121,9 @@ final readonly class ReachViews
         $runs = [];
 
         foreach ($candidates as $candidate) {
-            if ($candidate->kind !== PriceKind::Campaign || $candidate->sourceId === null || $candidate->startsAt === null) {
+            // An ended run's candidates stay until its sizes are written again: never listed as reaching it.
+            if ($candidate->kind !== PriceKind::Campaign || $candidate->sourceId === null || $candidate->startsAt === null
+                || ($candidate->endsAt !== null && $candidate->endsAt <= $now)) {
                 continue;
             }
 

@@ -152,7 +152,9 @@ final readonly class ViewProductPricesHandler
 
         foreach ($candidates as $variantId => $ofSize) {
             foreach ($ofSize as $candidate) {
-                if ($candidate->kind !== PriceKind::Campaign || $candidate->sourceId === null || $candidate->startsAt === null) {
+                // An ended run's candidates stay until its sizes are written again: never listed.
+                if ($candidate->kind !== PriceKind::Campaign || $candidate->sourceId === null || $candidate->startsAt === null
+                    || ($candidate->endsAt !== null && $candidate->endsAt <= $now)) {
                     continue;
                 }
 

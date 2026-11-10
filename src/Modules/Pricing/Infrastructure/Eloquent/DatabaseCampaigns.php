@@ -149,6 +149,24 @@ final readonly class DatabaseCampaigns implements Campaigns
             ->pluck('variant_id')->all()));
     }
 
+    public function skipsOf(StoreId $store, array $variantIds): array
+    {
+        $ids = array_values(array_filter(array_unique(array_map(static fn (string $id): string => strtolower(trim($id)), $variantIds)), static fn (string $id): bool => preg_match('/\A[0-9a-z]{1,64}\z/', $id) === 1));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $found = [];
+
+        foreach ($this->db->table(self::SKIPS)->where('store_id', $store->value)->whereRaw('variant_id = ANY(?::text[])', ['{'.implode(',', $ids).'}'])
+            ->orderBy('variant_id')->orderBy('run_id')->get(['variant_id', 'run_id']) as $row) {
+            $found[(string) $row->variant_id][] = (string) $row->run_id;
+        }
+
+        return $found;
+    }
+
     /**
      * @param  array<array-key, mixed>  $rows
      * @return list<Campaign>

@@ -55,4 +55,10 @@ interface Campaigns
      * @return list<string> the sizes the run skips now, in id order
      */
     public function skippedSizes(StoreId $store, string $runId): array;
+
+    /**
+     * @param  list<string>  $variantIds
+     * @return array<string, list<string>> size id => the runs skipping it now, in id order
+     */
+    public function skipsOf(StoreId $store, array $variantIds): array;
 }

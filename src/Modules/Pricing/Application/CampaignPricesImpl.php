@@ -225,6 +225,11 @@ final readonly class CampaignPricesImpl implements CampaignPrices
         return $this->campaigns->skippedSizes($store, strtolower(trim($runId)));
     }
 
+    public function skippingRuns(StoreId $store, array $variantIds): array
+    {
+        return $this->campaigns->skipsOf($store, $variantIds);
+    }
+
     /** The run in this store, for a read: one of another store, or no id at all, is none here. */
     private function here(StoreId $store, string $runId): ?Campaign
     {
