@@ -67,6 +67,63 @@ final class InvalidContentInput extends ContentError
     /** A text past the bytes one request may carry, refused before it is read (`TranslateTextHandler::MAX_BYTES`). */
     public const string TOO_LARGE = 'too_large';
 
+    /** An Arabic address with something other than Arabic letters and digits joined by single hyphens. */
+    public const string SLUG_AR = 'slug_ar';
+
+    /** An English address with something other than Latin letters and digits joined by single hyphens. */
+    public const string SLUG_EN = 'slug_en';
+
+    /** A title with nothing an address can be made from: the address is typed instead. */
+    public const string SLUG_FROM_TITLE = 'slug_from_title';
+
+    /** A file that is not a public JPEG, PNG or WebP image of the library (§1.1 rule 10). */
+    public const string IMAGE_FILE = 'image_file';
+
+    /** A text naming an image it does not hold (§1.2: "a reference that resolves to nothing is refused"). */
+    public const string IMAGE_REF = 'image_ref';
+
+    /** Fewer of something than it needs (`:min`). */
+    public const string TOO_FEW = 'too_few';
+
+    /** More of something than it may hold (`:max`). */
+    public const string TOO_MANY = 'too_many';
+
+    /** A value that is none of its box's choices. */
+    public const string CHOICE = 'choice';
+
+    /** A number outside its range (`:min`, `:max`). */
+    public const string RANGE = 'range';
+
+    /** Not a date and a time. */
+    public const string DATE = 'date';
+
+    /** An end that is not after the start. */
+    public const string DATES = 'dates';
+
+    /** An end already past, where something is being scheduled. */
+    public const string PAST = 'past';
+
+    /** A product that is not a ready one of the catalog. */
+    public const string PRODUCT = 'product';
+
+    /** A category that does not exist. */
+    public const string CATEGORY = 'category';
+
+    /** An email address written wrong. */
+    public const string EMAIL = 'email';
+
+    /** A phone number written wrong. */
+    public const string PHONE = 'phone';
+
+    /** An order that names other than every item it orders, each once. */
+    public const string ORDER = 'order';
+
+    /** A thing that is on the list already (a section type, a product, a file). */
+    public const string DUPLICATE = 'duplicate';
+
+    /** A step its item's state does not allow: End Now on what is not live, Back to Draft on what is not scheduled. */
+    public const string STATE = 'state';
+
     /**
      * @param  array<string, string|int>  $values  the rule's own gaps (`max`, `found`, `expected`)
      */
