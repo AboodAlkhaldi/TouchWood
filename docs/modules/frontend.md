@@ -497,7 +497,9 @@ and examples. Only when neither has it, show the owner what was searched and ask
 - **The theme switch**: Geist's Theme Switcher as it is — **System, Light, Dark** — once per area
   (Geist: "once per app, in the footer or settings"), instead of today's three places:
   - **panel**: the sidebar's footer, small, inside the person menu — one click from any page, the
-    sidebar collapsed included;
+    sidebar collapsed included. The language is not in that menu: it is its own row of the
+    sidebar's footer, above the person, one press, the rail of icons included (#3 below; round 3 #13,
+    owner 2026-11-10);
   - **shop**: the footer, small;
   - the **panel's** sign-in pages lose it. The shop's pages, its sign-in pages included, keep it in the shop's footer, which every shop page has.
   Light and Dark are still rendered by the server. For System, a few lines of script in the page's
@@ -735,7 +737,9 @@ From the design, with the decided rules applied:
 
 - **Sidebar:** the logo with "Admin panel"; business areas that fold, several open at once
   (§1.11, the owner's fix list, 2026-10-04); count badges; at the
-  bottom, the person's avatar, name and role, and the language toggle (ع / EN). The language is not
+  bottom, the person's avatar, name and role, and above them the language button: its own row,
+  naming the other language in that language (العربية / English, §1.11 #3), one press (round 3 #13,
+  owner 2026-11-10). The language is not
   in the URL **[DECIDED 2026-09-19]**. The toggle changes **only what is displayed**, at once; the
   staff member's saved `locale` is their communication language (emails, SMS codes) and changes
   only in their own settings (Access amendment 16). **[DECIDED 2026-09-19]** The display choice is
@@ -1099,9 +1103,13 @@ see admin roles in the list but cannot open them for editing (amendment 9 and th
 | D5 | ~~Refresh~~ | — | Removed with C9 (Access amendment 59). |
 
 - **[DECIDED 2026-09-19] Actions are grouped by business area** on every screen that lists them
-  (D3 and §3.3 C6): "Catalog and variants", "Pricing and campaigns", "Orders and fulfilment",
-  "Company approvals", "Staff and permissions", "Store settings and tax" — the design's groups,
-  which handoff §14 also names. Each permission therefore carries a group, named in Arabic and
+  (D3 and §3.3 C6): "Products", "Pricing and campaigns", "Sales", "Company approvals", "Staff",
+  "Configuration" — the design's groups, which handoff §14 also names. **[DECIDED by the owner,
+  2026-11-10, round 3 #10: "keep"]** every screen stays in its area and five areas take the design's
+  shorter word, in the menu and here alike: Catalog and variants → Products (المنتجات), Orders and
+  fulfilment → Sales (المبيعات), Store settings and tax → Configuration (الإعدادات), Staff and
+  permissions → Staff (طاقم العمل), Media library → Library (its Arabic waits on the owner:
+  docs/handoff/content-rounds.md, P8). Each permission therefore carries a group, named in Arabic and
   English, when its module declares it: a change to the permission catalog and to Platform's own
   list, listed in §4. Modules built later pick a group for each permission they declare.
   **[DECIDED 2026-09-29]** A **System** area joins them, for the running of the system — first the

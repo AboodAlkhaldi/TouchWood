@@ -22,6 +22,7 @@ final class SupportListPage extends Data
      * @param  list<FavouriteItemData>  $favourites
      * @param  list<StoreOptionData>  $stores
      * @param  list<ReasonData>  $reasons
+     * @param  array<string, int>  $counts  each tab's items in the store (round 3 #11); none for favourites or a later page
      */
     public function __construct(
         public array $reviews,
@@ -36,5 +37,6 @@ final class SupportListPage extends Data
         public string $storeTimezone,
         public array $stores,
         public array $reasons,
+        public array $counts,
     ) {}
 }

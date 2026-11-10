@@ -31,6 +31,7 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
 | After the pass | S10, S10b, the bell alerts that a security email or SMS could not be sent; a form's segments, and the segment's name on what was written (owner, 2026-11-01) | `Infrastructure/Messages/SecurityFailureAlert`, `Application/Query/ListSegments` |
 | Stage 7's last events | C11 on `PaymentRequested`, S6 on `TransferOverdue`, C10 checked on a request's online payment, transfers overdue in the daily report and its totals (2026-11-03) | `Infrastructure/Listener/TellCustomerAboutPaymentRequest`, `AlertStaff`, `Application/Alerts/MessageWriter`, `Application/DailyReport/DailyReportReader` |
 | After the screens' spec | A whole store's audience, `ops.admin.audience` (ops.md §9.4 Q14), on Access's `customerCountInStore` (access.md amendment 94) | `Application/Query/CountStoreAudience`, `Presentation/Http/Controller/AudienceController` |
+| Content round 3 (2026-11-10) | The list jobs try for about a day; S10c, the bell when Brevo refuses a queued email for everybody (ops.md §9.6 #2, #3). The nightly read of Brevo's unsubscribes (#1) waits for the owner | `Infrastructure/Queue/ProviderFailureRules`, `Infrastructure/Messages/SecurityFailureAlert` |
 
 ## What is here
 
@@ -73,7 +74,7 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
 - **`Infrastructure/External`** — `BrevoEmailSender`, `BrevoNewsletterList`, `BrevoAnswers` (the key as pasted, how
   long a call waits, what each refusal means: ops.md §7), the `Log*` adapters for development
   and tests (refused in production), `BuiltSmsSenders`, `DailyReportEmailMailer`. **`Infrastructure/Queue/ProviderFailureRules`** —
-  a job's answer to a provider's failure: the failed jobs at once for one address refused, long waits for up to a day when Brevo refuses everybody, Brevo's own wait on a 429, no attempt spent.
+  a job's answer to a provider's failure: the failed jobs at once for one address refused, long waits for up to a day when Brevo refuses everybody (S10c for a queued email), Brevo's own wait on a 429, no attempt spent; the list jobs' backoff of about a day.
   **`Presentation/Console/BrevoCheckCommand`** — `ops:brevo:check`, the real token's read-only check. **`Infrastructure/Delivery`** —
   `BroadcastSender`, batches of 500, safe to run again; `ExpiringPointsReminder`. **`Infrastructure/Queue`** — the
   jobs. **`Infrastructure/Excel`** — `OpenSpoutReportWriter`. **`Infrastructure/Pdf`** —
@@ -107,6 +108,9 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
 - **S10, S10b:** a security email or SMS that fails puts one bell entry in each active Super Admin's inbox, at most once a clock
   hour per channel, and no switch can stop it (`SecurityFailureAlert`). The bell alone. Written directly, after any transaction the
   caller has open; it waits 250 ms at most on another's claim; a failure here is reported and goes no further.
+- **S10c:** a queued email (an event's, a notice's, a message's, the daily report's) that Brevo refuses for everybody, a key, the
+  credit or the sender, does the same from the worker, by its own hour (`ProviderFailureRules`, `SecurityFailureAlert::queuedEmailRefused`).
+  The email waits as before; the list jobs raise none.
 - **Each email and SMS** has its `ops.sent_messages` row written QUEUED, and its job, with the listener's work; the job calls
   the provider outside any transaction and marks it SENT, or FAILED after the last attempt. At least once: a
   provider that took a message just before its row was marked may get it again.
@@ -188,7 +192,8 @@ Each checked against the code on 2026-11-01, the first two on 2026-11-03, C11's 
 | A notice sent when a campaign goes live (§1.7) | Built on Ops' side (`StartCampaignNotice`): a waiting notice only. No state makes a notice wait for its campaign (ops.md §9.5) | Content: to fire `CampaignWentLive`; the owner |
 | The SMS provider | `log` only | The owner (Mobily being checked) |
 | Brevo on the live system | The adapters are built, every failure covered with faked answers (ops.md §7), and in production a web request or a worker refuses to boot on either `log` driver, or without a usable key and `MAIL_FROM_ADDRESS`, and logs loudly without `BREVO_NEWSLETTER_FOLDER_ID` or `BREVO_WEBHOOK_SECRET`, all the server's; other console commands are left alone; the webhook is made in Brevo, unbatched, with the secret as its custom header. Run `php artisan ops:brevo:check` once the key is in, and `php artisan queue:restart` after changing it. Not yet proven against the real Brevo | The owner, at hosting |
-| What to do about a lost unsubscribe, a long outage, a refused key on queued mail, a missing folder or secret at boot, staging's `APP_ENV` | ops.md §9.6: left as they are | The owner |
+| A lost unsubscribe (ops.md §9.6 #1): the nightly read | Not built: Brevo's reference shows a list-only unsubscribe (`listUnsubscribed`) beside `emailBlacklisted`, so what the read acts on is the owner's (§9.6). A long outage (#2) and a refused key on queued mail (#3) are built | The owner |
+| Staging's `APP_ENV` | ops.md §9.6 #7, not asked yet (as #4 and #5); #6 answered: the log line, as built | The owner |
 | The words' full review | The reports' and unsubscribe pages' words are marked approved for now, the full review at the end (owner, 2026-10-31) | The owner |
 | The screens | Built (ops.md §4.15): SMS Countries, the two bells with their full pages, Customer Messages and Offer Notices with their forms, Subscribers, Reports, Daily Reports, the newsletter box, the consent switch and box, and the confirm, leave and unsubscribe pages. The Home card goes with the Home dashboard job | The screens agent |
 

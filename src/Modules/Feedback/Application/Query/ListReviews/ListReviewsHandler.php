@@ -72,6 +72,7 @@ final readonly class ListReviewsHandler
                 $review->moderatedAt,
             ), $reviews),
             $more && $reviews !== [] ? $reviews[count($reviews) - 1]->id : null,
+            $query->counted ? $this->queries->reviewCounts($store) : [],
         );
     }
 }

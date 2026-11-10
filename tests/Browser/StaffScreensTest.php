@@ -80,7 +80,7 @@ it('draws the staff list grouped by store, and opens one person', function () {
     $page->navigate("/admin/staff/{$staffId}")
         ->assertSee('What It Allows')
         // Their role reaches one store, and the screen says which by name rather than by id.
-        ->assertSee('Store Settings and Tax')
+        ->assertSee('Configuration')
         ->assertNoJavaScriptErrors();
 
     // A phone (frontend.md §2.1): the person's page, the list and the role editor fit, with nothing

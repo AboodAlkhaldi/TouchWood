@@ -17,5 +17,7 @@ final readonly class ListOrders
         public ?string $q = null,
         /** One customer's orders only (the customer's page: "See all of this customer's orders"). */
         public ?string $customerId = null,
+        /** Each filter's count too, for the tabs (round 3 #11): one more query, so only the list's first page asks. */
+        public bool $counted = false,
     ) {}
 }

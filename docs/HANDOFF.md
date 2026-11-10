@@ -1725,6 +1725,8 @@ concept, and profit reporting.
 
 Permission groups seen in the design: catalog and variants · pricing and campaigns · orders
 and fulfilment · company approvals · staff and permissions · store settings and tax.
+(Named since 2026-11-10, round 3 #10: Products · Pricing and campaigns · Sales · Company
+approvals · Staff · Configuration; and Media library → Library. frontend.md §3.4.)
 
 Example roles: Owner · Catalog manager · Order fulfilment · Company accounts · Support.
 

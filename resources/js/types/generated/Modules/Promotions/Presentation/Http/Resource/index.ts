@@ -92,6 +92,7 @@ storeName: string,
 storeIsActive: boolean,
 storeTimezone: string,
 stores: StoreOptionData[],
+counts: Record<string, number>,
 };
 export type CustomerNameData = {
 id: string,

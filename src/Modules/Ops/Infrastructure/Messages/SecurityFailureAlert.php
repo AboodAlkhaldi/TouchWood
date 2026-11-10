@@ -29,7 +29,7 @@ use Throwable;
  *
  * **At most once an hour, per channel.** One claim per clock hour and kind in `ops.handled_events`, taken in
  * the same transaction as the entries: one failure of a burst writes them, and the others find the hour taken,
- * so a failure after the first costs two statements. A write that fails releases the claim, and the next
+ * so a failure after the first costs two queries. A write that fails releases the claim, and the next
  * failure tries again.
  *
  * **Never in the way of the person's request.** Written directly, not by a job: the queue may be what is
@@ -41,6 +41,8 @@ use Throwable;
  * Super Admin and no one else, whatever their switches. It insists on a topic only to say each one's switches
  * for it, and those are not read here, so the topic named is of no consequence. An entry needs a store: the
  * failed message's, otherwise the first, on or off; a Super Admin's bell shows every store.
+ *
+ * **S10c by the same rules** (queuedEmailRefused): a queued email Brevo refused for everybody.
  */
 final readonly class SecurityFailureAlert
 {
@@ -58,8 +60,23 @@ final readonly class SecurityFailureAlert
 
     public function failed(MessageChannel $channel, ?StoreDto $store): void
     {
-        $kind = $channel === MessageChannel::Sms ? MessageKind::SecuritySmsFailed : MessageKind::SecurityEmailFailed;
+        $this->raise($channel === MessageChannel::Sms ? MessageKind::SecuritySmsFailed : MessageKind::SecurityEmailFailed, $store);
+    }
 
+    /**
+     * S10c (owner, Content round 3 #20; ops.md §9.6 #3): a queued email that Brevo refused for everybody - a bad key, no
+     * credit, the sender - waits up to a day with its row QUEUED, so the Super Admins are told, by the same rules as
+     * S10: every active one, no switch, the bell alone, at most once a clock hour (its own hour). Raised by
+     * ProviderFailureRules from a worker. Filed under the first store (the builder's pick): the refusal is the
+     * provider's, the same for every store, and a Super Admin's bell shows every store.
+     */
+    public function queuedEmailRefused(): void
+    {
+        $this->raise(MessageKind::QueuedEmailRefused, null);
+    }
+
+    private function raise(MessageKind $kind, ?StoreDto $store): void
+    {
         $this->db->afterCommit(function () use ($kind, $store): void {
             try {
                 $this->alert($kind, $store);

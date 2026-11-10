@@ -13,5 +13,7 @@ final readonly class ListReturns
         public ?string $status = null,
         /** The id of the last return shown. */
         public ?string $after = null,
+        /** Each state's count too, for the tabs (round 3 #11): one more query, so only the list's first page asks. */
+        public bool $counted = false,
     ) {}
 }

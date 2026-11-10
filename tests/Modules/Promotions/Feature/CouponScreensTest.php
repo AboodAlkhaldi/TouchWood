@@ -206,6 +206,31 @@ describe('M1 · the list', function () {
             ->and([array_column($off['coupons'], 'code'), $off['state']])->toBe([['SUNNY-5'], 'INACTIVE']);
     });
 
+    it('counts each tab\'s coupons for the code typed, each count what its tab lists', function () {
+        // Round 3 #11 (owner, 2026-11-10): underlined tabs with counts. Another store's are not counted.
+        Pr::coupon('SUMMER-15');
+        Pr::coupon('SUNNY-5', with: ['active' => false]);
+        Pr::coupon('SOON-1', with: ['starts_at' => now()->addDay()]);
+        Pr::coupon('SPENT-2', with: ['max_uses_total' => 1, 'uses_total' => 1]);
+        Pr::coupon('WINTER-9', with: ['ends_at' => now()->subMinute(), 'starts_at' => now()->subDays(2)]);
+        Pr::coupon('SUEZ-3', 'eg');
+        $browser = couponScreensManager();
+
+        $counts = couponScreensProps($browser, '/admin/coupons', 'Promotions/Admin/Coupons/Index')['counts'];
+        $listed = [];
+
+        foreach (['ALL', 'SCHEDULED', 'ACTIVE', 'ENDED', 'INACTIVE'] as $tab) {
+            $listed[$tab] = count(couponScreensProps($browser, '/admin/coupons'.($tab === 'ALL' ? '' : '?state='.strtolower($tab)), 'Promotions/Admin/Coupons/Index')['coupons']);
+        }
+
+        expect($counts)->toBe(['ALL' => 5, 'SCHEDULED' => 1, 'ACTIVE' => 1, 'ENDED' => 2, 'INACTIVE' => 1])
+            ->and($listed)->toBe($counts)
+            // The code typed narrows them as it narrows the list; a start no code can have counts none.
+            ->and(couponScreensProps($browser, '/admin/coupons?code=su', 'Promotions/Admin/Coupons/Index')['counts'])
+            ->toBe(['ALL' => 2, 'SCHEDULED' => 0, 'ACTIVE' => 1, 'ENDED' => 0, 'INACTIVE' => 1])
+            ->and(array_sum(couponScreensProps($browser, '/admin/coupons?code='.urlencode('%'), 'Promotions/Admin/Coupons/Index')['counts']))->toBe(0);
+    });
+
     it('refuses a reader with no Marketing job, and a store not offered', function () {
         couponScreens(['access.customer.view'])->get('/admin/coupons')->assertForbidden();
         couponScreens([PromotionsPermissions::VIEW])->get('/admin/coupons?store=eg')->assertForbidden();
@@ -408,7 +433,8 @@ describe('M2 · a coupon', function () {
             Pr::used($first, Fx::customer("use{$n}@example.test"));
         }
 
+        // The list 4 since round 3 #11 (2026-11-10): its tabs' counts, one grouped query.
         expect($counts())->toBe($one)
-            ->and($one)->toBe([3, 8, 12]);
+            ->and($one)->toBe([4, 8, 12]);
     });
 });
