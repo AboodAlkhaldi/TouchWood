@@ -26,6 +26,7 @@ beforeEach(function () {
     FakeBreachList::install();
     RecordingSecurityMessages::install();
     DB::table('content.home_sections')->where('store_id', Fx::storeId('ae'))->update(['is_visible' => false, 'settings' => '{}']);
+    DB::table('content.footers')->where('store_id', Fx::storeId('ae'))->delete();
 
     // Back in the starting order: an earlier run moved one to the bottom. Two steps, as positions are unique per store.
     $types = ['HERO', 'PROMISES', 'CATEGORIES', 'BEST_SELLERS', 'PROJECTS', 'AUDIENCE', 'POINTS', 'CLIENT_LOGOS'];
@@ -52,7 +53,10 @@ it('fills a section with Translate, shows it, refuses one without English, and m
     $page->type('#heading_ar', "مشاريعنا {$run}")->click('[data-test="translate-heading"]');
     expect(browserSoon($page, "document.querySelector('#heading_en').value !== ''"))->toBeTrue();
     $page->click('[data-test="save-section"]');
-    expect(browserSoon($page, "window.location.pathname === '/admin/content/home' && document.body.textContent.includes('Section saved')"))->toBeTrue();
+    expect(browserSoon($page, "window.location.pathname === '/admin/content/home' && document.body.textContent.includes('Section saved')"))->toBeTrue()
+        // View Home Page, Edit as each section's own control, and the summary in the panel's language, not the Arabic.
+        ->and($page->script("document.querySelector('[data-test=\"preview-home\"]') !== null && document.querySelector('[data-test=\"section-PROJECTS\"] [data-test=\"edit-section\"]')?.getAttribute('href') === '/admin/content/home/{$projects}'"))->toBeTrue()
+        ->and((string) $page->script("document.querySelector('[data-test=\"section-PROJECTS\"]').textContent"))->not->toContain("مشاريعنا {$run}");
 
     // Its switch shows it.
     $page->click('[data-test="section-PROJECTS"] [data-test="show"]');
@@ -90,5 +94,59 @@ it('draws right to left in Arabic, in Latin digits, and fits a phone, the sectio
     $page->navigate('/admin/content/home/'.contentHomeSection('HERO'), BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"section-form\"]') !== null"))->toBeTrue()
         ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
+    $page->assertNoJavaScriptErrors();
+});
+
+it('says a fact\'s refusal under that fact alone', function () {
+    $page = Cb::signIn([ContentPermissions::HOMEPAGE_MANAGE]);
+
+    $page->navigate('/admin/content/home/'.contentHomeSection('HERO'), BROWSER_SLOW_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"section-form\"]') !== null"))->toBeTrue();
+    $page->click('[data-test="add-fact"]')->click('[data-test="add-fact"]');
+    expect(browserSoon($page, "document.querySelector('#fact1_en') !== null"))->toBeTrue();
+    $page->type('#fact0_ar', 'توصيل مجاني')->type('#fact1_en', 'Free returns');
+    $page->click('[data-test="save-section"]');
+
+    // The server refuses an English fact with no Arabic (`fact_ar`): said under the second fact, not under each, nor above.
+    expect(browserSoon($page, "document.querySelector('#fact1_ar-error') !== null"))->toBeTrue()
+        ->and($page->script("document.querySelector('#fact0_ar-error') === null && document.querySelector('[data-test=\"facts\"] > p.text-bad') === null"))->toBeTrue();
+    $page->assertNoJavaScriptErrors();
+});
+
+it('checks the footer\'s links under their own rows, orders its columns, and saves it', function () {
+    $page = Cb::signIn([ContentPermissions::HOMEPAGE_MANAGE]);
+
+    $page->navigate('/admin/content/home?store=ae&tab=footer', BROWSER_SLOW_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"footer-form\"]') !== null"))->toBeTrue();
+    $page->click('[data-test="add-column"]')->click('[data-test="add-column"]');
+    expect(browserSoon($page, "document.querySelector('#column1_ar') !== null"))->toBeTrue();
+    $page->type('#column0_ar', 'المتجر')->type('#column0_en', 'Shop')->type('#column1_ar', 'المساعدة')->type('#column1_en', 'Help');
+    $page->click('[data-test="add-link-0"]')->click('[data-test="add-link-0"]');
+    expect(browserSoon($page, "document.querySelector('#column0link1_ar') !== null"))->toBeTrue();
+    $page->type('#column0link0_ar', 'الكراسي')->type('#column0link0-address', '/categories/chairs')
+        ->type('#column0link1_ar', 'الطاولات')->type('#column0link1_en', 'Tables')->type('#column0link1-address', '/categories/tables');
+
+    // Saved with the first link's English missing: nothing is sent, and it is said under that link alone.
+    $page->click('[data-test="save-footer"]');
+    expect(browserSoon($page, "document.querySelector('#column0link0_en-error') !== null"))->toBeTrue()
+        ->and($page->script("document.querySelector('#column0link1_en-error') === null && document.querySelector('#column0link0-address-error') === null"))->toBeTrue()
+        ->and(DB::table('content.footers')->where('store_id', Fx::storeId('ae'))->exists())->toBeFalse();
+
+    // A link the server would refuse (a space in it) is said as it is typed, under its own row.
+    $page->type('#column0link0_en', 'Chairs')->type('#column0link1-address', '/tables sale');
+    expect(browserSoon($page, "document.querySelector('#column0link1-address-error') !== null && document.querySelector('#column0link0_en-error') === null"))->toBeTrue()
+        ->and($page->script("document.querySelector('#column0link0-address-error') === null"))->toBeTrue();
+    $page->type('#column0link1-address', '/categories/tables');
+
+    // Move to Bottom puts the first column last.
+    $page->click('[data-test="column-0-more"]')->click('[data-test="column-0-move-bottom"]');
+    expect(browserSoon($page, "document.querySelector('#column1_ar')?.value === 'المتجر'"))->toBeTrue();
+    $page->click('[data-test="save-footer"]');
+    expect(browserSoon($page, "document.body.textContent.includes('Footer saved')"))->toBeTrue();
+
+    /** @var list<array{title: array{en: string}, links: list<array{link: string}>}> $columns */
+    $columns = json_decode((string) DB::table('content.footers')->where('store_id', Fx::storeId('ae'))->value('columns'), true);
+    expect(array_map(static fn (array $column): string => $column['title']['en'], $columns))->toBe(['Help', 'Shop'])
+        ->and(array_map(static fn (array $link): string => $link['link'], $columns[1]['links']))->toBe(['/categories/chairs', '/categories/tables']);
     $page->assertNoJavaScriptErrors();
 });

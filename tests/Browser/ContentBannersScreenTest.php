@@ -69,10 +69,35 @@ it('draws right to left in Arabic, in Latin digits, and fits a phone with its ro
     $page->navigate('/admin/content/banners?store=ae&placement=HOME_PHONE', BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.documentElement.dir === 'rtl' && document.querySelector('[data-test=\"banner-card-{$banner}\"]') !== null"))->toBeTrue()
         ->and(Cb::latinDigits($page))->toBeTrue()
-        ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
+        ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page))
+        // A card opens from the keyboard too: its title is a real link to the banner's page.
+        ->and($page->script("document.querySelector('[data-test=\"banner-card-open\"]').tagName"))->toBe('A');
 
     $page->navigate("/admin/content/banners/{$banner}", BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"banner-form\"]') !== null"))->toBeTrue()
         ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
+    $page->assertNoJavaScriptErrors();
+});
+
+it('shows an ended banner read only, and warns of a phone image only under twice the size it is shown at', function () {
+    $run = Cb::run();
+    $page = Cb::signIn([ContentPermissions::BANNER_MANAGE]);
+    // 347 x 174 on a phone (§1.6), so 694 x 348 at double density: 700 x 350 is enough, 600 x 300 is not.
+    $sharp = Cx::image();
+    $soft = Cx::image();
+    DB::table('platform.media')->where('id', $sharp)->update(['width' => 700, 'height' => 350]);
+    DB::table('platform.media')->where('id', $soft)->update(['width' => 600, 'height' => 300]);
+    $ended = Fx::asSystem(fn (): string => Cx::banner(['name' => "Ended {$run}", 'images' => ['PHONE:any' => $sharp]], 'ae'));
+    $draft = Fx::asSystem(fn (): string => Cx::banner(['name' => "Soft {$run}", 'images' => ['PHONE:any' => $soft]], 'ae'));
+    DB::table('content.banners')->where('id', $ended)->update(['is_scheduled' => true, 'starts_at' => now()->subDays(2), 'ends_at' => now()->subDay()]);
+
+    $page->navigate("/admin/content/banners/{$ended}", BROWSER_SLOW_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"ended-note\"]') !== null && document.querySelector('[data-test=\"image-phone_image\"]') !== null"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=\"schedule\"]') === null && document.querySelector('[data-test=\"save-draft\"]') === null && document.querySelector('#name').disabled && document.querySelector('[data-test=\"image-phone_image-choose\"]').disabled"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=\"image-phone_image-small\"]') === null"))->toBeTrue();
+
+    $page->navigate("/admin/content/banners/{$draft}", BROWSER_SLOW_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"image-phone_image-small\"]')?.textContent.includes('694 x 348') === true"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=\"schedule\"]') !== null && document.querySelector('[data-test=\"ended-note\"]') === null"))->toBeTrue();
     $page->assertNoJavaScriptErrors();
 });
