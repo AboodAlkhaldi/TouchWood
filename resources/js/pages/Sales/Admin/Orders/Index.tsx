@@ -112,7 +112,8 @@ export default function Index(page: OrdersPage) {
                                                 </Link>
                                             </TableCell>
                                             <TableCell className="text-copy-13 text-ink-muted">
-                                                <Time value={order.placedAt} />
+                                                {/* Above the row's stretched link, so its card still opens on hover. */}
+                                                <Time value={order.placedAt} className="relative z-10" data-test={`placed-${order.number}`} />
                                             </TableCell>
                                             <TableCell className="text-copy-14">
                                                 <CustomerName customer={order.customer} />

@@ -265,6 +265,8 @@ it('draws the design\'s phone top bar, and switches the language in one press on
         ->and($font('[data-test="trail-page"]'))->toBe('16px')
         ->and($font('h1'))->toBe('20px')
         ->and($size('[data-test="view-store"]', '[Math.round(box.width), Math.round(box.height)]'))->toBe([36, 36])
+        // No side padding left: shadcn's own rule for a button holding an icon is the one cleared.
+        ->and($page->script("getComputedStyle(document.querySelector('[data-test=\"view-store\"]')).paddingInlineStart"))->toBe('0px')
         ->and($page->script("document.querySelector('[data-test=\"view-store\"]').getAttribute('aria-label')"))->toBe('View Store')
         ->and($page->script("document.querySelector('[data-test=\"view-store\"]').innerText.trim()"))->toBe('')
         ->and($size('header', 'box.right <= window.innerWidth'))->toBeTrue('the top bar is wider than the screen')

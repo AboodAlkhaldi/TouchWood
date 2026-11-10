@@ -103,6 +103,10 @@ test asserts every *role* permission has a group.
 Six of these are the owner's, approved 2026-09-19 (handoff §14 and the design). Three were added
 on 2026-09-22 (D2), because Platform's own permissions had nowhere to go.
 
+This table is the step's record, kept as written. Since 2026-11-10 (round 3 #10) five of the names
+read: `catalog` Products, `orders` Sales, `store_settings` Configuration, `staff_and_permissions`
+Staff, `media` Library (frontend.md §3.4).
+
 Only the actions a role can be given appear here. A **reserved** action — `platform.store.create`,
 `platform.currency.create`, `platform.currency.update`, `platform.media.variants.generate` — belongs
 to Super Admins alone, is never offered on the role screen, and therefore has no group: the catalog

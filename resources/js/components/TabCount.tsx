@@ -12,7 +12,7 @@ export function TabCount({ count, test }: { count: number | undefined; test?: st
     const { locale } = usePage<SharedProps>().props;
 
     return count === undefined ? null : (
-        <span className="tw-figure text-copy-12 text-ink-muted" data-test={test}>
+        <span className="tw-figure text-label-12 text-ink-muted" data-test={test}>
             {figure(locale, count)}
         </span>
     );

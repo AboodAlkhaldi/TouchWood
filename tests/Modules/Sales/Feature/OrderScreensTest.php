@@ -43,15 +43,15 @@ beforeEach(function () {
     Queue::fake();
 });
 
-/** An order placed in 'sa' (two of a 100.00 size, one of a 50.00), waiting for approval, paid by staff contact. */
-function orderScreensOrder(bool $wired = false): string
+/** An order placed in 'sa' unless told (two of a 100.00 size, one of a 50.00), waiting for approval, paid by staff contact. */
+function orderScreensOrder(bool $wired = false, string $storeCode = 'sa'): string
 {
     // Placed as the customer, then the real ActorContext given back, so the requests after it read who is
     // acting from their own session (as LoyaltyScreensTest's aside).
     $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
 
     try {
-        $ready = Cx::ready();
+        $ready = Cx::ready(storeCode: $storeCode);
 
         // Wired to a provider before it is placed, its first size's sales made to hang on its stock (§1.5).
         if ($wired) {
@@ -59,7 +59,7 @@ function orderScreensOrder(bool $wired = false): string
             app(InventoryApi::class)->makeStockDependent(StoreId::fromString(Fx::storeId('sa')), [$ready['variants'][0]]);
         }
 
-        return Cx::place(Cx::start($ready['address'])->id)->id;
+        return Cx::place(Cx::start($ready['address'], storeCode: $storeCode)->id, $storeCode)->id;
     } finally {
         app()->scoped(ActorContext::class, $previous);
         app()->forgetScopedInstances();
@@ -196,6 +196,18 @@ describe('P1 · Orders', function () {
             ->and(orderScreensProps($browser, '/admin/orders?q='.urlencode($number), 'Sales/Admin/Orders/Index')['counts'])
             ->toMatchArray(['ALL' => 1, 'WAITING_APPROVAL' => 1, 'TO_SHIP' => 0])
             ->and(orderScreensProps($browser, '/admin/orders?customer='.DB::table('sales.orders')->where('id', $waiting)->value('customer_id'), 'Sales/Admin/Orders/Index')['counts'])->toBe([]);
+    });
+
+    it('counts only the orders of the stores the reader covers', function () {
+        orderScreensOrder();
+        // One placed in the Emirates' store, which a Saudi reader does not cover.
+        orderScreensOrder(storeCode: 'ae');
+
+        $saudi = orderScreensProps(orderScreensStaff([SalesPermissions::ORDER_VIEW], ['sa']), '/admin/orders', 'Sales/Admin/Orders/Index')['counts'];
+        $both = orderScreensProps(orderScreensStaff([SalesPermissions::ORDER_VIEW], ['sa', 'ae']), '/admin/orders', 'Sales/Admin/Orders/Index')['counts'];
+
+        expect([$saudi['ALL'], $saudi['WAITING_APPROVAL']])->toBe([1, 1])
+            ->and([$both['ALL'], $both['WAITING_APPROVAL']])->toBe([2, 2]);
     });
 });
 

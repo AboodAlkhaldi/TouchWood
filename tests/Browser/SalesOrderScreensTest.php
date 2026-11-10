@@ -111,12 +111,17 @@ it('opens an order from anywhere on its row, and counts each underlined tab, at 
 
     $page->navigate('/admin/orders?tab=ALL&q='.urlencode($number), BROWSER_PAGE_LOAD)->assertPresent("[data-test=\"order-{$number}\"]");
     expect($page->script("document.querySelector('[data-test=\"order-tabs\"]').dataset.variant"))->toBe('line')
-        ->and($page->script("document.querySelector('[data-test=\"count-ALL\"]').textContent"))->toBe('1');
+        ->and($page->script("document.querySelector('[data-test=\"count-ALL\"]').textContent"))->toBe('1')
+        // Geist's label-12, smaller than the tab's name beside it.
+        ->and($page->script("getComputedStyle(document.querySelector('[data-test=\"count-ALL\"]')).fontSize"))->toBe('12px');
 
     // The total, the row's last cell, is no link of its own: the number's link stretches over the row, so what a
     // press on the total lands on is that link - and pressing it opens the order.
     $landsOn = "(() => { const box = document.querySelector('[data-test=\"order-{$number}\"] td:last-child').getBoundingClientRect(); return document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)?.closest('a'); })()";
     expect($page->script("{$landsOn}?.getAttribute('href')"))->toBe("/admin/orders/{$order}", 'the row does not open the order');
+    // The placed time sits above that link, so hovering it still opens its card with the full moment.
+    $page->hover("[data-test=\"placed-{$number}\"]");
+    expect(browserUntil($page, "document.querySelector('[data-test=\"time-card\"]') !== null"))->toBeTrue('the placed time\'s card does not open under the row\'s link');
     $page->script("{$landsOn}.click()");
     expect(browserUntil($page, "window.location.pathname === '/admin/orders/{$order}'"))->toBeTrue('the row does not open the order');
 

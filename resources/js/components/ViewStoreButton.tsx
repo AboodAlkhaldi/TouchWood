@@ -23,8 +23,9 @@ export function ViewStoreButton() {
     const stores = viewStores ?? [];
     const open = (code: string) => router.post('/admin/staff-view', { store: code });
     const name = t('admin.staff_view.open');
-    // Square on a phone, the icon only, as tall as the bell beside it.
-    const phone = 'max-md:size-9 max-md:px-0';
+    // Square on a phone, the icon only, as tall as the bell beside it. The padding is shadcn's has-[>svg] rule's, so it is
+    // cleared by the same rule: a plain px-0 is outranked by it.
+    const phone = 'max-md:size-9 max-md:has-[>svg]:px-0';
 
     if (stores.length === 0) {
         return null;
