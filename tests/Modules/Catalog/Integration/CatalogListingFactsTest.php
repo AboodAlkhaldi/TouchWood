@@ -18,7 +18,7 @@ use function Pest\Laravel\seed;
 /*
 | What the modules above push into Catalog (catalog.md §2.2; amendments 15, 16(h), 16(i)): `ListingFacts`
 | keeps each fact in Catalog's own table, only the facts given. (The import's sections, which carried a
-| store file's prices and stock, went with them - amendment 42.)
+| store file's prices and stock, went with them - amendment 43.)
 */
 
 uses(RefreshDatabase::class);

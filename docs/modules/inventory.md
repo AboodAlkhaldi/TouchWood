@@ -185,7 +185,7 @@ recount keeps the store's **low set** — the list's sizes, each **out** or **lo
 - The change log keeps **12 months** (as Ops keeps its daily reports' files), pruned each night by
   `PruneLowStockChanges` (§3).
 
-### 1.8 The store's file (catalog.md §2.3) — removed (catalog.md amendment 42)
+### 1.8 The store's file (catalog.md §2.3) — removed (catalog.md amendment 43)
 
 **Since 2026-11-10 a store's file holds codes only** (owner: the stock comes from Odoo): Inventory's
 `ImportSection`, `SetStockFromFile`, its job and its audit action (`inventory.stock.filed`) are
@@ -475,7 +475,7 @@ page (`ListStock` with `InventoryActionsForReader`) 9, the drawer 5, the Low Sto
   stage, and a size the store does not sell **only when its product is ready** (2026-10-19) - a draft's size
   not switched on is refused, `invalid_inventory_input` naming its row; the stocktake makes its row, and the
   Stock list lists it from then on. (The store's file, once not held to it, sets no stock since catalog.md
-  amendment 42.)
+  amendment 43.)
 - **A batch refusal marks every bad row**: `SetStock` and `SetLowStockThreshold` name every count or
   threshold out of bounds, and both rows of a size written twice with two values, in one refusal. A count
   that finds the number right on a size already short names it in `StockSaved` too, with no event.

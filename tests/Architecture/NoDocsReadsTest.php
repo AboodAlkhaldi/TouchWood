@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /*
-| The docs folder leaves the repository before staging (owner, 2026-11-10; catalog.md amendment 42):
+| The docs folder leaves the repository before staging (owner, 2026-11-10; catalog.md amendment 43):
 | nothing the app runs, and no test, may read a file under docs/. What the app serves - the products
 | import's guide and its examples - lives in the module that serves it.
 */

@@ -36,7 +36,7 @@ use function Pest\Laravel\seed;
 |--------------------------------------------------------------------------
 | Low stock (inventory.md §1.7; step 4b): the list - every size switched on or with a row, at or below
 | its threshold, the fewest left first - its count and its Home card from the same reader. (The store's
-| file sets no stock since Catalog's amendment 42: a store's stock comes from Odoo.)
+| file sets no stock since Catalog's amendment 43: a store's stock comes from Odoo.)
 |--------------------------------------------------------------------------
 */
 

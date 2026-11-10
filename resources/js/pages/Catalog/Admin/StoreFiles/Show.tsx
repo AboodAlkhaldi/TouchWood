@@ -17,7 +17,7 @@ import type { StoreFileItemData, StoreFilePage } from '@/types/generated/Modules
 import { nameIn, useLocale } from '../parts';
 
 /*
-| One store file (catalog.md §4.4 S10, §1.3; amendments 6(g), 42), with no uploader shown: the items -
+| One store file (catalog.md §4.4 S10, §1.3; amendments 6(g), 43), with no uploader shown: the items -
 | number · code · its product (a link to its page) · where it stands now (Ready · Not Ready and what it
 | lacks · Archived · Already On · Unknown Code), or what was done (Switched On · Removed). No price and
 | no stock: a store's come from Odoo. Ticked open items: **Switch On Selected**, **Remove Selected…**;

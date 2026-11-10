@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Modules\Catalog\Application\Import;
 
 /**
- * One item of a store file, as read and checked (the guide, §2): its code, nothing else (amendment 42).
+ * One item of a store file, as read and checked (the guide, §2): its code, nothing else (amendment 43).
  */
 final readonly class FileItem
 {

@@ -128,7 +128,7 @@ it('follows a price from the provider, a price set here, and a size restored', f
 
     expect(unpricedKept())->toBe(2);
 
-    // A price set here, in a store not wired (the store file set one until Catalog's amendment 42).
+    // A price set here, in a store not wired (the store file set one until Catalog's amendment 43).
     app()->forgetInstance(StoreWiring::class);
     app()->bind(StoreWiring::class, NoStoreWired::class);
     Rx::set('sa', [$b => '100']);

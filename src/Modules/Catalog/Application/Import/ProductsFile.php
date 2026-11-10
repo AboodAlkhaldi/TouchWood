@@ -162,7 +162,7 @@ final readonly class ProductsFile
         self::onlyFields($raw, self::PRODUCT_FIELDS, $at, $problems);
 
         // A products file names no store (amendment 9(a)): a store's admins switch its products on
-        // with their own file, and its prices and stock come from Odoo (amendment 42).
+        // with their own file, and its prices and stock come from Odoo (amendment 43).
         if (array_key_exists('stores', $raw)) {
             $problems->add("{$at} › stores", "not in a products file: a store's admins switch products on with their store file; prices and stock come from Odoo");
         }

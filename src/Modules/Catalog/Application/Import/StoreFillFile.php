@@ -10,7 +10,7 @@ use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\ValueObject\ProductCode;
 
 /**
- * **A store file, read and checked** (catalog.md §1.3, amendments 6(g), 42; the guide, §2): the codes
+ * **A store file, read and checked** (catalog.md §1.3, amendments 6(g), 43; the guide, §2): the codes
  * to switch on in one store, at most 1,000 items, each code once. **No price and no stock**: a store's
  * prices and stock come from Odoo (owner, 2026-11-10), so a file still carrying either column is
  * refused, the column named - as a products file's `stores` and `attribute_set` are. Every problem
@@ -25,7 +25,7 @@ final readonly class StoreFillFile
 
     public const int MAX_BYTES = 2 * 1024 * 1024;
 
-    /** The columns the format dropped (amendment 42), refused with why rather than "not a field". */
+    /** The columns the format dropped (amendment 43), refused with why rather than "not a field". */
     private const array DROPPED = [
         'price' => "not in a store file: a store's prices come from Odoo",
         'stock' => "not in a store file: a store's stock comes from Odoo",

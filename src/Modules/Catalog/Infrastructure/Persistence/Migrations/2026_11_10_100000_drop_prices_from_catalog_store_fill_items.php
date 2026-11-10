@@ -6,7 +6,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
 /*
-| catalog.md §5.5 (amendment 42; owner, 2026-11-10): **a store file carries codes only** - a store's
+| catalog.md §5.5 (amendment 43; owner, 2026-11-10): **a store file carries codes only** - a store's
 | prices and stock come from Odoo - so its items keep no `price` and no `stock` any more. What the
 | columns held was only ever shown on the file's page; nothing else reads them.
 */

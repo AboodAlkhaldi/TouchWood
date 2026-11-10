@@ -13,7 +13,7 @@ use Modules\Catalog\Presentation\Http\Controller\ImportGuideController;
 
 /*
 | The two files, read and checked (catalog.md §1.12, §1.3, amendment 6; the guide in the module's
-| Presentation/import-format/, amendment 42): the guide's own examples read as the guide says; every rule of its
+| Presentation/import-format/, amendment 43): the guide's own examples read as the guide says; every rule of its
 | §1.7 and §2 refuses a file; every problem is collected, never only the first; descriptions turn
 | into the structured text the panel keeps.
 */
@@ -103,7 +103,7 @@ describe('the guide\'s examples', function () {
     it('reads the example store file', function () {
         $items = StoreFillFile::read(catalogImportExample('store-fill.example.json'))->items;
 
-        // Codes only (amendment 42): a store's prices and stock come from Odoo.
+        // Codes only (amendment 43): a store's prices and stock come from Odoo.
         expect(array_map(static fn ($item): array => [$item->number, $item->code], $items))->toBe([
             [1, '1304'],
             [2, '1314'],
@@ -160,7 +160,7 @@ describe('what refuses a product file', function () {
         'more than 20 related products' => [fn (array $p) => [...$p, 'related' => array_map(static fn (int $n): string => (string) (2000 + $n), range(1, 21))], 'product 1 › related', 'at most 20'],
         'a related code not digits' => [fn (array $p) => [...$p, 'goes_with' => ['20x1']], 'product 1 › goes_with', 'digits'],
         'a store named in a products file' => [fn (array $p) => [...$p, 'stores' => ['sa' => ['price' => 1]]], 'product 1 › stores', "not in a products file: a store's admins switch products on with their store file; prices and stock come from Odoo"],
-        // The limits the guide states (amendment 42).
+        // The limits the guide states (amendment 43).
         'more than 10 attributes making the variants' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => catalogImportValues(11)]]], 'product 1 › variants 1 › values', 'at most 10 attributes'],
         'a brand name over 100 characters' => [fn (array $p) => [...$p, 'brand' => str_repeat('b', 101)], 'product 1 › brand', 'at most 100 characters'],
         'a warranty name over 100 characters' => [fn (array $p) => [...$p, 'warranty' => str_repeat('w', 101)], 'product 1 › warranty', 'at most 100 characters'],

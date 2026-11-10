@@ -29,7 +29,7 @@ use function Pest\Laravel\seed;
 
 /*
 | The admins' store file (catalog.md §1.3; amendment 6(g), (h)): `catalog.listing.fill` in that store,
-| an admin role's job. Codes only - a store's prices and stock come from Odoo (amendment 42); it never
+| an admin role's job. Codes only - a store's prices and stock come from Odoo (amendment 43); it never
 | creates or changes a product. Its items are switched on in the store — the variant carrying each
 | code of a ready product — chosen or every one ready; an unknown code is corrected or removed.
 | Everything audited in the store.
@@ -89,7 +89,7 @@ describe('the file', function () {
                 ['number' => 1, 'code' => '1304', 'state' => 'OPEN'],
                 ['number' => 2, 'code' => '1305', 'state' => 'OPEN'],
             ])
-            // Nothing keeps a price or a stock any more (amendment 42).
+            // Nothing keeps a price or a stock any more (amendment 43).
             ->and(Schema::hasColumn('catalog.store_fill_items', 'price') || Schema::hasColumn('catalog.store_fill_items', 'stock'))->toBeFalse()
             ->and(DB::table('platform.audit_entries')->where('action', 'catalog.store_fill.added')->where('subject_id', $id)->value('store_id'))->toBe(Fx::storeId('sa'))
             ->and(DB::table('catalog.products')->count())->toBe($products);

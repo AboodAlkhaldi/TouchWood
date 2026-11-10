@@ -29,7 +29,7 @@ use Shared\Application\Unauthorized;
  *
  * Chosen by name, an item that cannot be switched on — an unknown code, a product not ready or
  * archived — is named and nothing changes; "every one ready" leaves the rest. An item whose variant
- * is on already is marked on. No price and no stock is set: a store's come from Odoo (amendment 42).
+ * is on already is marked on. No price and no stock is set: a store's come from Odoo (amendment 43).
  */
 final readonly class SwitchOnStoreFillItemsHandler
 {

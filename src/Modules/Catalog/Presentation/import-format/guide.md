@@ -4,13 +4,13 @@
 > catalog: this guide, and a complete example of each file. It lives **inside the app**, in the
 > Catalog module (`src/Modules/Catalog/Presentation/import-format/`), and the panel shows it ("How to
 > fill the files", linked from both upload pages) with both examples to download (owner, 2026-11-10,
-> catalog.md amendment 42).
+> catalog.md amendment 43).
 > The owner fills real files from it, often with another AI agent's help. The Catalog import reads
 > **exactly** this format. **Change it only with the owner's agreement**, and change the guide, both
 > examples and `catalog.md` §1.12 together.
 
 Two kinds of file go into the catalog (catalog.md §1.12 and §1.3, amendment 6, agreed with the owner
-on 2026-10-05; amendment 42, 2026-11-10). This guide is written so a person, or another AI agent, can
+on 2026-10-05; amendment 43, 2026-11-10). This guide is written so a person, or another AI agent, can
 fill them exactly.
 
 | File | Who uploads it | What it does |

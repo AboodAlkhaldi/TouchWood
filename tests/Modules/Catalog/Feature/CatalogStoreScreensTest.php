@@ -361,7 +361,7 @@ describe('store files (S10)', function () {
 
     it('lists every problem of a refused file under the upload, and keeps nothing of it', function () {
         $admin = catalogStoreScreensFiller();
-        // A bad code, a price the format dropped (amendment 42), a code written as a number.
+        // A bad code, a price the format dropped (amendment 43), a code written as a number.
         $refused = catalogStoreScreensUpload($admin, [['code' => 'abc'], ['code' => '880001', 'price' => 1], ['code' => 880002]]);
 
         expect(catalogStoreScreensErrors($refused))->toHaveKey('file')
@@ -394,7 +394,7 @@ describe('store files (S10)', function () {
         $admin->get("/admin/store-files/{$file}")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
             ->component('Catalog/Admin/StoreFiles/Show')
             ->where('storeCode', 'sa')
-            // No price and no stock (amendment 42): a store's come from Odoo.
+            // No price and no stock (amendment 43): a store's come from Odoo.
             ->missing('pricesKept')
             ->missing('items.0.price')
             ->missing('items.0.stock')
@@ -485,7 +485,7 @@ describe('store files (S10)', function () {
 
         // 8 of its own and the list 4, however many items: none is read one item at a time (P13). It
         // was 9 while the import's sections asked whether the store is wired; they went with the
-        // file's prices and stock (amendment 42).
+        // file's prices and stock (amendment 43).
         expect($own)->toBe(8)
             ->and(catalogStoreScreensOwnQueries($admin, "/admin/store-files/{$many}"))->toBe($own)
             ->and(catalogStoreScreensOwnQueries($admin, '/admin/store-files'))->toBe(4);

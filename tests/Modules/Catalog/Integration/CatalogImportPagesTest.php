@@ -41,7 +41,7 @@ use function Pest\Laravel\seed;
 | The pages' reads (catalog.md §1.12, §1.3; amendment 6): a products file's page and the list of them,
 | a Super Admin's; a store file's page and its store's list, `catalog.listing.fill` there. Each open
 | store item stands as the catalog is now: ready, not ready (and what it lacks), archived, already on,
-| or unknown. No price and no stock: a store's come from Odoo (amendment 42).
+| or unknown. No price and no stock: a store's come from Odoo (amendment 43).
 */
 
 uses(RefreshDatabase::class);

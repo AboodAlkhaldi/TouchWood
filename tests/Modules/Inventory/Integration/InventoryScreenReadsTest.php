@@ -341,7 +341,7 @@ describe('a size\'s history (StockHistory)', function () {
         app(InventoryApi::class)->ship($order, [new HoldLineDto($size, 1)]);
         $admin = Fx::staffWith([CatalogPermissions::LISTING_FILL], ['sa'], RoleLevel::Admin);
         Fx::actAsStaff($admin);
-        // A line a store file wrote before Catalog's amendment 42 (codes only since): still read as the
+        // A line a store file wrote before Catalog's amendment 43 (codes only since): still read as the
         // file's, naming whoever switched it on.
         app(StockMovements::class)->record(StoreId::fromString(Ix::storeId('sa')), $size, MovementReason::File, 8, 20, null, 'file:history');
         DB::table('inventory.stock')->where('store_id', Ix::storeId('sa'))->where('variant_id', $size)->update(['in_stock' => 20]);

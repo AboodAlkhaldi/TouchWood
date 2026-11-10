@@ -14,7 +14,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * The files' guide in the panel (S10, S11 link it): the format's one source, kept in the module
- * itself (`FOLDER`; owner, 2026-11-10, amendment 42) - written by the team, so trusted, its HTML
+ * itself (`FOLDER`; owner, 2026-11-10, amendment 43) - written by the team, so trusted, its HTML
  * stripped of any raw HTML all the same - and its two example files to download. Its links to the
  * examples point at their downloads here.
  */
