@@ -4,11 +4,44 @@ declare(strict_types=1);
 
 namespace Modules\Content\Infrastructure;
 
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Catalog\Public\Contracts\CatalogUsages;
+use Modules\Content\Application\ContentCache;
 use Modules\Content\Application\ContentPermissions;
+use Modules\Content\Application\Query\ScreenReads;
+use Modules\Content\Application\Query\Shop\ShopReads;
+use Modules\Content\Domain\Repository\Banners;
+use Modules\Content\Domain\Repository\BlogCategories;
+use Modules\Content\Domain\Repository\ContentLocks;
+use Modules\Content\Domain\Repository\Documents;
+use Modules\Content\Domain\Repository\FrameItems;
+use Modules\Content\Domain\Repository\HomeSections;
+use Modules\Content\Domain\Repository\Popups;
+use Modules\Content\Domain\Repository\SlugHistory;
+use Modules\Content\Domain\Repository\SmartBars;
+use Modules\Content\Infrastructure\Cache\VersionedContentCache;
+use Modules\Content\Infrastructure\Eloquent\ContentCatalogUsage;
+use Modules\Content\Infrastructure\Eloquent\DatabaseBanners;
+use Modules\Content\Infrastructure\Eloquent\DatabaseBlogCategories;
+use Modules\Content\Infrastructure\Eloquent\DatabaseContentLocks;
+use Modules\Content\Infrastructure\Eloquent\DatabaseDocuments;
+use Modules\Content\Infrastructure\Eloquent\DatabaseFrameItems;
+use Modules\Content\Infrastructure\Eloquent\DatabaseHomeSections;
+use Modules\Content\Infrastructure\Eloquent\DatabasePopups;
+use Modules\Content\Infrastructure\Eloquent\DatabaseScreenReads;
+use Modules\Content\Infrastructure\Eloquent\DatabaseShopReads;
+use Modules\Content\Infrastructure\Eloquent\DatabaseSlugHistory;
+use Modules\Content\Infrastructure\Eloquent\DatabaseSmartBars;
 use Modules\Content\Infrastructure\External\NoCampaignsYet;
+use Modules\Content\Infrastructure\Listener\ForgetShopCopiesOfFile;
+use Modules\Content\Infrastructure\Listener\WriteStartingSections;
+use Modules\Content\Infrastructure\Media\ContentMediaUsage;
 use Modules\Content\Public\Contracts\ContentApi;
+use Modules\Platform\Public\Contracts\MediaUsages;
+use Modules\Platform\Public\Events\MediaVariantsReady;
+use Modules\Platform\Public\Events\StoreCreated;
 
 /**
  * Content's wiring (content.md; handoff §13.2): what the shop says and how it is dressed. Registered after
@@ -16,14 +49,29 @@ use Modules\Content\Public\Contracts\ContentApi;
  * declare its permissions and for nothing else (§9.4 A1; ContentAccessUseTest).
  *
  * PR 2, the foundation: its permissions, its errors and their words, the `content` schema with its slug
- * history, the text format and Translate. `ContentApi` stays answered by the placeholder - no campaign
- * exists yet - until campaigns land (PR 6), so Ops, built against it, runs.
+ * history, the text format and Translate. PR 3, its own items: the home page, the bar and footer, banners, pop-ups,
+ * smart bars, pages, the blog and projects, their uploads, Platform's `MediaUsage` and Catalog's `CatalogUsage`, and
+ * the shop's cached reads (registered as the frame's part with the shop's frame, PR 9). `ContentApi` stays answered by
+ * the placeholder - no campaign exists yet - until campaigns land (PR 6), so Ops, built against it, runs.
  */
 final class ContentServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
         $this->app->bind(ContentApi::class, NoCampaignsYet::class);
+
+        $this->app->bind(HomeSections::class, DatabaseHomeSections::class);
+        $this->app->bind(FrameItems::class, DatabaseFrameItems::class);
+        $this->app->bind(Banners::class, DatabaseBanners::class);
+        $this->app->bind(Popups::class, DatabasePopups::class);
+        $this->app->bind(SmartBars::class, DatabaseSmartBars::class);
+        $this->app->bind(Documents::class, DatabaseDocuments::class);
+        $this->app->bind(BlogCategories::class, DatabaseBlogCategories::class);
+        $this->app->bind(SlugHistory::class, DatabaseSlugHistory::class);
+        $this->app->bind(ContentLocks::class, DatabaseContentLocks::class);
+        $this->app->bind(ContentCache::class, VersionedContentCache::class);
+        $this->app->bind(ShopReads::class, DatabaseShopReads::class);
+        $this->app->bind(ScreenReads::class, DatabaseScreenReads::class);
     }
 
     public function boot(): void
@@ -34,6 +82,14 @@ final class ContentServiceProvider extends ServiceProvider
         // Content sits above Access, so it declares its own permissions through Access's public catalog
         // (Access spec §2.2); Access checks them at boot like its own.
         $this->app->make(PermissionCatalog::class)->declare('content', ...ContentPermissions::definitions());
+
+        // Every file an item names has its RESTRICT key; Platform asks before deleting one (§1.1 rule 10), and
+        // Catalog before deleting a category a banner or a smart bar names (§1.1 rule 17).
+        $this->app->make(MediaUsages::class)->register('content', ContentMediaUsage::class);
+        $this->app->make(CatalogUsages::class)->register('content', ContentCatalogUsage::class);
+
+        Event::listen(StoreCreated::class, [WriteStartingSections::class, 'handle']);
+        Event::listen(MediaVariantsReady::class, [ForgetShopCopiesOfFile::class, 'handle']);
 
         if (! $this->app->routesAreCached()) {
             $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/admin-routes.php');
