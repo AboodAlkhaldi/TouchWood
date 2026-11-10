@@ -157,7 +157,7 @@ function odooBodies(): array
  */
 function odooIdsAsked(): array
 {
-    return array_map(static fn (array $body): array => $body['ids'] ?? [], odooBodies());
+    return array_map(static fn (array $body): array => array_values(array_map(intval(...), (array) ($body['ids'] ?? []))), odooBodies());
 }
 
 /**
@@ -319,12 +319,13 @@ describe('the calls (§2.4)', function () {
             ->and(odooIdsAsked())->toBe([[7, 8]]);
     });
 
-    it('asks nothing for no code, or none that can be an id', function (array $codes) {
+    it('asks nothing for no code, or none that can be an id', function () {
         Http::fake();
 
-        expect(odooRead($codes))->toBe([]);
+        expect(odooRead([]))->toBe([])
+            ->and(odooRead(['0123', 'abc']))->toBe([]);
         Http::assertNothingSent();
-    })->with(['no code' => [[]], 'none an id' => [['0123', 'abc']]]);
+    });
 
     it('takes an address written with a closing slash', function () {
         Http::fake(['example.odoo.com/*' => Http::response([])]);
@@ -846,7 +847,7 @@ describe('through Sync', function () {
             return match (true) {
                 // The wiring's test.
                 $calls === 1 => Http::response([]),
-                $calls === 2 => Http::response(odooJson(array_map(static fn (int $id): array => odooItem($id, 99.0, 9.0), $ids))),
+                $calls === 2 => Http::response(odooJson(array_values(array_map(static fn (int $id): array => odooItem($id, 99.0, 9.0), $ids)))),
                 default => Http::response('', 503),
             };
         }]);
