@@ -1,11 +1,7 @@
-import { useState, type ReactNode } from 'react';
+import { lazy, Suspense, useState, type ReactNode } from 'react';
 import { usePage } from '@inertiajs/react';
 import { Languages } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
-import { PanelDialog } from '@/components/PanelDialog';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Field, FieldLabel } from '@/components/ui/field';
-import { Button } from '@/components/ui/button';
 import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import type { SharedProps } from '@/types/page';
@@ -14,11 +10,15 @@ import type { SharedProps } from '@/types/page';
 | Translate (content.md §1.3): beside every English box, for whoever may edit the item. It fills the box from its Arabic,
 | and marks it "Translated, read it before publishing" until something is typed in it; it saves nothing. Translate All
 | fills every English box that is empty. A save that shows the words to shoppers asks, while a box is still marked, for
-| the one tick "I read the translated English." (`ReadTick`).
+| the one tick "I read the translated English." (`useReadTick`).
 |
 | The server does the work (`POST /admin/content/translate`, by the kind of item and its store); a refusal comes back in
-| its own words and the box keeps what it held.
+| its own words and the box keeps what it held. The two questions load when asked (translate-dialogs.tsx): never on
+| first paint, so React.lazy is safe under SSR (lesson 180).
 */
+
+const ReplaceDialog = lazy(() => import('./translate-dialogs').then((module) => ({ default: module.ReplaceDialog })));
+const ReadTickDialog = lazy(() => import('./translate-dialogs').then((module) => ({ default: module.ReadTickDialog })));
 
 export type Pair = {
     /** The form's name of the pair, `text` for text_ar and text_en. */
@@ -121,29 +121,16 @@ export function useTranslation(kind: string, store: string, ready: boolean): Tra
         },
         dialog:
             replacing === null ? null : (
-                <PanelDialog
-                    open
-                    onOpenChange={(open) => (open ? undefined : setReplacing(null))}
-                    title={t('content::admin_shared.translate.replace_title')}
-                    description={t('content::admin_shared.translate.replace_body')}
-                    busy={false}
-                    cancelLabel={t('content::admin_shared.translate.keep')}
-                    confirm={
-                        <Button
-                            type="button"
-                            onClick={() => {
-                                const pair = replacing;
-                                setReplacing(null);
-                                void send([pair], pair.name);
-                            }}
-                            data-test="replace-text"
-                        >
-                            {t('content::admin_shared.translate.replace')}
-                        </Button>
-                    }
-                >
-                    {null}
-                </PanelDialog>
+                <Suspense fallback={null}>
+                    <ReplaceDialog
+                        onKeep={() => setReplacing(null)}
+                        onReplace={() => {
+                            const pair = replacing;
+                            setReplacing(null);
+                            void send([pair], pair.name);
+                        }}
+                    />
+                </Suspense>
             ),
     };
 }
@@ -187,9 +174,7 @@ export function TranslateAllButton({ translation, pairs }: { translation: Transl
  * Nothing is asked while no box is marked: `ask` sends at once.
  */
 export function useReadTick(translation: Translation) {
-    const t = useTranslator();
     const [pending, setPending] = useState<{ send: () => void; label: string } | null>(null);
-    const [ticked, setTicked] = useState(false);
 
     return {
         ask: (send: () => void, label: string) => {
@@ -199,39 +184,21 @@ export function useReadTick(translation: Translation) {
                 return;
             }
 
-            setTicked(false);
             setPending({ send, label });
         },
         dialog:
             pending === null ? null : (
-                <PanelDialog
-                    open
-                    onOpenChange={(open) => (open ? undefined : setPending(null))}
-                    title={t('content::admin_shared.translate.read_title')}
-                    description={t('content::admin_shared.translate.read_body')}
-                    busy={false}
-                    confirm={
-                        <ActionButton
-                            type="button"
-                            disabledReason={ticked ? undefined : t('content::admin_shared.translate.read_tick')}
-                            onClick={() => {
-                                const go = pending.send;
-                                setPending(null);
-                                go();
-                            }}
-                            data-test="read-confirm"
-                        >
-                            {pending.label}
-                        </ActionButton>
-                    }
-                >
-                    <Field orientation="horizontal">
-                        <Checkbox id="read-tick" checked={ticked} onCheckedChange={(on) => setTicked(on === true)} data-test="read-tick" />
-                        <FieldLabel htmlFor="read-tick" className="font-normal">
-                            {t('content::admin_shared.translate.read_tick')}
-                        </FieldLabel>
-                    </Field>
-                </PanelDialog>
+                <Suspense fallback={null}>
+                    <ReadTickDialog
+                        label={pending.label}
+                        onClose={() => setPending(null)}
+                        onSend={() => {
+                            const go = pending.send;
+                            setPending(null);
+                            go();
+                        }}
+                    />
+                </Suspense>
             ),
     };
 }

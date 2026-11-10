@@ -52,7 +52,7 @@ it('gives a plain visit the page with its words, and JSON to whoever asks', func
     $browser = Screen::as(barsScreenEditor(['sa', 'ae']));
 
     $browser->get(BARS_SCREEN.'?store=sa&tab=smart')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
-        ->component('Content/Admin/Bars')
+        ->component('Content/Admin/Bars/Smart')
         ->where('storeCode', 'sa')
         ->where('storeTimezone', 'Asia/Riyadh')
         ->where('tab', 'smart')

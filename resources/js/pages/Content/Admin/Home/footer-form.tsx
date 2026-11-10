@@ -66,17 +66,18 @@ export function FooterForm({ storeId, footer, translationReady }: { storeId: str
         setDirty(true);
     };
     const boxPair = (name: 'about' | 'address' | 'copyright'): Pair => ({ name, ar: boxes[name].ar, en: boxes[name].en, fill: (value) => change(() => setBoxes((was) => ({ ...was, [name]: { ...was[name], en: value } }))) });
+    const setColumn = (at: number, next: (column: Column) => Column) => change(() => setColumns((was) => was.map((each, i) => (i === at ? next(each) : each))));
     const pairs: Pair[] = [
         boxPair('about'),
         boxPair('address'),
         boxPair('copyright'),
         ...columns.flatMap((column, at) => [
-            { name: `column${at}`, ar: column.title.ar, en: column.title.en, fill: (value: string) => change(() => setColumns((was) => was.map((each, i) => (i === at ? { ...each, title: { ...each.title, en: value } } : each)))) },
+            { name: `column${at}`, ar: column.title.ar, en: column.title.en, fill: (value: string) => setColumn(at, (each) => ({ ...each, title: { ...each.title, en: value } })) },
             ...column.links.map((link, li) => ({
                 name: `column${at}link${li}`,
                 ar: link.text.ar,
                 en: link.text.en,
-                fill: (value: string) => change(() => setColumns((was) => was.map((each, i) => (i === at ? { ...each, links: each.links.map((row, j) => (j === li ? { ...row, text: { ...row.text, en: value } } : row)) } : each)))),
+                fill: (value: string) => setColumn(at, (each) => ({ ...each, links: each.links.map((row, j) => (j === li ? { ...row, text: { ...row.text, en: value } } : row)) })),
             })),
         ]),
     ];
@@ -105,7 +106,6 @@ export function FooterForm({ storeId, footer, translationReady }: { storeId: str
             },
             { preserveScroll: true, onStart: () => setSaving(true), onFinish: () => setSaving(false), onSuccess: () => setDirty(false) },
         );
-    const setColumn = (at: number, next: (column: Column) => Column) => change(() => setColumns((was) => was.map((each, i) => (i === at ? next(each) : each))));
 
     return (
         <form

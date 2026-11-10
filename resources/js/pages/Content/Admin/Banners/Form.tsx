@@ -3,13 +3,13 @@ import { useForm } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { ImageBox } from '@/components/content/image-box';
 import { sentMoment } from '@/components/content/moments';
-import { PairFields, StateBadge } from '@/components/content/parts';
+import { StateBadge } from '@/components/content/list';
+import { PairFields } from '@/components/content/parts';
 import { useReadTick, useTranslation } from '@/components/content/translate';
 import { DateTimeField } from '@/components/DateTimeField';
 import { SelectField, TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { useLeaveGuard } from '@/components/SaveBar';
-import { SearchCombobox } from '@/components/SearchCombobox';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Field, FieldDescription, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
 import { NativeSelectOption } from '@/components/ui/native-select';
@@ -161,16 +161,24 @@ export default function Form({ store, storeTimezone, placement: asked, banner, i
                             </Field>
                         </RadioGroup>
                         {onCategory ? (
-                            <SearchCombobox
+                            // A native select of the paths, the build's pick: §4.4 W3 names no picker, and the search box's code
+                            // would take this page over its 60 KB (JavaScriptBudgetTest).
+                            <SelectField
                                 id="category_id"
+                                className="max-w-md"
                                 label={t('content::admin_banners.fields.category')}
-                                error={checks.box('category_id', errors.category ?? errors.category_id).message}
-                                options={categories.map((each) => ({ value: each.id, label: inLanguage(each.pathAr, each.pathEn) }))}
+                                check={checks.box('category_id', errors.category ?? errors.category_id)}
                                 value={form.data.category_id}
-                                onChange={(next) => form.setData('category_id', next)}
-                                words={{ search: t('content::admin_banners.fields.category_search'), none: (query) => t('content::admin_banners.fields.category_none', { query }) }}
+                                onChange={(event) => form.setData('category_id', event.target.value)}
                                 data-test="category"
-                            />
+                            >
+                                <NativeSelectOption value="">{t('content::admin_banners.fields.category')}</NativeSelectOption>
+                                {categories.map((each) => (
+                                    <NativeSelectOption key={each.id} value={each.id}>
+                                        {inLanguage(each.pathAr, each.pathEn)}
+                                    </NativeSelectOption>
+                                ))}
+                            </SelectField>
                         ) : null}
                     </FieldSet>
                 ) : null}

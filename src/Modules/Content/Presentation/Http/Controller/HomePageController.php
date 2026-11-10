@@ -66,10 +66,13 @@ final readonly class HomePageController
             return new JsonResponse(['sections' => array_map(static fn (HomeSectionData $row): array => $row->toArray(), $rows), 'addable' => $sections['addable']]);
         }
 
-        return $this->screens->render('Content/Admin/Home/Index', (new HomePageData(
+        $tab = Inputs::text($request, 'tab') === 'footer' ? 'footer' : 'sections';
+
+        // Each tab its own page, so neither carries the other's code (JavaScriptBudgetTest).
+        return $this->screens->render($tab === 'footer' ? 'Content/Admin/Home/Footer' : 'Content/Admin/Home/Index', (new HomePageData(
             $this->screens->stores(ContentPermissions::HOMEPAGE_MANAGE),
             $store->code,
-            Inputs::text($request, 'tab') === 'footer' ? 'footer' : 'sections',
+            $tab,
             $rows,
             $sections['addable'],
             FooterData::fromRead($home->footer($store->id)),
@@ -87,7 +90,10 @@ final readonly class HomePageController
         $logos = is_array($read['logos'] ?? null) ? array_values($read['logos']) : [];
         $images = $this->screens->images(array_map(static fn (array $logo): ?string => is_string($logo['mediaId'] ?? null) ? $logo['mediaId'] : null, $logos));
 
-        return $this->screens->render('Content/Admin/Home/Section', (new HomeSectionPageData(
+        // The logos band's page alone carries the dragged list (JavaScriptBudgetTest).
+        $component = ($read['type'] ?? null) === 'CLIENT_LOGOS' ? 'Content/Admin/Home/Logos' : 'Content/Admin/Home/Section';
+
+        return $this->screens->render($component, (new HomeSectionPageData(
             ContentStoreData::of($store),
             HomeSectionData::fromRead($read),
             array_map(static fn (array $logo): HomeLogoData => new HomeLogoData(

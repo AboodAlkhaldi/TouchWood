@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { Link, router } from '@inertiajs/react';
 import { ImageIcon } from 'lucide-react';
-import { PhoneCards, StateBadge } from '@/components/content/parts';
+import { PhoneCards, StateBadge } from '@/components/content/list';
 import { ScheduleMenu, type ScheduleWords } from '@/components/content/schedule-menu';
 import { FormError } from '@/components/FormError';
 import { Note } from '@/components/Note';

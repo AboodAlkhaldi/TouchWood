@@ -11,12 +11,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { useTranslator } from '@/lib/t';
 import type { HomePageData, HomeSectionData } from '@/types/generated/Modules/Content/Presentation/Http/Resource';
 import { DragHandle, SortableGroup, SortableGroups, useSaveQueue, useSortableRow } from '../../../Catalog/Admin/SortableList';
-import { FooterForm } from './footer';
+import { HomeTabs } from './tabs';
 
 /*
 | W1 · Home Page (content.md §4.4, §1.4): tabs Sections and Footer (`?tab=`). The sections from top to bottom, each an
@@ -28,7 +27,7 @@ const HOME = '/admin/content/home';
 
 type Pair = { ar?: string | null; en?: string | null } | undefined;
 
-export default function Index({ stores, storeCode, tab, sections, addable, footer, translationReady }: HomePageData) {
+export default function Index({ stores, storeCode, sections, addable }: HomePageData) {
     const t = useTranslator();
     const store = stores.find((each) => each.code === storeCode);
     const storeId = store?.id ?? '';
@@ -54,7 +53,6 @@ export default function Index({ stores, storeCode, tab, sections, addable, foote
         queue((answered) => router.post(`${HOME}/sections/order`, { store: storeId, ids }, { async: true, preserveScroll: true, onFinish: answered }));
     };
     const add = (type: string) => router.post(`${HOME}/sections`, { store: storeId, type });
-    const openTab = (next: string) => router.get(HOME, { store: storeCode, tab: next }, { preserveScroll: true, preserveState: true, replace: true });
     const addButton =
         addable.length === 0 ? (
             <ActionButton type="button" disabledReason={t('content::admin_home.sections.all_on')} data-test="add-section">
@@ -79,21 +77,12 @@ export default function Index({ stores, storeCode, tab, sections, addable, foote
         );
 
     return (
-        <AdminLayout title={t('content::admin_home.title')} subtitle={t('content::admin_home.subtitle')} action={tab === 'sections' ? addButton : undefined}>
+        <AdminLayout title={t('content::admin_home.title')} subtitle={t('content::admin_home.subtitle')} action={addButton}>
             <div className="grid min-w-0 gap-4">
                 <FormError />
                 <StoreFilter stores={stores.map((each) => ({ code: each.code, name: each.name, isActive: each.isOn }))} value={storeCode} drop={['tab']} className="max-w-xs" />
-                <Tabs value={tab} onValueChange={openTab}>
-                    <TabsList variant="line">
-                        <TabsTrigger value="sections" data-test="tab-sections">
-                            {t('content::admin_home.tabs.sections')}
-                            <span className="tw-figure text-ink-muted">{sections.length}</span>
-                        </TabsTrigger>
-                        <TabsTrigger value="footer" data-test="tab-footer">
-                            {t('content::admin_home.tabs.footer')}
-                        </TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="sections" className="pt-4">
+                <HomeTabs tab="sections" storeCode={storeCode} sections={sections.length} />
+                <div>
                         {rows.length === 0 ? (
                             <Empty className="material-base" data-test="sections-empty">
                                 <EmptyHeader>
@@ -122,11 +111,7 @@ export default function Index({ stores, storeCode, tab, sections, addable, foote
                                 </div>
                             </SortableGroups>
                         )}
-                    </TabsContent>
-                    <TabsContent value="footer" className="pt-4">
-                        <FooterForm key={`${storeCode}-${footer.version}`} storeId={storeId} footer={footer} translationReady={translationReady} />
-                    </TabsContent>
-                </Tabs>
+                </div>
             </div>
             {removing === null ? null : (
                 <PanelDialog

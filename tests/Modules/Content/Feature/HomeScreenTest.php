@@ -139,6 +139,7 @@ it('offers the menu entry only to whoever may use it', function () {
 it('costs few queries of its own', function () {
     $browser = Screen::as(homeScreenEditor());
 
-    // Measured 2026-11-10: the panel's frame's 10 (AdminFrameQueryBudgetTest) and the page's own.
-    expect([Screen::queries($browser, HOME_SCREEN.'?store=sa'), Screen::queries($browser, HOME_SCREEN.'/'.homeScreenSection('CLIENT_LOGOS'))])->toBe([0, 0]);
+    // Measured 2026-11-10: 12 and 13, the panel's frame's 10 (AdminFrameQueryBudgetTest) and the page's own - the sections
+    // and the footer; the logos band's section, its logos and their files. Content's target is 15 of its own (§4.2).
+    expect([Screen::queries($browser, HOME_SCREEN.'?store=sa'), Screen::queries($browser, HOME_SCREEN.'/'.homeScreenSection('CLIENT_LOGOS'))])->toBe([12, 13]);
 });

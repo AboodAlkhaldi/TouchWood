@@ -1,7 +1,5 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useRef, useState, type ReactNode } from 'react';
 import { Link, router } from '@inertiajs/react';
-import { ActionButton } from '@/components/ActionButton';
-import { PanelDialog } from '@/components/PanelDialog';
 import { MoreButton } from '@/components/RowMenu';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
@@ -10,6 +8,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 | Delete… only as a draft, last. Each destructive one asks first, its button repeating the title's verb. A banner and a
 | pop-up share it, each with its own words.
 */
+
+// Its question loads when asked: never on first paint, so React.lazy is safe under SSR (lesson 180).
+const ScheduleConfirm = lazy(() => import('./schedule-confirm').then((module) => ({ default: module.ScheduleConfirm })));
 
 export type ScheduleWords = {
     edit: string;
@@ -70,22 +71,18 @@ export function ScheduleMenu({ id, name, state, base, words, extra }: { id: stri
                 </DropdownMenuContent>
             </DropdownMenu>
             {asking === null ? null : (
-                <PanelDialog
-                    destructive
-                    open
-                    onOpenChange={(open) => (open ? undefined : setAsking(null))}
-                    returnFocusTo={more}
-                    title={asking === 'end' ? words.endTitle : words.deleteTitle}
-                    description={asking === 'end' ? words.endBody : words.deleteBody}
-                    busy={busy}
-                    confirm={
-                        <ActionButton variant="destructive" loading={busy} onClick={() => post(asking)} data-test={`confirm-${asking}`}>
-                            {asking === 'end' ? words.endConfirm : words.deleteConfirm}
-                        </ActionButton>
-                    }
-                >
-                    {null}
-                </PanelDialog>
+                <Suspense fallback={null}>
+                    <ScheduleConfirm
+                        returnFocusTo={more}
+                        title={asking === 'end' ? words.endTitle : words.deleteTitle}
+                        description={asking === 'end' ? words.endBody : words.deleteBody}
+                        label={asking === 'end' ? words.endConfirm : words.deleteConfirm}
+                        busy={busy}
+                        onConfirm={() => post(asking)}
+                        onClose={() => setAsking(null)}
+                        test={`confirm-${asking}`}
+                    />
+                </Suspense>
             )}
         </>
     );

@@ -52,11 +52,14 @@ final readonly class BarsController
             return new JsonResponse(['bar' => $bar->toArray(), 'smartBars' => array_map(static fn (SmartBarData $row): array => $row->toArray(), $smart)]);
         }
 
-        return $this->screens->render('Content/Admin/Bars', (new BarsPageData(
+        $tab = Inputs::text($request, 'tab') === 'smart' ? 'smart' : 'announcement';
+
+        // Each tab its own page, so neither carries the other's code (JavaScriptBudgetTest).
+        return $this->screens->render($tab === 'smart' ? 'Content/Admin/Bars/Smart' : 'Content/Admin/Bars/Announcement', (new BarsPageData(
             $this->screens->stores(ContentPermissions::BAR_MANAGE),
             $store->code,
             $store->timezone,
-            Inputs::text($request, 'tab') === 'smart' ? 'smart' : 'announcement',
+            $tab,
             $bar,
             $smart,
             $this->screens->categories(),
