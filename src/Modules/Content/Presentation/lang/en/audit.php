@@ -54,4 +54,10 @@ return [
     'blog_category.changed' => 'Blog category changed',
     'blog_category.deleted' => 'Blog category deleted',
     'blog_categories.ordered' => 'Blog categories reordered',
+    'seo.saved' => 'SEO defaults saved',
+    'seo.image_detached' => 'Image removed from the SEO defaults',
+    'redirect.added' => 'Redirect added',
+    'redirect.changed' => 'Redirect changed',
+    'redirect.deleted' => 'Redirect deleted',
+    'redirect.count_reset' => 'Redirect visits reset',
 ];

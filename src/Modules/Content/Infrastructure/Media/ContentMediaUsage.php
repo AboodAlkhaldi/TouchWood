@@ -32,6 +32,7 @@ use stdClass;
  * | a home section's logo | the section is shown |
  * | a banner's artwork, a pop-up's image | it is scheduled and has not ended |
  * | a page's, post's or project's share image, cover, photo or body image | it is published |
+ * | a store's SEO defaults' share image (PR 4) | always: the defaults are live once saved |
  *
  * Detaching changes the item, so it takes the item's own permission in the item's store, as editing it would, writes
  * a new version (so an open form is told), is audited, and replaces the shop's cached copy.
@@ -78,6 +79,15 @@ final readonly class ContentMediaUsage implements MediaUsage
         $by = $actor->type === ActorType::Staff ? $actor->id : null;
 
         foreach ($uses as $use) {
+            // SEO defaults' share image always blocks (`uses`), so it is never detached; written out all the same, it
+            // has no version to raise, its row being the store's.
+            if ($use['subject'] === 'content.seo') {
+                $this->db->table('content.seo_defaults')->where('store_id', $use['id'])->update(['share_media_id' => null, 'updated_at' => Rows::at(Moments::now())]);
+                $this->platform->recordAudit(ContentAudit::entry('content.seo.image_detached', 'content.seo', $use['id'], $use['store'], AuditChanges::none()->changed('media_id', $mediaId, null)));
+
+                continue;
+            }
+
             match ($use['subject']) {
                 'content.home_section' => $this->db->table('content.home_section_media')->where('section_id', $use['id'])->where('media_id', $mediaId)->delete(),
                 'content.banner' => $this->db->table('content.banner_images')->where('banner_id', $use['id'])->where('media_id', $mediaId)->delete(),
@@ -117,8 +127,10 @@ final readonly class ContentMediaUsage implements MediaUsage
             "SELECT 'content.page', id, store_id, status = 'PUBLISHED' FROM content.pages WHERE ? IN (share_media_ar, share_media_en) OR id IN (SELECT page_id FROM content.page_images WHERE media_id = ?)",
             "SELECT 'content.post', id, store_id, status = 'PUBLISHED' FROM content.blog_posts WHERE ? IN (share_media_ar, share_media_en, cover_media_id) OR id IN (SELECT post_id FROM content.post_images WHERE media_id = ?)",
             "SELECT 'content.project', id, store_id, status = 'PUBLISHED' FROM content.projects WHERE ? IN (share_media_ar, share_media_en) OR id IN (SELECT project_id FROM content.project_images WHERE media_id = ?) OR id IN (SELECT project_id FROM content.project_photos WHERE media_id = ?)",
+            // PR 4: a store's SEO defaults are live from the moment they are saved, so their share image always blocks.
+            "SELECT 'content.seo', store_id, store_id, true FROM content.seo_defaults WHERE share_media_id = ?",
         ];
-        $bindings = [$mediaId, $now, $mediaId, $now, $mediaId, $mediaId, $mediaId, $mediaId, $mediaId, $mediaId, $mediaId, $mediaId];
+        $bindings = [$mediaId, $now, $mediaId, $now, $mediaId, $mediaId, $mediaId, $mediaId, $mediaId, $mediaId, $mediaId, $mediaId, $mediaId];
 
         /** @var list<stdClass> $rows */
         $rows = $this->db->select(implode(' UNION ALL ', $sql).' ORDER BY 1, 2', $bindings);
@@ -131,6 +143,7 @@ final readonly class ContentMediaUsage implements MediaUsage
                 'content.home_section' => ContentPermissions::HOMEPAGE_MANAGE,
                 'content.banner' => ContentPermissions::BANNER_MANAGE,
                 'content.popup' => ContentPermissions::POPUP_MANAGE,
+                'content.seo' => ContentPermissions::SEO_MANAGE,
                 default => self::DOCUMENTS[substr((string) $row->subject, strlen('content.'))][1],
             },
             'blocks' => (bool) $row->blocks,

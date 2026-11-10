@@ -50,7 +50,9 @@ function contentAuditNamesRecorded(): array
 
 it('finds the actions Content records', function () {
     // A guard over files must find something, or it passes over nothing.
-    expect(count(contentAuditNamesRecorded()))->toBe(49)
+    // PR 3's 49, and PR 4's six: the SEO defaults saved and their image detached, a redirect added, changed,
+    // deleted and its count reset.
+    expect(count(contentAuditNamesRecorded()))->toBe(55)
         ->and(contentAuditNamesRecorded())->toContain('content.banner.scheduled', 'content.home_sections.ordered', 'content.post.published');
 });
 
