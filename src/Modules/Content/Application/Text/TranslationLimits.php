@@ -39,15 +39,21 @@ final readonly class TranslationLimits
     ) {}
 
     /**
-     * @param  list<string>  $pieces  the texts one press sends
+     * The characters are the person's words; the bytes are the request really sent, with the tags that
+     * carry bold and links and the entities that write `&`, `<` and `>` (§1.3 (a)). Counting the words
+     * alone is the build's pick (2026-11-10): the same text passes or not whatever its marks, and the
+     * spec's caps name "Arabic characters".
+     *
+     * @param  list<string>  $pieces  the words one press sends, a text each
+     * @param  list<string>|null  $sent  the texts as they go in the request, when not the words themselves
      *
      * @throws TranslationUnavailable over a limit: nothing may be sent
      */
-    public function count(string $person, array $pieces): void
+    public function count(string $person, array $pieces, ?array $sent = null): void
     {
         $characters = array_sum(array_map(mb_strlen(...), $pieces));
 
-        if ($characters > self::PER_PRESS || self::requestBytes($pieces) > self::MAX_REQUEST_BYTES) {
+        if ($characters > self::PER_PRESS || self::requestBytes($sent ?? $pieces) > self::MAX_REQUEST_BYTES) {
             throw new TranslationUnavailable(TranslationUnavailable::TOO_LONG);
         }
 

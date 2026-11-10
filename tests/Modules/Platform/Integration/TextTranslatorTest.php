@@ -22,8 +22,9 @@ use Psr\Log\LoggerInterface;
 
 /*
 | The translator (content.md §2.2, §1.3; platform.md row L1), against a stand-in for DeepL: a PSR-18 client
-| answering what the test queues, so nothing leaves the machine. The real account's test is PARKED for the
-| owner (no token here): whether Arabic is taken as a source, the American English code, and marks.
+| answering what the test queues, so nothing leaves the machine. The real account was tried by the owner on
+| 2026-11-10 (content.md §1.3): Arabic as a source, `en-US`, and `<b>` kept with tag handling; no token is
+| in any file, and no test calls the service.
 */
 
 const TEXT_TRANSLATOR_TOKEN = 'secret-token-for-tests-1234:fx';
@@ -109,7 +110,7 @@ it('sends the texts to DeepL as one request, Arabic to American English, and giv
         ->and($body['text'])->toBe(['مرحبا', 'الرف'])
         ->and(strtolower((string) $body['source_lang']))->toBe('ar')
         ->and(strtolower((string) $body['target_lang']))->toBe('en-us')
-        // Plain text unless asked: whether marks survive in Arabic is for the real account (§1.3).
+        // Plain text unless asked: tag handling only for texts that are XML (§1.3 (a)).
         ->and($body)->not->toHaveKey('tag_handling');
 });
 
@@ -296,4 +297,12 @@ it('gives a fake answer anyone can tell from a real one, and fails when told to'
     $fake->notReady();
     expect($fake->isReady())->toBeFalse()
         ->and(fn () => $fake->translate(['مرحبا'], 'ar', 'en'))->toThrow(TranslationFailed::class);
+});
+
+it('keeps the tags as the real one does, its marking outside every tag (content.md §1.3 (a))', function () {
+    $fake = new FakeTextTranslator;
+
+    expect($fake->translate(['<b>خشب</b> و<a i="0">دليل</a> &amp; ١', '<a i="0"><b>ضمان</b></a>'], 'ar', 'en', keepMarks: true))
+        ->toBe(['[en] <b>خشب</b> و<a i="0">دليل</a> &amp; 1', '[en] <a i="0"><b>ضمان</b></a>'])
+        ->and($fake->calls()[0]['keepMarks'])->toBeTrue();
 });

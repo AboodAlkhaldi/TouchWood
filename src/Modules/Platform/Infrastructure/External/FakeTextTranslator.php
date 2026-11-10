@@ -15,6 +15,10 @@ use Shared\Domain\Text\LatinDigits;
  * back marked with the language asked for - "[en] نص" - so a page using it can never pass for a real
  * translation, and its digits 0-9 as the real one's.
  *
+ * **Tags are kept**, as the real one keeps them with `$keepMarks` (content.md §1.3 (a)): the text is given
+ * back whole after its marking, so `<b>نص</b>` is `[en] <b>نص</b>` - the marking outside every tag, the
+ * tags and the XML's entities as sent - and the editor sees bold and links survive.
+ *
  * A test may make it not ready, or make its next call fail with a reason, and reads what it was asked.
  * Bound once for the whole process, so a test's settings reach the use case it calls.
  */

@@ -12,8 +12,9 @@ use Modules\Content\Domain\Exception\InvalidContentInput;
 
 /**
  * **Translate**, as the editors call it (content.md §1.3): `POST /admin/content/translate` with the kind of
- * item, its store and each box's Arabic, answered with each box's English and how many of its blocks lost
- * bold or links - `{"texts": [...], "lostMarks": [...]}`. Nothing is saved. A refusal is the problem
+ * item, its store and each box's Arabic, answered with each box's English, its bold and links kept, and how
+ * many of its blocks lost them when the service's answer did not hold them - `{"texts": [...],
+ * "lostMarks": [...]}`. Nothing is saved. A refusal is the problem
  * document every JSON call gets (ProblemDetails), in the reason's words.
  *
  * The handler checks the kind's permission in the store; this checks nothing (handoff §19), and reads the
