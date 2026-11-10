@@ -26,6 +26,7 @@ use Modules\Platform\Public\Contracts\SettingGuards;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Events\SettingChanged;
+use Modules\Pricing\Application\CampaignPricesImpl;
 use Modules\Pricing\Application\Prices\NeedsAPriceCount;
 use Modules\Pricing\Application\Prices\PriceWindowTasks;
 use Modules\Pricing\Application\Prices\ReadAccess;
@@ -35,6 +36,7 @@ use Modules\Pricing\Application\PricingApiImpl;
 use Modules\Pricing\Application\PricingPermissions;
 use Modules\Pricing\Application\PricingSettings;
 use Modules\Pricing\Application\ProviderPricesImpl;
+use Modules\Pricing\Domain\Repository\Campaigns;
 use Modules\Pricing\Domain\Repository\CategoryDiscounts;
 use Modules\Pricing\Domain\Repository\PriceCandidates;
 use Modules\Pricing\Domain\Repository\PricingLocks;
@@ -43,6 +45,7 @@ use Modules\Pricing\Domain\Repository\Sales;
 use Modules\Pricing\Domain\Repository\UnpricedCounts;
 use Modules\Pricing\Domain\Repository\WholesaleBands;
 use Modules\Pricing\Infrastructure\Catalog\ProductPricesSection;
+use Modules\Pricing\Infrastructure\Eloquent\DatabaseCampaigns;
 use Modules\Pricing\Infrastructure\Eloquent\DatabaseCategoryDiscounts;
 use Modules\Pricing\Infrastructure\Eloquent\DatabasePriceCandidates;
 use Modules\Pricing\Infrastructure\Eloquent\DatabasePricingLocks;
@@ -60,6 +63,7 @@ use Modules\Pricing\Infrastructure\Queue\QueuedPriceWindowTasks;
 use Modules\Pricing\Infrastructure\Queue\QueuedUnpricedRecounts;
 use Modules\Pricing\Presentation\Console\RebuildPriceCandidatesCommand;
 use Modules\Pricing\Presentation\Storefront\WholesaleBandsSection;
+use Modules\Pricing\Public\Contracts\CampaignPrices;
 use Modules\Pricing\Public\Contracts\PricingApi;
 use Modules\Pricing\Public\Contracts\ProviderPrices;
 use Modules\Pricing\Public\Contracts\StoreWiring;
@@ -89,6 +93,9 @@ final class PricingServiceProvider extends ServiceProvider
         $this->app->bind(Sales::class, DatabaseSales::class);
         $this->app->bind(WholesaleBands::class, DatabaseWholesaleBands::class);
         $this->app->bind(CategoryDiscounts::class, DatabaseCategoryDiscounts::class);
+        // Campaign prices (§9.6): Content's runs, held and applied here once scheduled.
+        $this->app->bind(Campaigns::class, DatabaseCampaigns::class);
+        $this->app->bind(CampaignPrices::class, CampaignPricesImpl::class);
         $this->app->bind(PriceWindowTasks::class, QueuedPriceWindowTasks::class);
         $this->app->bind(Words::class, LangWords::class);
         $this->app->bind(UnpricedCounts::class, DatabaseUnpricedCounts::class);
@@ -131,6 +138,8 @@ final class PricingServiceProvider extends ServiceProvider
 
         foreach ([VariantArchived::class, VariantRestored::class, ProductArchived::class, ProductRestored::class] as $event) {
             Event::listen($event, [RecountUnpricedSizes::class, 'handle']);
+            // A campaign never prices an archived size (§9.6 #1): its sizes written again where a run is.
+            Event::listen($event, [RepriceForDiscounts::class, 'archivedOrRestored']);
         }
 
         // The daily safety check behind the timed tasks (§1.10; owner, 2026-10-09). Scheduled work is

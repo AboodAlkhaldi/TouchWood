@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Modules\Pricing\Application\Command\EndSale;
 
-use Carbon\CarbonImmutable;
 use Modules\Pricing\Application\Prices\CandidateWriter;
 use Modules\Pricing\Application\Prices\PricingChange;
 use Modules\Pricing\Application\Prices\SaleAudit;
+use Modules\Pricing\Application\Prices\WholeSecond;
 use Modules\Pricing\Application\PricingPermissions;
 use Modules\Pricing\Domain\Exception\NotChangeable;
 use Modules\Pricing\Domain\Exception\SaleNotFound;
@@ -35,11 +35,22 @@ final readonly class EndSaleHandler
         $storeId = $store->storeId();
 
         $this->change->run($storeId, function () use ($command, $storeId, $store): array {
-            $now = CarbonImmutable::now()->toDateTimeImmutable();
+            // Ended at the second now began, as kept (`WholeSecond`): never a second later, still running when
+            // its sizes are priced again.
+            $now = WholeSecond::now();
             $before = $this->sales->find($command->saleId) ?? throw new SaleNotFound;
 
             if (! $before->running($now)) {
                 throw new NotChangeable;
+            }
+
+            // Started this very second, it has no time to end at: removed, as the provider's price removes one
+            // (and as a campaign run's End Now; the second review of Content PR 5).
+            if ($before->startsAt >= $now) {
+                $this->sales->remove($before->id);
+                $this->writer->refresh($storeId, $before->variantIds);
+
+                return [null, [SaleAudit::entry('pricing.sale.removed', $before, null, $store->currencyExponent)]];
             }
 
             $after = new Sale($before->id, $before->storeId, $before->productId, $before->percentBasisPoints, $before->price, $before->startsAt, $now, $before->alwaysWins, $before->variantIds);

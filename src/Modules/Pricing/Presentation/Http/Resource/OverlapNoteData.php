@@ -18,6 +18,7 @@ final class OverlapNoteData extends Data
      * @param  list<OverlapOfferData>  $sales
      * @param  list<OverlapOfferData>  $discounts
      * @param  list<OverlapSizeData>  $sizes
+     * @param  list<OverlapOfferData>  $campaigns
      */
     public function __construct(
         public array $sales,
@@ -25,5 +26,6 @@ final class OverlapNoteData extends Data
         public array $sizes,
         public bool $atStart,
         public ?int $ceilingPercent,
+        public array $campaigns = [],
     ) {}
 }

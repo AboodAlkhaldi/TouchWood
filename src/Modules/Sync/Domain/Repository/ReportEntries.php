@@ -66,4 +66,15 @@ interface ReportEntries
 
     /** Every open entry of the store closed, saying by what (sync.md §1.8: unwiring). */
     public function closeAll(StoreId $store, string $closedBy): int;
+
+    /**
+     * The campaign runs an open "campaign skipped" entry names, narrowed to those still skipping its size
+     * (§9.5 amendment 2): one run rejoining leaves the others named; a run never added here (the next read
+     * names it, and tells staff). Neither its times nor its telling move; one left naming no run is closed,
+     * saying by what. One statement for every size; a row whose runs stay the same is not written.
+     *
+     * @param  array<string, list<string>>  $runs  size id => the runs skipping it now
+     * @return int the entries written: narrowed, or closed
+     */
+    public function keepCampaignRuns(StoreId $store, array $runs, string $closedBy): int;
 }

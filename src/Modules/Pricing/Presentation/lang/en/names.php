@@ -12,4 +12,5 @@ return [
     'sale_price' => ':price · :sizes',
     'discount_percent' => ':category: :percent% off',
     'discount_amount' => ':category: :amount off',
+    'campaign' => 'A campaign',
 ];

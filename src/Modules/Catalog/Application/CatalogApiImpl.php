@@ -281,6 +281,11 @@ final readonly class CatalogApiImpl implements CatalogApi
         return $this->searches->productIdsInCategories($categoryIds);
     }
 
+    public function productIdsOfBrands(array $brandIds): array
+    {
+        return $this->searches->productIdsOfBrands($brandIds);
+    }
+
     public function activeCategories(): array
     {
         return array_values($this->searches->categoriesWithPaths($this->searches->activeCategoryIds()));

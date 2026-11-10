@@ -226,3 +226,56 @@ describe('"always wins while on" (owner, 2026-10-08/09)', function () {
         expect(pricingEngineResolve($candidates))->toBe([10000, 10000, PriceKind::Base, null]);
     });
 });
+
+describe('campaigns (pricing.md §9.6 #2, #3)', function () {
+    it('is one more candidate: the lowest price wins, many runs at once', function () {
+        $candidates = [
+            pricingEngineBase(10000),
+            pricingEngineDated(PriceKind::Sale, 9000),
+            pricingEngineDated(PriceKind::Campaign, 8500, until: '+3 days', id: 'run-a'),
+            pricingEngineDated(PriceKind::Campaign, 8000, until: '+2 days', id: 'run-b'),
+            pricingEngineDated(PriceKind::Category, 8800),
+        ];
+
+        expect(pricingEngineResolve($candidates))->toBe([10000, 8000, PriceKind::Campaign, '2026-10-12 12:00'])
+            ->and(PriceResolution::resolve($candidates, SaleMode::Retail, 1, pricingEngineAt())?->sourceId)->toBe('run-b');
+    });
+
+    it('loses to a cheaper sale, and counts only while it runs', function () {
+        expect(pricingEngineResolve([pricingEngineBase(10000), pricingEngineDated(PriceKind::Campaign, 9000), pricingEngineDated(PriceKind::Sale, 8900)]))->toBe([10000, 8900, PriceKind::Sale, '2026-10-15 12:00'])
+            ->and(pricingEngineResolve([pricingEngineBase(10000), pricingEngineDated(PriceKind::Campaign, 7000, from: '+1 day')]))->toBe([10000, 10000, PriceKind::Base, null])
+            ->and(pricingEngineResolve([pricingEngineBase(10000), pricingEngineDated(PriceKind::Campaign, 7000, from: '-3 days', until: '-1 day')]))->toBe([10000, 10000, PriceKind::Base, null]);
+    });
+
+    it('ties after the sale and the category discount, before the band and the retail price (RANK kept)', function (array $candidates, SaleMode $mode, PriceKind $kind) {
+        expect(pricingEngineResolve(pricingEngineCandidates($candidates), $mode, 10)[2] ?? null)->toBe($kind);
+    })->with([
+        'sale before campaign' => [[pricingEngineBase(10000), pricingEngineDated(PriceKind::Campaign, 9000), pricingEngineDated(PriceKind::Sale, 9000)], SaleMode::Retail, PriceKind::Sale],
+        'category before campaign' => [[pricingEngineBase(10000), pricingEngineDated(PriceKind::Campaign, 9000), pricingEngineDated(PriceKind::Category, 9000)], SaleMode::Retail, PriceKind::Category],
+        'campaign before band' => [[pricingEngineBase(10000, SaleMode::Wholesale), pricingEngineBand(10, 9000), pricingEngineDated(PriceKind::Campaign, 9000, mode: SaleMode::Wholesale)], SaleMode::Wholesale, PriceKind::Campaign],
+        // No "campaign before retail": a campaign at the retail price is never a candidate (CandidateWriter,
+        // the review of Content PR 5), so it never ties with it - CampaignPricesTest proves the line says BASE.
+    ]);
+
+    it('gives way to an "always wins" sale or discount even when cheaper (content.md Q4 (a))', function () {
+        $sale = [pricingEngineBase(10000), pricingEngineDated(PriceKind::Campaign, 7000), pricingEngineDated(PriceKind::Sale, 9500, alwaysWins: true)];
+        $discount = [pricingEngineBase(10000), pricingEngineDated(PriceKind::Campaign, 7000), pricingEngineDated(PriceKind::Category, 9200, alwaysWins: true)];
+
+        expect(pricingEngineResolve($sale))->toBe([10000, 9500, PriceKind::Sale, '2026-10-15 12:00'])
+            ->and(pricingEngineResolve($discount))->toBe([10000, 9200, PriceKind::Category, '2026-10-15 12:00']);
+    });
+
+    it('wins again once the "always wins" one stops winning above the retail price', function () {
+        expect(pricingEngineResolve([pricingEngineBase(10000), pricingEngineDated(PriceKind::Campaign, 8000), pricingEngineDated(PriceKind::Sale, 10500, alwaysWins: true)]))
+            ->toBe([10000, 8000, PriceKind::Campaign, '2026-10-15 12:00']);
+    });
+
+    it('lets a wholesale line pay the lower of the campaign and its band (content.md Q3 (a))', function () {
+        $candidates = [pricingEngineBase(10000, SaleMode::Wholesale), pricingEngineBand(10, 8000), pricingEngineDated(PriceKind::Campaign, 9000, mode: SaleMode::Wholesale)];
+
+        expect(pricingEngineResolve($candidates, SaleMode::Wholesale, 5))->toBe([10000, 9000, PriceKind::Campaign, '2026-10-15 12:00'])
+            ->and(pricingEngineResolve($candidates, SaleMode::Wholesale, 10))->toBe([8000, 8000, PriceKind::Quantity, null])
+            // A retail-only campaign never reaches the wholesale line.
+            ->and(pricingEngineResolve([pricingEngineBase(10000, SaleMode::Wholesale), pricingEngineDated(PriceKind::Campaign, 9000)], SaleMode::Wholesale, 5))->toBe([10000, 10000, PriceKind::Base, null]);
+    });
+});

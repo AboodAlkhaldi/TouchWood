@@ -9,6 +9,7 @@ use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 use Illuminate\Support\ViewErrorBag;
 use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia;
@@ -28,7 +29,12 @@ use Modules\Pricing\Application\Command\SetWholesalePrices\SetWholesalePrices;
 use Modules\Pricing\Application\Command\SetWholesalePrices\SetWholesalePricesHandler;
 use Modules\Pricing\Application\Prices\NeedsAPriceCount;
 use Modules\Pricing\Application\PricingPermissions as P;
+use Modules\Pricing\Public\Contracts\CampaignPrices;
 use Modules\Pricing\Public\Contracts\StoreWiring;
+use Modules\Pricing\Public\Dto\CampaignPriceSetDto;
+use Modules\Pricing\Public\Dto\CampaignTargetDto;
+use Modules\Pricing\Public\Enums\CampaignLines;
+use Modules\Pricing\Public\Enums\CampaignTargetKind;
 use Shared\Domain\ValueObject\StoreId;
 use Symfony\Component\HttpFoundation\Response;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -725,6 +731,7 @@ describe('the drawer\'s and the dialogs\' reads', function () {
         $reads = [
             'drawer' => '/admin/prices/size?store=sa&size='.$a['variants'][0],
             'note' => "/admin/offers/note?store=sa&product={$a['product']}&percent=20",
+            'note untyped' => "/admin/offers/note?store=sa&product={$a['product']}",
             'products' => '/admin/offers/products?store=sa&q=Alpha',
             'sizes' => "/admin/offers/sizes?store=sa&product={$a['product']}",
             'filter' => '/admin/offers/filter-products?store=sa',
@@ -739,9 +746,43 @@ describe('the drawer\'s and the dialogs\' reads', function () {
         // Recorded, each under the ceiling of 15 (§4.3.1 "Budget"): the drawer, the offer dialog's note, the
         // discount dialog's preview at it.
         expect($counts)->toBe([
-            'drawer' => 13, 'note' => 15, 'products' => 3, 'sizes' => 4, 'filter' => 4, 'offer' => 12,
+            'drawer' => 13, 'note' => 15, 'note untyped' => 14, 'products' => 3, 'sizes' => 4, 'filter' => 4, 'offer' => 12,
             'categories' => 2, 'left out' => 4, 'preview' => 13, 'wholesale sizes' => 3,
         ]);
+    });
+
+    it('reads no more with campaign runs pricing the same sizes, naming them (pricing.md §9.6 #7, Content PR 5)', function () {
+        $category = Px::category('Kitchens');
+        $a = pricingScreensProduct('Alpha', ['60 cm', '80 cm'], $category);
+        Rx::set('sa', [$a['variants'][0] => '120.00', $a['variants'][1] => '130.00']);
+        $sale = pricingScreensSale($a['variants']);
+        $discount = pricingScreensDiscount($category);
+        // Two runs: the note and the preview name them from the sizes' candidates, read already.
+        foreach ([1000, 1500] as $percent) {
+            app(CampaignPrices::class)->save(StoreId::fromString(Rx::storeId('sa')), strtolower((string) Str::ulid()), new CampaignPriceSetDto(CampaignLines::Both, [
+                new CampaignTargetDto(CampaignTargetKind::Category, $category, $percent),
+            ]), CarbonImmutable::now()->subMinute()->toDateTimeImmutable(), CarbonImmutable::now()->addDays(10)->toDateTimeImmutable());
+        }
+
+        $browser = pricingScreens([P::PRICE_EDIT, P::WHOLESALE_EDIT, P::CATEGORY_DISCOUNT_MANAGE]);
+        $reads = [
+            'prices' => '/admin/prices?store=sa',
+            'on sale now' => '/admin/prices?store=sa&filter=on_sale_now',
+            'drawer' => '/admin/prices/size?store=sa&size='.$a['variants'][0],
+            'note' => "/admin/offers/note?store=sa&product={$a['product']}&percent=20",
+            'offer' => "/admin/offers/{$sale}",
+            'preview' => "/admin/category-discounts/preview?store=sa&category={$category}&percent=20&lines=both",
+            'discount' => "/admin/category-discounts/{$discount}",
+        ];
+        $counts = array_map(static fn (string $uri): int => pricingScreensOwnQueries($browser, $uri), $reads);
+        $note = $browser->get($reads['note'])->json();
+
+        // Recorded with two runs on every size (Content PR 5); each under the budget of 15.
+        expect($counts)->toBe([
+            'prices' => 10, 'on sale now' => 10, 'drawer' => 13, 'note' => 15, 'offer' => 12, 'preview' => 13, 'discount' => 15,
+        ])
+            ->and(max($counts))->toBeLessThanOrEqual(15)
+            ->and(count(is_array($note) ? (array) ($note['campaigns'] ?? []) : []))->toBe(2);
     });
 });
 

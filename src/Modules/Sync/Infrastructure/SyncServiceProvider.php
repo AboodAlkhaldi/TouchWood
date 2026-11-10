@@ -17,6 +17,7 @@ use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Pricing\Public\Contracts\StoreWiring as PricingWiring;
+use Modules\Pricing\Public\Events\CampaignReachChecked;
 use Modules\Pricing\Public\Events\DiscountReachChecked;
 use Modules\Sync\Application\Connections\NoticeAddresses;
 use Modules\Sync\Application\Report\SyncDays;
@@ -41,6 +42,7 @@ use Modules\Sync\Infrastructure\Eloquent\DatabaseSyncLog;
 use Modules\Sync\Infrastructure\External\ConnectionWiring;
 use Modules\Sync\Infrastructure\External\UrlNoticeAddresses;
 use Modules\Sync\Infrastructure\Listener\CloseReachedDiscounts;
+use Modules\Sync\Infrastructure\Listener\CloseRejoinedCampaigns;
 use Modules\Sync\Infrastructure\Listener\CloseSwitchedOnEntries;
 use Modules\Sync\Infrastructure\Listener\ReadCorrectedCode;
 use Modules\Sync\Infrastructure\Provider\ContainerProviderAdapters;
@@ -103,6 +105,8 @@ final class SyncServiceProvider extends ServiceProvider
         Event::listen(StoreListingChanged::class, [CloseSwitchedOnEntries::class, 'switchedOn']);
         Event::listen(ProductMadeReady::class, [CloseSwitchedOnEntries::class, 'madeReady']);
         Event::listen(DiscountReachChecked::class, [CloseReachedDiscounts::class, 'handle']);
+        // A campaign's skipped size closes its entry by itself once it rejoins (§9.5 amendment 2 (b)).
+        Event::listen(CampaignReachChecked::class, [CloseRejoinedCampaigns::class, 'handle']);
 
         // The hour's read catches a lost notice; the night's checks everything (§1.3). Scheduled work
         // is queued as a job (owner's decision, 2026-09-18).

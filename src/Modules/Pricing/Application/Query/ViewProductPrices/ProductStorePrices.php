@@ -19,6 +19,7 @@ final readonly class ProductStorePrices
      * @param  int  $decimals  the store's currency's decimals, for a price box's check as typed (stage 5's screens step 3)
      * @param  string  $currency  its letters in the page's language, after a price box (its abbreviation)
      * @param  string  $timezone  the store's zone, for its moments
+     * @param  list<ProductCampaign>  $campaigns  the campaign runs pricing its sizes (§9.6 #7)
      */
     public function __construct(
         public string $storeId,
@@ -32,5 +33,6 @@ final readonly class ProductStorePrices
         public int $decimals = 2,
         public string $currency = '',
         public string $timezone = 'UTC',
+        public array $campaigns = [],
     ) {}
 }

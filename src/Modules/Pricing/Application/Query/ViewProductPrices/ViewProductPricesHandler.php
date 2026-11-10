@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Pricing\Application\Query\ViewProductPrices;
 
 use Carbon\CarbonImmutable;
+use DateTimeImmutable;
 use DateTimeInterface;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Enums\SaleMode;
@@ -18,9 +19,11 @@ use Modules\Pricing\Domain\Repository\PriceCandidates;
 use Modules\Pricing\Domain\Repository\RetailPrices;
 use Modules\Pricing\Domain\Repository\Sales;
 use Modules\Pricing\Domain\Repository\WholesaleBands;
+use Modules\Pricing\Domain\ValueObject\Candidate;
 use Modules\Pricing\Domain\ValueObject\CategoryDiscount;
 use Modules\Pricing\Domain\ValueObject\WindowState;
 use Modules\Pricing\Public\Contracts\StoreWiring;
+use Modules\Pricing\Public\Enums\PriceKind;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -129,9 +132,51 @@ final readonly class ViewProductPricesHandler
                 $store->currencyExponent,
                 $this->views->letters($store),
                 $store->timezone,
+                self::campaigns($candidates[$id] ?? [], $now),
             );
         }
 
         return $cards;
+    }
+
+    /**
+     * The campaign runs pricing the product's sizes in one store, from their candidates (read above): each
+     * run once, with the sizes it prices and the lines it prices them on.
+     *
+     * @param  array<string, list<Candidate>>  $candidates  variant id => its candidates there
+     * @return list<ProductCampaign>
+     */
+    private static function campaigns(array $candidates, DateTimeImmutable $now): array
+    {
+        $runs = [];
+
+        foreach ($candidates as $variantId => $ofSize) {
+            foreach ($ofSize as $candidate) {
+                // An ended run's candidates stay until its sizes are written again: never listed.
+                if ($candidate->kind !== PriceKind::Campaign || $candidate->sourceId === null || $candidate->startsAt === null
+                    || ($candidate->endsAt !== null && $candidate->endsAt <= $now)) {
+                    continue;
+                }
+
+                $runs[$candidate->sourceId] ??= ['startsAt' => $candidate->startsAt, 'endsAt' => $candidate->endsAt, 'modes' => [], 'sizes' => []];
+                $runs[$candidate->sourceId]['modes'][$candidate->mode->value] = true;
+                $runs[$candidate->sourceId]['sizes'][(string) $variantId] = true;
+            }
+        }
+
+        $found = [];
+
+        foreach ($runs as $runId => $run) {
+            $found[] = new ProductCampaign(
+                (string) $runId,
+                WindowState::of($run['startsAt'], $run['endsAt'], $now)->value,
+                count($run['modes']) === 2 ? 'BOTH' : (string) array_key_first($run['modes']),
+                array_map('strval', array_keys($run['sizes'])),
+                $run['startsAt']->format(DateTimeInterface::ATOM),
+                $run['endsAt']?->format(DateTimeInterface::ATOM),
+            );
+        }
+
+        return $found;
     }
 }

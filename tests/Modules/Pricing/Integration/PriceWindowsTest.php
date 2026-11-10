@@ -118,9 +118,10 @@ describe('the timed tasks (§1.10)', function () {
             ->toBe(['2026-10-20T00:00:00+00:00', '2026-10-25T00:00:00+00:00'])
             // A sale running from now needs no task at its start: the change pushed it.
             ->and(windowsTasks($now))->toHaveCount(1)
-            // The queue keeps whole seconds: a moment with a fraction is due at the next one, never before.
+            // A moment typed with a fraction is kept, and queued, at its whole second - as the table keeps it
+            // (`WholeSecond`, the review of Content PR 5): the task then finds the moment it was queued for.
             ->and(array_map(windowsDelay(...), windowsTasks(windowsSale([$size], percent: '5', startsAt: '2026-10-20 10:00:00.5+00')))
-            )->toBe(['2026-10-20T10:00:01+00:00']);
+            )->toBe(['2026-10-20T10:00:00+00:00']);
     });
 
     it('pushes the sale\'s price into Catalog at its start, and the retail price back at its end', function () {

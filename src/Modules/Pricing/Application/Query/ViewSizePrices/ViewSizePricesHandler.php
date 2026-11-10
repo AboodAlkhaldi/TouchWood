@@ -96,6 +96,8 @@ final readonly class ViewSizePricesHandler
             $terms?->minimum,
             $terms?->maximum,
             $bands !== [] && $terms?->minimum !== null && $bands[0]->fromQuantity !== $terms->minimum,
+            // The campaign runs pricing it, from the candidates read above: no query more.
+            $this->reach->campaigns($candidates, $now, $store),
         );
     }
 }
