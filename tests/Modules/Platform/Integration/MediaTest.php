@@ -631,6 +631,196 @@ describe('the stuck-variants sweep', function () {
     });
 });
 
+/**
+ * A media repository whose duplicate check answers one snapshot taken earlier, as two uploads that checked at the
+ * same moment both saw it; everything else is the real repository.
+ */
+final class SnapshotChecksumMediaRepository implements MediaRepository
+{
+    public function __construct(private readonly MediaRepository $real, private readonly Media $snapshot) {}
+
+    public function nextId(): string
+    {
+        return $this->real->nextId();
+    }
+
+    public function byId(string $id): ?Media
+    {
+        return $this->real->byId($id);
+    }
+
+    public function byIds(array $ids): array
+    {
+        return $this->real->byIds($ids);
+    }
+
+    public function lockById(string $id): ?Media
+    {
+        return $this->real->lockById($id);
+    }
+
+    public function publicByChecksum(string $checksum): ?Media
+    {
+        return $checksum === $this->snapshot->checksum() ? clone $this->snapshot : $this->real->publicByChecksum($checksum);
+    }
+
+    public function stalePendingIds(DateTimeImmutable $queuedBefore, int $limit): array
+    {
+        return $this->real->stalePendingIds($queuedBefore, $limit);
+    }
+
+    public function add(Media $media): bool
+    {
+        return $this->real->add($media);
+    }
+
+    public function update(Media $media): void
+    {
+        $this->real->update($media);
+    }
+
+    public function delete(Media $media): void
+    {
+        $this->real->delete($media);
+    }
+}
+
+function failVariants(string $mediaId): void
+{
+    (new GenerateMediaVariantsJob($mediaId))->failed(new RuntimeException('encoder crashed'));
+}
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function retriedAudits(string $mediaId): array
+{
+    return DB::table('platform.audit_entries')->where('action', 'platform.media.variants_retried')->where('subject_id', $mediaId)
+        ->pluck('changes')->map(fn (mixed $changes): array => json_decode((string) $changes, true))->all();
+}
+
+describe('uploading again a public image whose sizes failed (owner 2026-11-10, P10 (a))', function () {
+    it('queues its sizes again: the same id, PENDING, one job after the commit, audited as a retry by upload', function () {
+        $path = imageFile(800, 600);
+        $id = uploadMedia($path);
+        failVariants($id);
+        $queuedBefore = mediaRow($id)->variants_queued_at;
+        travel(5)->minutes();
+
+        expect(uploadMedia($path, name: 'again.jpg'))->toBe($id);
+
+        $row = mediaRow($id);
+        expect($row->variants_status)->toBe('PENDING')
+            ->and($row->variants_queued_at)->not->toBe($queuedBefore)
+            ->and(DB::table('platform.media')->count())->toBe(1)
+            ->and(Storage::disk('local')->allFiles())->toHaveCount(1)
+            ->and(DB::table('platform.audit_entries')->where('action', 'platform.media.uploaded')->count())->toBe(1);
+
+        // The upload's job, then this one: queued after the commit, for the same media.
+        Queue::assertPushed(GenerateMediaVariantsJob::class, 2);
+        Queue::assertPushed(GenerateMediaVariantsJob::class, fn (GenerateMediaVariantsJob $job): bool => $job->mediaId === $id && $job->afterCommit === true);
+
+        $audits = retriedAudits($id);
+        expect($audits)->toHaveCount(1)
+            ->and($audits[0]['variants_status'])->toBe(['FAILED', 'PENDING'])
+            ->and($audits[0]['by_upload'])->toBe([null, true])
+            ->and($audits[0])->not->toHaveKey('for_module');
+
+        runQueuedVariants($id);
+        expect(mediaRow($id)->variants_status)->toBe('READY');
+    });
+
+    it('leaves a PENDING or READY image as it is, even one PENDING long enough for Retry: no job, no audit', function (bool $ready) {
+        $path = imageFile(800, 600);
+        $id = uploadMedia($path);
+
+        if ($ready) {
+            runQueuedVariants($id);
+        }
+
+        travel(15)->minutes();
+        $before = (array) mediaRow($id);
+
+        expect(uploadMedia($path))->toBe($id)
+            ->and((array) mediaRow($id))->toBe($before)
+            ->and(retriedAudits($id))->toBe([]);
+        Queue::assertPushed(GenerateMediaVariantsJob::class, 1);
+    })->with([
+        'pending' => [false],
+        'ready' => [true],
+    ]);
+
+    it('queues it once when two uploads of it arrive at once: the second finds it PENDING under the lock', function () {
+        $path = imageFile(800, 600);
+        $id = uploadMedia($path);
+        failVariants($id);
+
+        // Both uploads checked before either retried, so both saw it FAILED.
+        app()->instance(MediaRepository::class, new SnapshotChecksumMediaRepository(app(MediaRepository::class), app(MediaRepository::class)->byId($id) ?? throw new LogicException('No media.')));
+
+        $locks = [];
+        DB::listen(function ($query) use (&$locks): void {
+            if (str_contains($query->sql, 'for update') && str_contains($query->sql, '"platform"."media"')) {
+                $locks[] = DB::transactionLevel();
+            }
+        });
+
+        expect(uploadMedia($path))->toBe($id)
+            ->and(uploadMedia($path))->toBe($id)
+            ->and(mediaRow($id)->variants_status)->toBe('PENDING')
+            ->and(retriedAudits($id))->toHaveCount(1)
+            // Each read its row under the lock, inside its own transaction (RefreshDatabase's is level 1).
+            ->and($locks)->toBe([2, 2]);
+        Queue::assertPushed(GenerateMediaVariantsJob::class, 2);
+    });
+
+    it('never touches a private file: the same bytes uploaded private are a new file, and the public one stays FAILED', function () {
+        $path = imageFile(800, 600);
+        $public = uploadMedia($path);
+        failVariants($public);
+
+        $private = uploadMedia($path, MediaVisibility::Private, 'receipt.jpg');
+
+        expect($private)->not->toBe($public)
+            ->and(mediaRow($private)->variants_status)->toBeNull()
+            ->and(mediaRow($public)->variants_status)->toBe('FAILED')
+            ->and(retriedAudits($public))->toBe([]);
+        Queue::assertPushed(GenerateMediaVariantsJob::class, 1);
+    });
+
+    it('needs only the upload\'s own permission, as a Retry would have', function () {
+        $path = imageFile(800, 600);
+        $id = uploadMedia($path);
+        failVariants($id);
+
+        expect(RetryMediaVariantsHandler::PERMISSION)->toBe(UploadMediaHandler::PERMISSION)
+            ->and(uploadMedia($path))->toBe($id)
+            ->and(mediaRow($id)->variants_status)->toBe('PENDING');
+    });
+
+    it('counts its queries: a READY duplicate reads 1, a FAILED one 4 (the check, the lock, the update, the audit entry)', function () {
+        $failedPath = imageFile(800, 600, shade: 20);
+        $readyPath = imageFile(800, 600, shade: 200);
+        $failed = uploadMedia($failedPath);
+        failVariants($failed);
+        $ready = uploadMedia($readyPath);
+        runQueuedVariants($ready);
+
+        $sql = [];
+        DB::listen(function ($query) use (&$sql): void {
+            $sql[] = $query->sql;
+        });
+
+        uploadMedia($readyPath);
+        [$readyQueries, $sql] = [$sql, []];
+        uploadMedia($failedPath);
+
+        expect($readyQueries)->toHaveCount(1)
+            ->and($sql)->toHaveCount(4)
+            ->and($sql[1])->toContain('for update');
+    });
+});
+
 describe('reading', function () {
     it('gives a public image variant URLs once they are ready, and never its original', function () {
         $id = uploadMedia(imageFile(800, 600));

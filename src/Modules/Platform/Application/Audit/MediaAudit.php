@@ -69,12 +69,34 @@ final class MediaAudit
     /**
      * A staff member asked for the variants again. The system's own sweep of stuck images is not
      * audited: nobody acted.
+     *
+     * @param  bool  $byUpload  asked for by uploading the same failed image again (owner 2026-11-10,
+     *                          P10 (a)), not by pressing Retry: the same event, so the same action,
+     *                          marked "by_upload"
+     * @param  string|null  $forModule  that upload was a module's own, and the permission that
+     *                                  allowed it — recorded exactly as uploaded() records them
      */
-    public static function variantsRetried(Media $media, ?MediaVariantsStatus $before, ?DateTimeImmutable $queuedBefore): AuditEntryDto
-    {
-        return new AuditEntryDto('platform.media.variants_retried', self::SUBJECT, $media->id(), null, AuditChanges::none()
+    public static function variantsRetried(
+        Media $media,
+        ?MediaVariantsStatus $before,
+        ?DateTimeImmutable $queuedBefore,
+        bool $byUpload = false,
+        ?string $forModule = null,
+        ?string $underPermission = null,
+    ): AuditEntryDto {
+        $changes = AuditChanges::none()
             ->changed('variants_status', $before?->value, $media->variantsStatus()?->value)
-            ->changed('variants_queued_at', $queuedBefore?->format(DATE_ATOM), $media->variantsQueuedAt()?->format(DATE_ATOM)));
+            ->changed('variants_queued_at', $queuedBefore?->format(DATE_ATOM), $media->variantsQueuedAt()?->format(DATE_ATOM));
+
+        if ($byUpload) {
+            $changes->changed('by_upload', null, true);
+        }
+
+        if ($forModule !== null) {
+            $changes->changed('for_module', null, $forModule)->changed('under_permission', null, $underPermission);
+        }
+
+        return new AuditEntryDto('platform.media.variants_retried', self::SUBJECT, $media->id(), null, $changes);
     }
 
     /**
