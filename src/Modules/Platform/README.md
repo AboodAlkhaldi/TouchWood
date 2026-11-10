@@ -146,7 +146,7 @@ ids only and are dispatched after the transaction commits.
 | `Application/Audit` | Builds the audit entry for each kind of change (`StoreAudit`, `CurrencyAudit`, `MediaAudit`, `PlaceAudit`). |
 | `Application/Places` | `PlaceLocks` (the one lock order for the places: the country's row, then the place) and `InMemoryShipToCountryGuards`. |
 | `Application/Settings` | The settings registry, strict type checks and reading with defaults. |
-| `Application/Media` | What media needs from the outside world, as interfaces (storage, file inspection, resizing, the queue), plus `MediaSettings` (the upload-limit declarations) and `InspectedFile`. |
+| `Application/Media` | What media needs from the outside world, as interfaces (storage, file inspection, resizing, the queue), plus `MediaSettings` (the upload-limit declarations), `InspectedFile` and `MediaVariantsRetry` (the one retry of a locked image's variants, for Retry and for uploading a failed image again). |
 | `Application/Query` | The read sides: `StoreDirectory` (stores and currencies, cached), `MediaReader`, and `AuthorizedStoreChoices` (`StoreChoices`: a screen's stores, from the Authorizer's reach). |
 | `Application/FailedJobs` | `FailedJobs`, the queue's failed work as an interface (a page of summaries, read, lock, whether it can be retried, requeue, forget), `FailedJob`, `FailedJobSummary`, and `FailedJobsCount`, the menu's count. |
 | `Application/Home` | `InMemoryHomeCards`, the admin home's cards and who may see each. |
@@ -305,7 +305,8 @@ reaches all of them.
 UploadMedia ──▶ inspect headers (type, displayed size, animation, checksum)
                         │
         public image already stored? ──yes──▶ return that id      (private files: never shared)
-                        │ no
+                        │ no                   its variants FAILED? lock the row, still FAILED?
+                        │                      → retry as RetryMediaVariants does, audited by_upload
                         ▼
    Media::upload() checks type, size, pixels, animation, file name
                         │
@@ -320,7 +321,7 @@ UploadMedia ──▶ inspect headers (type, displayed size, animation, checksum
                         │
                         ▼
    12 variants (thumb/card/detail/zoom × AVIF/WebP/JPEG) on the PUBLIC disk → READY → MediaVariantsReady
-   3 failed attempts → FAILED → staff RetryMediaVariants
+   3 failed attempts → FAILED → staff RetryMediaVariants, or the same image uploaded again
    job lost (still PENDING 15 min after queuing) → sweep every 10 min, or staff Retry
 ```
 
@@ -340,6 +341,21 @@ UploadMedia ──▶ inspect headers (type, displayed size, animation, checksum
   on public checksums plus `ON CONFLICT DO NOTHING` handles two identical uploads arriving at
   the same moment without aborting the transaction. Two companies uploading the same receipt get
   two separate media.
+- **Uploading again an image whose variants failed makes them again** (owner 2026-11-10, P10
+  (a)), so "Upload this image again." works. The duplicate's status is read without a lock, so on
+  FAILED the upload locks the row, reads it again, and only if it is still FAILED retries it
+  through `MediaVariantsRetry` — the same retry `RetryMediaVariantsHandler` makes: FAILED →
+  PENDING, row written, `platform.media.variants_retried` audited (marked `by_upload`, and with
+  `for_module`/`under_permission` for a module's upload), the job queued after the commit. Two
+  uploads at once queue it once: the second finds it PENDING under the lock. If the row is gone by
+  the time the lock reaches it (deleted in between), the upload stores the file anew, so it never
+  answers a dead id. No permission beyond the upload's own is checked: an upload through the
+  library proves `platform.media.upload`, the permission Retry needs; a module's upload proves only
+  its own permission (for example `content.page.manage` in a store), and may still retry an image
+  another module uploaded — on purpose (platform.md §1.4). A PENDING (even a stuck one) or READY
+  duplicate is returned untouched: the stuck sweep and Retry handle a lost job. On a READY hit the
+  upload reads 1 query; on a FAILED hit 4 (the check, the lock, the update, the audit entry),
+  counted in `MediaTest`.
 - **Every file has its row and every row has its file.** The file is written before the row and
   removed if the row does not commit, including when a caller's own transaction rolls back after
   the upload (`deleteAfterRollBack`). Deleting media removes the files only after the delete
