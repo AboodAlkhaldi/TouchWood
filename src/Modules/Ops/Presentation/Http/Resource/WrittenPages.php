@@ -14,7 +14,6 @@ use Modules\Ops\Application\Query\ListSegments\SegmentsPage;
 use Modules\Ops\Application\Query\ListStaffMessages\StaffMessageRow;
 use Modules\Ops\Application\Query\ListStaffMessages\StaffMessagesPage;
 use Modules\Ops\Application\Query\ListSubscribers\SubscribersPage;
-use Modules\Ops\Domain\Model\BroadcastStatus;
 use Modules\Ops\Domain\Model\Notice;
 use Modules\Ops\Domain\Model\Subscriber;
 use Modules\Platform\Public\Contracts\PlatformApi;
@@ -106,9 +105,9 @@ final readonly class WrittenPages
             $notice->byBell,
             $notice->byEmail,
             $notice->status->value,
-            self::utc($notice->sendAt),
-            $notice->sendAt->setTimezone($zone)->format('Y-m-d H:i'),
-            $notice->status === BroadcastStatus::Scheduled,
+            $notice->sendAt === null ? null : self::utc($notice->sendAt),
+            $notice->sendAt?->setTimezone($zone)->format('Y-m-d H:i'),
+            $notice->waits(),
             $notice->bellCount,
             $notice->emailCount,
             $notice->failedCount,

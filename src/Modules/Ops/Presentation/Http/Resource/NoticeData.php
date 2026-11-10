@@ -9,8 +9,9 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
 /**
  * One offer notice (ops.md §1.7, §4): what it says in both languages, its page of the shop (written
- * without store and language), its channels, its status (SCHEDULED, SENDING, SENT, CANCELLED, FAILED), when
- * it sends - `sendAtLocal` in the store's time zone as the form shows it, `sendAt` in UTC with its offset -
+ * without store and language), its channels, its status (DRAFT, SCHEDULED, SENDING, SENT, CANCELLED, FAILED), when
+ * it sends - `sendAtLocal` in the store's time zone as the form shows it, `sendAt` in UTC with its offset, both null
+ * for a draft, which has no time (§9.7 #1) -
  * how many it reached: bell entries, emails sent, emails failed; who wrote it, named as the reader may see
  * them, and when it started and finished sending.
  */
@@ -28,8 +29,8 @@ final class NoticeData extends Data
         public bool $byBell,
         public bool $byEmail,
         public string $status,
-        public string $sendAt,
-        public string $sendAtLocal,
+        public ?string $sendAt,
+        public ?string $sendAtLocal,
         public bool $changeable,
         public int $bellCount,
         public int $emailCount,

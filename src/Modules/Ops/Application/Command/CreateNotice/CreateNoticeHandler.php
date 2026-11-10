@@ -24,7 +24,8 @@ use Shared\Application\Unauthorized;
 
 /**
  * Writes an offer notice (ops.md §1.7) under `ops.notice.manage` in its store: sent now - its first
- * batch queued when it is saved - or kept until its time. Refused (§7): no channel, a time already
+ * batch queued when it is saved - kept until its time, or kept as a draft with no time for a campaign to start
+ * (§9.7 #1). Refused (§7): no channel, a time already
  * past, a store with no customer to send to. Audited in the same transaction.
  */
 final readonly class CreateNoticeHandler
@@ -54,7 +55,8 @@ final readonly class CreateNoticeHandler
         $text = WrittenText::of($command->titleAr, $command->titleEn, $command->bodyAr, $command->bodyEn, $command->link);
         $now = CarbonImmutable::now()->toDateTimeImmutable();
         $segment = $this->writers->audience($store->storeId(), $command->segmentId);
-        $notice = Notice::write((string) Str::ulid(), $store->storeId(), $text, $command->byBell, $command->byEmail, Writers::sendAt($command->sendAt, $store), $staffId, $now, $segment);
+        $sendAt = $command->draft ? null : Writers::sendAt($command->sendAt, $store);
+        $notice = Notice::write((string) Str::ulid(), $store->storeId(), $text, $command->byBell, $command->byEmail, $sendAt, $staffId, $now, $segment, $command->draft);
 
         $this->db->transaction(function () use ($notice): void {
             $this->notices->add($notice);

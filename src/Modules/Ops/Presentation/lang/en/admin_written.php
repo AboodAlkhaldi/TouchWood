@@ -5,6 +5,7 @@ declare(strict_types=1);
 // Customer Messages and Offer Notices (ops.md §4.15 O3-O6). Wording approved for now; the owner checks the whole site's wording later.
 return [
     'status' => [
+        'DRAFT' => 'Draft',
         'SCHEDULED' => 'Scheduled',
         'SENDING' => 'Sending',
         'SENT' => 'Sent',
@@ -163,6 +164,11 @@ return [
         'link_other_site' => 'This address is on another site. Use a page of the shop.',
         'link_rule' => 'Use a page of the shop, up to 500 characters, with no spaces and no colon.',
         'when' => 'When',
+        'when_time' => 'Now or at a Time',
+        'when_campaign' => 'With a Campaign',
+        'when_campaign_helper' => 'Sent when a campaign that names it goes live.',
+        'with_campaign' => 'With a campaign',
+        'save_draft' => 'Save Draft',
         'send' => 'Send Notice',
         'schedule' => 'Schedule Notice',
         'save' => 'Save Changes',
@@ -170,6 +176,7 @@ return [
         'leave' => 'The notice you wrote will be lost.',
         'back_to_list' => 'Back to Offer Notices',
         'toast_now' => 'Notice on its way.',
+        'toast_draft' => 'Draft saved. A campaign that names it sends it when it goes live.',
         'toast_scheduled' => 'Notice scheduled. It goes at :at, the store\'s time.',
     ],
 ];

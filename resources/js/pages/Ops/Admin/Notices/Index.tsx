@@ -41,11 +41,15 @@ export default function Index({ notices, next, stores, storeCode, storeTimezone 
     const [busy, setBusy] = useState(false);
     const opener = useRef<HTMLElement | null>(null);
     const newNotice = `${LIST}/new?store=${encodeURIComponent(storeCode)}`;
-    const when = (notice: NoticeData) => (
-        <bdi dir="ltr" className="tw-figure">
-            {notice.sendAtLocal}
-        </bdi>
-    );
+    // A draft has no time (ops.md §9.7 #1): it goes with a campaign.
+    const when = (notice: NoticeData) =>
+        notice.sendAtLocal === null ? (
+            <span data-test="with-campaign">{t('ops::admin_written.notices.with_campaign')}</span>
+        ) : (
+            <bdi dir="ltr" className="tw-figure">
+                {notice.sendAtLocal}
+            </bdi>
+        );
 
     const audience = (notice: NoticeData): string => (notice.segmentId === null ? t('ops::admin_written.audience.every') : inLanguage(notice.segmentNameAr, notice.segmentNameEn) || t('ops::admin_written.audience.deleted_segment'));
 
@@ -66,7 +70,7 @@ export default function Index({ notices, next, stores, storeCode, storeTimezone 
                     )}
                 </ReadBackLine>
                 <ReadBackLine label={t('ops::admin_written.read_back.sends')}>
-                    {when(notice)} <span className="text-copy-13 text-ink-muted">{zoneName(storeTimezone, locale)}</span>
+                    {when(notice)} {notice.sendAtLocal === null ? null : <span className="text-copy-13 text-ink-muted">{zoneName(storeTimezone, locale)}</span>}
                 </ReadBackLine>
                 <ReadBackLine label={t('ops::admin_written.read_back.written_by')}>{notice.writtenBy}</ReadBackLine>
                 {notice.startedAt === null ? null : (

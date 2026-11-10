@@ -76,7 +76,7 @@ final class WrittenAudit
             'body_en' => $notice->text->bodyEn,
             'link' => $notice->text->link,
             'channels' => self::channels($notice->byBell, $notice->byEmail),
-            'send_at' => self::utc($notice->sendAt),
+            'send_at' => $notice->sendAt === null ? null : self::utc($notice->sendAt),
             'status' => $notice->status->value,
             'segment' => $notice->segmentId,
         ];

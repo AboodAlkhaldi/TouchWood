@@ -17,6 +17,9 @@ use Shared\Domain\ValueObject\StoreId;
  *
  * Its rules: at least one channel; a time to come when scheduled; changed or cancelled only while it
  * waits - once sending starts it cannot be recalled. The counts are the sender's, never set here.
+ *
+ * **A draft** (§9.7 #1; content.md §1.7 #10) has no time: the scheduler never sends it, and a campaign that names
+ * it starts it when the campaign goes live in its store. It is changed and cancelled as a waiting one.
  */
 final readonly class Notice
 {
@@ -28,7 +31,8 @@ final readonly class Notice
         public bool $byBell,
         public bool $byEmail,
         public BroadcastStatus $status,
-        public DateTimeImmutable $sendAt,
+        /** When it sends, or was sent; none for a draft alone. */
+        public ?DateTimeImmutable $sendAt,
         public string $createdBy,
         public DateTimeImmutable $createdAt,
         public DateTimeImmutable $updatedAt,
@@ -46,17 +50,22 @@ final readonly class Notice
     }
 
     /**
-     * A new notice: sent now (it starts at once), or waiting for a time still to come.
+     * A new notice: sent now (it starts at once), waiting for a time still to come, or a draft with no time
+     * (`$draft`: the time given is not read).
      *
      * @throws InvalidOpsInput
      */
-    public static function write(string $id, StoreId $store, WrittenText $text, bool $byBell, bool $byEmail, ?DateTimeImmutable $sendAt, string $staffId, DateTimeImmutable $now, ?string $segmentId = null): self
+    public static function write(string $id, StoreId $store, WrittenText $text, bool $byBell, bool $byEmail, ?DateTimeImmutable $sendAt, string $staffId, DateTimeImmutable $now, ?string $segmentId = null, bool $draft = false): self
     {
+        $segmentId = $segmentId === null ? null : strtolower($segmentId);
+
+        if ($draft) {
+            return new self(strtolower($id), $store, $text, $byBell, $byEmail, BroadcastStatus::Draft, null, strtolower($staffId), $now, $now, segmentId: $segmentId);
+        }
+
         if ($sendAt !== null && $sendAt <= $now) {
             throw new InvalidOpsInput('send_at', 'a time still to come');
         }
-
-        $segmentId = $segmentId === null ? null : strtolower($segmentId);
 
         return $sendAt === null
             ? new self(strtolower($id), $store, $text, $byBell, $byEmail, BroadcastStatus::Sending, $now, strtolower($staffId), $now, $now, $now, segmentId: $segmentId)
@@ -64,22 +73,22 @@ final readonly class Notice
     }
 
     /**
-     * The same notice changed while it waits: now (it starts at once), or at another time to come.
+     * The same notice changed while it waits: now (it starts at once), at another time to come, or a draft.
      *
      * @throws InvalidOpsInput|NoticeAlreadyStarted
      */
-    public function changed(WrittenText $text, bool $byBell, bool $byEmail, ?DateTimeImmutable $sendAt, DateTimeImmutable $now, ?string $segmentId = null): self
+    public function changed(WrittenText $text, bool $byBell, bool $byEmail, ?DateTimeImmutable $sendAt, DateTimeImmutable $now, ?string $segmentId = null, bool $draft = false): self
     {
         $this->waiting();
 
-        $new = self::write($this->id, $this->store, $text, $byBell, $byEmail, $sendAt, $this->createdBy, $now, $segmentId);
+        $new = self::write($this->id, $this->store, $text, $byBell, $byEmail, $sendAt, $this->createdBy, $now, $segmentId, $draft);
 
         return new self($this->id, $this->store, $text, $byBell, $byEmail, $new->status, $new->sendAt, $this->createdBy, $this->createdAt, $now, $new->startedAt, segmentId: $new->segmentId);
     }
 
     /**
-     * Started by its campaign going live (§1.7), whatever time it waited for: it goes now, and cannot be
-     * recalled from here on.
+     * Started by its campaign going live (§1.7), a draft or whatever time it waited for: it goes now, and cannot
+     * be recalled from here on.
      *
      * @throws NoticeAlreadyStarted
      */
@@ -98,10 +107,16 @@ final readonly class Notice
         return new self($this->id, $this->store, $this->text, $this->byBell, $this->byEmail, BroadcastStatus::Cancelled, $this->sendAt, $this->createdBy, $this->createdAt, $now, segmentId: $this->segmentId);
     }
 
+    /** Whether it still waits - for its time, or as a draft for a campaign: only then is it changed, cancelled or started. */
+    public function waits(): bool
+    {
+        return $this->status === BroadcastStatus::Scheduled || $this->status === BroadcastStatus::Draft;
+    }
+
     /** @throws NoticeAlreadyStarted */
     private function waiting(): void
     {
-        if ($this->status !== BroadcastStatus::Scheduled) {
+        if (! $this->waits()) {
             throw new NoticeAlreadyStarted;
         }
     }

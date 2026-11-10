@@ -23,5 +23,7 @@ final readonly class CreateNotice
         public ?string $sendAt,
         /** One of the store's Promotions segments (§1.7); none: every customer of the store. */
         public ?string $segmentId = null,
+        /** A draft with no time, for a campaign to start when it goes live (§9.7 #1); `sendAt` is not read then. */
+        public bool $draft = false,
     ) {}
 }

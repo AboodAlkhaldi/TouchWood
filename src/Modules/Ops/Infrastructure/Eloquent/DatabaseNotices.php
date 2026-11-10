@@ -76,6 +76,36 @@ final readonly class DatabaseNotices implements Notices
         return array_map(self::notice(...), $rows);
     }
 
+    public function drafts(StoreId $store, ?string $afterId, int $limit): array
+    {
+        $bindings = [$store->value];
+        $after = '';
+
+        if ($afterId !== null) {
+            $after = " AND (created_at, id) < (SELECT created_at, id FROM ops.notices WHERE id = ? AND store_id = ? AND status = 'DRAFT')";
+            $bindings = [...$bindings, strtolower($afterId), $store->value];
+        }
+
+        /** @var list<stdClass> $rows */
+        $rows = $this->db->select('SELECT '.self::COLUMNS." FROM ops.notices WHERE store_id = ? AND status = 'DRAFT'{$after} ORDER BY created_at DESC, id DESC LIMIT ?", [...$bindings, max(1, min($limit, 100))]);
+
+        return array_map(self::notice(...), $rows);
+    }
+
+    public function named(StoreId $store, array $ids): array
+    {
+        $ids = array_values(array_unique(array_map(strtolower(...), $ids)));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        /** @var list<stdClass> $rows */
+        $rows = $this->db->select('SELECT '.self::COLUMNS.' FROM ops.notices WHERE store_id = ? AND id IN ('.implode(', ', array_fill(0, count($ids), '?')).')', [$store->value, ...$ids]);
+
+        return array_map(self::notice(...), $rows);
+    }
+
     public function startDue(DateTimeImmutable $now): array
     {
         /** @var list<stdClass> $rows */
@@ -99,7 +129,7 @@ final readonly class DatabaseNotices implements Notices
             'by_bell' => $notice->byBell,
             'by_email' => $notice->byEmail,
             'status' => $notice->status->value,
-            'send_at' => Moment::of($notice->sendAt),
+            'send_at' => $notice->sendAt === null ? null : Moment::of($notice->sendAt),
             'updated_at' => Moment::of($notice->updatedAt),
             'started_at' => $notice->startedAt === null ? null : Moment::of($notice->startedAt),
             'segment_id' => $notice->segmentId,
@@ -115,7 +145,7 @@ final readonly class DatabaseNotices implements Notices
             (bool) $row->by_bell,
             (bool) $row->by_email,
             BroadcastStatus::from((string) $row->status),
-            self::at($row->send_at),
+            $row->send_at === null ? null : self::at($row->send_at),
             (string) $row->created_by,
             self::at($row->created_at),
             self::at($row->updated_at),
