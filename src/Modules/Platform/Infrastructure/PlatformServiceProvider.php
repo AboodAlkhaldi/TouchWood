@@ -85,6 +85,7 @@ use Modules\Platform\Presentation\Console\RequeueStuckMediaVariantsCommand;
 use Modules\Platform\Presentation\Home\StoresAndSystemCard;
 use Modules\Platform\Presentation\Http\InMemoryUnmatchedAddresses;
 use Modules\Platform\Presentation\Http\Middleware\AnswerUnmatchedAddresses;
+use Modules\Platform\Presentation\Http\Middleware\CanonicalHost;
 use Modules\Platform\Presentation\Http\Middleware\ResolveStore;
 use Modules\Platform\Presentation\Http\Middleware\ShareStorefront;
 use Modules\Platform\Presentation\Http\Middleware\TrackHttpRequest;
@@ -278,6 +279,9 @@ final class PlatformServiceProvider extends ServiceProvider
         $router->aliasMiddleware(ResolveStore::ALIAS, ResolveStore::class);
         $router->aliasMiddleware(ShareStorefront::ALIAS, ShareStorefront::class);
 
+        // First of all, on every request: the other host (www.) answers a permanent redirect to the canonical
+        // one before anything runs (content.md §1.14, §2.3 row L5).
+        $this->app->make(HttpKernel::class)->prependMiddleware(CanonicalHost::class);
         // On every request, so the audit log can tell a web change from a console or queued one.
         $this->app->make(HttpKernel::class)->pushMiddleware(TrackHttpRequest::class);
         // On every request too: a read no route matched is offered to the modules' answers before it is
