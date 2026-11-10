@@ -34,7 +34,7 @@ final class BrevoAnswers
 
     /**
      * A security email waits inside a person's request, and a worker on every other. A sync makes four calls at
-     * most, so even answered slowly it stays inside a worker's 60 s and the queue's retry_after of 90 s.
+     * most, so even answered slowly it stays inside a worker's 60 s and the queue's retry_after of 330 s.
      */
     public const int SECONDS = 10;
 
