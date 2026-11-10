@@ -2,7 +2,6 @@ import { type ChangeEvent, createContext, type ReactNode, type RefObject, useCal
 import { Link, router } from '@inertiajs/react';
 import { ExternalLink, MoreHorizontal } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
-import { DialogError } from '@/components/FormError';
 import { Note } from '@/components/Note';
 import { MiddleTruncate } from '@/components/geist-only/MiddleTruncate';
 import { Time } from '@/components/Time';
@@ -35,6 +34,7 @@ import type {
     CompanyRequestData,
     CompanyTypeOptionData,
 } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
+import { DiscardModal } from './CompanyShell';
 import { AddressPicker, check, FieldState, type Look, mustFix, normal, ruleOf, SaveBeside, SaveMark, subjectOf } from './fields';
 import { Card, MARK, nameOf, Phrase, useLocale } from './parts';
 
@@ -430,60 +430,6 @@ function problemOf(look: Look, problem: string | null, refusal: string | null, m
     }
 
     return look === 'invalid' ? (problem ?? marked) : marked;
-}
-
-/**
- * Discarding the draft, asked in the page, never with the browser's own box (owner, 2026-09-24) -
- * in shadcn's AlertDialog, which confirms what destroys: the draft goes, and any file only it holds.
- * Being destructive, it opens on Cancel, so Enter never discards by accident. Not a typed
- * confirmation: Geist keeps that friction for what is hard to undo, and a draft is started again
- * with one press.
- */
-export function DiscardModal({ open, onOpenChange, busy = false }: { open: boolean; onOpenChange: (open: boolean) => void; busy?: boolean }) {
-    const t = useTranslator();
-    const link = useLink();
-    const [discarding, setDiscarding] = useState(false);
-    const returnFocus = useReturnFocus(open);
-
-    return (
-        <AlertDialog
-            open={open}
-            // Not closed under a discard still out: its answer decides what the page shows next.
-            onOpenChange={(next) => (discarding ? undefined : onOpenChange(next))}
-        >
-            <AlertDialogContent onCloseAutoFocus={returnFocus} className="material-modal gap-0 overflow-hidden border-0 p-0 text-start data-[size=default]:sm:max-w-md">
-                <div className="grid gap-4 p-6">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle className="text-heading-20 text-ink">{t('b2b::company.discard_title')}</AlertDialogTitle>
-                        <AlertDialogDescription className="text-copy-14 text-ink-muted" data-test="discard-confirmation">
-                            {t('b2b::company.discard_confirm')}
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    {/* A refusal keeps the dialog open; it is said inside it, not only in a toast
-                        hidden under the backdrop (the review of the move). */}
-                    <DialogError open={open} />
-                </div>
-                <AlertDialogFooter className="border-t border-line bg-surface-sunken px-6 py-4">
-                    <AlertDialogCancel disabled={discarding} data-test="modal-cancel">
-                        {t('ui.cancel')}
-                    </AlertDialogCancel>
-                    <ActionButton
-                        variant="destructive"
-                        data-test="discard-confirm"
-                        loading={discarding}
-                        // Not while a save is out: its page request would cancel the saves (17(i)).
-                        disabledReason={busy ? t('b2b::company.saving_wait') : undefined}
-                        onClick={() => {
-                            setDiscarding(true);
-                            router.post(link('storefront.company.discard'), {}, { onFinish: () => setDiscarding(false) });
-                        }}
-                    >
-                        {t('b2b::company.discard_yes')}
-                    </ActionButton>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-    );
 }
 
 /**
