@@ -346,7 +346,7 @@ final class OdooAdapter implements ProviderAdapter
         } catch (OdooAnswerTooLarge) {
             throw self::failed(new ProviderReason(ProviderReason::ANSWER_TOO_LARGE));
         } catch (RequestException $error) {
-            if ($this->tooLarge) {
+            if ($this->stoppedTooLarge()) {
                 throw self::failed(new ProviderReason(ProviderReason::ANSWER_TOO_LARGE));
             }
 
@@ -355,20 +355,26 @@ final class OdooAdapter implements ProviderAdapter
             return $error->response;
         } catch (ConnectionException $error) {
             // A transfer the callbacks stopped, as the client reports it.
-            if ($this->tooLarge) {
+            if ($this->stoppedTooLarge()) {
                 throw self::failed(new ProviderReason(ProviderReason::ANSWER_TOO_LARGE));
             }
 
             // Its message holds the address: never passed on, nor chained.
             throw self::failed(self::timedOut($error, $seconds) ?? new ProviderReason(ProviderReason::UNREACHABLE));
         } catch (HttpClientException) {
-            throw self::failed(new ProviderReason($this->tooLarge ? ProviderReason::ANSWER_TOO_LARGE : ProviderReason::UNREACHABLE));
+            throw self::failed(new ProviderReason($this->stoppedTooLarge() ? ProviderReason::ANSWER_TOO_LARGE : ProviderReason::UNREACHABLE));
         } catch (InvalidArgumentException) {
             // A request that cannot be written - a control character in the key, say: never the key itself.
             throw self::failed(new ProviderReason(ProviderReason::UNSENDABLE));
         } finally {
             $this->lastCallEnded[$connection->storeId] = self::now();
         }
+    }
+
+    /** Whether the client's callbacks stopped this call's answer past `MOST_ANSWER_BYTES` - set by them, as it came. */
+    private function stoppedTooLarge(): bool
+    {
+        return $this->tooLarge;
     }
 
     /**

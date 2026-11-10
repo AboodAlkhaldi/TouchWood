@@ -6,6 +6,7 @@ use Carbon\CarbonImmutable;
 use Carbon\CarbonInterval;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
+use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\ResponseTransferException;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Psr7\Response as Psr7Response;
@@ -30,6 +31,7 @@ use Modules\Sync\Application\Command\SyncNow\SyncNow;
 use Modules\Sync\Application\Command\SyncNow\SyncNowHandler;
 use Modules\Sync\Application\Command\WireStore\WireStore;
 use Modules\Sync\Application\Command\WireStore\WireStoreHandler;
+use Modules\Sync\Application\Connections\InternalAddress;
 use Modules\Sync\Domain\Exception\ConnectionFailed;
 use Modules\Sync\Domain\Exception\InvalidSyncInput;
 use Modules\Sync\Domain\Model\Connection;
@@ -38,7 +40,6 @@ use Modules\Sync\Domain\ValueObject\ConnectionState;
 use Modules\Sync\Domain\ValueObject\ProviderKind;
 use Modules\Sync\Domain\ValueObject\ProviderValue;
 use Modules\Sync\Domain\ValueObject\ReadKind;
-use Modules\Sync\Application\Connections\InternalAddress;
 use Modules\Sync\Infrastructure\Provider\OdooAdapter;
 use Modules\Sync\Infrastructure\Provider\OdooAnswerTooLarge;
 use Modules\Sync\Infrastructure\Queue\ReadStoreJob;
@@ -436,7 +437,7 @@ describe('one id Odoo refuses (§2.4, amendment 5)', function () {
         Http::fake(['example.odoo.com/*' => function (Request $request) {
             $ids = array_values(array_map(intval(...), (array) (json_decode($request->body(), true)['ids'] ?? [])));
 
-            return min($ids) <= 11 ? Http::response('', 403) : Http::response(odooJson(array_map(static fn (int $id): array => odooItem($id), $ids)));
+            return $ids !== [] && min($ids) <= 11 ? Http::response('', 403) : Http::response(odooJson(array_map(static fn (int $id): array => odooItem($id), $ids)));
         }]);
 
         expect(odooFails(fn () => odooRead(array_map(static fn (int $n): string => (string) $n, range(1, 40)))))
@@ -447,7 +448,7 @@ describe('one id Odoo refuses (§2.4, amendment 5)', function () {
         Http::fake(['example.odoo.com/*' => function (Request $request) {
             $ids = array_values(array_map(intval(...), (array) (json_decode($request->body(), true)['ids'] ?? [])));
 
-            return min($ids) <= 10 ? Http::response('', 403) : Http::response(odooJson(array_map(static fn (int $id): array => odooItem($id), $ids)));
+            return $ids !== [] && min($ids) <= 10 ? Http::response('', 403) : Http::response(odooJson(array_map(static fn (int $id): array => odooItem($id), $ids)));
         }]);
 
         $values = iterator_to_array(odooAdapter()->read(odooConnection(), array_map(static fn (int $n): string => (string) $n, range(1, 40))), false);
@@ -489,24 +490,29 @@ describe('an answer past 5 MB (§2.4, amendment 5)', function () {
     });
 
     it('stops the transfer itself: its headers past 5 MB, or its progress past it', function () {
-        $sent = null;
-        Http::fake(['example.odoo.com/*' => function (Request $request, array $options) use (&$sent) {
-            $sent = $options;
+        $checked = false;
+        // The callbacks the call hands the HTTP client, tried as the client would call them.
+        Http::fake(['example.odoo.com/*' => function (Request $request, array $options) use (&$checked) {
+            $headers = $options['on_headers'] ?? null;
+            $progress = $options['progress'] ?? null;
+
+            expect($headers)->toBeCallable()
+                ->and($progress)->toBeCallable()
+                ->and(fn () => $headers(new Psr7Response(200, ['Content-Length' => (string) (OdooAdapter::MOST_ANSWER_BYTES + 1)])))->toThrow(OdooAnswerTooLarge::class)
+                ->and(fn () => $progress(OdooAdapter::MOST_ANSWER_BYTES + 1, 0, 0, 0))->toThrow(OdooAnswerTooLarge::class)
+                ->and(fn () => $progress(0, OdooAdapter::MOST_ANSWER_BYTES + 1, 0, 0))->toThrow(OdooAnswerTooLarge::class);
+
+            // Within 5 MB, or its length unsaid: they let it come.
+            $headers(new Psr7Response(200, ['Content-Length' => (string) OdooAdapter::MOST_ANSWER_BYTES]));
+            $headers(new Psr7Response(200));
+            $progress(OdooAdapter::MOST_ANSWER_BYTES, OdooAdapter::MOST_ANSWER_BYTES, 0, 0);
+            $checked = true;
 
             return Http::response([]);
         }]);
-        odooRead(['1']);
 
-        expect($sent['on_headers'] ?? null)->toBeCallable()
-            ->and($sent['progress'] ?? null)->toBeCallable()
-            ->and(fn () => $sent['on_headers'](new Psr7Response(200, ['Content-Length' => (string) (OdooAdapter::MOST_ANSWER_BYTES + 1)])))->toThrow(OdooAnswerTooLarge::class)
-            ->and(fn () => $sent['progress'](OdooAdapter::MOST_ANSWER_BYTES + 1, 0, 0, 0))->toThrow(OdooAnswerTooLarge::class)
-            ->and(fn () => $sent['progress'](0, OdooAdapter::MOST_ANSWER_BYTES + 1, 0, 0))->toThrow(OdooAnswerTooLarge::class);
-
-        // Within 5 MB, or its length unsaid: they let it come.
-        $sent['on_headers'](new Psr7Response(200, ['Content-Length' => (string) OdooAdapter::MOST_ANSWER_BYTES]));
-        $sent['on_headers'](new Psr7Response(200));
-        $sent['progress'](OdooAdapter::MOST_ANSWER_BYTES, OdooAdapter::MOST_ANSWER_BYTES, 0, 0);
+        expect(odooRead(['1']))->toBe([])
+            ->and($checked)->toBeTrue();
     });
 
     it('says the transfer the callbacks stopped as too large, never as Odoo not reached', function () {
@@ -517,7 +523,7 @@ describe('an answer past 5 MB (§2.4, amendment 5)', function () {
                 // As cURL reports a transfer its progress callback stopped.
             }
 
-            return Create::rejectionFor(new GuzzleHttp\Exception\ConnectException('cURL error 42: Callback aborted for '.ODOO_URL, $request->toPsrRequest()));
+            return Create::rejectionFor(new ConnectException('cURL error 42: Callback aborted for '.ODOO_URL, $request->toPsrRequest()));
         }]);
 
         expect(odooFails(fn () => odooRead(['1'])))->toBe("Odoo's answer is not as agreed: it is larger than 5 MB.");

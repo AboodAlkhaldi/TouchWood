@@ -15,11 +15,21 @@ final class FakeHostAddresses implements HostAddresses
     /** @var array<string, list<string>> host name => its addresses */
     public array $names = [];
 
+    /** The one tests/TestCase.php bound for the running test. */
+    private static ?self $bound = null;
+
+    /** A new one, bound in place of DNS for the test that starts. */
+    public static function bind(): self
+    {
+        self::$bound = new self;
+        app()->instance(HostAddresses::class, self::$bound);
+
+        return self::$bound;
+    }
+
     public static function bound(): self
     {
-        $bound = app(HostAddresses::class);
-
-        return $bound instanceof self ? $bound : throw new \LogicException('FakeHostAddresses is not bound.');
+        return self::$bound ?? throw new \LogicException('FakeHostAddresses is not bound.');
     }
 
     public function of(string $host): array
