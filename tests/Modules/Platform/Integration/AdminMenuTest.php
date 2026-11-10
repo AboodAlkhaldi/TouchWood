@@ -326,8 +326,7 @@ describe('the admin menu', function () {
 
     it('names each area in both languages, five of them by the design\'s shorter word', function () {
         // Round 3 #10 (owner, 2026-11-10: "keep"): every screen stays in its area and only five labels change; the
-        // role editor reads the same words (PermissionGroup). The media area's Arabic is parked for the owner (P8), so
-        // it keeps today's word.
+        // role editor reads the same words (PermissionGroup). The media area's Arabic is المكتبة (owner, 2026-11-10, P8).
         $labels = static function (string $locale): array {
             $named = [];
 
@@ -344,10 +343,19 @@ describe('the admin menu', function () {
             'customers' => 'Customers', 'reports' => 'Reports', 'marketing' => 'Marketing', 'content' => 'Content', 'support' => 'Support', 'points' => 'Points',
             'audit' => 'Audit Log', 'system' => 'System', 'messages_and_reports' => 'Messages and Reports',
         ])->and($labels('ar'))->toBe([
-            'catalog' => 'المنتجات', 'orders' => 'المبيعات', 'store_settings' => 'الإعدادات', 'staff_and_permissions' => 'طاقم العمل', 'media' => 'مكتبة الوسائط',
+            'catalog' => 'المنتجات', 'orders' => 'المبيعات', 'store_settings' => 'الإعدادات', 'staff_and_permissions' => 'طاقم العمل', 'media' => 'المكتبة',
             'pricing' => 'الأسعار والحملات', 'sync' => 'المزامنة', 'shipping' => 'الشحن', 'payments' => 'المدفوعات', 'companies' => 'اعتماد الشركات',
             'customers' => 'العملاء', 'reports' => 'التقارير', 'marketing' => 'التسويق', 'content' => 'المحتوى', 'support' => 'الدعم', 'points' => 'النقاط',
             'audit' => 'سجل التدقيق', 'system' => 'النظام', 'messages_and_reports' => 'الرسائل والتقارير',
         ]);
+    });
+
+    it('names the Store Settings entry apart from its area, so the Arabic menu never reads the same word twice', function () {
+        // The owner, 2026-11-10 (P13): under الإعدادات the entry is إعدادات المتجر. The page's own title and its trail
+        // keep platform::admin_settings.title, a key of their own.
+        expect((string) __('platform::menu.settings', [], 'ar'))->toBe('إعدادات المتجر')
+            ->and((string) __('platform::menu.settings', [], 'ar'))->not->toBe((string) __('access::permission_groups.store_settings', [], 'ar'))
+            ->and((string) __('platform::menu.settings', [], 'en'))->toBe('Settings')
+            ->and((string) __('platform::admin_settings.title', [], 'ar'))->toBe('الإعدادات');
     });
 });
