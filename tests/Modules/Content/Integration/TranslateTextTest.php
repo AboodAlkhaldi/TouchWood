@@ -5,6 +5,11 @@ declare(strict_types=1);
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
+use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
+use GuzzleHttp\Psr7\Response;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Modules\Content\Application\Command\TranslateText\TranslatedText;
@@ -20,6 +25,7 @@ use Modules\Platform\Infrastructure\External\DeepLTextTranslator;
 use Modules\Platform\Infrastructure\External\FakeTextTranslator;
 use Modules\Platform\Public\Contracts\TextTranslator;
 use Modules\Platform\Public\Enums\TranslationFailure;
+use Psr\Http\Message\RequestInterface;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 
@@ -27,8 +33,9 @@ use function Pest\Laravel\seed;
 
 /*
 | Translate (content.md §1.3, §3): by kind and store, never saving; the token, the caps of a press, of a
-| minute and of a day; block by block, the marks dropped until the real account says (§1.3 (b), PARKED);
-| each failure in its own words, the text in the box kept. Against the fake translator: no request leaves.
+| minute and of a day; block by block, bold and links kept as tags (§1.3 (a)), a box whose answer loses
+| them falling back to plain words; each failure in its own words, the text in the box kept. Against the
+| fake translator or a stand-in for DeepL: no request leaves.
 */
 
 uses(RefreshDatabase::class);
@@ -93,19 +100,226 @@ it('gives back each box\'s English and saves nothing', function () {
         ->and(DB::table('platform.audit_entries')->count())->toBe($before);
 });
 
-it('sends a rich text block by block, keeps its structure and images, and counts the blocks that lost marks', function () {
+it('sends a rich text block by block with its bold and links as tags, and keeps its structure, images and marks', function () {
     translateAsEditorOf(ContentPermissions::PAGE_MANAGE);
     $typed = "# التركيب\n\nيناسب **كل** خزانة، راجع [الدليل](/pages/guide).\n\n- إغلاق هادئ\n- **بلا أدوات**\n\n![الخزانة مفتوحة](image:3)\n\n| المقاس | السعر |\n| 60 |  |";
 
     $translated = translatePress('page', Fx::storeId('sa'), [['text' => $typed, 'rich' => true]]);
 
-    // Each heading, paragraph, list item, cell and description its own text; no address and no image ref sent.
-    expect(translateFake()->calls()[0]['texts'])->toBe(['التركيب', 'يناسب كل خزانة، راجع الدليل.', 'إغلاق هادئ', 'بلا أدوات', 'الخزانة مفتوحة', 'المقاس', 'السعر', '60'])
+    // Each heading, paragraph, list item, cell and description its own text, as XML with tag handling (§1.3 (a));
+    // no address and no image ref sent.
+    expect(translateFake()->calls()[0]['texts'])->toBe(['التركيب', 'يناسب <b>كل</b> خزانة، راجع <a i="0">الدليل</a>.', 'إغلاق هادئ', '<b>بلا أدوات</b>', 'الخزانة مفتوحة', 'المقاس', 'السعر', '60'])
+        ->and(translateFake()->calls()[0]['keepMarks'])->toBeTrue()
         ->and(implode(' ', translateFake()->calls()[0]['texts']))->not->toContain('/pages/guide')
-        // The fake's own "[en]" written escaped, as any bracket in a rich text is (the round trip, PR 2 review).
-        ->and($translated->texts[0])->toBe('# \[en\] التركيب'."\n\n".'\[en\] يناسب كل خزانة، راجع الدليل.'."\n\n".'- \[en\] إغلاق هادئ'."\n".'- \[en\] بلا أدوات'."\n\n".'![\[en\] الخزانة مفتوحة](image:3)'."\n\n".'| \[en\] المقاس | \[en\] السعر |'."\n".'| \[en\] 60 |  |')
-        // The paragraph's bold and link and the item's bold, gone plain (§1.3 (b)).
-        ->and($translated->lostMarks)->toBe([2]);
+        // The fake's own "[en]" written escaped, as any bracket in a rich text is (the round trip, PR 2 review),
+        // outside the tags: the bold and the link come back on their words.
+        ->and($translated->texts[0])->toBe('# \[en\] التركيب'."\n\n".'\[en\] يناسب **كل** خزانة، راجع [الدليل](/pages/guide).'."\n\n".'- \[en\] إغلاق هادئ'."\n".'- \[en\] **بلا أدوات**'."\n\n".'![\[en\] الخزانة مفتوحة](image:3)'."\n\n".'| \[en\] المقاس | \[en\] السعر |'."\n".'| \[en\] 60 |  |')
+        ->and($translated->lostMarks)->toBe([0]);
+});
+
+/**
+ * A translator answering each text as `$answer` makes it, and keeping what it was sent.
+ *
+ * @param  Closure(string): string  $answer
+ * @param  ArrayObject<int, array{texts: list<string>, keepMarks: bool}>  $calls
+ */
+function translateAnswering(Closure $answer, ArrayObject $calls): TextTranslator
+{
+    return new class($answer, $calls) implements TextTranslator
+    {
+        /**
+         * @param  Closure(string): string  $answer
+         * @param  ArrayObject<int, array{texts: list<string>, keepMarks: bool}>  $calls
+         */
+        public function __construct(private Closure $answer, private ArrayObject $calls) {}
+
+        public function isReady(): bool
+        {
+            return true;
+        }
+
+        public function translate(array $texts, string $from, string $to, bool $keepMarks = false): array
+        {
+            $this->calls->append(['texts' => $texts, 'keepMarks' => $keepMarks]);
+
+            return array_map($this->answer, $texts);
+        }
+    };
+}
+
+it('keeps bold, a link, a bold link and bold inside a link through the real service\'s kind of answer, in English', function () {
+    translateAsEditorOf(ContentPermissions::PAGE_MANAGE);
+    $calls = new ArrayObject;
+    // The live test's answer (2026-11-10), the words moved round their tags; the rest answered in English.
+    app()->instance(TextTranslator::class, translateAnswering(static fn (string $xml): string => match ($xml) {
+        'خزانة <b>خشب الزان</b> مع <b>ضمان سنتين</b>.' => '<b>Beech wood</b> cabinet with <b>a two-year warranty</b>.',
+        'اقرأ <a i="0"><b>الضمان</b></a> و<a i="1">الدليل</a>' => 'Read <a i="0"><b>the warranty</b></a> and <a i="1">the guide</a>',
+        '<a i="0">دليل <b>التركيب</b> الكامل</a>' => '<a i="0">The full <b>fitting</b> guide</a>',
+        default => throw new LogicException("Not expected: {$xml}"),
+    }, $calls));
+    $typed = "خزانة **خشب الزان** مع **ضمان سنتين**.\n\nاقرأ **[الضمان](https://example.com/warranty)** و[الدليل](/pages/guide)\n\n[دليل ](/pages/fit)**[التركيب](/pages/fit)**[ الكامل](/pages/fit)";
+
+    $translated = translatePress('page', Fx::storeId('sa'), [['text' => $typed, 'rich' => true]]);
+
+    expect($translated->texts)->toBe(["**Beech wood** cabinet with **a two-year warranty**.\n\nRead **[the warranty](https://example.com/warranty)** and [the guide](/pages/guide)\n\n[The full ](/pages/fit)**[fitting](/pages/fit)**[ guide](/pages/fit)"])
+        ->and($translated->lostMarks)->toBe([0])
+        ->and(array_column($calls->getArrayCopy(), 'keepMarks'))->toBe([true]);
+});
+
+it('writes <, > and & in the words as XML\'s entities when marks go, and gives them back as the characters they are', function () {
+    translateAsEditorOf(ContentPermissions::PAGE_MANAGE);
+
+    $translated = translatePress('page', Fx::storeId('sa'), [
+        ['text' => 'من 5 < 10 & **أكثر > 3** <b>', 'rich' => true],
+        // A plain box in the same call: sent as XML too, as the service reads every text of the call so.
+        ['text' => 'أ & ب <i>', 'rich' => false],
+    ]);
+
+    expect(translateFake()->calls()[0]['texts'])->toBe(['من 5 &lt; 10 &amp; <b>أكثر &gt; 3</b> &lt;b&gt;', 'أ &amp; ب &lt;i&gt;'])
+        ->and($translated->texts)->toBe(['\[en\] من 5 < 10 & **أكثر > 3** <b>', '[en] أ & ب <i>'])
+        ->and($translated->lostMarks)->toBe([0, 0]);
+});
+
+it('sends a press with no bold or link as plain text, as before, its words as typed', function () {
+    translateAsEditorOf(ContentPermissions::PAGE_MANAGE);
+
+    $translated = translatePress('page', Fx::storeId('sa'), [['text' => 'من 5 < 10 & أكثر', 'rich' => true], ['text' => 'أ & ب', 'rich' => false]]);
+
+    expect(translateFake()->calls()[0])->toMatchArray(['texts' => ['من 5 < 10 & أكثر', 'أ & ب'], 'keepMarks' => false])
+        ->and($translated->texts)->toBe(['\[en\] من 5 < 10 & أكثر', '[en] أ & ب']);
+});
+
+it('drops the marks of a box whose answer is not the tags sent, and only that box\'s, and the press goes on', function (string $broken, string $words) {
+    translateAsEditorOf(ContentPermissions::PAGE_MANAGE);
+    $calls = new ArrayObject;
+    app()->instance(TextTranslator::class, translateAnswering(static fn (string $xml): string => match ($xml) {
+        'خزانة <b>خشب</b> و<a i="0">دليل</a>' => $broken,
+        'خزانة <b>ثانية</b>' => 'A <b>second</b> cabinet',
+        'عنوان &amp; وصف' => 'Title &amp; description',
+        default => throw new LogicException("Not expected: {$xml}"),
+    }, $calls));
+
+    $translated = translatePress('page', Fx::storeId('sa'), [
+        ['text' => "خزانة **خشب** و[دليل](/pages/guide)\n\nخزانة **خشب** و[دليل](/pages/guide)", 'rich' => true],
+        ['text' => 'خزانة **ثانية**', 'rich' => true],
+        ['text' => 'عنوان & وصف', 'rich' => false],
+    ]);
+
+    // The first box's two blocks as plain words, exactly: no mark, and no tag of the answer made one.
+    expect($translated->texts[0])->toBe($words."\n\n".$words)
+        ->and($translated->lostMarks)->toBe([2, 0, 0])
+        // The other boxes as they came.
+        ->and(array_slice($translated->texts, 1))->toBe(['A **second** cabinet', 'Title & description']);
+})->with([
+    'the tags lost' => ['Wood cabinet and guide', 'Wood cabinet and guide'],
+    'a tag not sent' => ['<b>Wood</b> cabinet and <a i="0">guide</a> <script>alert(1)</script>', 'Wood cabinet and guide alert(1)'],
+    'a link index changed' => ['<b>Wood</b> cabinet and <a i="1">guide</a>', 'Wood cabinet and guide'],
+    'a link given an address' => ['<b>Wood</b> cabinet and <a i="0" href="javascript:alert(1)">guide</a>', 'Wood cabinet and guide'],
+    'nested otherwise' => ['<b>Wood <a i="0">guide</a></b> cabinet', 'Wood guide cabinet'],
+    'not XML' => ['<b>Wood cabinet & <a i="0">guide', 'Wood cabinet & guide'],
+    'a link of spaces trimmed away' => ['<b>Wood</b> cabinet and guide <a i="0"> </a>', 'Wood cabinet and guide'],
+]);
+
+it('keeps the marks when the service splits a bold or gives a link two places, each place with our address', function () {
+    translateAsEditorOf(ContentPermissions::PAGE_MANAGE);
+    app()->instance(TextTranslator::class, translateAnswering(static fn (string $xml): string => match ($xml) {
+        'خزانة <b>خشب الزان</b> و<a i="0">دليل</a>' => '<b>Beech</b> <b>wood</b> <a i="0">cabinet</a>, see the <a i="0">guide</a>',
+        default => throw new LogicException("Not expected: {$xml}"),
+    }, new ArrayObject));
+
+    $translated = translatePress('page', Fx::storeId('sa'), [['text' => 'خزانة **خشب الزان** و[دليل](/pages/guide)', 'rich' => true]]);
+
+    expect($translated->texts)->toBe(['**Beech** **wood** [cabinet](/pages/guide), see the [guide](/pages/guide)'])
+        ->and($translated->lostMarks)->toBe([0]);
+});
+
+it('checks an answer of no words on its words, not its XML: a rich box falls back, keeping that block\'s Arabic', function () {
+    translateAsEditorOf(ContentPermissions::PAGE_MANAGE);
+    app()->instance(TextTranslator::class, translateAnswering(static fn (string $xml): string => match ($xml) {
+        // Tags and an entity, and no words.
+        'خزانة <b>خشب</b>' => '<b>&#32;</b> ',
+        'فقرة <a i="0">ثانية</a>' => 'A <a i="0">second</a> paragraph',
+        'عنوان' => 'Title',
+        default => throw new LogicException("Not expected: {$xml}"),
+    }, new ArrayObject));
+
+    $translated = translatePress('page', Fx::storeId('sa'), [
+        ['text' => "خزانة **خشب**\n\nفقرة [ثانية](/pages/b)", 'rich' => true],
+        ['text' => 'عنوان', 'rich' => false],
+    ]);
+
+    // The box's marks dropped and counted; the block with no words keeps its Arabic for the person to type over.
+    expect($translated->texts)->toBe(["خزانة خشب\n\nA second paragraph", 'Title'])
+        ->and($translated->lostMarks)->toBe([2, 0]);
+});
+
+it('refuses a plain box\'s answer of no words in a call sent as XML, as any empty answer is refused', function (string $answer) {
+    translateAsEditorOf(ContentPermissions::PAGE_MANAGE);
+    app()->instance(TextTranslator::class, translateAnswering(static fn (string $xml): string => match ($xml) {
+        'خزانة <b>خشب</b>' => '<b>Wood</b> cabinet',
+        'عنوان' => $answer,
+        default => throw new LogicException("Not expected: {$xml}"),
+    }, new ArrayObject));
+
+    expect(translateRefusal('page', Fx::storeId('sa'), [['text' => 'خزانة **خشب**', 'rich' => true], ['text' => 'عنوان', 'rich' => false]]))
+        ->toBe(TranslationUnavailable::UNREACHABLE);
+})->with([
+    'a tag alone' => ['<x/>'],
+    'an entity of a space' => ['&#32;'],
+]);
+
+it('sends a plain box\'s control characters as spaces in a call sent as XML, which XML 1.0 forbids', function () {
+    translateAsEditorOf(ContentPermissions::PAGE_MANAGE);
+
+    translatePress('page', Fx::storeId('sa'), [['text' => 'خزانة **خشب**', 'rich' => true], ['text' => "أ\x0Bب\x01ج", 'rich' => false]]);
+
+    expect(translateFake()->calls()[0]['texts'])->toBe(['خزانة <b>خشب</b>', 'أ ب ج']);
+});
+
+it('sends no link\'s address to the service, and gives it back on the answer\'s words (DeepL over its stand-in)', function () {
+    translateAsEditorOf(ContentPermissions::PAGE_MANAGE);
+    $sent = new ArrayObject;
+    $stack = HandlerStack::create(new MockHandler([new Response(200, ['Content-Type' => 'application/json'], (string) json_encode([
+        'translations' => [['detected_source_language' => 'AR', 'text' => 'Read <a i="0">the <b>warranty</b> terms</a> first.']],
+    ]))]));
+    $stack->push(Middleware::history($sent));
+    app()->instance(TextTranslator::class, new DeepLTextTranslator('secret-token-for-tests-1234:fx', new Client(['handler' => $stack])));
+
+    $translated = translatePress('page', Fx::storeId('sa'), [['text' => 'اقرأ [شروط ](/pages/warranty-terms)**[الضمان](/pages/warranty-terms)** أولا.', 'rich' => true]]);
+
+    $request = $sent[0]['request'] ?? null;
+    expect($request)->toBeInstanceOf(RequestInterface::class);
+    assert($request instanceof RequestInterface);
+    $raw = (string) $request->getBody();
+    $body = json_decode($raw, true);
+
+    expect($body['text'] ?? null)->toBe(['اقرأ <a i="0">شروط <b>الضمان</b></a> أولا.'])
+        ->and($body['tag_handling'] ?? null)->toBe('xml')
+        // Neither the address nor any part of it, however the library writes the slashes.
+        ->and($raw)->not->toContain('warranty-terms')
+        ->and($raw)->not->toContain('pages')
+        ->and($translated->texts)->toBe(['Read [the ](/pages/warranty-terms)**[warranty](/pages/warranty-terms)**[ terms](/pages/warranty-terms) first.'])
+        ->and($translated->lostMarks)->toBe([0]);
+});
+
+it('counts the tags in the request\'s bytes, so a press whose words fit but whose tags do not sends nothing', function () {
+    translateAsEditorOf(ContentPermissions::PAGE_MANAGE);
+    // 9,000 bold letters: 18,000 characters and about 63 KB of words, but about 135 KB once tagged.
+    $marked = trim(str_repeat('**ب** ', 9_000));
+    $plain = trim(str_repeat('ب ', 9_000));
+
+    expect(translateRefusal('page', Fx::storeId('sa'), [['text' => $marked, 'rich' => true]]))->toBe(TranslationUnavailable::TOO_LONG)
+        ->and(translateFake()->calls())->toBe([])
+        ->and(translatePress('page', Fx::storeId('sa'), [['text' => $plain, 'rich' => true]])->texts)->toHaveCount(1);
+});
+
+it('counts a press\'s characters on its words, never on the tags that carry its marks (the build\'s pick)', function () {
+    translateAsEditorOf(ContentPermissions::PAGE_MANAGE);
+    // Exactly 20,000 letters, all bold: the tags would make it 20,007 characters sent.
+    $typed = '**'.str_repeat('ب', TranslationLimits::PER_PRESS).'**';
+
+    expect(translatePress('page', Fx::storeId('sa'), [['text' => $typed, 'rich' => true]])->lostMarks)->toBe([0])
+        ->and(translateFake()->calls()[0]['texts'][0])->toBe('<b>'.str_repeat('ب', TranslationLimits::PER_PRESS).'</b>');
 });
 
 it('counts every box of Translate All together, in one call', function () {
