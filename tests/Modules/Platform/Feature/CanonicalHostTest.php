@@ -58,7 +58,7 @@ describe('the other host', function () {
 
 describe('every other host', function () {
     it('is untouched: the canonical host itself, a staging host, another name', function (string $url) {
-        expect(get($url)->getStatusCode())->not->toBe(301)->not->toBe(308);
+        expect(in_array(get($url)->getStatusCode(), [301, 308], true))->toBeFalse();
     })->with([
         'the canonical host' => 'https://touchwood.test/sa/ar',
         'a staging host' => 'https://staging.touchwood.test/sa/ar',

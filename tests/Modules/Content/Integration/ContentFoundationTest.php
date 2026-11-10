@@ -154,7 +154,7 @@ describe('the schema', function () {
         expect($exists())->toBeFalse();
     });
 
-    it('holds slug_history and the own items\' tables (PR 3), every other table landing with its PR', function () {
+    it('holds slug_history, the own items\' tables (PR 3) and SEO\'s and the redirects\' (PR 4), every other table landing with its PR', function () {
         $tables = array_map(strval(...), DB::table('information_schema.tables')->where('table_schema', 'content')->pluck('table_name')->all());
         // Sorted by bytes, as the list is written: the database's language order skips underscores (lesson 132).
         sort($tables, SORT_STRING);
@@ -162,7 +162,8 @@ describe('the schema', function () {
         expect($tables)->toBe([
             'banner_images', 'banners', 'bars', 'blog_categories', 'blog_post_products', 'blog_post_translations', 'blog_posts',
             'footers', 'home_section_media', 'home_sections', 'page_images', 'page_translations', 'pages', 'popups', 'post_images',
-            'project_images', 'project_photos', 'project_products', 'project_translations', 'projects', 'slug_history', 'smart_bars',
+            'project_images', 'project_photos', 'project_products', 'project_translations', 'projects', 'redirect_uploads', 'redirects',
+            'seo_defaults', 'sitemaps', 'slug_history', 'smart_bars', 'waiting_jobs',
         ]);
     });
 });

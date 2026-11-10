@@ -11,6 +11,21 @@ use Shared\Domain\Error\ErrorCategory;
  */
 final class SheetRefused extends ContentError
 {
+    /** Neither an xlsx nor a csv file, or one that can't be read as one. */
+    public const string TYPE = 'type';
+
+    /** Over 2 MB. */
+    public const string TOO_LARGE = 'too_large';
+
+    /** Over 5,000 lines under the headings. */
+    public const string TOO_MANY_LINES = 'too_many_lines';
+
+    /** A first row that is not the two headings, Old Address and New Address. */
+    public const string HEADINGS = 'headings';
+
+    /** No line under the headings. */
+    public const string EMPTY = 'empty';
+
     /**
      * @param  string  $rule  the rule, as its words are keyed
      */
