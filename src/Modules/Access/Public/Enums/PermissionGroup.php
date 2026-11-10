@@ -64,6 +64,9 @@ enum PermissionGroup: string
     /** Ops' jobs: messages to customers, offer notices, newsletter subscribers, the reports (ops.md §3, access.md amendment 86). */
     case MessagesAndReports = 'messages_and_reports';
 
+    /** Content's jobs: the home page, bars, banners, campaigns, pop-ups, pages, blog, projects, SEO (content.md §3, row X1). */
+    case Content = 'content';
+
     public function labelKey(): string
     {
         return "access::permission_groups.{$this->value}";

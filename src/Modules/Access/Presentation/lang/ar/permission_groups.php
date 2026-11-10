@@ -25,4 +25,5 @@ return [
     'marketing' => 'التسويق',
     'support' => 'الدعم',
     'messages_and_reports' => 'الرسائل والتقارير',
+    'content' => 'المحتوى',
 ];
