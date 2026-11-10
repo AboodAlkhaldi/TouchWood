@@ -33,6 +33,7 @@ use stdClass;
  * | a banner's artwork, a pop-up's image | it is scheduled and has not ended |
  * | a page's, post's or project's share image, cover, photo or body image | it is published |
  * | a store's SEO defaults' share image (PR 4) | always: the defaults are live once saved |
+ * | a theme's artwork (PR 6) | it is scheduled and has not ended in all its stores |
  *
  * Detaching changes the item, so it takes the item's own permission in the item's store, as editing it would, writes
  * a new version (so an open form is told), is audited, and replaces the shop's cached copy.
@@ -92,6 +93,7 @@ final readonly class ContentMediaUsage implements MediaUsage
                 'content.home_section' => $this->db->table('content.home_section_media')->where('section_id', $use['id'])->where('media_id', $mediaId)->delete(),
                 'content.banner' => $this->db->table('content.banner_images')->where('banner_id', $use['id'])->where('media_id', $mediaId)->delete(),
                 'content.popup' => $this->db->table('content.popups')->where('id', $use['id'])->update(['media_id' => null]),
+                'content.theme' => $this->db->table('content.theme_part_images')->where('theme_id', $use['id'])->where('media_id', $mediaId)->delete(),
                 default => $this->detachFromDocument($use['subject'], $use['id'], $mediaId),
             };
 
@@ -99,6 +101,7 @@ final readonly class ContentMediaUsage implements MediaUsage
                 'content.home_section' => 'content.home_sections',
                 'content.banner' => 'content.banners',
                 'content.popup' => 'content.popups',
+                'content.theme' => 'content.themes',
                 default => self::DOCUMENTS[substr($use['subject'], strlen('content.'))][0],
             };
 
@@ -129,8 +132,11 @@ final readonly class ContentMediaUsage implements MediaUsage
             "SELECT 'content.project', id, store_id, status = 'PUBLISHED' FROM content.projects WHERE ? IN (share_media_ar, share_media_en) OR id IN (SELECT project_id FROM content.project_images WHERE media_id = ?) OR id IN (SELECT project_id FROM content.project_photos WHERE media_id = ?)",
             // PR 4: a store's SEO defaults are live from the moment they are saved, so their share image always blocks.
             "SELECT 'content.seo', store_id, store_id, true FROM content.seo_defaults WHERE share_media_id = ?",
+            // PR 6: a theme's artwork blocks while the theme is scheduled and has not ended in every store; it is filed
+            // under its first store, where its reserved job is checked.
+            "SELECT DISTINCT 'content.theme', t.id, (SELECT min(s.store_id) FROM content.theme_stores s WHERE s.theme_id = t.id), t.is_scheduled AND EXISTS (SELECT 1 FROM content.theme_stores s WHERE s.theme_id = t.id AND s.ends_at > ?::timestamptz) FROM content.theme_part_images i JOIN content.themes t ON t.id = i.theme_id WHERE i.media_id = ?",
         ];
-        $bindings = [$mediaId, $now, $mediaId, $now, $mediaId, $mediaId, $mediaId, $mediaId, $mediaId, $mediaId, $mediaId, $mediaId, $mediaId];
+        $bindings = [$mediaId, $now, $mediaId, $now, $mediaId, $mediaId, $mediaId, $mediaId, $mediaId, $mediaId, $mediaId, $mediaId, $mediaId, $now, $mediaId];
 
         /** @var list<stdClass> $rows */
         $rows = $this->db->select(implode(' UNION ALL ', $sql).' ORDER BY 1, 2', $bindings);
@@ -144,6 +150,7 @@ final readonly class ContentMediaUsage implements MediaUsage
                 'content.banner' => ContentPermissions::BANNER_MANAGE,
                 'content.popup' => ContentPermissions::POPUP_MANAGE,
                 'content.seo' => ContentPermissions::SEO_MANAGE,
+                'content.theme' => ContentPermissions::THEME_MANAGE,
                 default => self::DOCUMENTS[substr((string) $row->subject, strlen('content.'))][1],
             },
             'blocks' => (bool) $row->blocks,

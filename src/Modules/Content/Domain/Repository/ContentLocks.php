@@ -14,6 +14,9 @@ interface ContentLocks
 {
     public const string POPUPS = 'popups';
 
+    /** A store's themes: one live at a time (§1.8). A theme over several stores takes theirs in store-id order. */
+    public const string THEMES = 'themes';
+
     public const string SLUGS = 'slugs';
 
     /** A store's list of home sections: Add and Order. */

@@ -109,6 +109,15 @@ final class InvalidContentInput extends ContentError
     /** A category that does not exist. */
     public const string CATEGORY = 'category';
 
+    /** A brand that does not exist. */
+    public const string BRAND = 'brand';
+
+    /** A theme that does not exist, or has ended (§1.7 #7). */
+    public const string THEME = 'theme';
+
+    /** A campaign run that does not exist in this store, or is over (a smart bar's, §1.9). */
+    public const string RUN = 'run';
+
     /** An email address written wrong. */
     public const string EMAIL = 'email';
 

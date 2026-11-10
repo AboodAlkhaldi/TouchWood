@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Http\AdminArea;
 use Illuminate\Support\Facades\Route;
+use Modules\Content\Presentation\Http\Controller\CampaignRunController;
+use Modules\Content\Presentation\Http\Controller\ThemePreviewController;
 use Modules\Content\Presentation\Http\Controller\TranslateController;
 
 /*
@@ -19,4 +21,9 @@ Route::prefix(AdminArea::PREFIX)
     ->middleware([...AdminArea::MIDDLEWARE, AdminArea::SIGNED_IN])
     ->group(function (): void {
         Route::post('content/translate', TranslateController::class)->name('content.admin.translate');
+        // S8's link (ops.md §9.7 #3): a run's page is its campaign's (W4b, PR 8).
+        Route::get('content/campaigns/runs/{run}', CampaignRunController::class)->name('content.admin.campaigns.run');
+        // Preview Theme's signed cookie for this browser (W5b); the shop draws it with its frame (PR 9).
+        Route::delete('content/themes/preview', [ThemePreviewController::class, 'stop'])->name('content.admin.themes.preview.stop');
+        Route::post('content/themes/{theme}/preview', [ThemePreviewController::class, 'start'])->name('content.admin.themes.preview');
     });

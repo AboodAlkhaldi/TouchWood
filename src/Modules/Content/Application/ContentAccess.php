@@ -85,6 +85,14 @@ final readonly class ContentAccess
         return $store;
     }
 
+    /** Whether the person holds a permission in this store (asked, never thrown: a campaign's prices, §1.7 #5, #16). */
+    public function holdsIn(string $permission, string $storeId): bool
+    {
+        $held = $this->authorizer->storesWith($permission);
+
+        return $held === null || in_array(strtolower($storeId), array_map(static fn (StoreId $store): string => $store->value, $held), true);
+    }
+
     /** The staff member acting, for `created_by` and `updated_by`; null for the system. */
     public function staffId(): ?string
     {

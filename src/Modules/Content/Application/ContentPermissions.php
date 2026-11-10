@@ -60,6 +60,12 @@ final class ContentPermissions
     /** `AdvanceCampaignsJob`: runs going live and ending, their alerts. */
     public const string CAMPAIGNS_ADVANCE = 'content.campaigns.advance';
 
+    /**
+     * Pricing's own, which a campaign's prices also need in their store (§1.7 #5, #16), checked beside the campaign's.
+     * Pricing declares it; Content names it only to ask.
+     */
+    public const string PRICING_PRICE_EDIT = 'pricing.price.edit';
+
     /** `BuildSitemapsJob`. */
     public const string SITEMAP_BUILD = 'content.sitemap.build';
 

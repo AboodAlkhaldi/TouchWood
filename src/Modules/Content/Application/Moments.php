@@ -43,6 +43,52 @@ final class Moments
         return $at->utc()->toDateTimeImmutable();
     }
 
+    /**
+     * A wall-clock time as typed, for something every store reads on its own clock (a campaign, a theme: Q1 (a)):
+     * `Y-m-d H:i`, a date that exists; no zone yet.
+     *
+     * @throws InvalidContentInput
+     */
+    public static function wall(string $attribute, ?string $value): string
+    {
+        $value = str_replace('T', ' ', trim((string) $value));
+
+        if ($value === '') {
+            throw new InvalidContentInput($attribute, InvalidContentInput::REQUIRED);
+        }
+
+        try {
+            $at = preg_match('/\A\d{4}-\d{2}-\d{2} \d{2}:\d{2}\z/', $value) === 1 ? CarbonImmutable::createFromFormat('!Y-m-d H:i', $value, 'UTC') : null;
+        } catch (Throwable) {
+            $at = null;
+        }
+
+        if (! $at instanceof CarbonImmutable || $at->format('Y-m-d H:i') !== $value) {
+            throw new InvalidContentInput($attribute, InvalidContentInput::DATE);
+        }
+
+        return $value;
+    }
+
+    /**
+     * A wall-clock start and end read on one store's clock (Q1 (a)): 00:00 is that store's own midnight.
+     *
+     * @return array{0: DateTimeImmutable, 1: DateTimeImmutable}
+     *
+     * @throws InvalidContentInput
+     */
+    public static function onStoreClock(string $starts, string $ends, StoreDto $store): array
+    {
+        $from = self::typed('starts_at', $starts, $store) ?? throw new InvalidContentInput('starts_at', InvalidContentInput::REQUIRED);
+        $to = self::typed('ends_at', $ends, $store) ?? throw new InvalidContentInput('ends_at', InvalidContentInput::REQUIRED);
+
+        if ($to <= $from) {
+            throw new InvalidContentInput('ends_at', InvalidContentInput::DATES);
+        }
+
+        return [$from, $to];
+    }
+
     /** A moment as the screen shows it, in the store's zone. */
     public static function shown(DateTimeImmutable $at, StoreDto $store): string
     {
