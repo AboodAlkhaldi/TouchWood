@@ -17,7 +17,7 @@ use function Pest\Laravel\seed;
 /*
 | The admin menu's Content section (content.md §4.3, Q12 (a); row L3): one section after Marketing, before
 | Support. Content registers its entries with its screens (PR 7), so the section is proved on a menu of the
-| test's own, leaving the application's untouched - which has no Content entry yet.
+| test's own, leaving the application's untouched; the application's holds the entries built so far.
 */
 
 uses(RefreshDatabase::class);
@@ -40,10 +40,10 @@ it('takes an entry under Content and shows the section after Marketing and befor
         ->and(array_map(static fn (MenuEntryDto $entry): string => $entry->key, $menu->forCurrentActor()['content'] ?? []))->toBe(['pages']);
 });
 
-it('has no Content entry in the application\'s own menu yet: each comes with its screen', function () {
+it('holds in the application\'s own menu only the entries whose screens are built, in §4.3\'s order', function () {
     Fx::actAsStaff(Fx::staff(superAdmin: true));
 
-    expect(app(InMemoryAdminMenu::class)->forCurrentActor())->not->toHaveKey('content');
+    expect(array_map(static fn (MenuEntryDto $entry): string => $entry->key, app(InMemoryAdminMenu::class)->forCurrentActor()['content'] ?? []))->toBe(['home_page', 'bars', 'banners', 'popups']);
 });
 
 it('names the Content section in both languages, and draws it with its own icon', function () {

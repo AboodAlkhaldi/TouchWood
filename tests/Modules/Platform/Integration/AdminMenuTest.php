@@ -131,6 +131,11 @@ describe('the admin menu', function () {
             'marketing/messages',
             // Ops' Subscribers (ops.md §4.15).
             'marketing/subscribers',
+            // Content's screens (content.md §4.3), its own section after Marketing; each entry lands with its page.
+            'content/home_page',
+            'content/bars',
+            'content/banners',
+            'content/popups',
             'support/reviews',
             'support/questions',
             'support/reasons',
