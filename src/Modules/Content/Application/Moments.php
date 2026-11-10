@@ -55,10 +55,15 @@ final class Moments
         return CarbonImmutable::now()->utc()->startOfSecond()->toDateTimeImmutable();
     }
 
-    /** End Now's end: this moment, or a second after a start that is this very moment, the end being after the start. */
-    public static function endNow(?DateTimeImmutable $startsAt, DateTimeImmutable $now): DateTimeImmutable
+    /**
+     * End Now's start and end: it ends at this moment. One that started this very second is kept a second earlier,
+     * so its end still comes after its start and it reads as ended at once.
+     *
+     * @return array{0: DateTimeImmutable, 1: DateTimeImmutable}
+     */
+    public static function endNow(?DateTimeImmutable $startsAt, DateTimeImmutable $now): array
     {
-        return $startsAt !== null && $startsAt >= $now ? $startsAt->modify('+1 second') : $now;
+        return [$startsAt === null || $startsAt >= $now ? $now->modify('-1 second') : $startsAt, $now];
     }
 
     /**

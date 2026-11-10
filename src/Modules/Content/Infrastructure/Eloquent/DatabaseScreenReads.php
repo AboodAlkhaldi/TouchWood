@@ -188,21 +188,20 @@ final readonly class DatabaseScreenReads implements ScreenReads
         }
 
         $storeId = strtolower($storeId);
-        $marks = implode(', ', array_fill(0, count($paths), '?'));
         // A link to the page itself or to a part of it (`/pages/guide#fit`, `/pages/guide?x=1`) names it.
-        $like = implode(' OR ', array_fill(0, count($paths), "split_part(split_part(%s, '#', 1), '?', 1) = ?"));
-        $json = 'EXISTS (SELECT 1 FROM jsonb_path_query(%s, \'strict $.**.link\') AS l(v) WHERE jsonb_typeof(l.v) = \'string\' AND ('.sprintf($like, ...array_fill(0, count($paths), "(l.v #>> '{}')")).'))';
+        $names = static fn (string $link): string => '('.implode(' OR ', array_fill(0, count($paths), "split_part(split_part({$link}, '#', 1), '?', 1) = ?")).')';
+        $inJson = static fn (string $column): string => "EXISTS (SELECT 1 FROM jsonb_path_query({$column}, 'strict $.**.link') AS l(v) WHERE jsonb_typeof(l.v) = 'string' AND ".$names("(l.v #>> '{}')").')';
 
         /** @var list<stdClass> $rows */
         $rows = $this->db->select(
-            "SELECT 'footer' AS place, store_id AS id FROM content.footers WHERE store_id = ? AND ".sprintf($json, 'columns')."
-             UNION ALL SELECT 'home_section', id FROM content.home_sections WHERE store_id = ? AND ".sprintf($json, 'settings')."
-             UNION ALL SELECT 'home_section', s.id FROM content.home_sections s JOIN content.home_section_media m ON m.section_id = s.id WHERE s.store_id = ? AND m.link IN ({$marks})
-             UNION ALL SELECT 'banner', id FROM content.banners WHERE store_id = ? AND link IN ({$marks})
-             UNION ALL SELECT 'bar', store_id FROM content.bars WHERE store_id = ? AND link IN ({$marks})
-             UNION ALL SELECT 'smart_bar', id FROM content.smart_bars WHERE store_id = ? AND link IN ({$marks})
-             UNION ALL SELECT 'popup', id FROM content.popups WHERE store_id = ? AND link IN ({$marks})
-             ORDER BY 1, 2",
+            "SELECT 'footer' AS place, store_id AS id FROM content.footers WHERE store_id = ? AND ".$inJson('columns')."
+             UNION ALL SELECT 'home_section', id FROM content.home_sections WHERE store_id = ? AND ".$inJson('settings')."
+             UNION ALL SELECT 'home_section', s.id FROM content.home_sections s JOIN content.home_section_media m ON m.section_id = s.id WHERE s.store_id = ? AND ".$names('m.link')."
+             UNION ALL SELECT 'banner', id FROM content.banners WHERE store_id = ? AND ".$names('link')."
+             UNION ALL SELECT 'bar', store_id FROM content.bars WHERE store_id = ? AND ".$names('link')."
+             UNION ALL SELECT 'smart_bar', id FROM content.smart_bars WHERE store_id = ? AND ".$names('link')."
+             UNION ALL SELECT 'popup', id FROM content.popups WHERE store_id = ? AND ".$names('link').'
+             ORDER BY 1, 2',
             [$storeId, ...$paths, $storeId, ...$paths, $storeId, ...$paths, $storeId, ...$paths, $storeId, ...$paths, $storeId, ...$paths, $storeId, ...$paths],
         );
 

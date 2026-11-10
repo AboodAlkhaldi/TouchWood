@@ -54,7 +54,8 @@ final readonly class EndBannerHandler
                 throw new InvalidContentInput('state', InvalidContentInput::STATE);
             }
 
-            $banner = new Banner($was->id, $was->storeId, $was->placement, $was->categoryId, $was->name, $was->link, $was->hasWords, $was->altAr, $was->altEn, new Schedule(true, $was->schedule->startsAt, Moments::endNow($was->schedule->startsAt, $now)), $was->position, $was->images, $was->version + 1, $staffId, $now);
+            [$starts, $ends] = Moments::endNow($was->schedule->startsAt, $now);
+            $banner = new Banner($was->id, $was->storeId, $was->placement, $was->categoryId, $was->name, $was->link, $was->hasWords, $was->altAr, $was->altEn, new Schedule(true, $starts, $ends), $was->position, $was->images, $was->version + 1, $staffId, $now);
             $this->banners->update($banner);
             $this->platform->recordAudit(ContentAudit::entry('content.banner.ended', 'content.banner', $was->id, $store->id, ContentAudit::diff($was->fields(), $banner->fields())));
             $this->cache->invalidate();

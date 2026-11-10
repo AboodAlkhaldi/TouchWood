@@ -54,7 +54,8 @@ final readonly class EndPopupHandler
                 throw new InvalidContentInput('state', InvalidContentInput::STATE);
             }
 
-            $popup = new Popup($was->id, $was->storeId, $was->name, $was->titleAr, $was->titleEn, $was->textAr, $was->textEn, $was->buttonAr, $was->buttonEn, $was->link, $was->delaySeconds, $was->mediaId, new Schedule(true, $was->schedule->startsAt, Moments::endNow($was->schedule->startsAt, $now)), $was->version + 1, $staffId, $now);
+            [$starts, $ends] = Moments::endNow($was->schedule->startsAt, $now);
+            $popup = new Popup($was->id, $was->storeId, $was->name, $was->titleAr, $was->titleEn, $was->textAr, $was->textEn, $was->buttonAr, $was->buttonEn, $was->link, $was->delaySeconds, $was->mediaId, new Schedule(true, $starts, $ends), $was->version + 1, $staffId, $now);
             $this->popups->update($popup);
             $this->platform->recordAudit(ContentAudit::entry('content.popup.ended', 'content.popup', $was->id, $store->id, ContentAudit::diff($was->fields(), $popup->fields())));
             $this->cache->invalidate();

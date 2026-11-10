@@ -50,7 +50,7 @@ final readonly class OrderBannersHandler
             $present = array_map(static fn (Banner $banner): string => $banner->id, $this->banners->inPlacement($store->id, $placement));
             $ids = Ordering::of('banners', $command->bannerIds, $present);
             $this->banners->reorder($ids);
-            $this->platform->recordAudit(ContentAudit::entry('content.banners.ordered', 'content.banners', $store->id, $store->id, AuditChanges::none()->changed($placement->value, implode(',', $present), implode(',', $ids))));
+            $this->platform->recordAudit(ContentAudit::entry('content.banners.ordered', 'content.banners', $store->id, $store->id, AuditChanges::none()->changed('order', "{$placement->value}: ".implode(',', $present), "{$placement->value}: ".implode(',', $ids))));
             $this->cache->invalidate();
         });
     }
