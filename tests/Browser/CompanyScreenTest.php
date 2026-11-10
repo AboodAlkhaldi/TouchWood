@@ -299,6 +299,62 @@ it('reads right to left in Arabic, in the dark, on a phone', function () {
         ->and($page->script('document.documentElement.scrollWidth <= document.documentElement.clientWidth'))->toBeTrue();
 });
 
+/*
+| The page in two (owner, 2026-11-10; b2b.md amendment 35): starting a draft opens the form's page at
+| the same address, and discarding it brings the view page back - on a phone, in both languages.
+*/
+it('opens the form\'s page on Start and brings the view back on Discard, on a phone', function (string $locale, string $dir) {
+    $customerId = B2BFixtures::verifiedCompanyAccount();
+    $page = companyScreenSignIn($customerId, $locale);
+    // Narrowed once signed in, as the test above does (the sign-in race).
+    $page->resize(375, 812);
+
+    $page->navigate("/sa/{$locale}/account/company")
+        ->assertPresent('[data-test="start"]')
+        ->assertMissing('[data-test="company-form"]')
+        ->click('[data-test="start"]')
+        ->assertPathIs("/sa/{$locale}/account/company")
+        ->assertPresent('[data-test="company-form"]')
+        ->assertMissing('[data-test="start"]')
+        ->assertNoJavaScriptErrors();
+
+    expect($page->script('document.documentElement.dir'))->toBe($dir)
+        ->and($page->script('document.documentElement.scrollWidth <= document.documentElement.clientWidth'))->toBeTrue();
+
+    $page->click('[data-test="discard"]')
+        ->assertVisible('[data-test="discard-confirmation"]')
+        ->click('[data-test="discard-confirm"]')
+        ->assertPresent('[data-test="start"]')
+        ->assertMissing('[data-test="company-form"]')
+        ->assertPathIs("/sa/{$locale}/account/company")
+        ->assertNoJavaScriptErrors();
+
+    expect(DB::table('b2b.applications')->where('customer_id', $customerId)->count())->toBe(0)
+        ->and($page->script('document.documentElement.scrollWidth <= document.documentElement.clientWidth'))->toBeTrue();
+})->with([
+    'English' => ['en', 'ltr'],
+    'Arabic' => ['ar', 'rtl'],
+]);
+
+it('lets a suspended company discard its frozen draft from the view page', function () {
+    $customerId = B2BFixtures::verifiedCompanyAccount();
+    [$company] = B2BFixtures::approved($customerId);
+    B2BFixtures::storedDraft($customerId, $company->id());
+    B2BFixtures::suspend(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa')) ?? $company);
+
+    companyScreenSignIn($customerId)
+        ->navigate('/sa/en/account/company')
+        ->assertPresent('[data-test="frozen-draft"]')
+        ->assertMissing('[data-test="company-form"]')
+        ->click('[data-test="frozen-draft"] [data-test="discard"]')
+        ->assertVisible('[data-test="discard-confirmation"]')
+        ->click('[data-test="discard-confirm"]')
+        ->assertMissing('[data-test="frozen-draft"]')
+        ->assertNoJavaScriptErrors();
+
+    expect(DB::table('b2b.applications')->where('customer_id', $customerId)->whereNull('reference')->count())->toBe(0);
+});
+
 it('shows a company that was not approved why, and applying again marks what to change', function () {
     $customerId = B2BFixtures::verifiedCompanyAccount();
     B2BFixtures::rejected($customerId, [ApplicationFlag::field(FlaggedField::CrNumber)], [ApplicationRequest::add(strtolower((string) Str::ulid()), RequestKind::Text, 'Who signs for the company?', 1)]);
