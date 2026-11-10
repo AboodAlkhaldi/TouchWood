@@ -542,7 +542,7 @@ fields in `Presentation/Http/Resource`. What a screen needs and the code does no
 
 ### 4.1 What holds for every route
 
-- **A built page's address answers a page; the other GETs answer JSON.** O1 to O8, O10 and O13 are built (§4.15; owner, 2026-11-02;
+- **A built page's address answers a page; the other GETs answer JSON.** Every page of §4.15, O1 to O13, is built (§4.15; owner, 2026-11-02;
   brought up to date 2026-11-05): a list of theirs, and the confirm, leave and unsubscribe links, give the page to a plain visit
   and the JSON to whoever asks with `Accept: application/json`; a form's address gives only the page. A report's address
   (`ops.admin.reports.show`) gives the Reports page to a plain visit, which names the store by its **code** (owner, 2026-11-05),
