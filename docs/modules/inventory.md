@@ -188,8 +188,10 @@ recount keeps the store's **low set** — the list's sizes, each **out** or **lo
 ### 1.8 The store's file (catalog.md §2.3) — removed (catalog.md amendment 42)
 
 **Since 2026-11-10 a store's file holds codes only** (owner: the stock comes from Odoo): Inventory's
-`ImportSection`, `SetStockFromFile` and its job are removed. The reason **File**, its words and the
-history's "A Store File" stay, for lines written before. What it did — Inventory's `ImportSection`: the file's page says, per item, the stock that will be set — or that it
+`ImportSection`, `SetStockFromFile`, its job and its audit action (`inventory.stock.filed`) are
+removed. The reason **File**, its label and the history's "A Store File" stay, for lines written
+before. What it did — Inventory's `ImportSection`: the file's page says, per item, the stock that will
+be set — or that it
 is ignored in a wired store, the provider being its source. **When an item is switched on**, the stock
 **sets** the size's in stock (a "set to" movement, reason **File**), audited as the file's. **One code is
 one size** (owner, 2026-10-09; Catalog's amendment 16). *(Step 4b:)* the stock is set by a job queued
