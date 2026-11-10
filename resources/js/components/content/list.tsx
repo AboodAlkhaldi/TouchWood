@@ -52,12 +52,12 @@ export type Card = {
  */
 export function PhoneCards({ cards, test }: { cards: Card[]; test: string }) {
     return (
-        <ItemGroup className="grid gap-2 sm:hidden" data-test={`${test}-cards`}>
+        <ItemGroup className="grid grid-cols-1 gap-2 sm:hidden" data-test={`${test}-cards`}>
             {cards.map((card) => (
-                <Item key={card.id} variant="outline" className="material-base cursor-pointer" onClick={card.onOpen} data-test={`${test}-card-${card.id}`}>
-                    <ItemContent className="min-w-0">
+                <Item key={card.id} variant="outline" className="material-base cursor-pointer flex-nowrap" onClick={card.onOpen} data-test={`${test}-card-${card.id}`}>
+                    <ItemContent className="min-w-0 flex-1">
                         <ItemTitle className="w-full min-w-0">
-                            <span className="min-w-0 truncate">{card.title}</span>
+                            <span className="min-w-0 flex-1 truncate">{card.title}</span>
                             {card.badge}
                         </ItemTitle>
                         {card.lines.map((line, index) => (

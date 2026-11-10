@@ -110,21 +110,23 @@ export default function Index({ stores, storeCode, placement, counts, banners, c
                 </Button>
             }
         >
-            <div className="grid min-w-0 gap-4">
+            <div className="grid min-w-0 grid-cols-1 gap-4">
                 <FormError />
                 <StoreFilter stores={stores.map((each) => ({ code: each.code, name: each.name, isActive: each.isOn }))} value={storeCode} className="max-w-xs" />
-                <Tabs value={placement} onValueChange={(next) => router.get(LIST, { store: storeCode, placement: next }, { preserveScroll: true })}>
-                    <div className="max-w-full overflow-x-auto">
-                        <TabsList variant="line">
-                            {PLACEMENTS.map((each) => (
-                                <TabsTrigger key={each} value={each} data-test={`tab-${each}`}>
-                                    {names[each]}
-                                    <span className="tw-figure text-ink-muted">{counts[each] ?? 0}</span>
-                                </TabsTrigger>
-                            ))}
-                        </TabsList>
-                    </div>
-                </Tabs>
+                <div className="min-w-0 max-w-full overflow-x-auto" data-test="tabs-row">
+                    <Tabs value={placement} onValueChange={(next) => router.get(LIST, { store: storeCode, placement: next }, { preserveScroll: true })}>
+                        <div className="max-w-full overflow-x-auto">
+                            <TabsList variant="line">
+                                {PLACEMENTS.map((each) => (
+                                    <TabsTrigger key={each} value={each} data-test={`tab-${each}`}>
+                                        {names[each]}
+                                        <span className="tw-figure text-ink-muted">{counts[each] ?? 0}</span>
+                                    </TabsTrigger>
+                                ))}
+                            </TabsList>
+                        </div>
+                    </Tabs>
+                </div>
                 <Note size="small" data-test="limit-note">
                     {limits[placement]}
                 </Note>

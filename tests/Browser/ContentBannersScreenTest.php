@@ -69,10 +69,10 @@ it('draws right to left in Arabic, in Latin digits, and fits a phone with its ro
     $page->navigate('/admin/content/banners?store=ae&placement=HOME_PHONE', BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.documentElement.dir === 'rtl' && document.querySelector('[data-test=\"banner-card-{$banner}\"]') !== null"))->toBeTrue()
         ->and(Cb::latinDigits($page))->toBeTrue()
-        ->and(Cb::fitsPhone($page))->toBeTrue();
+        ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
 
     $page->navigate("/admin/content/banners/{$banner}", BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"banner-form\"]') !== null"))->toBeTrue()
-        ->and(Cb::fitsPhone($page))->toBeTrue();
+        ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
     $page->assertNoJavaScriptErrors();
 });

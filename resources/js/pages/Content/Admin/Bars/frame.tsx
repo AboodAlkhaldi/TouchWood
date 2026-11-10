@@ -16,20 +16,22 @@ export function BarsFrame({ page, action, children }: { page: BarsPageData; acti
 
     return (
         <AdminLayout title={t('content::admin_bars.title')} subtitle={t('content::admin_bars.subtitle')} action={action}>
-            <div className="grid min-w-0 gap-4">
+            <div className="grid min-w-0 grid-cols-1 gap-4">
                 <FormError />
                 <StoreFilter stores={page.stores.map((each) => ({ code: each.code, name: each.name, isActive: each.isOn }))} value={page.storeCode} drop={['tab']} className="max-w-xs" />
-                <Tabs value={page.tab} onValueChange={(next) => router.get('/admin/content/bars', { store: page.storeCode, tab: next }, { preserveScroll: true })}>
-                    <TabsList variant="line">
-                        <TabsTrigger value="announcement" data-test="tab-announcement">
-                            {t('content::admin_bars.tabs.announcement')}
-                        </TabsTrigger>
-                        <TabsTrigger value="smart" data-test="tab-smart">
-                            {t('content::admin_bars.tabs.smart')}
-                            <span className="tw-figure text-ink-muted">{page.smartBars.length}</span>
-                        </TabsTrigger>
-                    </TabsList>
-                </Tabs>
+                <div className="min-w-0 max-w-full overflow-x-auto" data-test="tabs-row">
+                    <Tabs value={page.tab} onValueChange={(next) => router.get('/admin/content/bars', { store: page.storeCode, tab: next }, { preserveScroll: true })}>
+                        <TabsList variant="line" className="max-w-full overflow-x-auto">
+                            <TabsTrigger value="announcement" data-test="tab-announcement">
+                                {t('content::admin_bars.tabs.announcement')}
+                            </TabsTrigger>
+                            <TabsTrigger value="smart" data-test="tab-smart">
+                                {t('content::admin_bars.tabs.smart')}
+                                <span className="tw-figure text-ink-muted">{page.smartBars.length}</span>
+                            </TabsTrigger>
+                        </TabsList>
+                    </Tabs>
+                </div>
                 {children}
             </div>
         </AdminLayout>

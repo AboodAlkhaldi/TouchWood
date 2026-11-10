@@ -55,7 +55,7 @@ export default function Index({ stores, storeCode, popups, next }: PopupsPageDat
                 </Button>
             }
         >
-            <div className="grid min-w-0 gap-4">
+            <div className="grid min-w-0 grid-cols-1 gap-4">
                 <FormError />
                 <StoreFilter stores={stores.map((store) => ({ code: store.code, name: store.name, isActive: store.isOn }))} value={storeCode} className="max-w-xs" />
 

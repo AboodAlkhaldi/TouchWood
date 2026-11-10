@@ -26,6 +26,15 @@ beforeEach(function () {
     FakeBreachList::install();
     RecordingSecurityMessages::install();
     DB::table('content.home_sections')->where('store_id', Fx::storeId('ae'))->update(['is_visible' => false, 'settings' => '{}']);
+
+    // Back in the starting order: an earlier run moved one to the bottom. Two steps, as positions are unique per store.
+    $types = ['HERO', 'PROMISES', 'CATEGORIES', 'BEST_SELLERS', 'PROJECTS', 'AUDIENCE', 'POINTS', 'CLIENT_LOGOS'];
+    foreach ($types as $at => $type) {
+        DB::table('content.home_sections')->where('store_id', Fx::storeId('ae'))->where('type', $type)->update(['position' => 100 + $at]);
+    }
+    foreach ($types as $at => $type) {
+        DB::table('content.home_sections')->where('store_id', Fx::storeId('ae'))->where('type', $type)->update(['position' => $at]);
+    }
 });
 
 function contentHomeSection(string $type): string
@@ -47,8 +56,8 @@ it('fills a section with Translate, shows it, refuses one without English, and m
 
     // Its switch shows it.
     $page->click('[data-test="section-PROJECTS"] [data-test="show"]');
-    expect(browserSoon($page, "document.body.textContent.includes('Section shown')"))->toBeTrue()
-        ->and((bool) DB::table('content.home_sections')->where('id', $projects)->value('is_visible'))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"section-PROJECTS\"] [data-test=\"show\"]')?.getAttribute('data-state') === 'checked' && document.body.textContent.includes('Section shown')"))->toBeTrue((string) $page->script("document.querySelector('main').textContent.slice(0, 400)"))
+        ->and((bool) DB::table('content.home_sections')->where('id', $projects)->value('is_visible'))->toBeTrue(json_encode(DB::table('content.home_sections')->where('id', $projects)->first()) ?: '');
 
     // Another with nothing typed: Show is refused, in words, and the switch stays off.
     $page->click('[data-test="section-POINTS"] [data-test="show"]');
@@ -70,16 +79,16 @@ it('draws right to left in Arabic, in Latin digits, and fits a phone, the sectio
     $page->navigate('/admin/content/home?store=ae', BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.documentElement.dir === 'rtl' && document.querySelector('[data-test=\"section-HERO\"]') !== null"))->toBeTrue()
         ->and(Cb::latinDigits($page))->toBeTrue()
-        ->and(Cb::fitsPhone($page))->toBeTrue();
+        ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
 
     $page->navigate('/admin/content/home?store=ae&tab=footer', BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"footer-form\"]') !== null"))->toBeTrue();
     $page->click('[data-test="add-column"]');
     expect(browserSoon($page, "document.querySelector('[data-test=\"column-0\"]') !== null"))->toBeTrue()
-        ->and(Cb::fitsPhone($page))->toBeTrue();
+        ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
 
     $page->navigate('/admin/content/home/'.contentHomeSection('HERO'), BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"section-form\"]') !== null"))->toBeTrue()
-        ->and(Cb::fitsPhone($page))->toBeTrue();
+        ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
     $page->assertNoJavaScriptErrors();
 });

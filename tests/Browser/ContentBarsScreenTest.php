@@ -5,11 +5,12 @@ declare(strict_types=1);
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Catalog\Application\Command\AddCategory\AddCategory;
+use Modules\Catalog\Application\Command\AddCategory\AddCategoryHandler;
 use Modules\Content\Application\ContentPermissions;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
-use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Content\Support\ContentBrowser as Cb;
 
 use function Pest\Laravel\seed;
@@ -27,7 +28,15 @@ beforeEach(function () {
     FakeBreachList::install();
     RecordingSecurityMessages::install();
     DB::table('content.smart_bars')->where('store_id', Fx::storeId('ae'))->delete();
+    // An earlier run's bar would hold English already, and Translate would ask before replacing it.
+    DB::table('content.bars')->where('store_id', Fx::storeId('ae'))->delete();
 });
+
+/** A category named for this run in both languages, so its addresses are never another run's. */
+function contentBarsCategory(string $nameEn, string $run): string
+{
+    return Fx::asSystem(fn (): string => app(AddCategoryHandler::class)->handle(new AddCategory("قسم {$run}", $nameEn, null)));
+}
 
 it('switches the bar on with its English translated, asking for the tick first', function () {
     $run = Cb::run();
@@ -53,7 +62,7 @@ it('switches the bar on with its English translated, asking for the tick first',
 
 it('adds a smart bar on a category and deletes it', function () {
     $run = Cb::run();
-    $category = Px::category("Chairs{$run}");
+    $category = contentBarsCategory("Chairs{$run}", $run);
     $page = Cb::signIn([ContentPermissions::BAR_MANAGE]);
 
     $page->navigate('/admin/content/bars?store=ae&tab=smart', BROWSER_SLOW_PAGE_LOAD);
@@ -83,7 +92,7 @@ it('adds a smart bar on a category and deletes it', function () {
 
 it('draws right to left in Arabic, in Latin digits, and fits a phone with its rows as cards', function () {
     $run = Cb::run();
-    $category = Px::category("Doors{$run}");
+    $category = contentBarsCategory("Doors{$run}", $run);
     DB::table('content.smart_bars')->insert([
         'id' => strtolower((string) Str::ulid()), 'store_id' => Fx::storeId('ae'), 'scope' => 'CATEGORY', 'category_id' => $category, 'run_id' => null,
         'message_ar' => "رسالة طويلة جدا لا تنكسر بسهولة على الهاتف {$run}", 'message_en' => "A long message {$run}", 'link' => null,
@@ -95,10 +104,10 @@ it('draws right to left in Arabic, in Latin digits, and fits a phone with its ro
     $page->navigate('/admin/content/bars?store=ae&tab=smart', BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.documentElement.dir === 'rtl' && document.querySelector('[data-test^=\"smart-card-\"]') !== null"))->toBeTrue()
         ->and(Cb::latinDigits($page))->toBeTrue()
-        ->and(Cb::fitsPhone($page))->toBeTrue();
+        ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
 
     $page->navigate('/admin/content/bars?store=ae', BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"bar-form\"]') !== null"))->toBeTrue()
-        ->and(Cb::fitsPhone($page))->toBeTrue();
+        ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
     $page->assertNoJavaScriptErrors();
 });

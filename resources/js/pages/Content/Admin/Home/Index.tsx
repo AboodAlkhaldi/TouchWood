@@ -78,7 +78,7 @@ export default function Index({ stores, storeCode, sections, addable }: HomePage
 
     return (
         <AdminLayout title={t('content::admin_home.title')} subtitle={t('content::admin_home.subtitle')} action={addButton}>
-            <div className="grid min-w-0 gap-4">
+            <div className="grid min-w-0 grid-cols-1 gap-4">
                 <FormError />
                 <StoreFilter stores={stores.map((each) => ({ code: each.code, name: each.name, isActive: each.isOn }))} value={storeCode} drop={['tab']} className="max-w-xs" />
                 <HomeTabs tab="sections" storeCode={storeCode} sections={sections.length} />

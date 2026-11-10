@@ -3,7 +3,6 @@ import type { FormDataConvertible } from '@inertiajs/core';
 import { Link, router, usePage } from '@inertiajs/react';
 import { Plus, Trash2 } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
-import { ImageBox } from '@/components/content/image-box';
 import { PairFields } from '@/components/content/parts';
 import { TranslateAllButton, useReadTick, useTranslation, type Pair } from '@/components/content/translate';
 import { SelectField, TextField } from '@/components/Fields';
@@ -19,7 +18,6 @@ import { useTranslator } from '@/lib/t';
 import { useChecks, type Box } from '@/lib/use-checks';
 import type { ContentImageData, HomeSectionPageData } from '@/types/generated/Modules/Content/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
-import type { SortableList } from '../../../Catalog/Admin/SortableList';
 
 /*
 | A home section's own page (content.md §1.4, §4.4 W1 Edit): §1.4's fields by type, every pair in Arabic and English
@@ -45,7 +43,10 @@ function put(settings: unknown, path: Path, value: unknown): Settings {
     }
 
     const [key, ...rest] = path;
-    const base = (settings !== null && typeof settings === 'object' ? settings : typeof key === 'number' ? [] : {}) as Record<string | number, unknown>;
+    // An empty map arrives from the server as [] (PHP's empty array): a named key turns it into an object, or JSON would
+    // drop the key and save nothing (found by the browser test).
+    const usable = settings !== null && typeof settings === 'object' && !(Array.isArray(settings) && typeof key === 'string');
+    const base = (usable ? settings : typeof key === 'number' ? [] : {}) as Record<string | number, unknown>;
     const copy = (Array.isArray(base) ? [...base] : { ...base }) as Record<string | number, unknown>;
     copy[key as string] = put(base[key as string], rest, value);
 
@@ -60,14 +61,11 @@ function words(value: unknown): Words {
 
 let next = 0;
 
-/**
- * The form of every type. The logos band's page passes the dragged list (`Sortable`), so only that page carries the
- * dragging code (JavaScriptBudgetTest): Home/Logos for `CLIENT_LOGOS`, Home/Section for the rest.
- */
-export function SectionForm({ store, section, logos: savedLogos, icons, translationReady, Sortable }: HomeSectionPageData & { Sortable?: typeof SortableList }) {
+/** The form of every type but the logos band's, which has its own page (Home/Logos), the only one dragging. */
+export function SectionForm({ store, section, logos: savedLogos, icons, translationReady }: HomeSectionPageData) {
     const t = useTranslator();
     const { errors } = usePage<SharedProps>().props as unknown as { errors: Record<string, string | undefined> };
-    const [settings, setSettings] = useState<Settings>(section.settings as Settings);
+    const [settings, setSettings] = useState<Settings>(() => (Array.isArray(section.settings) ? {} : (section.settings as Settings)));
     const [logos, setLogos] = useState<Logo[]>(() => savedLogos.map((logo) => ({ key: `logo-${++next}`, image: logo.image, mediaId: logo.mediaId, name: { ar: logo.nameAr, en: logo.nameEn ?? '' }, link: logo.link ?? '' })));
     const [dirty, setDirty] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -311,72 +309,6 @@ export function SectionForm({ store, section, logos: savedLogos, icons, translat
                     />
                 ) : null}
 
-                {type === 'CLIENT_LOGOS' && Sortable !== undefined ? (
-                    <FieldSet className="gap-4" data-test="logos">
-                        <FieldLegend variant="label" className="text-label-14 text-ink">
-                            {f('logos')}
-                        </FieldLegend>
-                        <FieldDescription>{f('logos_helper')}</FieldDescription>
-                        {errors.logos || errors.logo || errors.logo_name_en ? <p className="text-copy-14 text-bad">{errors.logos ?? errors.logo ?? errors.logo_name_en}</p> : null}
-                        <Sortable
-                            testPrefix="logo"
-                            items={logos.map((logo, index) => ({
-                                id: logo.key,
-                                label: logo.name.ar || `${f('logo')} ${index + 1}`,
-                                content: (
-                                    <div className="grid min-w-0 flex-1 gap-3 py-2">
-                                        <ImageBox
-                                            id={`logo${index}image`}
-                                            label={f('logo')}
-                                            kind="homepage"
-                                            store={store.id}
-                                            image={logo.image}
-                                            size={{ width: 360, height: 156, png: true }}
-                                            onChange={(image) => (image === null ? undefined : setLogo(index, { ...logo, image, mediaId: image.id }))}
-                                        />
-                                        <PairFields
-                                            name={`logo${index}`}
-                                            labelAr={pairLabel(f('logo_name')).ar}
-                                            labelEn={pairLabel(f('logo_name')).en}
-                                            ar={logo.name.ar}
-                                            en={logo.name.en}
-                                            onChange={(language, typed) => setLogo(index, { ...logo, name: { ...logo.name, [language]: typed } })}
-                                            errors={{}}
-                                            checks={checks}
-                                            translation={translation}
-                                        />
-                                        <TextField id={`logo${index}link`} dir="ltr" label={t('content::admin_shared.link')} value={logo.link} onChange={(event) => setLogo(index, { ...logo, link: toLatinDigits(event.target.value) })} />
-                                    </div>
-                                ),
-                                extra: (
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => {
-                                            setLogos((was) => was.filter((_, i) => i !== index));
-                                            setDirty(true);
-                                        }}
-                                    >
-                                        <Trash2 aria-hidden />
-                                        {f('remove')}
-                                    </Button>
-                                ),
-                            }))}
-                            onChange={(ids) => {
-                                setLogos((was) => ids.flatMap((id) => was.filter((logo) => logo.key === id)));
-                                setDirty(true);
-                            }}
-                        />
-                        {logos.length < 40 ? (
-                            <AddLogo store={store.id} label={f('add_logo')} onAdd={(image) => {
-                                setLogos((was) => [...was, { key: `logo-${++next}`, image, mediaId: image.id, name: { ar: '', en: '' }, link: '' }]);
-                                setDirty(true);
-                            }} />
-                        ) : null}
-                    </FieldSet>
-                ) : null}
-
                 <div>
                     <ActionButton type="submit" loading={saving} disabledReason={checks.reason} data-test="save-section">
                         {label}
@@ -390,25 +322,3 @@ export function SectionForm({ store, section, logos: savedLogos, icons, translat
     );
 }
 
-/** A new logo starts from its file: the box uploads it, and the logo joins the list with its name to type. */
-function AddLogo({ store, label, onAdd }: { store: string; label: string; onAdd: (image: ContentImageData) => void }) {
-    const [key, setKey] = useState(0);
-
-    return (
-        <ImageBox
-            key={key}
-            id="new-logo"
-            label={label}
-            kind="homepage"
-            store={store}
-            image={null}
-            size={{ width: 360, height: 156, png: true }}
-            onChange={(image) => {
-                if (image !== null) {
-                    onAdd(image);
-                    setKey((was) => was + 1);
-                }
-            }}
-        />
-    );
-}

@@ -13,7 +13,7 @@ export default function Footer({ stores, storeCode, sections, footer, translatio
 
     return (
         <AdminLayout title={t('content::admin_home.title')} subtitle={t('content::admin_home.subtitle')}>
-            <div className="grid min-w-0 gap-4">
+            <div className="grid min-w-0 grid-cols-1 gap-4">
                 <FormError />
                 <StoreFilter stores={stores.map((each) => ({ code: each.code, name: each.name, isActive: each.isOn }))} value={storeCode} className="max-w-xs" />
                 <HomeTabs tab="footer" storeCode={storeCode} sections={sections.length} />

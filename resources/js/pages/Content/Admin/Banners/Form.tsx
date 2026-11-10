@@ -185,7 +185,7 @@ export default function Form({ store, storeTimezone, placement: asked, banner, i
 
                 <Field orientation="horizontal">
                     <Checkbox id="has_words" checked={form.data.has_words} onCheckedChange={(on) => form.setData('has_words', on === true)} data-test="has-words" />
-                    <div className="grid gap-1">
+                    <div className="grid min-w-0 gap-1">
                         <FieldLabel htmlFor="has_words" className="font-normal">
                             {t('content::admin_banners.fields.has_words')}
                         </FieldLabel>

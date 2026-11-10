@@ -75,6 +75,6 @@ it('draws right to left in Arabic, in Latin digits, and fits a phone, the list a
     $page->click('[data-test="save-draft"]');
     expect(browserSoon($page, "window.location.pathname === '/admin/content/popups' && document.querySelector('[data-test^=\"popup-card-\"]') !== null"))->toBeTrue()
         ->and(Cb::latinDigits($page))->toBeTrue()
-        ->and(Cb::fitsPhone($page))->toBeTrue();
+        ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
     $page->assertNoJavaScriptErrors();
 });

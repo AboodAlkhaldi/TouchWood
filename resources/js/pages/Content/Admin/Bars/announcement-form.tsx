@@ -52,7 +52,7 @@ export function AnnouncementForm({ storeId, zone, bar, translationReady }: { sto
         >
             <Field orientation="horizontal">
                 <Switch id="bar-on" checked={form.data.is_on} onCheckedChange={(on) => form.setData('is_on', on)} data-test="bar-on" />
-                <div className="grid gap-1">
+                <div className="grid min-w-0 gap-1">
                     <FieldLabel htmlFor="bar-on">{t('content::admin_bars.bar.on')}</FieldLabel>
                     <FieldDescription>{t('content::admin_bars.bar.on_helper')}</FieldDescription>
                 </div>

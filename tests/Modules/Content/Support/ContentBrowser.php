@@ -45,6 +45,13 @@ final class ContentBrowser
         return browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth');
     }
 
+    /** What sticks out past the window's edge, for a failure's message: the last few elements, by name. */
+    public static function overflow(mixed $page): string
+    {
+        // The first element out of the window, then its parents up the page, each with its width and left edge.
+        return (string) $page->script("(() => { const out = [...document.querySelectorAll('body *')].find((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.right > document.documentElement.clientWidth + 1 || r.left < -1); }); const chain = []; for (let e = out; e && chain.length < 12; e = e.parentElement) { const r = e.getBoundingClientRect(); chain.push(e.tagName + '[' + (e.getAttribute('data-test') || String(e.className).slice(0, 40)) + '] w' + Math.round(r.width) + ' l' + Math.round(r.left)); } return 'client ' + document.documentElement.clientWidth + ': ' + chain.join(' < '); })()");
+    }
+
     /** No Arabic-Indic digit anywhere on the page (owner, 2026-10-06). */
     public static function latinDigits(mixed $page): bool
     {
