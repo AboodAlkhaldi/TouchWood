@@ -28,6 +28,7 @@ use Modules\Platform\Application\Command\ActivateStore\ActivateStore;
 use Modules\Platform\Application\Command\ActivateStore\ActivateStoreHandler;
 use Modules\Platform\Public\Events\StoreActivated;
 use Modules\Platform\Public\Events\StoreDeactivated;
+use Modules\Platform\Public\LongQueue;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 
 use function Pest\Laravel\seed;
@@ -105,6 +106,8 @@ it('takes up Catalog\'s changes at most once a day beyond the nightly', function
     sitemapQueueCatalogChange();
     expect(sitemapQueueTick())->toBeTrue()->and(sitemapQueueTick())->toBeFalse();
     Queue::assertPushed(BuildSitemapsJob::class, 1);
+    // On the long connection, whose limit is above a build's 10 minutes (owner, 2026-11-10).
+    Queue::assertPushed(BuildSitemapsJob::class, fn (BuildSitemapsJob $job): bool => $job->connection === LongQueue::connection());
 
     // The build runs; a change later that day waits for the night.
     sitemapQueueBuild();

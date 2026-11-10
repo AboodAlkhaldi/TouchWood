@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
+use Modules\Platform\Public\LongQueue;
 use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscount;
 use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscountHandler;
 use Modules\Pricing\Application\Command\AddSale\AddSale;
@@ -294,7 +295,8 @@ describe('one read at a time, and failures (§1.3, §1.7)', function () {
         Queue::fake();
         Fx::asSystem(fn () => app(RunReadHandler::class)->handle(new RunRead($first)));
 
-        Queue::assertPushed(ReadStoreJob::class, fn (ReadStoreJob $job): bool => $job->readId === $second);
+        // The next read too goes on the long connection (owner, 2026-11-10).
+        Queue::assertPushed(ReadStoreJob::class, fn (ReadStoreJob $job): bool => $job->readId === $second && $job->connection === LongQueue::connection());
     });
 
     it('queues one more full read of a kind, never two', function () {
@@ -435,7 +437,8 @@ describe('one read at a time, and failures (§1.3, §1.7)', function () {
 
         syncReadsQueue(ReadKind::Now);
 
-        Queue::assertPushed(ReadStoreJob::class, fn (ReadStoreJob $job): bool => $job->readId === $waiting);
+        // On the long connection, whose limit is above a read's 20 minutes (owner, 2026-11-10).
+        Queue::assertPushed(ReadStoreJob::class, fn (ReadStoreJob $job): bool => $job->readId === $waiting && $job->connection === LongQueue::connection());
     });
 
     it('shows staff the provider\'s reason, and keeps any other error on the failed jobs screen', function () {
