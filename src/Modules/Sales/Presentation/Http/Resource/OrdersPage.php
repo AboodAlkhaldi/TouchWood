@@ -15,6 +15,7 @@ final class OrdersPage extends Data
      * @param  list<OrderRowData>  $orders
      * @param  list<SalesStoreData>  $stores
      * @param  list<string>  $tabs
+     * @param  array<string, int>  $counts  each tab's orders for this store and search (round 3 #11); none on a later page
      */
     public function __construct(
         public array $orders,
@@ -29,5 +30,6 @@ final class OrdersPage extends Data
         /** One customer's orders only ("See all" from the customer's page), with their name to say so. */
         public ?string $customerId,
         public ?string $customerName,
+        public array $counts,
     ) {}
 }

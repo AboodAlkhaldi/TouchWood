@@ -17,5 +17,7 @@ final readonly class ListCoupons
         public ?DateTimeImmutable $beforeAt = null,
         public ?string $beforeId = null,
         public int $perPage = 50,
+        /** Each state's count too, for the tabs (round 3 #11): one more query, so only the list's first page asks. */
+        public bool $counted = false,
     ) {}
 }

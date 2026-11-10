@@ -722,7 +722,7 @@ their one detail stands.
 | 1 | A wired ordinary product the provider reports at 0 | **Stays orderable** — "since its not stock-dependent"; staff mark it "Not available now" (§1.3). Replaces handoff §9.2's provisional rule |
 | 2 | The stock-dependent switch's level | **Per size**: all of a product's sizes, some, or one — "customized"; ~~**a size added later starts off**~~ — the default is now **on**, a size added later too (#24) (§1.2) |
 | 3 | "Last pieces" on cards and lists too? | **Yes** — a card shows it when **any** of its sizes is ending soon (§1.2, §2.3); narrowed to the sizes the viewer can buy and order now (#12) |
-| 4 | The permission's name `inventory.stock.manage`, in the role editor's **Catalog** group ("Catalog and variants"), as no stock group exists | Accepted |
+| 4 | The permission's name `inventory.stock.manage`, in the role editor's **Catalog** group ("Catalog and variants"; named "Products" since 2026-11-10, round 3 #10), as no stock group exists | Accepted |
 | 5 | **`HoldsShort(storeId, variantId, orderIds)`**, published after a removal — how Sales learns which orders to flag | Accepted |
 | 6 | **A size with no stock row** in a store with no provider counts as 0 — not orderable until stock is set | Accepted |
 | 7 | **Holds' ends kept on the holds**, the ledger keeping only changes of in stock | Accepted |

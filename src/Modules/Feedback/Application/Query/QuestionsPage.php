@@ -9,9 +9,11 @@ final readonly class QuestionsPage
 {
     /**
      * @param  list<QuestionRow>  $rows
+     * @param  array<string, int>  $counts  the store's questions in each state, every state named, when asked; else none
      */
     public function __construct(
         public array $rows,
         public ?string $next,
+        public array $counts = [],
     ) {}
 }

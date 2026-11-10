@@ -4,6 +4,7 @@ import { AdminLayout } from '@/layouts/AdminLayout';
 import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { StoreFilter } from '@/components/StoreFilter';
+import { TabCount } from '@/components/TabCount';
 import { Time } from '@/components/Time';
 import { BulkBar, SelectBox, useSelection } from '@/components/feedback/bulk';
 import { Author, DecisionDialog, ProductCell, useAuthorName } from '@/components/feedback/parts';
@@ -47,10 +48,11 @@ export default function Questions(page: SupportListPage) {
                 <FormError />
                 <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,16rem)] sm:items-end">
                     <Tabs value={status} onValueChange={(next) => router.get(LIST, { store: page.storeCode, status: next }, { preserveState: true })}>
-                        <TabsList className="max-w-full min-w-0 justify-start overflow-x-auto" aria-label={t(`${W}.questions.tabs_label`)} data-test="status-tabs">
+                        <TabsList variant="line" className="h-10 w-full max-w-full min-w-0 justify-start overflow-x-auto border-b border-line p-0" aria-label={t(`${W}.questions.tabs_label`)} data-test="status-tabs">
                             {TABS.map((each) => (
-                                <TabsTrigger key={each} value={each} data-test={`status-${each}`}>
+                                <TabsTrigger key={each} value={each} data-test={`status-${each}`} className="flex-none gap-2 px-3 text-label-14">
                                     {t(`${W}.question_status.${each}`)}
+                                    <TabCount count={page.counts[each]} test={`count-${each}`} />
                                 </TabsTrigger>
                             ))}
                         </TabsList>

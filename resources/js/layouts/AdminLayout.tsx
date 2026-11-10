@@ -36,6 +36,10 @@ import type { SharedProps } from '@/types/page';
 |
 | Arabic mirrors the whole frame, sidebar included, because the page's dir is set on <html> by the
 | server and every offset here is written as start/end rather than left/right.
+|
+| On a phone (under shadcn's md, where the sidebar becomes a sheet) the top bar is the design's (round 3 #14,
+| owner 2026-11-10): the menu button at 44 px, the page's name in place of the trail, View Store as its icon,
+| and the page's title at 20 px.
 */
 
 /** One step of the trail back. The last step is the page itself and is never a link. */
@@ -95,9 +99,11 @@ export function AdminLayout({ title, subtitle, action, breadcrumbs, phoneTrail =
                         {/* It may shrink: a long page name (a store file's) is cut short, never pushing
                             the page wider than a phone (found by the store screens' browser test). */}
                         <div className="flex min-w-0 items-center gap-2 px-4">
-                            {/* shadcn writes its name in English; the page's language reads it. */}
-                            <SidebarTrigger className="-ms-1" aria-label={t('admin.sidebar_toggle')} />
-                            <Separator orientation="vertical" className="me-2 data-[orientation=vertical]:h-4" />
+                            {/* shadcn writes its name in English; the page's language reads it. On a phone - under
+                                shadcn's own md, where the sidebar becomes a sheet - the design's 44 px button, a
+                                thumb's width (round 3 #14). */}
+                            <SidebarTrigger className="-ms-1 size-11 md:size-7" aria-label={t('admin.sidebar_toggle')} data-test="menu-button" />
+                            <Separator orientation="vertical" className="me-2 hidden data-[orientation=vertical]:h-4 md:block" />
                             {/* Its landmark named in the page's language, not shadcn's English. */}
                             <Breadcrumb aria-label={t('ui.breadcrumbs')} className="min-w-0">
                                 <BreadcrumbList>
@@ -134,7 +140,11 @@ export function AdminLayout({ title, subtitle, action, breadcrumbs, phoneTrail =
                                                     above it too, with `lastTwo`. */}
                                                 <BreadcrumbItem className={last ? 'min-w-0' : onPhone ? 'min-w-0 shrink' : 'hidden md:block'}>
                                                     {last || crumb.href === undefined ? (
-                                                        <BreadcrumbPage className="block truncate">{crumb.label}</BreadcrumbPage>
+                                                        // On a phone the trail is the page alone, so it reads as the
+                                                        // page's title, the design's 16 px (round 3 #14).
+                                                        <BreadcrumbPage className={last && phoneTrail === 'page' ? 'block truncate max-md:text-heading-16' : 'block truncate'} data-test={last ? 'trail-page' : undefined}>
+                                                            {crumb.label}
+                                                        </BreadcrumbPage>
                                                     ) : (
                                                         <BreadcrumbLink asChild>
                                                             <Link href={crumb.href} className={onPhone ? 'block truncate' : undefined}>
@@ -169,7 +179,8 @@ export function AdminLayout({ title, subtitle, action, breadcrumbs, phoneTrail =
                     <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="grid gap-1">
-                                <h1 className="text-heading-24 text-foreground">{title}</h1>
+                                {/* 20 px on a phone, the design's phone frame (round 3 #14); 24 from shadcn's md. */}
+                                <h1 className="text-heading-20 text-foreground md:text-heading-24">{title}</h1>
                                 {subtitle ? <p className="text-copy-14 text-muted-foreground">{subtitle}</p> : null}
                             </div>
                             {action}

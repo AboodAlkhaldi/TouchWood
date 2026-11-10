@@ -17,6 +17,15 @@ interface StaffReturnReads
      */
     public function returns(?array $storeIds, ?array $statuses, ?string $afterReturnId, int $limit): array;
 
+    /**
+     * How many returns of these stores (null: every store) are in each state, in one query; a state with none is
+     * left out (round 3 #11: a count on each tab).
+     *
+     * @param  list<string>|null  $storeIds
+     * @return array<string, int>
+     */
+    public function counts(?array $storeIds): array;
+
     /** @return array<string, mixed>|null the return with its order's number, customer and currency */
     public function returnOf(string $returnId): ?array;
 

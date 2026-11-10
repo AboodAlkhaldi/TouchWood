@@ -68,6 +68,7 @@ final readonly class ListQuestionsHandler
                 $question->createdAt,
             ), $questions),
             $more && $questions !== [] ? $questions[count($questions) - 1]->id : null,
+            $query->counted ? $this->queries->questionCounts($store) : [],
         );
     }
 }

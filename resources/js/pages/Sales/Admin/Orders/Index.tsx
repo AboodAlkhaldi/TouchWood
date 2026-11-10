@@ -6,6 +6,7 @@ import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { SearchField } from '@/components/SearchField';
 import { Money } from '@/components/Money';
 import { StoreFilter } from '@/components/StoreFilter';
+import { TabCount } from '@/components/TabCount';
 import { Time } from '@/components/Time';
 import { StateBadges, W } from '@/components/sales/admin';
 import { Empty, EmptyDescription, EmptyHeader } from '@/components/ui/empty';
@@ -18,7 +19,8 @@ import type { OrderCustomerData, OrderRowData, OrdersPage } from '@/types/genera
 /*
 | P1 - Sales › Orders (sales.md §4.1): the reader's stores, or one, by tab - the work to do first - newest
 | first, 50 at a time with Show More. A table on a computer; on a phone each order a card (the owner's R2-34),
-| for a table this wide cannot fit. Opening an order is its number. One box searches by the order number, the
+| for a table this wide cannot fit. The whole row or card opens an order (round 3 #12). Each tab says how many it
+| lists (round 3 #11), for the store and the search shown. One box searches by the order number, the
 | customer's name or a phone (R1-37); "See all" from a customer's page lists that customer's orders alone.
 */
 
@@ -68,10 +70,11 @@ export default function Index(page: OrdersPage) {
                 </div>
                 {page.customerId !== null ? null : (
                     <Tabs value={page.tab} onValueChange={(next) => router.get(LIST, { ...query({}), tab: next }, { preserveState: true })}>
-                        <TabsList className="max-w-full min-w-0 justify-start overflow-x-auto" aria-label={t(`${W}.orders.tabs_label`)} data-test="order-tabs">
+                        <TabsList variant="line" className="h-10 w-full max-w-full min-w-0 justify-start overflow-x-auto border-b border-line p-0" aria-label={t(`${W}.orders.tabs_label`)} data-test="order-tabs">
                             {page.tabs.map((each) => (
-                                <TabsTrigger key={each} value={each} data-test={`tab-${each}`}>
+                                <TabsTrigger key={each} value={each} data-test={`tab-${each}`} className="flex-none gap-2 px-3 text-label-14">
                                     {t(`${W}.tab.${each}`)}
+                                    <TabCount count={page.counts[each]} test={`count-${each}`} />
                                 </TabsTrigger>
                             ))}
                         </TabsList>
@@ -101,14 +104,16 @@ export default function Index(page: OrdersPage) {
                                 </TableHeader>
                                 <TableBody>
                                     {list.rows.map((order) => (
-                                        <TableRow key={order.id} data-test={`order-${order.number}`}>
+                                        <TableRow key={order.id} className="relative hover:bg-surface-sunken" data-test={`order-${order.number}`}>
                                             <TableCell>
-                                                <Link href={`${LIST}/${order.id}`} className="tw-figure text-label-14 text-ink underline-offset-2 hover:underline">
+                                                {/* The whole row opens the order (round 3 #12): the number's link stretches over it, as Catalog's lists. */}
+                                                <Link href={`${LIST}/${order.id}`} className="tw-figure text-label-14 text-ink after:absolute after:inset-0 focus-visible:after:ring-[3px]">
                                                     <bdi dir="ltr">{order.number}</bdi>
                                                 </Link>
                                             </TableCell>
                                             <TableCell className="text-copy-13 text-ink-muted">
-                                                <Time value={order.placedAt} />
+                                                {/* Above the row's stretched link, so its card still opens on hover. */}
+                                                <Time value={order.placedAt} className="relative z-10" data-test={`placed-${order.number}`} />
                                             </TableCell>
                                             <TableCell className="text-copy-14">
                                                 <CustomerName customer={order.customer} />

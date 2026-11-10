@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Modules\Ops\Public\Enums;
 
 /**
- * Every kind of message the system sends (ops.md §1.5 C1–C18, §1.6 S1–S10), with the channels the spec
+ * Every kind of message the system sends (ops.md §1.5 C1–C18, §1.6 S1–S10c), with the channels the spec
  * fixes for it - never switchable per store (owner, round 1 #3). A staff member's own switches
  * (Access) still choose bell and email per topic; that is decided when an alert is sent, not here.
  *
@@ -57,6 +57,7 @@ enum MessageKind: string
     case ReturnRequested = 'return_requested';
     case SecurityEmailFailed = 'security_email_failed';
     case SecuritySmsFailed = 'security_sms_failed';
+    case QueuedEmailRefused = 'queued_email_refused';
 
     // Written by staff (§1.7, §1.8), and the newsletter's double opt-in (§1.9).
     case OfferNotice = 'offer_notice';
@@ -102,6 +103,7 @@ enum MessageKind: string
             self::ReturnRequested => 'S9',
             self::SecurityEmailFailed => 'S10',
             self::SecuritySmsFailed => 'S10b',
+            self::QueuedEmailRefused => 'S10c',
             self::OfferNotice => '§1.7',
             self::StaffMessage => '§1.8',
             self::NewsletterConfirmation => '§1.9',
@@ -124,6 +126,7 @@ enum MessageKind: string
      * - The newsletter's confirmation: an email to a guest, who has no bell (§1.9).
      * - S10, S10b: the bell alone. A failure of one channel never sends a message about itself, and the
      *   critical SMS is the gateway key's (owner, 2026-11-01).
+     * - S10c, a queued email refused for everybody: the bell alone, as S10, for the email is what fails.
      *
      * @return list<MessageChannel>
      */
@@ -132,7 +135,7 @@ enum MessageKind: string
         return match ($this) {
             self::Security => [MessageChannel::Email, MessageChannel::Sms],
             self::NewsletterConfirmation => [MessageChannel::Email],
-            self::SecurityEmailFailed, self::SecuritySmsFailed => [MessageChannel::Bell],
+            self::SecurityEmailFailed, self::SecuritySmsFailed, self::QueuedEmailRefused => [MessageChannel::Bell],
             self::GatewayKeyExpiring, self::GatewayKeyRejected => [MessageChannel::Bell, MessageChannel::Email, MessageChannel::Sms],
             default => [MessageChannel::Bell, MessageChannel::Email],
         };

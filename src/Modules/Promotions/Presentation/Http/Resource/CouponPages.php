@@ -70,7 +70,8 @@ final readonly class CouponPages
         [$store, $offered] = $this->screen->store($storeCode);
         $exponent = $this->exponent($store);
         $wanted = $state === null ? null : CouponState::tryFrom(strtoupper($state));
-        $page = $list->handle(new ListCoupons($store->id, $wanted, $code, MarketingScreen::before($beforeAt), $beforeId));
+        // Each tab's count with the first page only: Show More takes the rows.
+        $page = $list->handle(new ListCoupons($store->id, $wanted, $code, MarketingScreen::before($beforeAt), $beforeId, counted: $beforeAt === null && $beforeId === null));
 
         return new CouponsListPage(
             array_map(fn (CouponRow $row): CouponRowData => $this->row($row, $exponent), $page->rows),
@@ -81,6 +82,8 @@ final readonly class CouponPages
             $this->actions->forStore($store->storeId())->mayManageCoupons,
             ...$this->screen->shown($store),
             stores: $this->screen->options($offered),
+            // The All tab first, every state's coupons together.
+            counts: $page->counts === [] ? [] : ['ALL' => array_sum($page->counts), ...$page->counts],
         );
     }
 

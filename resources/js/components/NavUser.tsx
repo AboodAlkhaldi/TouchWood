@@ -23,7 +23,8 @@ import type { SharedProps } from '@/types/page';
 |
 | The theme switch is here and nowhere else in the panel (owner, 2026-10-02: Geist's "once per app,
 | in the footer or settings" - the sidebar's footer). On the rail of icons there is room for none of
-| it, which is why it is a menu: one click from any page, the sidebar collapsed included.
+| it, which is why it is a menu: one click from any page, the sidebar collapsed included. The language
+| is the exception, a row of its own above the person: one press, as the owner's #3 asks (round 3 #13).
 */
 
 export function NavUser() {
@@ -34,6 +35,7 @@ export function NavUser() {
     const name = viewer?.name ?? t('admin.panel');
     const role = viewer?.roleLabel ?? t('admin.super_admin');
     const other = locale === 'ar' ? 'en' : 'ar';
+    const offered = other === 'ar' ? 'العربية' : 'English';
 
     const person = (
         <>
@@ -51,6 +53,16 @@ export function NavUser() {
 
     return (
         <SidebarMenu>
+            {/* The language is one press (frontend.md §1.11 #3, §2.2; round 3 #13): its own row of the footer, not an
+                item of the person's menu - on the rail of icons too, where it is the icon with its name as the tip.
+                Written in the language being offered, never translated: somebody who cannot read the current
+                language must still recognise it. */}
+            <SidebarMenuItem>
+                <SidebarMenuButton tooltip={{ children: offered, lang: other }} data-test="language" lang={other} onClick={() => choosePreference('locale', other, '/admin/preferences')}>
+                    <Languages aria-hidden="true" />
+                    <span>{offered}</span>
+                </SidebarMenuButton>
+            </SidebarMenuItem>
             <SidebarMenuItem>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -82,12 +94,6 @@ export function NavUser() {
                                     <Settings />
                                     {t('admin.account_settings')}
                                 </Link>
-                            </DropdownMenuItem>
-                            {/* Written in the language being offered, never translated: somebody
-                                who cannot read the current language must still recognise it. */}
-                            <DropdownMenuItem data-test="language" onSelect={() => choosePreference('locale', other, '/admin/preferences')}>
-                                <Languages />
-                                <span lang={other}>{other === 'ar' ? 'العربية' : 'English'}</span>
                             </DropdownMenuItem>
                         </DropdownMenuGroup>
                         <DropdownMenuSeparator />

@@ -302,6 +302,32 @@ describe('F4 · A customer\'s wishlist on the staff customer page', function () 
     });
 });
 
+it('counts each tab\'s reviews and questions in the store shown, each count what its tab lists', function () {
+    // Round 3 #11 (owner, 2026-11-10): underlined tabs with counts. Another store's are not counted.
+    $sold = Fb::sold();
+    $moderated = ['moderated_by' => Fx::staff(), 'moderated_at' => CarbonImmutable::now()];
+    Fb::reviewRow($sold['product'], $sold['variants'][0], supportScreensCustomer('c1@example.test', 'C1'));
+    Fb::reviewRow($sold['product'], $sold['variants'][0], supportScreensCustomer('c2@example.test', 'C2'));
+    Fb::reviewRow($sold['product'], $sold['variants'][0], supportScreensCustomer('c3@example.test', 'C3'), ['status' => 'APPROVED', ...$moderated]);
+    Fb::reviewRow($sold['product'], $sold['variants'][0], supportScreensCustomer('c4@example.test', 'C4'), [], 'eg');
+    supportScreensQuestion($sold['product'], supportScreensCustomer('c5@example.test', 'C5'));
+    $browser = supportScreens([FeedbackPermissions::REVIEW_MODERATE, FeedbackPermissions::QUESTION_ANSWER]);
+
+    $reviews = supportScreensProps($browser, '/admin/reviews', 'Feedback/Admin/Reviews')['counts'];
+    $questions = supportScreensProps($browser, '/admin/questions', 'Feedback/Admin/Questions')['counts'];
+    $listed = [];
+
+    foreach (array_keys($reviews) as $status) {
+        $listed[$status] = count(supportScreensProps($browser, "/admin/reviews?status={$status}", 'Feedback/Admin/Reviews')['reviews']);
+    }
+
+    expect($reviews)->toBe(['PENDING' => 2, 'APPROVED' => 1, 'REJECTED' => 0, 'UNPUBLISHED' => 0])
+        ->and($listed)->toBe($reviews)
+        ->and($questions)->toBe(['PENDING' => 1, 'ANSWERED' => 0, 'REJECTED' => 0, 'UNPUBLISHED' => 0])
+        // Favourites have no tabs, so no counts.
+        ->and(supportScreensProps(supportScreens([FeedbackPermissions::WISHLIST_VIEW]), '/admin/favourites', 'Feedback/Admin/Favourites')['counts'])->toBe([]);
+});
+
 it('reads each Support page in a fixed few queries of its own, the same for one row as for six', function () {
     $sold = Fb::sold();
     Fb::reviewRow($sold['product'], $sold['variants'][0], supportScreensCustomer('q0@example.test', 'Q0'));
@@ -318,6 +344,7 @@ it('reads each Support page in a fixed few queries of its own, the same for one 
         supportScreensSaved(supportScreensCustomer("s{$n}@example.test", "S{$n}"), $more['product']);
     }
 
+    // Reviews and questions one more since round 3 #11 (2026-11-10): their tabs' counts, one grouped query each.
     expect($counts())->toBe($one)
-        ->and($one)->toBe([10, 8, 6]);
+        ->and($one)->toBe([11, 9, 6]);
 });
