@@ -181,37 +181,24 @@ final readonly class DatabaseScreenReads implements ScreenReads
         ], $rows);
     }
 
-    public function linksTo(string $storeId, array $paths): array
+    public function links(string $storeId): array
     {
-        if ($paths === []) {
-            return [];
-        }
-
         $storeId = strtolower($storeId);
-        // A link to the page itself or to a part of it (`/pages/guide#fit`, `/pages/guide?x=1`) names it.
-        $names = static fn (string $link): string => '('.implode(' OR ', array_fill(0, count($paths), "split_part(split_part({$link}, '#', 1), '?', 1) = ?")).')';
-        $inJson = static fn (string $column): string => "EXISTS (SELECT 1 FROM jsonb_path_query({$column}, 'strict $.**.link') AS l(v) WHERE jsonb_typeof(l.v) = 'string' AND ".$names("(l.v #>> '{}')").')';
+        $inJson = static fn (string $column): string => "jsonb_path_query({$column}, 'strict $.**.link') AS l(v) WHERE jsonb_typeof(l.v) = 'string' AND";
 
         /** @var list<stdClass> $rows */
         $rows = $this->db->select(
-            "SELECT 'footer' AS place, store_id AS id FROM content.footers WHERE store_id = ? AND ".$inJson('columns')."
-             UNION ALL SELECT 'home_section', id FROM content.home_sections WHERE store_id = ? AND ".$inJson('settings')."
-             UNION ALL SELECT 'home_section', s.id FROM content.home_sections s JOIN content.home_section_media m ON m.section_id = s.id WHERE s.store_id = ? AND ".$names('m.link')."
-             UNION ALL SELECT 'banner', id FROM content.banners WHERE store_id = ? AND ".$names('link')."
-             UNION ALL SELECT 'bar', store_id FROM content.bars WHERE store_id = ? AND ".$names('link')."
-             UNION ALL SELECT 'smart_bar', id FROM content.smart_bars WHERE store_id = ? AND ".$names('link')."
-             UNION ALL SELECT 'popup', id FROM content.popups WHERE store_id = ? AND ".$names('link').'
-             ORDER BY 1, 2',
-            [$storeId, ...$paths, $storeId, ...$paths, $storeId, ...$paths, $storeId, ...$paths, $storeId, ...$paths, $storeId, ...$paths, $storeId, ...$paths],
+            "SELECT 'footer' AS place, store_id AS id, l.v #>> '{}' AS link FROM content.footers, ".$inJson('columns')." store_id = ?
+             UNION ALL SELECT 'home_section', id, l.v #>> '{}' FROM content.home_sections, ".$inJson('settings')." store_id = ?
+             UNION ALL SELECT 'home_section', s.id, m.link FROM content.home_sections s JOIN content.home_section_media m ON m.section_id = s.id WHERE s.store_id = ? AND m.link IS NOT NULL
+             UNION ALL SELECT 'banner', id, link FROM content.banners WHERE store_id = ? AND link IS NOT NULL
+             UNION ALL SELECT 'bar', store_id, link FROM content.bars WHERE store_id = ? AND link IS NOT NULL
+             UNION ALL SELECT 'smart_bar', id, link FROM content.smart_bars WHERE store_id = ? AND link IS NOT NULL
+             UNION ALL SELECT 'popup', id, link FROM content.popups WHERE store_id = ? AND link IS NOT NULL",
+            array_fill(0, 7, $storeId),
         );
 
-        $found = [];
-
-        foreach ($rows as $row) {
-            $found[$row->place.':'.$row->id] = ['place' => (string) $row->place, 'id' => (string) $row->id];
-        }
-
-        return array_values($found);
+        return array_map(static fn (stdClass $row): array => ['place' => (string) $row->place, 'id' => (string) $row->id, 'link' => (string) $row->link], $rows);
     }
 
     /**

@@ -34,6 +34,8 @@ use Modules\Content\Application\Command\SavePage\SavePage;
 use Modules\Content\Application\Command\SavePage\SavePageHandler;
 use Modules\Content\Application\Command\SavePopup\SavePopup;
 use Modules\Content\Application\Command\SavePopup\SavePopupHandler;
+use Modules\Content\Application\Command\SavePost\SavePost;
+use Modules\Content\Application\Command\SavePost\SavePostHandler;
 use Modules\Content\Application\Command\SchedulePopup\SchedulePopup;
 use Modules\Content\Application\Command\SchedulePopup\SchedulePopupHandler;
 use Modules\Content\Application\ContentPermissions;
@@ -127,6 +129,27 @@ describe('the address lock', function () {
         $taken = locksTaken(fn () => app(SaveBlogCategoryHandler::class)->handle(new SaveBlogCategory($category, null, 'أدلة', 'How-tos')));
 
         expect(array_slice($taken, 0, 3))->toBe([lockKey('blog_categories'), lockKey('slugs'), 'row']);
+    });
+
+    it('is taken by a blog category\'s delete after the categories\' lock and before its row', function () {
+        Cx::editor([ContentPermissions::BLOG_MANAGE]);
+        $category = app(SaveBlogCategoryHandler::class)->handle(new SaveBlogCategory(null, Fx::storeId('sa'), 'أدلة', 'Guides'));
+
+        $taken = locksTaken(fn () => app(DeleteBlogCategoryHandler::class)->handle(new DeleteBlogCategory($category)));
+
+        expect(array_slice($taken, 0, 3))->toBe([lockKey('blog_categories'), lockKey('slugs'), 'row']);
+    });
+
+    it('is taken by a post saved into a category before the category\'s row, as a category\'s save takes them', function () {
+        Cx::editor([ContentPermissions::BLOG_MANAGE]);
+        $category = app(SaveBlogCategoryHandler::class)->handle(new SaveBlogCategory(null, Fx::storeId('sa'), 'أدلة', 'Guides'));
+        $input = new DocumentInput(null, Fx::storeId('sa'), 0, 'دليل', 'Guide', categoryId: $category);
+
+        // Reversed, a post holding the category's row would wait for the addresses a category's save holds while it
+        // waits for that row: the one pairing that could deadlock.
+        $taken = locksTaken(fn () => app(SavePostHandler::class)->handle(new SavePost($input)));
+
+        expect(array_slice($taken, 0, 2))->toBe([lockKey('slugs'), 'row']);
     });
 });
 

@@ -114,35 +114,17 @@ final readonly class DocumentsHandler
         $document = $this->documents->find($kind, $id);
         $store = $this->access->authorize(self::permission($kind), $document?->storeId, item: true);
         $paths = array_map(static fn (string $slug): string => $kind->pathPrefix().$slug, $this->history->slugsOf($kind->value, $id));
+        $match = new LinkMatch($paths, $store->code, (string) parse_url((string) config('app.url'), PHP_URL_HOST));
+        $found = [];
 
-        return $this->reads->linksTo($store->id, self::spellings($paths, $store->code));
-    }
-
-    /**
-     * Every way a link typed by staff can name these pages (§1.1 rule 16): the path as kept or percent-encoded
-     * (`/pages/%D8%A7...`), and the full https:// address on the shop's own host with the store and language before
-     * it (`https://{host}/sa/ar/pages/...`), encoded or not.
-     *
-     * @param  list<string>  $paths
-     * @return list<string>
-     */
-    public static function spellings(array $paths, string $storeCode): array
-    {
-        $host = strtolower((string) parse_url((string) config('app.url'), PHP_URL_HOST));
-        $spellings = [];
-
-        foreach ($paths as $path) {
-            $encoded = implode('/', array_map(rawurlencode(...), explode('/', $path)));
-
-            foreach (array_unique([$path, $encoded]) as $form) {
-                $spellings[] = $form;
-
-                foreach ($host === '' ? [] : ['ar', 'en'] as $locale) {
-                    $spellings[] = "https://{$host}/{$storeCode}/{$locale}{$form}";
-                }
+        foreach ($this->reads->links($store->id) as $link) {
+            if ($match->names($link['link'])) {
+                $found[$link['place'].':'.$link['id']] = ['place' => $link['place'], 'id' => $link['id']];
             }
         }
 
-        return array_values(array_unique($spellings));
+        ksort($found, SORT_STRING);
+
+        return array_values($found);
     }
 }
