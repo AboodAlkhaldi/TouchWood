@@ -69,7 +69,7 @@ Also:
 |---|---|
 | `docs/HANDOFF.md` | **The source of truth.** §2 non-negotiable rules; §5.4 performance; §9 Catalog (§9.2 the three status axes, §9.5 search, §9.6 listing filters); §15.4 hosting items; §16 rejected — do not re-propose; §17 build order. |
 | `docs/modules/catalog.md` | **What was agreed for Catalog.** §1 the rules the screens show and keep; §1.12 the import's page, part by part; §1.3 the store file's page; §3 **every use case with its permission and scope**; §7 every error, with its type and when; §8 the test scenarios (#21 is the query budget, waiting for the screens); §9.6 amendments 1–11, in the owner's words. |
-| `docs/modules/catalog-import/` | The products file's and the store file's exact format: a guide and two complete examples. **Changed only with the owner**; the guide, both examples and catalog.md §1.12 change together. |
+| `src/Modules/Catalog/Presentation/import-format/` | The products file's and the store file's exact format (moved from `docs/modules/catalog-import/`, catalog.md amendment 42): a guide and two complete examples. **Changed only with the owner**; the guide, both examples and catalog.md §1.12 change together. |
 | `src/Modules/Catalog/README.md` | **How the backend is built**: every command and query by name, the import's flow, the store file, the listing's rows, the tests. |
 | `docs/modules/frontend.md` | The frontend foundation and the screens built so far: §1.4 links, §1.5 two languages, §1.6 page data, §1.7 forms and errors, §1.10 the Geist foundation, **§1.11 shadcn's code under Geist's rules**, §2 the layouts (§2.2 the admin header's search "comes with Catalog and Sales", Home's cards), §3 the screens so far — the model to follow, §4 what other modules must change, **§5 the performance budgets**, §6 accessibility and right-to-left, §7 test scenarios. |
 | `docs/modules/platform.md`, `access.md`, `b2b.md` | Finished specs: the contracts the screens call (stores, the menu registry, Home cards, settings, media, audit; staff names; the company status). |
@@ -120,7 +120,7 @@ scope; the README names the classes.
 | **The products import** (Super Admin, `catalog.import.run`) | `UploadImport`, `DecideImportNames`, `DecideImportCodes` (with keep on sale / take off sale), the changes before bringing in (`SetImported…`), `BringInImport` (the confirm, queued), `Accept…`, `Archive…`, `DeleteImportedProducts`, `DiscardImport`; reads `ViewImport`, `ListImports`. |
 | **The store file** (admin roles, `catalog.listing.fill`) | `UploadStoreFill`, `CorrectStoreFillCode`, `RemoveStoreFillItems`, `SwitchOnStoreFillItems`; reads `ViewStoreFill`, `ListStoreFills`. |
 | **The storefront** | `ShopCatalog` — `menu`, `category`, `brand`, `product`, `relations` — and `ShopSearch` — `suggest`, `results`; built on the listing's own rows (`catalog.listing`). |
-| **The other modules' contract** | `Public/Contracts/CatalogApi`; `ListingFacts` and `ImportSections` are declared for stage 5. |
+| **The other modules' contract** | `Public/Contracts/CatalogApi`; `ListingFacts` is declared for stage 5 (`ImportSections` removed, amendment 42). |
 
 ### 5.2 What is not built — the screens bring it
 

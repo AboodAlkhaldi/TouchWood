@@ -142,17 +142,18 @@ permission in that store.**
 **How a store is filled** (owner, 2026-10-04, amendment 4; 2026-10-05, amendment 6(g)): **one by one**,
 under `catalog.listing.choose` in that store — staff's everyday work; or, for admins, **a JSON file of
 codes for one store**, under its own job, `catalog.listing.fill`, **held only through an admin role** (amendment 6(h)) (the
-product import stays Super Admin only, §1.12). **The file holds codes and prices, stock optional**
-(`touchwood-store-fill/1`: `{"format": …, "items": [{"code": "1304", "price": 120, "stock": 15}]}`) —
-**[ACCEPTED 2026-10-05]** at most 1,000 items, each code once, the file at most 2 MB; a price at least
-0 with at most 6 decimal places, a stock a whole number from 0 to 2,147,483,647 (amendment 11(d)). A
-file not in this format is refused whole, every error listed. **Every product must already exist**: the file **never creates or edits a product**. **Its
+product import stays Super Admin only, §1.12). **The file holds codes only**
+(`touchwood-store-fill/1`: `{"format": …, "items": [{"code": "1304"}]}`) —
+**[ACCEPTED 2026-10-05]** at most 1,000 items, each code once, the file at most 2 MB. **No price and no
+stock**: a store's prices and stock come from Odoo (owner, 2026-11-10, amendment 42) — an item still
+carrying either is refused, the field named. A file not in this format is refused whole, every error
+listed. **Every product must already exist**: the file **never creates or edits a product**. **Its
 page** lists each item with its state: **ready** — its product is ready, and switching it on chooses
 the variant carrying the code in that store (amendment 16(a)); **not ready** — what the product lacks, completed in the
 product page and then switched on here; **archived**; **already on**; **unknown code** — a typo or a
 miss: **corrected** (checked again) or **removed**. The admin **switches on** the items selected, or
-every ready one. Prices and stock are shown and, until stage 5, not kept. **Nothing goes on sale in a
-store until it has a price there**, by an API or in the file (Pricing, stage 5). A store that is
+every ready one. **Nothing goes on sale in a store until it has a price there** — from Odoo, or set in
+Pricing's pages (amendment 42: never from the file). A store that is
 switched off can be filled, its terms and labels set, so a new store is prepared before it opens.
 Selling terms, labels and "Not available now" are refused for a product the store has never chosen
 (`NotChosenInStore`); a store that switched all of a product's variants off still edits them.
@@ -383,8 +384,9 @@ products a file; the JSON at most 20 MB, a zip at most 500 MB and 100,000 entrie
 photos as the media library takes them.
 
 **The format** (`touchwood-products/1`) **[ACCEPTED 2026-10-05]** — with a guide to filling it and
-both files as complete examples in [`catalog-import/`](catalog-import/README.md), for a person or another
-AI agent to fill (owner, 2026-10-05) — **the guide and its examples follow amendment 16 with the backend
+both files as complete examples in the Catalog module, `src/Modules/Catalog/Presentation/import-format/`
+(moved there from `docs/modules/catalog-import/`, amendment 42), for a person or another AI agent to
+fill (owner, 2026-10-05) — **the guide and its examples follow amendment 16 with the backend
 that reads them** — every variant its own code since `feat/catalog-codes-per-variant`, and no attribute set
 since `feat/catalog-free-variants`:
 
@@ -511,11 +513,9 @@ record of what came from which file. **An import not brought in may be discarded
 — its page, its names and products waiting, and its zip, gone; one bringing its products in, or
 brought in, is not (owner, 2026-10-06, amendment 10(b)).
 
-- **Prices and stock come only with a store's file** (§1.3; owner, 2026-10-06, amendment 9(a)): the
-  products file names no store. A store file's are shown and, **until Pricing and Inventory exist
-  (stage 5), not kept** **[DECIDED 2026-10-02]**: its page says so once (§9.3 #15). Catalog offers a
-  registry where Pricing and Inventory add their sections in stage 5 (§2.3); in a store wired to a
-  provider they are then ignored with a warning (handoff §9.1).
+- **No file brings prices or stock** (owner, 2026-11-10, amendment 42, replacing amendment 9(a)'s "only
+  a store's file"): the products file names no store, and a store's file holds codes only — a store's
+  prices and stock come from Odoo.
 - **The admins' file that fills one store** (§1.3) is a separate, smaller page, under its own job.
 
 ### 1.13 Individuals and companies (amendment 14)
@@ -646,13 +646,13 @@ proposal, for the owner's OK with Pricing's own spec, #97) **[PROPOSED P22]**:
   one (amendment 5(b)). **Open, for the owner** (from stage 5): what a company's card shows when its
   first variant sells wholesale only — stage 5 would push the same one-piece price.
 
-### 2.3 The import's sections — added by the modules above **[DECIDED 2026-10-02]**
+### 2.3 The import's sections — removed (amendment 42)
 
-`ImportSections` (a registry, like Platform's `MediaUsages`): a module registers a class that reads its
+~~`ImportSections` (a registry, like Platform's `MediaUsages`): a module registers a class that reads its
 part of a store's file, adds its lines to the file's page and writes its part when an item is switched
-on in that store (amendments 6, 9(a): only a store's own file brings prices and stock). Pricing and
-Inventory register theirs in stage 5; until then the registry is empty and a store file's page says,
-once, that prices and stock were not kept.
+on in that store.~~ **Removed with the store file's prices and stock** (owner, 2026-11-10, amendment
+42): a store file holds codes only, so no module has a part of it — Pricing's and Inventory's sections
+went with the registry.
 
 ### 2.4 What Catalog needs from other modules
 
@@ -1063,9 +1063,8 @@ format's guide linked). A refused file lists every problem — where, and what �
 (`ImportRefused`, at most 500).
 
 **One file** — `/admin/store-files/{id}` — **with no uploader shown** (Catalog README; choice #19 of
-step 6, accepted by the owner in #88): a Note, once — **the prices and stock are shown and not kept
-until Pricing and Inventory exist** (§1.3, §9.3 #15) —, then the items: # · **code** · the product
-(its name, a link to its page) · price · stock · **standing**: **Ready** · **Not Ready** (what it lacks)
+step 6, accepted by the owner in #88): the items — # · **code** · the product (its name, a link to its
+page) · **standing** (no price and no stock since amendment 42): **Ready** · **Not Ready** (what it lacks)
 · **Archived** · **Already On** · **Unknown Code** · then what the admin did, **Switched On** or
 **Removed**. Ticked rows: **Switch On Selected**, **Remove Selected…**; and **Switch On Every Ready
 One**. An unknown code's row: **Correct Code…** (checked again). A product not ready opens in its page
@@ -1077,7 +1076,7 @@ to be completed, then is switched on here.
 (Platform's `StaffNames`: a Super Admin reads as named to another Super Admin — owner, 2026-10-07,
 Q5) · when · products · state (**Deciding** · **Bringing In** · **In** · **Failed**). **Upload Products
 File** — a `.json` (20 MB), or a `.zip` with `products.json` at its top and its photos (500 MB,
-100,000 entries); 2,000 products a file; the guide (`docs/modules/catalog-import/`) linked. A refused
+100,000 entries); 2,000 products a file; the guide (`Presentation/import-format/`, amendment 42) linked. A refused
 file lists every problem, as S10.
 
 **One import** — `/admin/imports/{id}?part=` — the import's page of §1.12 in four **tabs in the
@@ -1284,7 +1283,7 @@ relations, variants and theirs) are removed with it — which happens only when 
 | `catalog.imports` | `id` PK · `kind` CHECK (`PRODUCTS`, `STORE_FILL`) · `store_id` FK → `platform.stores` RESTRICT NULL — the store a store file fills, set exactly for one (CHECK) · `file_name` · `archive` NULL — where a products file's zip waits until its products are brought in, on the disk `config/catalog.php` names (a products file only, CHECK) · `state` CHECK — a products file `DECIDING`, `BRINGING_IN`, `IN`, `FAILED`; a store file `OPEN` · `failure` NULL — set exactly when `FAILED` (CHECK) · `uploaded_by` — the staff member, for the page (an admin record, not product data) · timestamps |
 | `catalog.import_names` | `id` PK · `import_id` FK CASCADE · `kind` CHECK (`CATEGORY`, `BRAND`, `ATTRIBUTE`, `VALUE`, `SET`, `WARRANTY`) — no new `SET` since amendment 16(b): the CHECK keeps it for the rows of imports already brought in, which the migration deletes nothing of · `written` `text` — as the file first wrote it, a category as its whole path (each level the catalog lacks is its own row) · `key` `char(64)` — a SHA-256 of it as names are compared (a value's with its attribute's): a path has no length limit · `attribute` — a value's attribute as written, set exactly for a value (CHECK) · `attribute_kind` — an attribute's job as the file uses it, set exactly for an attribute (CHECK) · `decision` NULL CHECK (`EXISTING`, `CREATE`, `REFUSE`) · `target_id` NULL — the one it means, or the one created; set for `EXISTING`, never for `REFUSE` (CHECK) · `name_ar`, `name_en` — the wording to create, set exactly for `CREATE` (CHECK) · `products` — how many of the file's products use it · `matches` — how many catalog items answer to the name, when several do (amendment 8(d)) · `slug_ar`, `slug_en` NULL — a new category's own address, when the one made from its names is taken (amendment 8(c)) · unique (`import_id`, `kind`, `key`) |
 | `catalog.import_products` | `id` PK · `import_id` FK CASCADE · `number` — its place in the file, from 1 · `data` `jsonb` — the product as the file gave it, checked · `edited` `jsonb` NULL — the product as the page's changes left it, before bringing in (amendment 7(c)); where the file gives none, what was asked to fill the empty or to add is kept apart in it and given when the product is brought in, to what it then has (§1.12) · `codes` `text[]` · `conflict_product_id` FK → `products` SET NULL NULL — the product already holding a code · `decision` NULL CHECK (`UPDATE`, `REPLACE`, `SKIP`, `RECODE`) · `new_codes` `jsonb` — each code it gives up → its new one, set exactly for `RECODE` (CHECK) · `sale` NULL CHECK (`KEEP`, `TAKE_OFF`) — for a product updated or replaced that is on sale, set only with `UPDATE` or `REPLACE` (amendment 9(c)) · `product_id` FK → `products` SET NULL NULL — the product it became · `state` CHECK (`WAITING`, `REFUSED`, `IN`, `UPDATED`, `REPLACED`, `SKIPPED`, `HELD`, `ACCEPTED`, `ARCHIVED`, `DELETED`) · `refusal` `text` NULL — why a product of the file was left out at upload, set exactly for `REFUSED` (CHECK; amendment 11(a)) · unique (`import_id`, `number`) |
-| `catalog.store_fill_items` | `id` PK · `import_id` FK CASCADE · `number` · `code` CHECK digits · `price` — as the file wrote it, `stock` NULL — shown, not kept until stage 5 · `state` CHECK (`OPEN`, `ON`, `REMOVED`) — what the admin did with it; whether an open item is ready, not ready, archived, already on or an unknown code is read when the page is, since it changes with the product · unique (`import_id`, `number`) |
+| `catalog.store_fill_items` | `id` PK · `import_id` FK CASCADE · `number` · `code` CHECK digits · ~~`price`, `stock`~~ — dropped by amendment 42 (codes only) · `state` CHECK (`OPEN`, `ON`, `REMOVED`) — what the admin did with it; whether an open item is ready, not ready, archived, already on or an unknown code is read when the page is, since it changes with the product · unique (`import_id`, `number`) |
 
 **The photos of a zip** are not rows: the zip itself is kept (`imports.archive`), its photos unpacked
 into temporary files of the server's own naming when the products are brought in — never by a name
@@ -1454,7 +1453,7 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
     nowhere; an updated or replaced product on sale is kept on sale or taken off sale, as chosen for
     it; archive and delete reach what the import created and nobody accepted, whatever was done to it
     since (amendment 11(c)); a product left out at upload takes no part (11(a)); a product not a draft
-    keeps its codes (11(b)); prices and stock come only with a store's file, not kept until stage 5.
+    keeps its codes (11(b)); no file brings prices or stock (amendment 42).
 25. The store file never creates or edits a product: an unknown code waits to be corrected or removed;
     switching on chooses the variant carrying each code (amendment 16(a)), only for ready products,
     under the job in that store.
@@ -1587,8 +1586,8 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 14. Attributes, values, ~~sets,~~ labels and warranties: deactivated (reversible) and deleted only when
     unused, like brands and categories. **Word pairs are only added and deleted** — no switch; a
     product turned off or on never touches them (owner, 2026-10-03, amendment 2(d)).
-15. Until stage 5 a store file's page says, once, that its prices and stock were not kept (amendment 6(a)
-    replaced the preview with the page; amendment 9(a): only a store's own file brings them).
+15. ~~Until stage 5 a store file's page says, once, that its prices and stock were not kept~~ — no file
+    brings prices or stock since amendment 42.
 16. The public contract (§2.1) and the listing facts interface (§2.2) as listed.
 17. **Catalog keeps the card photo's addresses in its own listing rows**, asked of Platform when a row
     is written and refreshed on `MediaVariantsReady`, so a product grid reads no media at all and
@@ -1676,6 +1675,7 @@ are the owner's, its picks (P26–P34) wait for the owner's review of it.
 | 39 | §1.3, §1.4, §2.2, §4.5, §5.4 | **Out of stock is never shown, at last read** (handoff §9.2): the listing took Inventory's `orderable` for "Last pieces" only, so a sold-out size stayed on every list. (a) **On the lists**: a size told not orderable counts for nothing — not a filter value, a side, a card, a price, "From" or "Wholesale from"; a card moves to the next size that can be ordered, with its price; a product with none left for a side leaves that side's lists (`for_individuals`, `sells_retail`, `sells_wholesale`), and with none at all every list, menu and count. A size never told follows §1.3: it can be ordered. A wired ordinary size at 0 is told orderable by Inventory (inventory.md §1.3) and stays. (b) **`listing.orderable` is honest**: true while a size can be ordered; a product with none **keeps its row, false**, which every read already left out — so a stock flip changes the row in place and Inventory's push never asks for the card photo's lock (a new row's, §5.4). Its required `card_variant_id` is then its first size's, drawn by nothing. (c) **A direct link** to a product with none left shows the one "Not available now" page (§1.4); its own address answers 200. (d) **On a product still on sale, a sold-out size stays, greyed, and is never chosen** (the owner's decision): `ShopVariantData.orderable`, never how many there are; a value only sold-out sizes hold is disabled as a value no size on sale holds always was; a value that names a sold-out size with the other choices as they are is greyed, and picking it moves to a size left that holds it, read aloud as (m) says. The page opens on, prices and offers only sizes left; other modules' sections (`sizes`, `wholesaleSizes`: amendments 35(d), 36) are asked only of them. (e) **Back in stock**: Inventory's push brings it all back; each push replaces the cached pages' version, as every change does. (f) **Deploying**: `catalog:listing:rebuild` once, for the rows written before this (handoff §15). No migration; no query added. *(Corrected 2026-11-05: true only of a page still listing, a size sold out or not, as `ShopSoldOutTest` holds. An emptied category or brand asks 1 more, `onlySoldOut`, for (j); a product's page asks it only when its kept page is filled. Measured counts: amendment 40(f).)* **Not changed**: Sales' cart stays permissive and its quote refuses a sold-out size (`NotOrderable`). **The owner's decisions of 2026-11-03**: (g) **A last piece held by an order hides the size like a sold-out one**, until the hold is released: accepted as built. (h) **Hidden until priced** ("that was maybe a temporary thing until stage 7 appears, so yes make sure that is applied correctly"): a size with no price counts for nothing, as (a) says of a sold-out one — filters, card, sides, "From" and "Wholesale from" — and on its page as (d) says; a product with no priced, orderable size for a side leaves that side's lists; (c) holds. `listing.orderable` and `ShopVariantData.orderable` mean **told orderable and priced**. Pricing's push (`ListingFacts::prices`) brings it back, and replaces the cached pages' version. A store with no prices is an empty shop: every page answers. (i) **Google**: a product only sold out or unpriced **for this viewer** — a listing row they would see were it in stock and priced (`ShopReader::onlySoldOut`) — has no `noindex` on its "Not available now" page, kept with the page; every other case keeps it (marked by staff, not chosen here, hidden, archived, not for this account). This changes the 2026-10-02 rule for those products only. (j) **An emptied category keeps its page**: 200, its own canonical, no `noindex`, the sentence `catalog::shop.nothing_now` ("Nothing here is available right now." / "لا يتوفر شيء هنا الآن.", **approved for now**), out of the menu, its other language's address forwarding (amendment 38). Only stock or a price emptying it does this: inactive, or nothing at all for this viewer, stays 404. A brand's page always answered 200; it now says the same sentence when emptied the same way, `catalog::shop.empty` otherwise. (k) **Favourites**: a saved product sold out or unpriced for the person looking stays in the list with "Not available now", read by `CatalogApi::productsOrderableNow(store, viewer, ids)`, one query a store; `productsSoldIn` still decides saving, asking and reviewing (feedback.md §9 #19). Staff reading a list: amendment 40(e). (l) **Archived products** keep "Not available now" (200); a draft, a product never made ready or an unknown address stays 404: the owner confirmed §1.4. (m) A greyed value that selects another size is read as ":name, available in another option" (`catalog::shop.product.other_option_value`), with no "Last pieces" on it | Owner, 2026-11-02 ("Out of stock is never shown", 2026-10-02; the sold-out size greyed); (g)–(m) owner, 2026-11-03 |
 | 40 | §1.4, §4.5; feedback.md §1.2, §1.4, §9.1b #19 | **After amendment 39, the owner's decisions on what a page only sold out or unpriced keeps.** (a) **Reviews, the rating and questions stay on a page only sold out or unpriced**, both forms with them, no Add to Cart: `ShopProductSections::register(evenSoldOut: true)`, beyond amendment 34; a page marked by staff, archived or the like stays plain. (b) **A category never stocked** — its products switched on, none yet counted or priced — **answers 200 with the sentence until stock arrives**: accepted, not told apart from one that sold out. (c) **Best Rated's store average counts the products the store sells**, sold out and unpriced ones too, so a flip moves no key (feedback.md §1.2, §9.1b #19). (d) **An emptied sub-category keeps its trail** to the categories above it, each of which answers: `ShopReader::categoryTrail`, one query on such a page only. (e) **A wishlist's "Not available now" is worked out as the customer whose list it is sees it**, staff reading it included: an individual's saved product with retail sold out and wholesale left shows it to the staff member too (corrects 39(k)). (f) **The queries, measured 2026-11-05** (a guest, warm, the session in the database, 2 of each its row; `ShopSoldOutTest`, "the queries"; the limits a target, not a cap, owner 2026-10-19): a **product's page** in stock 16; marked by staff 8, the plain page; only sold out 9, Feedback's one statement added by (a); only sold out with a review and an answer 12, its authors' names 1 and the size bought 2 more, the stores' names being the frame's read. A **category's page** on sale 8, emptied 10: `onlySoldOut` 1 (39(j)) and `categoryTrail` 1 ((d)), a top category too, with nothing above it. A **brand's page** on sale 8, emptied 9: `onlySoldOut` 1 | Owner, 2026-11-03; (f) measured 2026-11-05 |
 | 41 | §2.1, §2.2, §2.4, §4.5 | **What Content needs of Catalog** (content.md §2.3 C1, C3, C4, C6; §9.4 A5). Accepted with content.md, not built. (a) **`ShopListingSlots`**, a registry in `Public/Contracts` as `ShopProductSections` is: a module registers a `ShopListingSlot`, `read(ShopListingVisitDto{store, locale, kind (category, brand or search), ?categoryId, categoryPath}): ?array`, plain data already in the page's language, drawn above the list; asked outside the page's cache, in a fixed few queries; Content's is the smart bar and the listing banner. (b) **`CatalogApi::sitemapEntries(StoreId, ?string $after, int $limit)`**: the products, categories and brands listed in the store, each with both slugs and its last change, keyset-paged, for Content's sitemap. **Built with Content PR 4** (`SitemapEntriesDto`, `SitemapEntryDto`): what a guest finds listed - products orderable now and open to individuals or companies, the categories of a guest's menu, the active brands shown in the default listings (amendment 5(k)) - categories, brands, then products, each by id, `limit` 1 to 1000, one query a page. (c) **`CatalogApi::shopCategoryTiles(StoreId, string $locale, int $limit)`**: the top categories as the menu offers them to this viewer, in the store's order, each with its photo's addresses (§1.5's image, which the shop's data doesn't carry today), for the home page's category row. (d) **Content registers a `CatalogUsage`** (amendment 19): a category or brand used by a banner, a smart bar or a campaign's target refuses its delete, naming the use (content.md §1.1 #17); nothing changes in Catalog for it. (e) **The live theme's flag, ribbon and badge** are drawn by the card (`ShopCard`) and the product page on **every product showing a reduced price now** (content.md Q9 (a)): the card's price before is the test, and the artwork comes in the shop frame's `frame.content`, so Catalog reads nothing of Content. (f) **No head hook**: a product's, category's or brand's title, description and share image stay Catalog's own defaults (content.md Q14 (b)). (g) **`CatalogApi::productIdsOfBrands(list<string> $brandIds): array<string, list<string>>`**: each brand's products, in any stage, keyed by brand in the order asked, in one query, for Pricing's campaign targets (pricing.md §9.6 #6) - **built** (Content PR 5). Every shop page's recorded query count gains the frame's one cached read (§4.5's budget; owner, 2026-10-19). | Owner, 2026-11-10 (content.md accepted) |
+| 42 | §1.3, §1.12, §2.3, §4.4 S10, S11, §5.5, §8, §9.3 #15; `Presentation/import-format/` (the guide and both examples); pricing.md §1.8, inventory.md §1.8 | **The products bulk-import format brought up to today's system and moved into the app** (owner, 2026-11-10, approving the coordinator's list). (a) **The format lives in the app**: the guide and both examples move from `docs/modules/catalog-import/` (the docs folder leaves GitHub before staging) to the Catalog module, `src/Modules/Catalog/Presentation/import-format/` (`guide.md`, `products.example.json`, `store-fill.example.json`); the panel's guide and its two downloads read them there (`ImportGuideController::FOLDER`), as the import's tests do; nothing in the app or its tests reads `docs/` (`tests/Architecture/NoDocsReadsTest`). (b) **A store file carries codes only**: a store's prices and stock come from Odoo (the owner: the base price only from Odoo; the stock from Odoo) — the store file switches products on in its store and nothing else. `touchwood-store-fill/1` keeps its name; an item is `{"code": "1304"}`; an item still carrying `price` or `stock` is **refused, the field named** ("not in a store file: a store's prices come from Odoo"), as a products file's `stores` and `attribute_set` are. Gone with them: the items' `price` and `stock` columns (a migration drops them), the file page's Price and Stock columns and its "not kept until Pricing and Inventory exist" note, and **the import's sections** (§2.3: `ImportSections`, `ImportSection`), whose only job was to carry those two fields to Pricing (`PriceImportSection`, `SetPriceFromFile`) and Inventory (`StockImportSection`, `SetStockFromFile`) — removed with them. Kept: a price source and a ledger reason `FILE` for rows written before (pricing.md, inventory.md). (c) **The guide states the limits it lacked**: at most 10 attributes make a product's variants (`ProductsFile::VARIANT_ATTRIBUTES_MAX`), every list name — a brand, a warranty, an attribute, a value, each level of a category — at most 100 characters (`NAME_MAX`), a slug at most 200; and **the code rule, at its top**: 1 to 10 digits, written in quotes (`"1304"`, never `1304`) — the product's id in Odoo. (d) **Re-checked against the code**: the guide also says that only the first 500 problems are listed, that a field not of the format refuses the file, that a variant's photos are each named once, that a detail's number may be negative, and that a products file's `stores` is refused because a store's admins switch products on with their own file; the stale "stage 4, step 6" and "until Pricing and Inventory exist (stage 5)" are gone. A test reads the guide for each limit from the code's constants. | Owner, 2026-11-10 |
 
 ### 9.7 Proposed with the screens — built as recommended (amendment 13(j))
 

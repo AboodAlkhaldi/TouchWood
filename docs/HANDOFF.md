@@ -963,11 +963,12 @@ products one at a time in the panel:
 
 - **new products** with their details, images and codes, the stores each is chosen in, and each of
   those stores' price and stock — in one file, so a product and its stores arrive together;
-- **a store's choice** of products that already exist, with its prices and stock.
+- **a store's choice** of products that already exist — codes only since catalog.md amendment 42: a
+  store's prices and stock come from Odoo.
 
 **The format and the flow were agreed with the owner on 2026-10-05** (`docs/modules/catalog.md`
 §1.12, §1.3, amendment 6). **The exact format — a guide to filling it and a complete example of each
-file — is in [`docs/modules/catalog-import/`](modules/catalog-import/README.md)**; the owner fills
+file — is in [`src/Modules/Catalog/Presentation/import-format/`](../src/Modules/Catalog/Presentation/import-format/guide.md)** (moved into the app, catalog.md amendment 42); the owner fills
 files from it, with another AI agent's help. In short: the products file goes in alone or in a zip
 with its photos, and **gets its own page** where the Super Admin decides each name the catalog lacks
 (a typo for an existing one, create it, or refuse it) and each code it already has (update, replace
@@ -1861,9 +1862,10 @@ Decide these when the owning module is reached; do not design them now.
   (`OpsServiceProvider::requireRealDelivery`) does not run. The generated `/robots.txt` says `Disallow: /`
   outside production (Content, `RobotsFile`), which is right for staging. On the real domain
   `APP_ENV=production`.
-- **The `docs/` folder ships with the application**: the panel's files guide
-  (`/admin/import-guide`) is read from `docs/modules/catalog-import/` - the guide and its two
-  example files. A deploy that leaves `docs/` out breaks that page and its downloads.
+- **The `docs/` folder need not ship with the application**: the panel's files guide
+  (`/admin/import-guide`) and its two example files live in the Catalog module since catalog.md
+  amendment 42 (`src/Modules/Catalog/Presentation/import-format/`); nothing the app runs reads `docs/`
+  (`tests/Architecture/NoDocsReadsTest`).
 
 ---
 

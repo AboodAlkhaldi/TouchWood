@@ -198,9 +198,11 @@ It refuses a cart holding an unpriced line, an amount in another currency, a neg
 discounts larger than `net_subtotal`. The rate is the store's at the moment the prices were read
 (`CartPricesDto::taxRateBasisPoints`); an order keeps its own snapshot (Sales).
 
-### 1.8 The store's file (catalog.md §2.3)
+### 1.8 The store's file (catalog.md §2.3) — removed (catalog.md amendment 42)
 
-Pricing's `ImportSection` for a store's file:
+**Since 2026-11-10 a store's file holds codes only** (owner: the base price comes only from Odoo):
+Pricing's `ImportSection`, `SetPriceFromFile` and its job are removed. The price source `FILE` and its
+words stay, for prices written before. What it did:
 
 - **The file's page** says, per item, the retail price that will be set — or why not: more decimals
   than the store's currency has, or 0 (owner, 2026-10-07: refused, never rounded); in a wired store,

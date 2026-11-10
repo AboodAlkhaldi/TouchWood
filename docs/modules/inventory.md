@@ -185,9 +185,11 @@ recount keeps the store's **low set** — the list's sizes, each **out** or **lo
 - The change log keeps **12 months** (as Ops keeps its daily reports' files), pruned each night by
   `PruneLowStockChanges` (§3).
 
-### 1.8 The store's file (catalog.md §2.3)
+### 1.8 The store's file (catalog.md §2.3) — removed (catalog.md amendment 42)
 
-Inventory's `ImportSection`: the file's page says, per item, the stock that will be set — or that it
+**Since 2026-11-10 a store's file holds codes only** (owner: the stock comes from Odoo): Inventory's
+`ImportSection`, `SetStockFromFile` and its job are removed. The reason **File**, its words and the
+history's "A Store File" stay, for lines written before. What it did — Inventory's `ImportSection`: the file's page says, per item, the stock that will be set — or that it
 is ignored in a wired store, the provider being its source. **When an item is switched on**, the stock
 **sets** the size's in stock (a "set to" movement, reason **File**), audited as the file's. **One code is
 one size** (owner, 2026-10-09; Catalog's amendment 16). *(Step 4b:)* the stock is set by a job queued
@@ -470,7 +472,8 @@ page (`ListStock` with `InventoryActionsForReader`) 9, the drawer 5, the Low Sto
 - **Add Size** (Q24) needs no new command: `SetStock` counts a size switched on whatever its product's
   stage, and a size the store does not sell **only when its product is ready** (2026-10-19) - a draft's size
   not switched on is refused, `invalid_inventory_input` naming its row; the stocktake makes its row, and the
-  Stock list lists it from then on. The store's file (§1.8) is not held to it.
+  Stock list lists it from then on. (The store's file, once not held to it, sets no stock since catalog.md
+  amendment 42.)
 - **A batch refusal marks every bad row**: `SetStock` and `SetLowStockThreshold` name every count or
   threshold out of bounds, and both rows of a size written twice with two values, in one refusal. A count
   that finds the number right on a size already short names it in `StockSaved` too, with no event.
