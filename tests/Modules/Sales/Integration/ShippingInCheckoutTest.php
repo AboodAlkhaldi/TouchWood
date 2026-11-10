@@ -466,6 +466,38 @@ describe('a staff address change (gap 6.1)', function () {
         expect([$row['ordered_carrier_id'], (int) $row['shipping_fee_minor']])->toBe([$fast, 30_00]);
     });
 
+    it('refuses a carrier when keeping a fee staff typed, and leaves the order as it was (§9.7)', function () {
+        ['customer' => $customer] = Cx::ready();
+        $order = shipCheckoutPlaced(shipCheckoutAddress($customer, shipCheckoutRegion('Typed Region')));
+        app(SetShippingFeeHandler::class)->handle(new SetShippingFee($order, 40_00, 'Courier quoted 40'));
+        $region = shipCheckoutRegion('New Region');
+        $fast = shipCheckoutCarrier('Fast', 10_00, [$region]);
+        $before = shipCheckoutRow($order);
+
+        expect(fn () => app(EditOrderHandler::class)->handle(new EditOrder($order, 'Moved', shipCheckoutLines($order), shipCheckoutAddress($customer, $region), carrierId: $fast, shippingFee: 'KEEP')))
+            ->toThrow(InvalidSalesAttribute::class)
+            ->and(shipCheckoutRow($order))->toBe($before);
+    });
+
+    it('keeps a fee staff typed through a move with no carrier: set again until it ships, the carrier picked then (§9.7)', function () {
+        ['customer' => $customer] = Cx::ready();
+        $order = shipCheckoutPlaced(shipCheckoutAddress($customer, shipCheckoutRegion('Typed Region')));
+        app(SetShippingFeeHandler::class)->handle(new SetShippingFee($order, 40_00, 'Courier quoted 40'));
+        $region = shipCheckoutRegion('New Region');
+        $fast = shipCheckoutCarrier('Fast', 10_00, [$region]);
+
+        app(EditOrderHandler::class)->handle(new EditOrder($order, 'Moved', shipCheckoutLines($order), shipCheckoutAddress($customer, $region), carrierId: '', shippingFee: 'KEEP'));
+        $moved = shipCheckoutRow($order);
+        app(SetShippingFeeHandler::class)->handle(new SetShippingFee($order, 25_00, 'Courier corrected to 25'));
+        $set = shipCheckoutRow($order);
+        DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor')]);
+        app(ShipOrderHandler::class)->handle(new ShipOrder($order, $fast));
+
+        expect([$moved['ordered_carrier_id'], (int) $moved['shipping_fee_minor'], (bool) $moved['shipping_fee_pending']])->toBe([null, 40_00, false])
+            ->and([(int) $set['shipping_fee_minor'], (int) $set['order_total_minor']])->toBe([25_00, (int) $moved['order_total_minor'] - 40_00 + 25_00])
+            ->and([shipCheckoutRow($order)['shipment_status'], shipCheckoutRow($order)['carrier_id']])->toBe(['SHIPPED', $fast]);
+    });
+
     it('makes the fee to be set at a place no carrier serves, and refuses keeping a fee there is none of', function () {
         ['address' => $address, 'customer' => $customer] = Cx::ready();
         $order = shipCheckoutPlaced($address);

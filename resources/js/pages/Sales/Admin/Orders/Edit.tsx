@@ -310,7 +310,8 @@ function Preview({ page, preview, stale }: { page: EditPage; preview: EditPrevie
 
 /**
  * An address at another place (§1.7 step 5; gap 6.1): today's fee from the carriers serving it, or the order's own with
- * any of the store's carriers - none to keep while the fee is to be set (§9.6 #2). Changing either makes the preview stale.
+ * any of the store's carriers - none to keep while the fee is to be set (§9.6 #2), and none for a fee staff typed: its
+ * carrier is picked when it ships (§9.7). Changing either makes the preview stale.
  */
 function NewPlace({ page, preview, fee, carrier, onFee, onCarrier }: { page: EditPage; preview: EditPreviewData; fee: 'TODAY' | 'KEEP'; carrier: string; onFee: (fee: 'TODAY' | 'KEEP') => void; onCarrier: (carrier: string) => void }) {
     const t = useTranslator();
@@ -356,6 +357,12 @@ function NewPlace({ page, preview, fee, carrier, onFee, onCarrier }: { page: Edi
                     </RadioGroup>
                     {fee === 'TODAY' ? (
                         today
+                    ) : page.orderedCarrierId === null ? (
+                        // A fee staff typed keeps no carrier, so Change Shipping Fee keeps working; it is picked when it ships (§9.7).
+                        <p className="grid gap-1" data-test="keep-later">
+                            <span className="text-label-14 text-ink">{t(`${W}.edit.keep_carrier`)}</span>
+                            <span className="text-copy-14 text-ink">{t(`${W}.edit.keep_later`)}</span>
+                        </p>
                     ) : (
                         <SelectField id="keep-carrier" label={t(`${W}.edit.keep_carrier`)} value={carrier || (listed ? (page.orderedCarrierId ?? '') : '')} onChange={(event) => onCarrier(event.target.value)} data-test="keep-carrier">
                             {/* None yet, or the order's carrier since deleted: nothing picked keeps what the order has. */}
