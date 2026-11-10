@@ -1849,6 +1849,11 @@ Decide these when the owning module is reached; do not design them now.
   server's request body limit must allow 500 MB on the admin's `/admin/imports`. Below that, Laravel
   answers a larger upload with its 413 page before the import can say why (the local default is
   2 MB / 8 MB).
+- **Staging runs with `APP_ENV=staging`, not `production`, until a real SMS provider is built** (owner,
+  2026-11-10). Outside production the `log` SMS provider stands, so sign-in and phone codes are written to
+  the server's log, where the testers read them. In that mode **set `TEXT_TRANSLATOR=deepl` explicitly**
+  (with its key): an empty driver means the fake translator everywhere but production. `robots.txt` says
+  `Disallow: /` outside production, which is right for staging. On the real domain `APP_ENV=production`.
 - **The `docs/` folder ships with the application**: the panel's files guide
   (`/admin/import-guide`) is read from `docs/modules/catalog-import/` - the guide and its two
   example files. A deploy that leaves `docs/` out breaks that page and its downloads.

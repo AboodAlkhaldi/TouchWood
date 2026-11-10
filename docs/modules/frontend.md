@@ -1108,8 +1108,8 @@ see admin roles in the list but cannot open them for editing (amendment 9 and th
   2026-11-10, round 3 #10: "keep"]** every screen stays in its area and five areas take the design's
   shorter word, in the menu and here alike: Catalog and variants → Products (المنتجات), Orders and
   fulfilment → Sales (المبيعات), Store settings and tax → Configuration (الإعدادات), Staff and
-  permissions → Staff (طاقم العمل), Media library → Library (its Arabic waits on the owner:
-  docs/handoff/content-rounds.md, P8). Each permission therefore carries a group, named in Arabic and
+  permissions → Staff (طاقم العمل), Media library → Library (المكتبة: owner, 2026-11-10, P8 in
+  docs/handoff/content-rounds.md). Each permission therefore carries a group, named in Arabic and
   English, when its module declares it: a change to the permission catalog and to Platform's own
   list, listed in §4. Modules built later pick a group for each permission they declare.
   **[DECIDED 2026-09-29]** A **System** area joins them, for the running of the system — first the
