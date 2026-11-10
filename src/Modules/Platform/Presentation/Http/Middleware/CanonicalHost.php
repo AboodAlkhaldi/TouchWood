@@ -48,9 +48,20 @@ final readonly class CanonicalHost
 
     /**
      * Refuses an APP_URL on the `www.` host (PR 4 review): every address the site builds on it would be the other
-     * host's, each answered with a redirect. Checked when the middleware is registered, so a server so configured
-     * never starts. An APP_URL with no host (an unconfigured app, lesson 30) passes.
+     * host's, each answered with a redirect. Checked when the middleware is registered, **when serving HTTP only**: in
+     * the console it would stop every artisan command, `config:clear` among them, so a cached bad config could not be
+     * mended. An APP_URL with no host (an unconfigured app, lesson 30) passes.
      *
+     * @throws LogicException
+     */
+    public static function assertAppUrlAtBoot(bool $console, mixed $url): void
+    {
+        if (! $console) {
+            self::assertAppUrl($url);
+        }
+    }
+
+    /**
      * @throws LogicException
      */
     public static function assertAppUrl(mixed $url): void

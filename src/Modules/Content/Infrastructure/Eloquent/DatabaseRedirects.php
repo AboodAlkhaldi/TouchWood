@@ -117,7 +117,9 @@ final readonly class DatabaseRedirects implements Redirects
         // A cursor is `{visits}:{old path}`, as `next` gives it.
         if ($after !== null && preg_match('/\A(\d{1,18}):(.+)\z/s', $after, $cursor) === 1) {
             $visits = (int) $cursor[1];
-            $query->where(static fn ($where) => $where->where('visits', '<', $visits)->orWhere(static fn ($tie) => $tie->where('visits', $visits)->where('old_path', '>', $cursor[2])));
+            // `visits <= v` first, so a deep page starts from the index (visits DESC, old_path) rather than its top.
+            $query->where('visits', '<=', $visits)
+                ->where(static fn ($where) => $where->where('visits', '<', $visits)->orWhere('old_path', '>', $cursor[2]));
         }
 
         $rows = array_map(self::line(...), array_values($query->get()->all()));

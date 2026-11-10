@@ -161,7 +161,7 @@ describe('the schema', function () {
 
         expect($tables)->toBe([
             'banner_images', 'banners', 'bars', 'blog_categories', 'blog_post_products', 'blog_post_translations', 'blog_posts',
-            'footers', 'home_section_media', 'home_sections', 'page_images', 'page_translations', 'pages', 'popups', 'post_images',
+            'footers', 'home_section_media', 'home_sections', 'job_runs', 'page_images', 'page_translations', 'pages', 'popups', 'post_images',
             'project_images', 'project_photos', 'project_products', 'project_translations', 'projects', 'redirect_uploads', 'redirects',
             'seo_defaults', 'sitemaps', 'slug_history', 'smart_bars', 'waiting_jobs',
         ]);

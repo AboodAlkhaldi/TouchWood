@@ -262,7 +262,7 @@ describe('the PR 4 review', function () {
     });
 
     it('builds one at a time: a second build while one holds the lock waits in the queue, building nothing', function () {
-        expect((new BuildSitemapsJob)->middleware()[0] ?? null)->toBeInstanceOf(OneSitemapBuild::class);
+        expect((new BuildSitemapsJob)->middleware()[1] ?? null)->toBeInstanceOf(OneSitemapBuild::class);
 
         // Another worker's build, on a connection of its own, holds the lock.
         config(['database.connections.pgsql_other_worker' => config('database.connections.pgsql')]);
