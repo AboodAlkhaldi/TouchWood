@@ -43,5 +43,5 @@ The Shared kernel's guide is [src/Shared/README.md](../../src/Shared/README.md).
 | Loyalty | [accepted](loyalty.md) 2026-10-10 (#96) — **built**: six steps from 2026-10-10, all merged by 2026-10-17, the first of stage 6 (owner: Loyalty → Promotions → Feedback → Sales). See [its README](../../src/Modules/Loyalty/README.md) | — (Platform, Access: handoff §4.4; this row had said Pricing) |
 | Payments | [draft](payments.md) 2026-10-27 — stage 7, waiting for the owner; MyFatoorah (KSA) on its hosted page; research in [payments-myfatoorah-notes.md](payments-myfatoorah-notes.md) | — (Platform); Sales calls it |
 | Shipping | [draft](shipping.md) 2026-10-27 — stage 7, waiting for the owner; the box list optional, it blocks nothing | Platform (the places, amendment proposed), Catalog |
-| Content | not started | Catalog |
+| Content | [accepted](content.md) 2026-11-10 (#364), its questions answered that day; the other documents' amendments written (content.md §9.4); **not built** | Platform, Catalog, Pricing; Access for its permissions; Ops binds its notice port |
 | Ops | [draft](ops.md) 2026-10-28, for the owner's acceptance; Access's part is amendments 79–84 | Every module's public surface; Brevo (email); an SMS provider (not chosen) |

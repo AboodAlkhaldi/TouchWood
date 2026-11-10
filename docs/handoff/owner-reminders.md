@@ -111,7 +111,6 @@ verified by the stage 7 session — raise only what is confirmed.)
 31. At hosting: the database users for the audit log and the CDN purge (platform.md §9.3, HANDOFF §15.4).
 32. Egypt's (and UAE's) payment gateway not chosen (HANDOFF §15.1, payments.md:1029).
 33. Live Odoo read-only test before a wired store opens (sync.md §9.1 #1): the adapter is tested only against a faked API.
-34. Content: should pop-ups target Promotions' segments (promotions.md §9.2 #4)? Not in content-rounds.md.
 35. Stale spec status lines to tidy: shipping.md:3 "draft", b2b.md:3 NOT ACCEPTED banner, docs/modules/README.md status table, catalog.md §9.7 29 [PROPOSED] picks (P26-P34 "wait for the owner's review"), [PROVISIONAL] markers in frontend.md and access.md, and done work still listed as open in pricing.md, inventory.md and its README, sales.md §9.2 #7. Owner confirms the picks; the text is then corrected.
 36. Stage 6 screens' open calls never recorded in the repo: a wholesale-only sale shows no struck price; the header count adds a query per signed-in shop page.
 37. Admin Home: no Sales, Catalog or Ops cards yet; the dashboard from the owner's references is not built.
@@ -124,6 +123,7 @@ verified by the stage 7 session — raise only what is confirmed.)
 41. Codes layering, FOR LATER, NO ACTION NOW (owner 2026-11-09; raised with Odoo's team, who want changes): a layer above each variant, so one global code is the product itself with its variants inside it, and a store gets the upper code with its variants in a single product card. Today every variant has its own single code. Just settle it later.
 
 ## Closed
+- Pop-ups and Promotions' segments (old item 34): CLOSED 2026-11-10, the owner's Content round 4 #8: one pop-up for everyone at launch, no segment targeting (content.md §1.10, promotions.md §9.2 #4).
 - Flaky phone-width browser checks (old item 9b): DONE, #333 merged 2026-11-03 (fadb0b90); about 13 differently written checks unchanged.
 - One verified account phone for shipping (old item 13): DONE, #284 merged 2026-10-31 (c2db1817).
 - Stage 5 owner calls (old item 9) — CLOSED, checked 2026-10-29: archived sizes left off Low Stock

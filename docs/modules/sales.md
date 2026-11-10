@@ -2017,3 +2017,9 @@ Anyone but the order's customer gets `OrderNotFound` from the customer's four, a
 12. **Money taken and not yet recorded waits too** (the review, 2026-11-03): between Payments settling and Sales recording, the order still looks unpaid. So `OrderRequests::free` also refuses (`PaymentBeingConfirmed`) while `PaymentsApi::successes` names a transaction with no `sales.payments` row. If the listener fails for good, staff see "A payment is being confirmed" until its job is retried from the failed jobs page; that is the honest answer, since the money did come.
 13. **`TransferOverdue` must have its listener before this goes live** (ops.md S6): an order marked told while no one listens is never told again. Nothing runs before go-live, so this is on the go-live list, not a change here. **Its listener is built (2026-11-03): Ops' `AlertStaff`.**
 14. **`LatePaymentRefundDue`** (`eventId`, `tryId`, `attemptId`, `orderId`, `storeId`, `occurredAt`), **the owner, 2026-11-04** ("Yes, add the alert"): a payment that succeeds after its try was released takes money with no order behind it, and until now only the Payments list showed it. Sales sends this with the refund due, once per event, so Ops can tell staff as it does for a currency refused (ops.md S7). `orderId` is the id the order would have had: no order has it. The page's own answer sends nothing.
+
+### 9.10 Content (stage 8) — **[ACCEPTED by the owner, 2026-11-10, with content.md; not built]**: the cart's message
+
+A live theme may carry a **cart message** (content.md §1.8 part 9): one line per language, an optional link. **The cart page draws
+it at its top from the shop frame** (`frame.content`, Content's `ShopFramePart`), so Sales reads nothing of Content and gains no
+arrow (handoff §4.4). No theme live, or the part left empty: nothing is drawn. It is words only: it changes no price, line or total.
