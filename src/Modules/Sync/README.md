@@ -110,8 +110,8 @@ notifications' sending is Ops'.
   while it runs - a second worker, or its worker gone - waits until then and takes it back; another
   read of the store fails a dead one and reports it. A retry reports everything again (its record
   cleared first) and its counts are taken from what it wrote over every attempt.
-- **Deploy**: the queue connection's `retry_after` must be longer than 20 minutes (HANDOFF's deploy
-  notes).
+- **Deploy**: the read and the log prune run on the long queue connection (`LongQueue`, `retry_after`
+  3700 s), so its worker must run (HANDOFF's deploy notes).
 
 ### The report and the page of reads (§1.6, §3, §9.3 #19)
 

@@ -48,6 +48,6 @@ final readonly class PopupsHandler
         $popup = $this->popups->find($popupId);
         $this->access->authorize(self::PERMISSION, $popup?->storeId, item: true);
 
-        return $popup === null ? [] : ['id' => $popup->id, ...$popup->fields(), 'version' => $popup->version];
+        return $popup === null ? [] : ['id' => $popup->id, 'store_id' => $popup->storeId, ...$popup->fields(), 'version' => $popup->version];
     }
 }
