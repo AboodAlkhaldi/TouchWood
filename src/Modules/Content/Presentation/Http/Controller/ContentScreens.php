@@ -9,6 +9,8 @@ use Illuminate\Http\Request;
 use Inertia\Response;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Dto\CategoryPathDto;
+use Modules\Content\Application\ContentAccess;
+use Modules\Content\Domain\Exception\StoreOff;
 use Modules\Content\Presentation\Http\Resource\CategoryChoiceData;
 use Modules\Content\Presentation\Http\Resource\ContentImageData;
 use Modules\Content\Presentation\Http\Resource\ContentStoreData;
@@ -35,12 +37,26 @@ final readonly class ContentScreens
         private PlatformApi $platform,
         private CatalogApi $catalog,
         private Page $page,
+        private ContentAccess $access,
     ) {}
 
-    /** @throws Unauthorized */
+    /**
+     * An off store asked for by someone who holds the job there but may not switch stores is refused in the spec's words
+     * (`content.store_off`, §1.1 rule 7); any other store not offered, plainly.
+     *
+     * @throws Unauthorized|StoreOff
+     */
     public function store(Request $request, string $permission): StoreDto
     {
-        return $this->choices->chosen(Inputs::text($request, 'store'), $permission) ?? throw new Unauthorized($permission);
+        $code = Inputs::text($request, 'store');
+
+        try {
+            return $this->choices->chosen($code, $permission) ?? throw new Unauthorized($permission);
+        } catch (Unauthorized $refused) {
+            $this->access->refuseIfOff($code, $permission);
+
+            throw $refused;
+        }
     }
 
     /**
