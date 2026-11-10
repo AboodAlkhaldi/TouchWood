@@ -1,7 +1,8 @@
-import { lazy, Suspense, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { usePage } from '@inertiajs/react';
 import { ImageIcon } from 'lucide-react';
 import { Note } from '@/components/Note';
+import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { useTranslator } from '@/lib/t';
@@ -14,9 +15,6 @@ import type { SharedProps } from '@/types/page';
 | the size it is shown at, at double density, is warned of, never refused (§1.6). The file is uploaded at once under the
 | item's own permission (`POST /admin/content/uploads/{kind}`); the item names it only when its form is saved.
 */
-
-// The bar shows only while a file uploads, never on first paint: loaded then (lesson 180; JavaScriptBudgetTest).
-const Progress = lazy(() => import('@/components/ui/progress').then((module) => ({ default: module.Progress })));
 
 type Props = {
     id: string;
@@ -125,9 +123,7 @@ export function ImageBox({ id, label, kind, store, image, onChange, size, helper
             </div>
             {percent === null ? null : (
                 <div className="grid gap-1">
-                    <Suspense fallback={null}>
-                        <Progress value={percent} aria-labelledby={`${id}-progress`} />
-                    </Suspense>
+                    <Progress value={percent} aria-labelledby={`${id}-progress`} />
                     <span id={`${id}-progress`} className="tw-figure text-copy-13 text-ink-muted">
                         {t('content::admin_shared.image.uploading', { percent })}
                     </span>
