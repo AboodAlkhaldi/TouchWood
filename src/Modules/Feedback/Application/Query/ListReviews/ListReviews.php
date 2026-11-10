@@ -12,5 +12,7 @@ final readonly class ListReviews
         public string $status,
         public string $locale,
         public ?string $after = null,
+        /** Each state's count too, for the tabs (round 3 #11): one more query, so only the list's first page asks. */
+        public bool $counted = false,
     ) {}
 }

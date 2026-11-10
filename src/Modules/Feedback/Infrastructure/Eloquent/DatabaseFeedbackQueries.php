@@ -72,6 +72,40 @@ final readonly class DatabaseFeedbackQueries implements FeedbackQueries
         return array_map(DatabaseQuestions::toQuestion(...), $this->page($query, 'feedback.questions', $afterId, $status !== QuestionStatus::Pending, $limit));
     }
 
+    public function reviewCounts(StoreId $store): array
+    {
+        return $this->countsBy('feedback.reviews', $store, array_map(static fn (ReviewStatus $status): string => $status->value, ReviewStatus::cases()));
+    }
+
+    public function questionCounts(StoreId $store): array
+    {
+        return $this->countsBy('feedback.questions', $store, array_map(static fn (QuestionStatus $status): string => $status->value, QuestionStatus::cases()));
+    }
+
+    /**
+     * A store's rows of the table in each state, every state named: one query, on (store, status).
+     *
+     * @param  list<string>  $states
+     * @return array<string, int>
+     */
+    private function countsBy(string $table, StoreId $store, array $states): array
+    {
+        $found = [];
+
+        foreach ($this->db->table($table)->where('store_id', $store->value)->groupBy('status')->select('status')->selectRaw('count(*) AS total')->get()->all() as $row) {
+            /** @var stdClass $row */
+            $found[(string) $row->status] = (int) $row->total;
+        }
+
+        $counts = [];
+
+        foreach ($states as $state) {
+            $counts[$state] = $found[$state] ?? 0;
+        }
+
+        return $counts;
+    }
+
     public function favouritesIn(StoreId $store, ?array $after, int $limit): array
     {
         $query = $this->db->table('feedback.wishlist_items')

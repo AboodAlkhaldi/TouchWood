@@ -23,6 +23,14 @@ interface MarketingQueries
      */
     public function coupons(StoreId $store, ?CouponState $state, ?string $codeStart, ?DateTimeImmutable $beforeAt, ?string $beforeId, int $limit, DateTimeImmutable $now): array;
 
+    /**
+     * How many of the store's coupons are in each state now, every state named, only codes starting with
+     * `$codeStart` when one is given - in one query (round 3 #11: a count on each tab).
+     *
+     * @return array<string, int>
+     */
+    public function couponCounts(StoreId $store, ?string $codeStart, DateTimeImmutable $now): array;
+
     /** One coupon's row, its state now. */
     public function couponRow(StoreId $store, string $couponId, DateTimeImmutable $now): ?CouponRow;
 

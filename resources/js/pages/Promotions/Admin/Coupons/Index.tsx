@@ -5,6 +5,7 @@ import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { SearchField } from '@/components/SearchField';
 import { StoreFilter } from '@/components/StoreFilter';
+import { TabCount } from '@/components/TabCount';
 import { Time } from '@/components/Time';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
@@ -19,13 +20,14 @@ import type { CouponRowData, CouponsListPage } from '@/types/generated/Modules/P
 /*
 | M1 - Marketing › Coupons (promotions.md §4.1): the store's coupons, newest first, 50 at a time with Show
 | More. Tabs by state - All, Active, Scheduled, Ended, Off - and a search by the start of a code, both in
-| the address (owner's Q2). New Coupon only for somebody who may manage the store's coupons (Q16).
+| the address (owner's Q2), each tab saying how many it lists for the code typed (round 3 #11). New Coupon
+| only for somebody who may manage the store's coupons (Q16).
 */
 
 const LIST = '/admin/coupons';
 const STATES = ['ACTIVE', 'SCHEDULED', 'ENDED', 'INACTIVE'] as const;
 
-export default function Index({ coupons, nextAt, nextId, state, code, mayManage, storeCode, stores }: CouponsListPage) {
+export default function Index({ coupons, nextAt, nextId, state, code, mayManage, storeCode, stores, counts }: CouponsListPage) {
     const t = useTranslator();
     const [text, setText] = useState(code ?? '');
     const list = useLoadMore(coupons, (row) => row.id);
@@ -87,11 +89,15 @@ export default function Index({ coupons, nextAt, nextId, state, code, mayManage,
                 </div>
 
                 <Tabs value={state ?? 'ALL'} onValueChange={(next) => router.get(LIST, asked(storeCode, next === 'ALL' ? null : next, code ?? ''), { preserveState: true })}>
-                    <TabsList data-test="state-tabs" aria-label={t('promotions::admin_coupons.list.states_label')}>
-                        <TabsTrigger value="ALL">{t('promotions::admin_coupons.list.all')}</TabsTrigger>
+                    <TabsList variant="line" className="h-10 w-full max-w-full min-w-0 justify-start overflow-x-auto border-b border-line p-0" data-test="state-tabs" aria-label={t('promotions::admin_coupons.list.states_label')}>
+                        <TabsTrigger value="ALL" className="flex-none gap-2 px-3 text-label-14">
+                            {t('promotions::admin_coupons.list.all')}
+                            <TabCount count={counts.ALL} test="count-ALL" />
+                        </TabsTrigger>
                         {STATES.map((each) => (
-                            <TabsTrigger key={each} value={each} data-test={`state-${each}`}>
+                            <TabsTrigger key={each} value={each} data-test={`state-${each}`} className="flex-none gap-2 px-3 text-label-14">
                                 {t(`promotions::admin_coupons.state.${each}`)}
+                                <TabCount count={counts[each]} test={`count-${each}`} />
                             </TabsTrigger>
                         ))}
                     </TabsList>

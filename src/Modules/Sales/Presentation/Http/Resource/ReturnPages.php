@@ -64,7 +64,8 @@ final readonly class ReturnPages
         }
 
         $tab = in_array($tab, self::TABS, true) ? $tab : self::TABS[0];
-        $page = $list->handle(new ListReturns($chosen?->storeId, $tab, $after));
+        // Each tab's count with the first page only: Show More takes the rows.
+        $page = $list->handle(new ListReturns($chosen?->storeId, $tab, $after, counted: $after === null));
 
         return new ReturnsPage(
             array_map(fn (StaffReturnRow $row): ReturnRowData => new ReturnRowData(
@@ -83,6 +84,7 @@ final readonly class ReturnPages
             array_map(fn (OrderStoreChoice $choice): SalesStoreData => new SalesStoreData(strtolower($choice->code), $choice->name->in($this->locale()), $choice->isActive), $choices),
             self::TABS,
             $chosen === null ? null : $this->platform->store(StoreId::fromString($chosen->storeId))?->timezone,
+            array_intersect_key($page->counts, array_flip(self::TABS)),
         );
     }
 

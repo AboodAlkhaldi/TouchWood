@@ -56,7 +56,8 @@ final readonly class SupportPages
     {
         [$store, $offered] = $this->store($storeCode, FeedbackPermissions::REVIEW_MODERATE);
         $tab = in_array($status, self::REVIEW_TABS, true) ? $status : self::REVIEW_TABS[0];
-        $page = $list->handle(new ListReviews($store->id, $tab, $this->locale(), $after));
+        // Each tab's count with the first page only: Show More takes the rows.
+        $page = $list->handle(new ListReviews($store->id, $tab, $this->locale(), $after, counted: $after === null));
 
         return $this->page(
             $store,
@@ -81,6 +82,7 @@ final readonly class SupportPages
             $tab,
             $page->next,
             $this->actions->forStore($store->storeId())->mayModerate,
+            $page->counts,
         );
     }
 
@@ -93,7 +95,7 @@ final readonly class SupportPages
     {
         [$store, $offered] = $this->store($storeCode, FeedbackPermissions::QUESTION_ANSWER);
         $tab = in_array($status, self::QUESTION_TABS, true) ? $status : self::QUESTION_TABS[0];
-        $page = $list->handle(new ListQuestions($store->id, $tab, $this->locale(), $after));
+        $page = $list->handle(new ListQuestions($store->id, $tab, $this->locale(), $after, counted: $after === null));
 
         return $this->page(
             $store,
@@ -116,6 +118,7 @@ final readonly class SupportPages
             $tab,
             $page->next,
             $this->actions->forStore($store->storeId())->mayAnswer,
+            $page->counts,
         );
     }
 
@@ -146,8 +149,9 @@ final readonly class SupportPages
      * @param  list<ReviewItemData>  $reviews
      * @param  list<QuestionItemData>  $questions
      * @param  list<FavouriteItemData>  $favourites
+     * @param  array<string, int>  $counts
      */
-    private function page(StoreDto $store, array $offered, array $reviews, array $questions, array $favourites, ?string $status, ?string $next, bool $mayAct): SupportListPage
+    private function page(StoreDto $store, array $offered, array $reviews, array $questions, array $favourites, ?string $status, ?string $next, bool $mayAct, array $counts = []): SupportListPage
     {
         $locale = $this->locale();
 
@@ -164,6 +168,7 @@ final readonly class SupportPages
             $store->timezone,
             array_map(static fn (StoreDto $option): StoreOptionData => new StoreOptionData($option->code, $option->name->in($locale), $option->isActive), $offered),
             $mayAct ? $this->readyReasons() : [],
+            $counts,
         );
     }
 

@@ -103,6 +103,29 @@ it('approves an order, records its whole payment, ships it and marks it delivere
         ->and(DB::table('sales.orders')->where('id', $order)->value('status'))->toBe('COMPLETED');
 });
 
+it('opens an order from anywhere on its row, and counts each underlined tab, at a computer\'s width and a phone\'s', function () {
+    // Round 3 #11 and #12 (owner, 2026-11-10): underlined tabs with counts; the whole row opens an order.
+    $order = salesOrderScreensOrder();
+    $number = (string) DB::table('sales.orders')->where('id', $order)->value('number');
+    $page = salesOrderScreensPanel();
+
+    $page->navigate('/admin/orders?tab=ALL&q='.urlencode($number), BROWSER_PAGE_LOAD)->assertPresent("[data-test=\"order-{$number}\"]");
+    expect($page->script("document.querySelector('[data-test=\"order-tabs\"]').dataset.variant"))->toBe('line')
+        ->and($page->script("document.querySelector('[data-test=\"count-ALL\"]').textContent"))->toBe('1');
+
+    // The total, the row's last cell, is no link of its own: the number's link stretches over the row.
+    $page->click("[data-test=\"order-{$number}\"] td:last-child");
+    expect(browserUntil($page, "window.location.pathname === '/admin/orders/{$order}'"))->toBeTrue('the row does not open the order');
+
+    // On a phone the tabs scroll inside their own bar, each with its count, and the page never sideways.
+    $page->resize(375, 812);
+    $page->navigate('/admin/orders', BROWSER_PAGE_LOAD)->assertPresent('[data-test="order-tabs"]');
+    expect(browserSoon($page, "/^[0-9,]+$/.test(document.querySelector('[data-test=\"count-WAITING_APPROVAL\"]')?.textContent ?? '')"))->toBeTrue()
+        ->and($page->script("(() => { const bar = document.querySelector('[data-test=\"order-tabs\"]').getBoundingClientRect(); return bar.left >= 0 && bar.right <= window.innerWidth; })()"))->toBeTrue('the tabs are wider than the screen')
+        ->and(salesOrderScreensWide($page))->toBe('', 'the orders list scrolls sideways');
+    $page->assertNoJavaScriptErrors();
+});
+
 it('draws the list, an order and its packing slip at a phone\'s width with nothing scrolling sideways', function () {
     $order = salesOrderScreensOrder();
     $number = (string) DB::table('sales.orders')->where('id', $order)->value('number');

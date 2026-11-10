@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Sales\Infrastructure\Eloquent;
 
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Query\Builder;
 use Modules\Sales\Application\Query\Staff\StaffReads;
 use Shared\Domain\Text\LatinDigits;
 use stdClass;
@@ -12,6 +13,20 @@ use stdClass;
 /** `StaffReads` in SQL (sales.md §3, §5). */
 final readonly class DatabaseStaffReads implements StaffReads
 {
+    /**
+     * Each filter but ALL as the SQL condition the list and its counts both read - one place, so a tab's count is
+     * always how many rows it lists.
+     */
+    private const array FILTERED = [
+        self::UNPAID => 'o.paid_minor - o.refunded_minor < o.due_minor',
+        self::SHORT => 'o.short_of_stock_at IS NOT NULL',
+        self::WAITING_APPROVAL => "o.status = 'PENDING_APPROVAL'",
+        self::TO_SHIP => "o.status = 'APPROVED' AND o.shipment_status = 'NOT_SHIPPED'",
+        self::SHIPPED => "o.shipment_status = 'SHIPPED'",
+        self::TRANSFERS_TO_CHECK => "o.way_to_pay = 'BANK_TRANSFER' AND o.paid_minor - o.refunded_minor < o.due_minor"
+            .' AND EXISTS (SELECT 1 FROM sales.transfer_documents AS d WHERE d.order_id = o.id)',
+    ];
+
     public function __construct(
         private ConnectionInterface $db,
     ) {}
@@ -24,20 +39,54 @@ final readonly class DatabaseStaffReads implements StaffReads
                 'o.order_total_minor', 'o.due_minor', 'o.paid_minor', 'o.refunded_minor', 'o.short_of_stock_at', 'o.may_ship_unpaid', 'o.shipping_fee_pending', 'o.way_to_pay'])
             ->selectRaw('(SELECT min(d.uploaded_at) FROM sales.transfer_documents d WHERE d.order_id = o.id) AS first_transfer_at');
 
+        $this->narrowed($query, $storeIds, $q, $customerId);
+
+        if (isset(self::FILTERED[$filter])) {
+            $query->whereRaw('('.self::FILTERED[$filter].')');
+        }
+
+        if ($afterOrderId !== null) {
+            $after = $this->db->table('sales.orders')->where('id', $afterOrderId)->first(['placed_at', 'id']);
+
+            if (! $after instanceof stdClass) {
+                return [];
+            }
+
+            $query->whereRaw('(o.placed_at, o.id) < (?, ?)', [(string) $after->placed_at, (string) $after->id]);
+        }
+
+        return array_values(array_map(static fn (stdClass $row): array => (array) $row, $query->get()->all()));
+    }
+
+    public function counts(?array $storeIds, ?string $q = null): array
+    {
+        // One query: each filter's count beside the others, from the same conditions the list reads.
+        $query = $this->db->table('sales.orders AS o')->selectRaw('count(*) AS "'.self::ALL.'"');
+
+        foreach (self::FILTERED as $filter => $condition) {
+            $query->selectRaw("count(*) FILTER (WHERE {$condition}) AS \"{$filter}\"");
+        }
+
+        $row = $this->narrowed($query, $storeIds, $q, null)->first();
+        $counts = [];
+
+        foreach (self::FILTERS as $filter) {
+            $counts[$filter] = $row instanceof stdClass ? (int) ($row->{$filter} ?? 0) : 0;
+        }
+
+        return $counts;
+    }
+
+    /**
+     * These stores (null: every store), one customer's orders, and the search box.
+     *
+     * @param  list<string>|null  $storeIds
+     */
+    private function narrowed(Builder $query, ?array $storeIds, ?string $q, ?string $customerId): Builder
+    {
         if ($storeIds !== null) {
             $query->whereIn('o.store_id', $storeIds);
         }
-
-        match ($filter) {
-            self::UNPAID => $query->whereRaw('o.paid_minor - o.refunded_minor < o.due_minor'),
-            self::SHORT => $query->whereNotNull('o.short_of_stock_at'),
-            self::WAITING_APPROVAL => $query->where('o.status', 'PENDING_APPROVAL'),
-            self::TO_SHIP => $query->where('o.status', 'APPROVED')->where('o.shipment_status', 'NOT_SHIPPED'),
-            self::SHIPPED => $query->where('o.shipment_status', 'SHIPPED'),
-            self::TRANSFERS_TO_CHECK => $query->where('o.way_to_pay', 'BANK_TRANSFER')->whereRaw('o.paid_minor - o.refunded_minor < o.due_minor')
-                ->whereExists(fn ($documents) => $documents->from('sales.transfer_documents AS d')->whereColumn('d.order_id', 'o.id')),
-            default => $query,
-        };
 
         if ($customerId !== null) {
             $query->where('o.customer_id', $customerId);
@@ -54,17 +103,7 @@ final readonly class DatabaseStaffReads implements StaffReads
                 ->when(strlen($digits) >= 4, fn ($phone) => $phone->orWhereRaw("regexp_replace(o.customer_phone, '[^0-9]', '', 'g') LIKE ?", ['%'.$digits.'%'])));
         }
 
-        if ($afterOrderId !== null) {
-            $after = $this->db->table('sales.orders')->where('id', $afterOrderId)->first(['placed_at', 'id']);
-
-            if (! $after instanceof stdClass) {
-                return [];
-            }
-
-            $query->whereRaw('(o.placed_at, o.id) < (?, ?)', [(string) $after->placed_at, (string) $after->id]);
-        }
-
-        return array_values(array_map(static fn (stdClass $row): array => (array) $row, $query->get()->all()));
+        return $query;
     }
 
     public function order(string $orderId): ?array
