@@ -133,14 +133,18 @@ describe('the real probe', function () {
         Http::fake([
             'https://touchwood.test/sa/ar/products/'.rawurlencode('كرسي') => Http::response('', 301, ['Location' => 'https://touchwood.test/sa/ar/products/'.rawurlencode('مقعد')]),
             'https://touchwood.test/sa/ar/away' => Http::response('', 302, ['Location' => 'https://elsewhere.test/x']),
+            'https://touchwood.test/sa/ar/dots' => Http::response('', 301, ['Location' => 'https://touchwood.test/sa/ar/../../admin']),
             'https://touchwood.test/sa/ar' => Http::response('ok', 200),
         ]);
         $probe = app(HttpAddressProbe::class);
 
+        // A Location with dot words is read as no address of ours (PR 4 review).
+        expect($probe->answer('/sa/ar/dots'))->toBe(['status' => 301, 'location' => null]);
+
         expect($probe->answer('/sa/ar/products/كرسي'))->toBe(['status' => 301, 'location' => '/sa/ar/products/مقعد'])
             ->and($probe->answer('/sa/ar/away'))->toBe(['status' => 302, 'location' => null])
             ->and($probe->answer('/sa/ar'))->toBe(['status' => 200, 'location' => null]);
-        Http::assertSentCount(3);
+        Http::assertSentCount(4);
     });
 
     it('answers nothing when the site gives no answer', function () {

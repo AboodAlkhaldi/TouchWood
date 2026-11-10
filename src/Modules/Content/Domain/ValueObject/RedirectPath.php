@@ -13,7 +13,8 @@ use Shared\Domain\Text\LatinDigits;
  * Arabic-Indic digits still matches it.
  *
  * Null for what can never be asked about (`InMemoryUnmatchedAddresses::pathOf`): not UTF-8 once decoded, or holding
- * a control character or a backslash - and for an empty path or the front page itself.
+ * a control character or a backslash - and for an empty path, the front page itself, or one with an empty word or a
+ * dot word (`.`, `..`) in it.
  */
 final class RedirectPath
 {
@@ -56,7 +57,15 @@ final class RedirectPath
 
         $path = LatinDigits::of(rtrim($path, '/'));
 
-        return $path === '' || mb_strlen($path) > self::MAX ? null : $path;
+        // No empty word (`/a//b`) and no dot word (`/sa/ar/../../admin`, `%2e%2e` once decoded): a browser resolves
+        // dot words in a Location, so a line could send a visitor to an address the rules never saw (PR 4 review).
+        foreach (explode('/', substr($path, 1)) as $word) {
+            if ($word === '' || $word === '.' || $word === '..') {
+                return null;
+            }
+        }
+
+        return mb_strlen($path) > self::MAX ? null : $path;
     }
 
     /** @return list<string> the path's words, without the empty one before the first slash */

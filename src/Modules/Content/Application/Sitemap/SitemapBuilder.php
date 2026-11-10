@@ -109,13 +109,20 @@ final readonly class SitemapBuilder
      */
     private function urls(StoreDto $store, array $onStores, string $root): Generator
     {
-        // The home: every on store's, in both languages, named by language and country.
+        // The home: every on store's, in both languages, named by language and country. A store's country is not
+        // unique (platform.stores holds no such rule), and one name may name one page: of two on stores in one
+        // country, the first in the stores' order is named for it, and a later one's home names only its own two
+        // languages, plainly (the build's pick, PR 4 review).
         $homes = [];
 
         foreach ($onStores as $other) {
             foreach (['ar', 'en'] as $locale) {
-                $homes[$locale.'-'.strtoupper($other->countryCode)] = "{$root}/{$other->code}/{$locale}";
+                $homes[$locale.'-'.strtoupper($other->countryCode)] ??= "{$root}/{$other->code}/{$locale}";
             }
+        }
+
+        if (($homes['ar-'.strtoupper($store->countryCode)] ?? null) !== "{$root}/{$store->code}/ar") {
+            $homes = ['ar' => "{$root}/{$store->code}/ar", 'en' => "{$root}/{$store->code}/en"];
         }
 
         foreach (['ar', 'en'] as $locale) {

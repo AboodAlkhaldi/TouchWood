@@ -8,6 +8,7 @@ use Closure;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use LogicException;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -43,6 +44,22 @@ final readonly class CanonicalHost
         }
 
         return new RedirectResponse($canonical['root'].$request->getRequestUri(), $request->isMethodSafe() ? 301 : 308);
+    }
+
+    /**
+     * Refuses an APP_URL on the `www.` host (PR 4 review): every address the site builds on it would be the other
+     * host's, each answered with a redirect. Checked when the middleware is registered, so a server so configured
+     * never starts. An APP_URL with no host (an unconfigured app, lesson 30) passes.
+     *
+     * @throws LogicException
+     */
+    public static function assertAppUrl(mixed $url): void
+    {
+        $host = is_string($url) ? parse_url($url, PHP_URL_HOST) : null;
+
+        if (is_string($host) && str_starts_with(strtolower($host), 'www.')) {
+            throw new LogicException("APP_URL names the host \"{$host}\". The site's canonical host is without \"www.\" (content.md §1.14, Q13): set APP_URL to the address without it; the www. host answers a redirect there.");
+        }
     }
 
     /**

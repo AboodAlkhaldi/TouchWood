@@ -8,6 +8,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Modules\Content\Application\Command\ApplyRedirectSheet\ApplyRedirectSheet;
 use Modules\Content\Application\Command\ApplyRedirectSheet\ApplyRedirectSheetHandler;
+use Modules\Content\Application\Command\PruneRedirectUploads\PruneRedirectUploads;
+use Modules\Content\Application\Command\PruneRedirectUploads\PruneRedirectUploadsHandler;
 use Modules\Content\Application\Command\UploadRedirectSheet\UploadRedirectSheet;
 use Modules\Content\Application\Command\UploadRedirectSheet\UploadRedirectSheetHandler;
 use Modules\Content\Application\Query\Redirects\RedirectsHandler;
@@ -201,5 +203,17 @@ describe('applying', function () {
         // The next upload removes it.
         redirectSheetUpload([['Old Address', 'New Address'], ['/b', '/sa/ar']]);
         expect(DB::table('content.redirect_uploads')->where('id', $id)->exists())->toBeFalse();
+    });
+
+    it('removes sheets older than 24 hours each hour, with no upload needed', function () {
+        $old = redirectSheetUpload([['Old Address', 'New Address'], ['/new', '/sa/ar/y']]);
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addHours(24)->addSecond());
+        $fresh = redirectSheetUpload([['Old Address', 'New Address'], ['/b', '/sa/ar']]);
+        // The upload removed the old one already; plant it back to see the hour's job remove it.
+        DB::table('content.redirect_uploads')->insert(['id' => $old, 'lines' => '[]', 'state' => 'CHECKED', 'created_at' => CarbonImmutable::now()->subHours(25)]);
+
+        Fx::asSystem(fn () => app(PruneRedirectUploadsHandler::class)->handle(new PruneRedirectUploads));
+
+        expect(DB::table('content.redirect_uploads')->pluck('id')->all())->toBe([$fresh]);
     });
 });

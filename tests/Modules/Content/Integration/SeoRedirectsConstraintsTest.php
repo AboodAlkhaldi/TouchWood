@@ -70,6 +70,11 @@ it('refuses what each CHECK is for', function (string $table, array $change, str
     'a new address of no shop path' => ['redirects', ['new_path' => '/blog'], 'redirects_new'],
     'a new address of no language' => ['redirects', ['new_path' => '/sa/fr/x'], 'redirects_new'],
     'a new address ending in a slash' => ['redirects', ['new_path' => '/sa/ar/'], 'redirects_new'],
+    'an old address with a dot-dot word' => ['redirects', ['old_path' => '/a/../b'], 'redirects_words'],
+    'an old address with an empty word' => ['redirects', ['old_path' => '/a//b'], 'redirects_words'],
+    'a new address with dot-dot words' => ['redirects', ['new_path' => '/sa/ar/../../admin'], 'redirects_words'],
+    'a new address with a dot word' => ['redirects', ['new_path' => '/sa/ar/./x'], 'redirects_words'],
+    'a final address with dot-dot words' => ['redirects', ['check_result' => 'FORWARDS', 'checked_at' => CarbonImmutable::now(), 'check_final_path' => '/sa/ar/..'], 'redirects_words'],
     'visits below 0' => ['redirects', ['visits' => -1], 'redirects_visits'],
     'a source of none' => ['redirects', ['source' => 'IMPORT'], 'redirects_source'],
     'a mark of none' => ['redirects', ['check_result' => 'MAYBE', 'checked_at' => CarbonImmutable::now()], 'redirects_check'],
@@ -94,9 +99,12 @@ describe('the code refuses first', function () {
         Rx::superAdmin();
         DB::statement('ALTER TABLE content.redirects DROP CONSTRAINT redirects_old');
         DB::statement('ALTER TABLE content.redirects DROP CONSTRAINT redirects_new');
+        DB::statement('ALTER TABLE content.redirects DROP CONSTRAINT redirects_words');
 
         expect(fn () => app(AddRedirectHandler::class)->handle(new AddRedirect('/', '/sa/ar')))->toThrow(ContentError::class)
             ->and(fn () => app(AddRedirectHandler::class)->handle(new AddRedirect('/old', '/blog')))->toThrow(ContentError::class)
+            ->and(fn () => app(AddRedirectHandler::class)->handle(new AddRedirect('/old', '/sa/ar/../../admin')))->toThrow(ContentError::class)
+            ->and(fn () => app(AddRedirectHandler::class)->handle(new AddRedirect('/a/../b', '/sa/ar')))->toThrow(ContentError::class)
             ->and(DB::table('content.redirects')->count())->toBe(0);
     });
 

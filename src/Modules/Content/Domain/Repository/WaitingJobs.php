@@ -17,6 +17,12 @@ interface WaitingJobs
     public const string CHECK_REDIRECTS = 'CHECK_REDIRECTS';
 
     /**
+     * A job queued longer ago than this is taken as lost and no longer waits (the build's pick, PR 4 review): a
+     * sitemap build takes minutes and Check Addresses a page of lines a job, so six hours is far past either.
+     */
+    public const int STALE_HOURS = 6;
+
+    /**
      * Marks the job as queued, unless one waits already. Under the row's lock.
      *
      * @return bool whether it was marked, so a job is to be queued

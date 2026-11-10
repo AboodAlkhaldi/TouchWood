@@ -2,11 +2,13 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonImmutable;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Content\Application\Command\BuildSitemaps\BuildSitemaps;
@@ -16,6 +18,9 @@ use Modules\Content\Application\Command\PublishPage\PublishPageHandler;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\Sitemap\SitemapBuilder;
 use Modules\Content\Infrastructure\Files\LocalSitemapFiles;
+use Modules\Content\Infrastructure\Queue\BuildSitemapsJob;
+use Modules\Content\Infrastructure\Queue\OneSitemapBuild;
+use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
@@ -179,4 +184,122 @@ it('serves the files with no session and no store entered', function () {
     $response = get('/sa/sitemap.xml');
 
     expect($response->headers->getCookies())->toBe([]);
+});
+
+describe('the PR 4 review', function () {
+    it('writes a file an XML reader reads as the sitemap protocol has it', function () {
+        sitemapProduct();
+        sitemapBuild();
+
+        $xml = simplexml_load_string((string) get('/sa/sitemap.xml')->getContent());
+        expect($xml)->toBeInstanceOf(SimpleXMLElement::class);
+        $xml = $xml ?: throw new LogicException('Not XML.');
+
+        $xml->registerXPathNamespace('s', 'http://www.sitemaps.org/schemas/sitemap/0.9');
+        $xml->registerXPathNamespace('x', 'http://www.w3.org/1999/xhtml');
+        $urls = $xml->xpath('/s:urlset/s:url') ?: [];
+
+        // The home 2, a category 2, a brand 2, a product 2.
+        expect($urls)->toHaveCount(8);
+
+        foreach ($urls as $url) {
+            $url->registerXPathNamespace('s', 'http://www.sitemaps.org/schemas/sitemap/0.9');
+            $url->registerXPathNamespace('x', 'http://www.w3.org/1999/xhtml');
+            $loc = (string) ($url->xpath('s:loc')[0] ?? '');
+            $links = array_map(static fn (SimpleXMLElement $link): string => (string) $link['href'], $url->xpath('x:link[@rel="alternate"]') ?: []);
+
+            // Each address names itself among its alternates, each alternate an address of the site.
+            expect($loc)->toStartWith('https://touchwood.test/')
+                ->and($links)->toContain($loc);
+
+            foreach ($links as $href) {
+                expect($href)->toStartWith('https://touchwood.test/');
+            }
+        }
+
+        $index = simplexml_load_string((string) get('/sitemap.xml')->getContent()) ?: throw new LogicException('Not XML.');
+        $index->registerXPathNamespace('s', 'http://www.sitemaps.org/schemas/sitemap/0.9');
+        expect(array_map('strval', $index->xpath('/s:sitemapindex/s:sitemap/s:loc') ?: []))->toContain('https://touchwood.test/sa/sitemap.xml');
+    });
+
+    it('lists the blog\'s and the projects\' lists only once a post or a project is published', function () {
+        $store = Fx::storeId('sa');
+        $now = CarbonImmutable::now();
+        sitemapBuild();
+        $locs = sitemapLocs((string) get('/sa/sitemap.xml')->getContent());
+        expect(array_values(array_filter($locs, static fn (string $loc): bool => str_contains($loc, '/blog') || str_contains($loc, '/projects'))))->toBe([]);
+
+        $post = strtolower((string) Str::ulid());
+        DB::table('content.blog_posts')->insert(['id' => $post, 'store_id' => $store, 'status' => 'PUBLISHED', 'published_at' => $now, 'cover_media_id' => Cx::image(), 'created_at' => $now, 'updated_at' => $now]);
+        $project = strtolower((string) Str::ulid());
+        DB::table('content.projects')->insert(['id' => $project, 'store_id' => $store, 'status' => 'PUBLISHED', 'published_at' => $now, 'created_at' => $now, 'updated_at' => $now]);
+
+        foreach (['ar' => 'دليل', 'en' => 'guide'] as $locale => $slug) {
+            DB::table('content.blog_post_translations')->insert(['post_id' => $post, 'locale' => $locale, 'store_id' => $store, 'title' => 'Guide', 'slug' => $slug, 'body' => '{"blocks": []}']);
+            DB::table('content.project_translations')->insert(['project_id' => $project, 'locale' => $locale, 'store_id' => $store, 'title' => 'Villa', 'slug' => "villa-{$locale}", 'body' => '{"blocks": []}']);
+        }
+
+        sitemapBuild();
+        $locs = sitemapLocs((string) get('/sa/sitemap.xml')->getContent());
+
+        expect($locs)->toContain('https://touchwood.test/sa/ar/blog', 'https://touchwood.test/sa/en/blog', 'https://touchwood.test/sa/ar/projects', 'https://touchwood.test/sa/en/projects')
+            ->toContain('https://touchwood.test/sa/en/blog/guide', 'https://touchwood.test/sa/ar/projects/villa-ar');
+    });
+
+    it('serves a store\'s second file, and names both in the index', function () {
+        $store = Fx::storeId('sa');
+        Storage::disk(LocalSitemapFiles::DISK)->put('content/sitemaps/one.xml', '<urlset>1</urlset>');
+        Storage::disk(LocalSitemapFiles::DISK)->put('content/sitemaps/two.xml', '<urlset>2</urlset>');
+        DB::table('content.sitemaps')->insert([
+            ['store_id' => $store, 'part' => 1, 'file_key' => 'content/sitemaps/one.xml', 'urls' => 50000, 'built_at' => CarbonImmutable::now()],
+            ['store_id' => $store, 'part' => 2, 'file_key' => 'content/sitemaps/two.xml', 'urls' => 3, 'built_at' => CarbonImmutable::now()],
+        ]);
+
+        expect(sitemapLocs((string) get('/sitemap.xml')->getContent()))->toBe(['https://touchwood.test/sa/sitemap.xml', 'https://touchwood.test/sa/sitemap-2.xml'])
+            ->and((string) get('/sa/sitemap.xml')->getContent())->toBe('<urlset>1</urlset>')
+            ->and((string) get('/sa/sitemap-2.xml')->getContent())->toBe('<urlset>2</urlset>');
+        get('/sa/sitemap-3.xml')->assertNotFound();
+    });
+
+    it('builds one at a time: a second build while one holds the lock waits in the queue, building nothing', function () {
+        expect((new BuildSitemapsJob)->middleware()[0] ?? null)->toBeInstanceOf(OneSitemapBuild::class);
+
+        // Another worker's build, on a connection of its own, holds the lock.
+        config(['database.connections.pgsql_other_worker' => config('database.connections.pgsql')]);
+        $other = DB::connection('pgsql_other_worker');
+        $other->select('SELECT pg_advisory_lock(hashtext(?))', [OneSitemapBuild::KEY]);
+
+        try {
+            BuildSitemapsJob::dispatch();
+            expect(DB::table('content.sitemaps')->count())->toBe(0);
+        } finally {
+            $other->select('SELECT pg_advisory_unlock(hashtext(?))', [OneSitemapBuild::KEY]);
+            DB::purge('pgsql_other_worker');
+        }
+
+        BuildSitemapsJob::dispatch();
+        expect(DB::table('content.sitemaps')->count())->toBe(3);
+
+        // The lock is let go when the build ends: the other worker takes it at once.
+        $other = DB::connection('pgsql_other_worker');
+        expect((bool) ($other->selectOne('SELECT pg_try_advisory_lock(hashtext(?)) AS got', [OneSitemapBuild::KEY])?->got))->toBeTrue();
+        $other->select('SELECT pg_advisory_unlock(hashtext(?))', [OneSitemapBuild::KEY]);
+        DB::purge('pgsql_other_worker');
+    });
+
+    it('names a home for its country once, when two on stores share a country', function () {
+        // A store's country is not unique: the UAE store set to the base store's country.
+        DB::table('platform.stores')->where('code', 'ae')->update(['country_code' => 'SA']);
+        app(StoreDirectory::class)->invalidate();
+        sitemapBuild();
+
+        preg_match('#<url><loc>https://touchwood.test/sa/ar</loc>(.*?)</url>#', (string) get('/sa/sitemap.xml')->getContent(), $sa);
+        preg_match('#<url><loc>https://touchwood.test/ae/ar</loc>(.*?)</url>#', (string) get('/ae/sitemap.xml')->getContent(), $ae);
+
+        expect(substr_count($sa[1] ?? '', 'hreflang="ar-SA"'))->toBe(1)
+            ->and($sa[1] ?? '')->toContain('hreflang="ar-SA" href="https://touchwood.test/sa/ar"')
+            ->and(str_contains($sa[1] ?? '', '/ae/'))->toBeFalse()
+            // The later store's home names only its own two languages.
+            ->and($ae[1] ?? '')->toBe('<xhtml:link rel="alternate" hreflang="ar" href="https://touchwood.test/ae/ar"/><xhtml:link rel="alternate" hreflang="en" href="https://touchwood.test/ae/en"/>');
+    });
 });

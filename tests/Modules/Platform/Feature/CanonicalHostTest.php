@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Modules\Platform\Presentation\Http\Middleware\CanonicalHost;
 
 use function Pest\Laravel\call;
 use function Pest\Laravel\get;
@@ -53,6 +54,25 @@ describe('the other host', function () {
         config(['app.url' => 'https://www.touchwood.test']);
 
         get('https://www.touchwood.test/sa')->assertStatus(301)->assertHeader('Location', 'https://touchwood.test/sa');
+    });
+});
+
+describe('APP_URL on the www. host (PR 4 review)', function () {
+    it('is refused when the middleware is registered, saying what to set', function () {
+        expect(fn () => CanonicalHost::assertAppUrl('https://www.touchwood.test'))->toThrow(LogicException::class, 'set APP_URL to the address without it')
+            ->and(fn () => CanonicalHost::assertAppUrl('https://WWW.touchwood.test:8443/x'))->toThrow(LogicException::class);
+    });
+
+    it('passes an APP_URL without www., and an app with no APP_URL yet (lesson 30)', function (mixed $url) {
+        CanonicalHost::assertAppUrl($url);
+
+        expect(true)->toBeTrue();
+    })->with(['https://touchwood.test', 'http://localhost', 'https://staging.touchwood.test', '', null]);
+
+    it('is what the provider checks at boot', function () {
+        $provider = (string) file_get_contents(base_path('src/Modules/Platform/Infrastructure/PlatformServiceProvider.php'));
+
+        expect($provider)->toContain("CanonicalHost::assertAppUrl(\$this->app->make('config')->get('app.url'));");
     });
 });
 

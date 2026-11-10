@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Schema;
 | content.md §1.15, §5, W11: the old site's addresses and where each now goes. The old address is the key, decoded
 | and without its trailing slash, compared byte for byte (`COLLATE "C"`); the new one a full shop path. Its visits
 | counted after each answer; the last Check Addresses' mark, and the final address a forwarding one ends on.
-| Every rule is the code's first (`RedirectRules`); the CHECKs on the nullable marks are written so a NULL can't
-| pass (lesson 35).
+| Every rule is the code's first (`RedirectRules`, `RedirectPath`); the CHECKs on the nullable marks are written so a
+| NULL can't pass (lesson 35). No address holds an empty word or a dot word (`/../`), which a browser would resolve.
 */
 
 return new class extends Migration
@@ -32,9 +32,10 @@ return new class extends Migration
             $table->timestampsTz();
 
             $table->primary('old_path', 'redirects_pkey');
-            // W11's order: most visited first.
-            $table->index(['visits', 'old_path'], 'redirects_visits_idx');
         });
+
+        // W11's order: most visited first, then by old address (the list's keyset).
+        DB::statement('CREATE INDEX redirects_visits_idx ON content.redirects (visits DESC, old_path)');
 
         DB::statement(<<<'SQL'
             ALTER TABLE content.redirects
@@ -44,7 +45,11 @@ return new class extends Migration
                 ADD CONSTRAINT redirects_source CHECK (source IN ('HAND', 'SHEET')),
                 ADD CONSTRAINT redirects_check CHECK (check_result IS NULL OR check_result IN ('FINE', 'FORWARDS', 'NOT_FOUND', 'STORE_OFF')),
                 ADD CONSTRAINT redirects_checked CHECK ((check_result IS NULL) = (checked_at IS NULL)),
-                ADD CONSTRAINT redirects_final CHECK (COALESCE(check_result = 'FORWARDS', false) = (check_final_path IS NOT NULL))
+                ADD CONSTRAINT redirects_final CHECK (COALESCE(check_result = 'FORWARDS', false) = (check_final_path IS NOT NULL)),
+                ADD CONSTRAINT redirects_words CHECK (
+                    strpos(old_path, '//') = 0 AND old_path !~ '(^|/)\.\.?(/|$)'
+                    AND strpos(new_path, '//') = 0 AND new_path !~ '(^|/)\.\.?(/|$)'
+                    AND (check_final_path IS NULL OR (strpos(check_final_path, '//') = 0 AND check_final_path !~ '(^|/)\.\.?(/|$)')))
             SQL);
     }
 

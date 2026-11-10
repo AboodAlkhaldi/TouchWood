@@ -558,7 +558,8 @@ Schema `content` (added to `search_path` in `config/database.php`, or `migrate:f
 | `content.seo_defaults` | `store_id` PK · per-language site name, title pattern, description · share image RESTRICT · `robots_extra` text |
 | `content.sitemaps` | (`store_id`, `part`) PK · `file_key` · `urls` · `built_at`. File in private storage, served by the routes |
 | `content.redirects` | `old_path` PK, trimmed and decoded (`COLLATE "C"`) · `new_path` · `visits` bigint default 0 · `last_visit_at` NULL · `source` CHECK (`HAND`, `SHEET`) · `check_result` NULL · `check_final_path` NULL · `checked_at` NULL · `created_by` · timestamps |
-| `content.redirect_uploads` | `id` · `lines` jsonb (result per line) · `state` · `created_by` · `created_at`. Dropped after 24 hours |
+| `content.redirect_uploads` | `id` · `lines` jsonb (result per line) · `state` · `created_by` · `created_at` · `applied_at` NULL (set with `APPLIED`; as built, PR 4). Dropped after 24 hours, by the hourly `PruneRedirectUploadsJob` |
+| `content.waiting_jobs` | *As built (PR 4, the build's pick):* `job` PK CHECK (`BUILD_SITEMAPS`, `CHECK_REDIRECTS`) · `queued_at` NULL (one is queued: W10's and W11's buttons disabled, a second ask queues nothing; older than 6 hours, taken as lost) · `wanted_at` NULL, `wanted_now` (a change wants a sitemap build; a store switched on or off: at the next tick) · `extra_on` date NULL (the UTC day of the one extra build for Catalog's changes, §9.3 #35). A row missing is made again by the first ask |
 
 Campaign prices are Pricing's own tables (§2.3).
 
@@ -737,6 +738,20 @@ The owner was told "tell me any you'd reject; the rest stand" and rejected none 
 | 33 | Live theme may be edited; preview for the presser alone | W5b | Fix a typo mid-Ramadan; nobody else sees a draft |
 | 34 | Blog link hidden while there is no post; campaign page 301s home after its end | §4.5 | No empty pages; no 404 from an old ad |
 | 35 | Catalog changes rebuild the sitemap at most once a day beyond the nightly | §6 | Products change often |
+
+### 9.3a As built: SEO, sitemaps, robots, the canonical host, redirects (PR 4, 2026-11-10)
+
+The build's picks where the text above leaves the detail open, marked so for the owner to reject; none changes a rule.
+
+| # | As built | Where |
+|---|---|---|
+| B1 | The other host answers **301 to a read (GET, HEAD) and 308 to anything else**, which keeps a form's or a provider's body. An `APP_URL` on the `www.` host is refused at boot | §1.14, L5 |
+| B2 | The sitemaps are built **nightly at 03:10 (Riyadh), on W10's Rebuild Sitemap, and by a 10-minute tick** that queues the build a change wants: a store switched on or off at the next tick; Catalog's changes at most once a **UTC day** beyond the nightly. Nothing is built in the request that made the change. One build at a time (a shared lock) | §1.14, §6, §9.3 #35 |
+| B3 | Catalog's entries are what a guest finds listed: products orderable now, the guest's menu's categories, active brands shown in the default listings. **A product only sold out is left out until it is back** (parked for the owner) | §1.14, C3 |
+| B4 | The blog's and the projects' list pages are in a sitemap once a post or project is published; Content's items carry their last change, the home none. Two on stores of one country: the first in the stores' order is named for it among the homes' alternates; a later one's home names its own two languages | §1.14, Q21 |
+| B5 | Robots lines typed per store are shop paths without store and language (`/brands/old`), written for both languages, non-ASCII percent-encoded | §1.14, W10 |
+| B6 | Redirects: **a new address carries no query string**; **a full URL on this site's host (or its `www.` twin) is accepted as input** and kept as its path (Search Console exports full URLs); a path typed without its first slash is read with it; **no empty word and no `.` or `..` word** in either address; digits kept 0-9 on the line and on the lookup; Change keeps a line's visits; Check Addresses' marks are not audited; a job queued more than 6 hours ago is taken as lost | §1.15, W11 |
+| B7 | The SEO defaults carry no version (last save wins, §1.1 rule 12 names none), and their share image always blocks its file's delete (they are live once saved) | §1.1 rules 10, 12 |
 
 ### 9.4 Amendments other documents would need
 

@@ -60,6 +60,7 @@ use Modules\Content\Infrastructure\Listener\QueueSitemapBuild;
 use Modules\Content\Infrastructure\Listener\WriteStartingSections;
 use Modules\Content\Infrastructure\Media\ContentMediaUsage;
 use Modules\Content\Infrastructure\Queue\BuildSitemapsJob;
+use Modules\Content\Infrastructure\Queue\PruneRedirectUploadsJob;
 use Modules\Content\Infrastructure\Queue\QueuedContentJobs;
 use Modules\Content\Infrastructure\Queue\QueueWantedSitemapsJob;
 use Modules\Content\Infrastructure\Sheets\OpenSpoutSheetReader;
@@ -151,6 +152,8 @@ final class ContentServiceProvider extends ServiceProvider
             $schedule->job(new BuildSitemapsJob)->timezone('Asia/Riyadh')->dailyAt('03:10')->onOneServer();
             // A build a change wants, queued when it may run.
             $schedule->job(new QueueWantedSitemapsJob)->everyTenMinutes()->onOneServer();
+            // Checked redirect sheets nobody applied, gone after 24 hours.
+            $schedule->job(new PruneRedirectUploadsJob)->hourly()->onOneServer();
         });
 
         if (! $this->app->routesAreCached()) {

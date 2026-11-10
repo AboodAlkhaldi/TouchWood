@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Console\Scheduling\Schedule;
@@ -16,9 +17,12 @@ use Modules\Content\Application\Command\BuildSitemaps\BuildSitemaps;
 use Modules\Content\Application\Command\BuildSitemaps\BuildSitemapsHandler;
 use Modules\Content\Application\Command\QueueWantedSitemaps\QueueWantedSitemaps;
 use Modules\Content\Application\Command\QueueWantedSitemaps\QueueWantedSitemapsHandler;
+use Modules\Content\Application\Moments;
+use Modules\Content\Domain\Repository\WaitingJobs;
 use Modules\Content\Infrastructure\Files\LocalSitemapFiles;
 use Modules\Content\Infrastructure\Listener\QueueSitemapBuild;
 use Modules\Content\Infrastructure\Queue\BuildSitemapsJob;
+use Modules\Content\Infrastructure\Queue\PruneRedirectUploadsJob;
 use Modules\Content\Infrastructure\Queue\QueueWantedSitemapsJob;
 use Modules\Platform\Application\Command\ActivateStore\ActivateStore;
 use Modules\Platform\Application\Command\ActivateStore\ActivateStoreHandler;
@@ -38,6 +42,9 @@ use function Pest\Laravel\seed;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    // A day of its own, mid-morning UTC, so "the next day" is never a question of when the test runs.
+    CarbonImmutable::setTestNow('2026-11-05 10:00:00');
+    Carbon::setTestNow(CarbonImmutable::now());
     seed(PlatformSeeder::class);
     Queue::fake();
     Storage::fake(LocalSitemapFiles::DISK);
@@ -134,13 +141,48 @@ it('queues nothing while one waits, and a build under way leaves a later change 
     expect(sitemapQueueTick())->toBeTrue();
 });
 
+describe('a job lost on the way (PR 4 review)', function () {
+    it('takes a job queued more than six hours ago as lost: it no longer waits, and the next ask queues one', function (string $job) {
+        $ask = static fn (): bool => DB::transaction(fn (): bool => app(WaitingJobs::class)->ask($job, Moments::now()));
+
+        expect($ask())->toBeTrue()->and($ask())->toBeFalse();
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addHours(WaitingJobs::STALE_HOURS)->subSecond());
+        expect($ask())->toBeFalse()->and(app(WaitingJobs::class)->waitingSince($job))->not->toBeNull();
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(2));
+        expect(app(WaitingJobs::class)->waitingSince($job))->toBeNull()->and($ask())->toBeTrue();
+    })->with([WaitingJobs::BUILD_SITEMAPS, WaitingJobs::CHECK_REDIRECTS]);
+
+    it('takes a wanted build up past a lost one', function () {
+        sitemapQueueStoreChange();
+        expect(sitemapQueueTick())->toBeTrue();
+        sitemapQueueStoreChange();
+        expect(sitemapQueueTick())->toBeFalse();
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addHours(WaitingJobs::STALE_HOURS)->addSecond());
+        expect(sitemapQueueTick())->toBeTrue();
+    });
+
+    it('makes the job\'s row again if it is missing, to ask and to want', function () {
+        DB::table('content.waiting_jobs')->delete();
+
+        sitemapQueueStoreChange();
+        expect(DB::table('content.waiting_jobs')->where('job', 'BUILD_SITEMAPS')->value('wanted_now'))->toBeTrue()
+            ->and(DB::transaction(fn (): bool => app(WaitingJobs::class)->ask(WaitingJobs::CHECK_REDIRECTS, Moments::now())))->toBeTrue()
+            ->and(DB::table('content.waiting_jobs')->count())->toBe(2);
+    });
+});
+
 it('schedules the nightly build at 03:10 and the tick every ten minutes, each its own lock', function () {
     $events = collect(app(Schedule::class)->events());
     $nightly = $events->first(fn ($event): bool => $event->description === BuildSitemapsJob::class);
     $tick = $events->first(fn ($event): bool => $event->description === QueueWantedSitemapsJob::class);
+    $prune = $events->first(fn ($event): bool => $event->description === PruneRedirectUploadsJob::class);
 
     expect($nightly?->expression)->toBe('10 3 * * *')
         ->and($nightly?->timezone)->toBe('Asia/Riyadh')
         ->and($tick?->expression)->toBe('*/10 * * * *')
-        ->and($nightly?->mutexName())->not->toBe($tick?->mutexName());
+        ->and($prune?->expression)->toBe('0 * * * *')
+        ->and(count(array_unique([$nightly?->mutexName(), $tick?->mutexName(), $prune?->mutexName()])))->toBe(3);
 });

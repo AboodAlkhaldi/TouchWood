@@ -83,6 +83,13 @@ describe('adding a line', function () {
         'a backslash' => '/a%5Cb',
         'a control character' => '/a%00b',
         'not UTF-8' => '/a%C3%28',
+        // PR 4 review: a word a browser would resolve, or none at all.
+        'a dot-dot word' => '/a/../b',
+        'a dot word' => '/a/./b',
+        'a dot-dot word encoded' => '/%2e%2e/x',
+        'a dot-dot word at the end' => '/a/..',
+        'an empty word' => '/a//b',
+        'a word of a dot alone' => '/.',
     ]);
 
     it('refuses an old address beginning with any store\'s code, an off store\'s included', function () {
@@ -108,6 +115,12 @@ describe('adding a line', function () {
         'another site' => ['https://other.test/sa/ar', RedirectInvalid::NEW_PATH],
         'a first word of no store' => ['/zz/ar/x', RedirectInvalid::NEW_STORE],
         'a chain: the new address an old one' => ['/blog/ar', RedirectInvalid::NEW_STORE],
+        // PR 4 review: the Location would resolve to /admin.
+        'dot-dot words out of the shop' => ['/sa/ar/../../admin', RedirectInvalid::NEW_PATH],
+        'dot-dot words encoded' => ['/sa/ar/%2e%2e/%2E%2E/admin', RedirectInvalid::NEW_PATH],
+        'a dot word' => ['/sa/ar/./x', RedirectInvalid::NEW_PATH],
+        'an empty word' => ['/sa/ar//x', RedirectInvalid::NEW_PATH],
+        'on our host, with dot-dot words' => ['https://touchwood.test/sa/ar/../../admin', RedirectInvalid::NEW_PATH],
     ]);
 
     it('takes a new address on an off store: Check Addresses marks it', function () {
@@ -187,6 +200,16 @@ describe('the rest of a line\'s menu', function () {
         app(UseFinalAddressHandler::class)->handle(new UseFinalAddress('/old'));
 
         expect(DB::table('content.redirects')->first(['new_path', 'check_result', 'check_final_path']))->toEqual((object) ['new_path' => '/sa/ar/products/new-slug', 'check_result' => null, 'check_final_path' => null]);
+    });
+
+    it('refuses a final address with dot words, checked as a new one, even past the table\'s CHECK', function () {
+        redirectAdd('/old', '/sa/ar/products/old-slug');
+        // The table refuses such an address too (redirects_words): dropped here, so only the code stands.
+        DB::statement('ALTER TABLE content.redirects DROP CONSTRAINT redirects_words');
+        DB::table('content.redirects')->update(['check_result' => Redirect::FORWARDS, 'check_final_path' => '/sa/ar/../../admin', 'checked_at' => now()]);
+
+        expect(redirectRefusal(fn () => app(UseFinalAddressHandler::class)->handle(new UseFinalAddress('/old'))))->toBe(RedirectInvalid::NEW_PATH)
+            ->and(DB::table('content.redirects')->value('new_path'))->toBe('/sa/ar/products/old-slug');
     });
 });
 

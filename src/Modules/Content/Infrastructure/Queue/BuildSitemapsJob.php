@@ -14,6 +14,11 @@ use Modules\Content\Application\Command\BuildSitemaps\BuildSitemapsHandler;
 /**
  * Every on store's sitemap built again (content.md §1.14): nightly, and when asked for (W10, a store switched on or
  * off, Catalog's changes at most once a day more). A failed run leaves the last files served.
+ *
+ * **One build at a time** (PR 4 review): the nightly one is queued without asking, a second can be asked for while
+ * one runs, and the database queue hands a job still running to another worker once its `retry_after` (90 s) has
+ * passed, well inside this job's ten minutes. So a build holds one lock for every build (`OneSitemapBuild`); another
+ * that finds it held goes back to the queue for a minute and builds after, with what changed meanwhile.
  */
 final class BuildSitemapsJob implements ShouldQueue
 {
@@ -21,11 +26,24 @@ final class BuildSitemapsJob implements ShouldQueue
     use InteractsWithQueue;
     use Queueable;
 
-    /** Three tries (platform.md §3: every queued job states its own); the night's build mends a miss. */
-    public int $tries = 3;
+    /**
+     * Released while another build runs, so attempts are not the measure (lesson 250): three failures are. No
+     * `retryUntil` (Platform's retry pushes the payload back as it was).
+     */
+    public int $tries = 0;
+
+    public int $maxExceptions = 3;
 
     /** A large catalog's files take a while: ten minutes. */
     public int $timeout = 600;
+
+    /**
+     * @return list<object>
+     */
+    public function middleware(): array
+    {
+        return [app(OneSitemapBuild::class)];
+    }
 
     public function handle(BuildSitemapsHandler $handler): void
     {

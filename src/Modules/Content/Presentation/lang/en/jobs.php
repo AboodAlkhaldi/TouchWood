@@ -8,4 +8,5 @@ return [
     'build_sitemaps' => 'Building every store\'s sitemap again',
     'queue_wanted_sitemaps' => 'Queuing the sitemaps\' build a change asks for',
     'check_redirects' => 'Checking where the redirects\' new addresses lead',
+    'prune_redirect_uploads' => 'Removing redirect sheets older than 24 hours',
 ];
