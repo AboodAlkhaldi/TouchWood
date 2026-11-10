@@ -20,6 +20,7 @@ use Modules\Content\Application\Redirects\AddressProbe;
 use Modules\Content\Domain\Model\Redirect;
 use Modules\Content\Infrastructure\External\HttpAddressProbe;
 use Modules\Content\Infrastructure\Queue\CheckRedirectsJob;
+use Modules\Platform\Public\LongQueue;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Content\Support\AppAddressProbe;
@@ -121,6 +122,8 @@ it('queues one check at a time: a second press while one waits queues nothing', 
         ->and(app(RequestRedirectCheckHandler::class)->handle(new RequestRedirectCheck))->toBeFalse()
         ->and(app(RedirectsHandler::class)->list(null, null)['checkWaits'])->toBeTrue();
     Queue::assertPushed(CheckRedirectsJob::class, 1);
+    // On the long connection, whose limit is above a check's 20 minutes (owner, 2026-11-10).
+    Queue::assertPushed(CheckRedirectsJob::class, fn (CheckRedirectsJob $job): bool => $job->connection === LongQueue::connection());
 
     // Once under way, a press queues another.
     checkRedirectsRun();

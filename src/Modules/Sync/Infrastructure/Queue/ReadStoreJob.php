@@ -8,6 +8,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
+use Modules\Platform\Public\LongQueue;
 use Modules\Sync\Application\Command\RunRead\RunRead;
 use Modules\Sync\Application\Command\RunRead\RunReadHandler;
 use Modules\Sync\Domain\Exception\ConnectionFailed;
@@ -33,14 +34,16 @@ final class ReadStoreJob implements ShouldQueue
 
     /**
      * A big store's full read may take minutes. Shorter than the 30 minutes after which a read is taken
-     * as dead (`RunReadHandler`); its queue connection's `retry_after` must be longer (HANDOFF's deploy
-     * notes, as for the product import).
+     * as dead (`RunReadHandler`). On the long connection, whose `retry_after` is longer (HANDOFF's
+     * deploy notes, as for the product import).
      */
     public int $timeout = 1200;
 
     public function __construct(
         public readonly string $readId,
-    ) {}
+    ) {
+        $this->onConnection(LongQueue::connection());
+    }
 
     public function handle(RunReadHandler $handler): void
     {

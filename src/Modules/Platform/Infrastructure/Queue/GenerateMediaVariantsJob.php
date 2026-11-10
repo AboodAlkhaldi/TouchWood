@@ -27,7 +27,7 @@ final class GenerateMediaVariantsJob implements ShouldQueue
     public array $backoff = [10, 60];
 
     /**
-     * Below the queue's retry_after (90 seconds in config/queue.php), so a slow run is stopped
+     * Below the queue's retry_after (330 seconds in config/queue.php), so a slow run is stopped
      * before another worker could pick up the same attempt.
      */
     public int $timeout = 80;

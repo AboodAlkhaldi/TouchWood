@@ -23,7 +23,7 @@ use function Pest\Laravel\seed;
 
 /*
 | A queued job runs once, whatever the queue hands out (PR 4 review): the database queue gives a job still running to
-| a second worker once its retry_after (90 s) passes, and that copy carries the same uuid. A copy of a job running now,
+| a second worker once its connection's retry_after passes, and that copy carries the same uuid. A copy of a job running now,
 | or of one that finished, deletes itself - so a long build never starts the next one, for ever. Another worker is a
 | second database connection here; the copy is a queue job carrying the same uuid.
 */
