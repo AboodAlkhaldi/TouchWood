@@ -1598,7 +1598,12 @@ date-time"), `emailBlacklisted` in each contact and pages of up to 500; but each
 ids with no description, so a contact may leave one list without being blacklisted. What the nightly read acts on waits for the
 owner's answer.
 
-### 9.7 Content's changes — **[ACCEPTED by the owner, 2026-11-10, with content.md; not built]**
+### 9.7 Content's changes — **[ACCEPTED by the owner, 2026-11-10, with content.md; built with Content's PR 6]**
+
+As built: `ops.notices.status` gains `DRAFT`, `send_at` null for a draft and a cancelled draft (`notices_draft_time`); the
+notices' write and change take `draft` (O6's **With a Campaign**, button **Save Draft**), written to the same audience
+rules as a waiting notice; `changeable` is true for a draft; the list's Sends column reads "With a campaign" and its badge
+**Draft** gray; `OpsCampaignNotices` answers Content's port; S8 goes to `content.campaign.manage` with the run's link.
 
 Content's spec settles §9.5 (content.md §1.7 #10, #13, §2.1, §2.3 O1 to O3, §9.4 A7). Still to be applied in place when built: §1.7,
 §4.4, §4.15 O5 and O6, §5 (§1.6's S8 row and §9.5 point here already).

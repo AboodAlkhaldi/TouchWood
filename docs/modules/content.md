@@ -755,6 +755,25 @@ The build's picks where the text above leaves the detail open, marked so for the
 | B6 | Redirects: **a new address carries no query string**; **a full URL on this site's host (or its `www.` twin) is accepted as input** and kept as its path (Search Console exports full URLs); a path typed without its first slash is read with it; **no empty word and no `.` or `..` word** in either address; digits kept 0-9 on the line and on the lookup; Change keeps a line's visits; Check Addresses' marks are not audited; a job queued more than 6 hours ago is taken as lost | §1.15, W11 |
 | B7 | The SEO defaults carry no version (last save wins, §1.1 rule 12 names none), and their share image always blocks its file's delete (they are live once saved) | §1.1 rules 10, 12 |
 
+### 9.3b As built: campaigns and themes (PR 6, 2026-11-10)
+
+The build's picks where the text above leaves the detail open, marked so for the owner to reject; none changes a rule.
+
+| # | As built | Where |
+|---|---|---|
+| C1 | A campaign's and a theme's start and end are **both required at every save**, drafts included (the runs' moments are NOT NULL) | §1.7 #1, §1.8 |
+| C2 | **A store taken off a campaign**: its draft run goes; a scheduled one must be cancelled there first (`store_scheduled`); an ended or cancelled run stays. Moving a scheduled run's dates needs only the campaign's job, its prices written again by Pricing with the new dates | §1.7 #5, #8 |
+| C3 | The categories and brands a draft, scheduled or live run names are kept in `content.campaign_run_targets` with RESTRICT keys, so Content's `CatalogUsage` refuses Catalog's delete of one in use; they are let go when the run ends or is cancelled | §1.1 rule 17, §5 |
+| C4 | Scheduling several stores stops at the first store refused; the stores before stay scheduled, the rest drafts, and the refusal is Pricing's own words | §1.7 #15 |
+| C5 | Cancel names scheduled runs (a draft is deleted instead); End names live runs (`not_live` otherwise) | §1.7 #12 |
+| C6 | `AdvanceCampaignsJob`: at most 200 runs a tick, one try (the next minute is the retry), the first failed run thrown after the others ran | §1.7 #9 |
+| C7 | A draft's price choices: at most 500 targets and 500 products left out; their shape is Content's, their meaning Pricing's | §1.7 #4, #14 |
+| C8 | A theme's `slug` is made once from its English name (`ramadan`, `ramadan-2`; `theme-…` from the id when none or `base`) | §5 |
+| C9 | Theme words: announcement strip and cart message 120, points and logos headings 80, badge 24 (the spec's), each promise 80, at most 4; a link only on the announcement strip and the cart message | §1.8 |
+| C10 | End Now on a theme ends it in **every** store at once, a store whose start had not come included | §4.1 |
+| C11 | Preview Theme's cookie lasts two hours, names the presser (another staff member's browser reads none), and opens the theme's first store's Arabic home | W5b |
+| C12 | S8's link `/admin/content/campaigns/runs/{run}` answers 302 to `/admin/content/campaigns/{id}`, whose screen is PR 8's | §2.3 O3 |
+
 ### 9.4 Amendments other documents would need
 
 Accepted with this spec (owner, 2026-11-10); each module's builder is still asked before its rows are built (owner, 2026-10-28). **Written into the documents on 2026-11-10**, each in its module's own style: handoff §0.1, §4.1, §4.4, §13.2, §14; platform.md §9.4; access.md amendment 97; catalog.md amendment 41; pricing.md §9.6; sync.md amendment 2; ops.md §9.6's answers and §9.7; sales.md §9.10; frontend.md §1.8, §2.3; `themes.css`'s header; promotions.md §9.2 #4. **A1's `deptrac.yaml` and A2's `config/database.php` change with the backend's first PR.**
