@@ -113,8 +113,11 @@ it('opens an order from anywhere on its row, and counts each underlined tab, at 
     expect($page->script("document.querySelector('[data-test=\"order-tabs\"]').dataset.variant"))->toBe('line')
         ->and($page->script("document.querySelector('[data-test=\"count-ALL\"]').textContent"))->toBe('1');
 
-    // The total, the row's last cell, is no link of its own: the number's link stretches over the row.
-    $page->click("[data-test=\"order-{$number}\"] td:last-child");
+    // The total, the row's last cell, is no link of its own: the number's link stretches over the row, so what a
+    // press on the total lands on is that link - and pressing it opens the order.
+    $landsOn = "(() => { const box = document.querySelector('[data-test=\"order-{$number}\"] td:last-child').getBoundingClientRect(); return document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)?.closest('a'); })()";
+    expect($page->script("{$landsOn}?.getAttribute('href')"))->toBe("/admin/orders/{$order}", 'the row does not open the order');
+    $page->script("{$landsOn}.click()");
     expect(browserUntil($page, "window.location.pathname === '/admin/orders/{$order}'"))->toBeTrue('the row does not open the order');
 
     // On a phone the tabs scroll inside their own bar, each with its count, and the page never sideways.

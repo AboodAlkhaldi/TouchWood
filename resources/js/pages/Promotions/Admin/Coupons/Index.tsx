@@ -88,7 +88,8 @@ export default function Index({ coupons, nextAt, nextId, state, code, mayManage,
                     <StoreFilter stores={stores} value={storeCode} />
                 </div>
 
-                <Tabs value={state ?? 'ALL'} onValueChange={(next) => router.get(LIST, asked(storeCode, next === 'ALL' ? null : next, code ?? ''), { preserveState: true })}>
+                {/* min-w-0: five tabs and their counts are wider than a phone; their bar scrolls, never the page. */}
+                <Tabs className="min-w-0" value={state ?? 'ALL'} onValueChange={(next) => router.get(LIST, asked(storeCode, next === 'ALL' ? null : next, code ?? ''), { preserveState: true })}>
                     <TabsList variant="line" className="h-10 w-full max-w-full min-w-0 justify-start overflow-x-auto border-b border-line p-0" data-test="state-tabs" aria-label={t('promotions::admin_coupons.list.states_label')}>
                         <TabsTrigger value="ALL" className="flex-none gap-2 px-3 text-label-14">
                             {t('promotions::admin_coupons.list.all')}

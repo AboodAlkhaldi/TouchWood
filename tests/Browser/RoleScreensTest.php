@@ -204,14 +204,14 @@ it('lets somebody narrow the permissions table by area, and hide the roles they 
         ->and($columns)->toBeGreaterThanOrEqual(4);
 
     // The filter narrows the rows to the area somebody is actually looking at.
-    $page->type('input[placeholder="Filter the areas"]', 'Media')->assertNoJavaScriptErrors();
+    $page->type('input[placeholder="Filter the areas"]', 'Library')->assertNoJavaScriptErrors();
 
     $narrowed = (int) $page->script('document.querySelectorAll("table tbody tr").length');
     // The area is named once, at the head of its rows, as a row-group header.
     $area = (string) $page->script('document.querySelector("table tbody th[scope=rowgroup]").innerText');
 
     expect($narrowed)->toBeLessThan($actions)
-        ->and(strtolower($area))->toContain('media');
+        ->and(strtolower($area))->toContain('library');
 
     // Nothing sticks any more (owner, §1.11 #5, replacing the sticky area bands of 2026-09-24).
     $sticky = (int) $page->script(
