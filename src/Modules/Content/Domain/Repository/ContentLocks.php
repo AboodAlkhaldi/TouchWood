@@ -1,0 +1,28 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Content\Domain\Repository;
+
+/**
+ * Per-store locks for the checks no row can hold (content.md §1.1 rule 12): two pop-ups scheduled over each other,
+ * two items taking one address. Held until the transaction ends. **One order**: a store's lock first, then its rows
+ * (lesson 37).
+ */
+interface ContentLocks
+{
+    public const string POPUPS = 'popups';
+
+    public const string SLUGS = 'slugs';
+
+    /** A store's list of home sections: Add and Order. */
+    public const string HOME = 'home';
+
+    /** A store's banners of one placement: a new one's place, and Order. */
+    public const string BANNERS = 'banners';
+
+    /** A store's blog categories: a new one's place, and Order. */
+    public const string BLOG_CATEGORIES = 'blog_categories';
+
+    public function lock(string $storeId, string $topic): void;
+}

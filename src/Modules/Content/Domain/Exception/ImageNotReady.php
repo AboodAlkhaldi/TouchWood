@@ -35,6 +35,7 @@ final class ImageNotReady extends ContentError
 
     public function context(): array
     {
-        return ['image' => $this->image, 'rule' => $this->failed ? 'failed' : 'pending'];
+        // The image is named by its box, as a field is (`content::errors.fields`), so the words can say which.
+        return ['image' => $this->image, 'attribute' => $this->image, 'rule' => $this->failed ? 'failed' : 'pending'];
     }
 }
