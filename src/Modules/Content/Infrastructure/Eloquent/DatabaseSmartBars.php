@@ -36,19 +36,23 @@ final readonly class DatabaseSmartBars implements SmartBars
 
     public function add(SmartBar $bar, ?string $by): void
     {
-        $now = Rows::at(CarbonImmutable::now()->toDateTimeImmutable());
-        $this->db->table('content.smart_bars')->insert([
-            'id' => $bar->id,
-            'store_id' => $bar->storeId,
-            'created_by' => $by,
-            'created_at' => $now,
-            ...self::written($bar, $by),
-        ]);
+        ForeignKeyRefusals::guard(function () use ($bar, $by): void {
+            $now = Rows::at(CarbonImmutable::now()->toDateTimeImmutable());
+            $this->db->table('content.smart_bars')->insert([
+                'id' => $bar->id,
+                'store_id' => $bar->storeId,
+                'created_by' => $by,
+                'created_at' => $now,
+                ...self::written($bar, $by),
+            ]);
+        });
     }
 
     public function update(SmartBar $bar, ?string $by): void
     {
-        $this->db->table('content.smart_bars')->where('id', $bar->id)->update(self::written($bar, $by));
+        ForeignKeyRefusals::guard(function () use ($bar, $by): void {
+            $this->db->table('content.smart_bars')->where('id', $bar->id)->update(self::written($bar, $by));
+        });
     }
 
     public function delete(string $id): void

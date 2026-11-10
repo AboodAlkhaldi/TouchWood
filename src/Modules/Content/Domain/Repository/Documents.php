@@ -23,6 +23,9 @@ interface Documents
     /** Writes the item whole: its row, its translations, images, products and photos replaced. */
     public function update(Document $document): void;
 
+    /** Writes the item's own row only - its state, its version - leaving its words, images and photos as they are. */
+    public function updateRow(Document $document): void;
+
     public function delete(DocumentKind $kind, string $id): void;
 
     /** How many posts a blog category holds. */

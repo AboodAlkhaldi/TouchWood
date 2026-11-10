@@ -23,7 +23,6 @@ use Modules\Content\Domain\Repository\HomeSections;
 use Modules\Content\Domain\Service\HomeSectionSettings;
 use Modules\Content\Domain\ValueObject\Words;
 use Modules\Platform\Public\Contracts\PlatformApi;
-use Modules\Platform\Public\Dto\AuditChanges;
 use Shared\Application\Unauthorized;
 
 /**
@@ -76,16 +75,31 @@ final readonly class FillHomeSectionHandler
                 $this->sections->replaceLogos($section->id, $logos);
             }
 
-            // The words as one long text: changed, with its length (§1.1 rule 13).
-            $changes = ContentAudit::long(AuditChanges::none(), 'settings', ContentAudit::json($section->settings), ContentAudit::json($settings));
-
-            if ($before != $logos) {
-                $changes->changed('logos', implode(',', array_map(static fn (HomeLogo $logo): string => $logo->mediaId, $before)), implode(',', array_map(static fn (HomeLogo $logo): string => $logo->mediaId, $logos)));
-            }
+            // Every box a short field, by value, from and to (§1.1 rule 13): `title.ar`, `facts.0.en`, `logo.1.name_ar`.
+            $changes = ContentAudit::diff(
+                [...ContentAudit::flatten($section->settings), ...self::logoFields($before)],
+                [...ContentAudit::flatten($settings), ...self::logoFields($logos)],
+            );
 
             $this->platform->recordAudit(ContentAudit::entry('content.home_section.filled', 'content.home_section', $section->id, $store->id, $changes));
             $this->cache->invalidate();
-        });
+        }, 3);
+    }
+
+    /**
+     * @param  list<HomeLogo>  $logos
+     * @return array<string, string|null>
+     */
+    private static function logoFields(array $logos): array
+    {
+        $fields = [];
+
+        foreach ($logos as $index => $logo) {
+            $n = $index + 1;
+            $fields = [...$fields, "logo.{$n}.media" => $logo->mediaId, "logo.{$n}.name_ar" => $logo->nameAr, "logo.{$n}.name_en" => $logo->nameEn, "logo.{$n}.link" => $logo->link];
+        }
+
+        return $fields;
     }
 
     /**

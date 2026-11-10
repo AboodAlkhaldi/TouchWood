@@ -184,6 +184,29 @@ describe('§1.6 banners', function () {
     });
 });
 
+describe('§1.1 rule 11 and §4.1: an ended banner or pop-up is history', function () {
+    it('refuses a change to an ended banner, so it can\'t be dated back to live', function () {
+        Cx::editor([ContentPermissions::BANNER_MANAGE]);
+        $banner = Cx::banner();
+        app(ScheduleBannerHandler::class)->handle(new ScheduleBanner($banner, 1));
+        app(EndBannerHandler::class)->handle(new EndBanner($banner));
+        $image = (string) DB::table('content.banner_images')->where('banner_id', $banner)->value('media_id');
+
+        expect(bannerRefusal(fn () => app(SaveBannerHandler::class)->handle(new SaveBanner($banner, null, bannerVersion($banner), 'HOME_PHONE', null, 'Summer', null, false, 'تخفيضات', 'Sale', Cx::typed(1), Cx::typed(600), ['PHONE:any' => $image]))))->toBe('state:state')
+            ->and(app(BannersHandler::class)->list(Fx::storeId('sa'), 'HOME_PHONE')['rows'][0]['state'])->toBe('ENDED');
+    });
+
+    it('refuses a change to an ended pop-up', function () {
+        Cx::editor([ContentPermissions::POPUP_MANAGE]);
+        $popup = Cx::popup();
+        app(SchedulePopupHandler::class)->handle(new SchedulePopup($popup, 1));
+        app(EndPopupHandler::class)->handle(new EndPopup($popup));
+
+        expect(bannerRefusal(fn () => app(SavePopupHandler::class)->handle(new SavePopup($popup, null, popupVersion($popup), 'Welcome', 'أهلًا', 'Welcome', 'نص', 'Text', null, null, null, null, null, Cx::typed(1), Cx::typed(600)))))->toBe('state:state')
+            ->and(array_column(app(PopupsHandler::class)->list(Fx::storeId('sa')), 'state', 'id'))->toBe([$popup => 'ENDED']);
+    });
+});
+
 describe('§1.9 smart bars', function () {
     it('shows a message of 100 characters per language above a category\'s lists, with optional dates, both languages on save', function () {
         Cx::editor([ContentPermissions::BAR_MANAGE]);

@@ -65,6 +65,6 @@ final readonly class SchedulePopupHandler
             $this->popups->update($popup);
             $this->platform->recordAudit(ContentAudit::entry('content.popup.scheduled', 'content.popup', $was->id, $store->id, ContentAudit::diff($was->fields(), $popup->fields())));
             $this->cache->invalidate();
-        });
+        }, 3);
     }
 }

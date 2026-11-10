@@ -66,6 +66,6 @@ final readonly class AddHomeSectionHandler
             $this->cache->invalidate();
 
             return $id;
-        });
+        }, 3);
     }
 }

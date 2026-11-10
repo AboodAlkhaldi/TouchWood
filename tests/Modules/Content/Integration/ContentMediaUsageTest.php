@@ -46,10 +46,14 @@ beforeEach(function () {
     Storage::fake('local');
 });
 
-function mediaDelete(string $mediaId): void
+/** Deletes the file as a Super Admin, answering who that was. */
+function mediaDelete(string $mediaId): string
 {
-    Fx::actAsStaff(Fx::staff(superAdmin: true));
+    $admin = Fx::staff(superAdmin: true);
+    Fx::actAsStaff($admin);
     app(DeleteMediaHandler::class)->handle(new DeleteMedia($mediaId));
+
+    return $admin;
 }
 
 it('uploads an item\'s image under that item\'s own permission, in its store, as a public file', function () {
@@ -79,10 +83,12 @@ it('blocks the delete of a file a live banner shows, and detaches it from a draf
     $only = Cx::image();
     Cx::editor([ContentPermissions::BANNER_MANAGE]);
     $other = Cx::banner(['images' => ['PHONE:any' => $only]]);
-    mediaDelete($only);
+    $admin = mediaDelete($only);
 
     expect(DB::table('content.banner_images')->where('banner_id', $other)->exists())->toBeFalse()
         ->and(DB::table('content.banners')->where('id', $other)->value('version'))->toBe(2)
+        // The banner was last changed by whoever deleted its file.
+        ->and(DB::table('content.banners')->where('id', $other)->value('updated_by'))->toBe($admin)
         ->and(DB::table('platform.media')->where('id', $only)->exists())->toBeFalse()
         ->and(Fx::audits('content.banner.image_detached', $other))->toBe(1);
 });

@@ -46,6 +46,6 @@ final readonly class OrderBlogCategoriesHandler
             $this->categories->reorder($ids);
             $this->platform->recordAudit(ContentAudit::entry('content.blog_categories.ordered', 'content.blog_categories', $store->id, $store->id, AuditChanges::none()->changed('order', implode(',', $present), implode(',', $ids))));
             $this->cache->invalidate();
-        });
+        }, 3);
     }
 }

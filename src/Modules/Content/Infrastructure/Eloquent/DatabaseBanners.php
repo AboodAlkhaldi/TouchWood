@@ -45,21 +45,25 @@ final readonly class DatabaseBanners implements Banners
 
     public function add(Banner $banner): void
     {
-        $this->db->table('content.banners')->insert([
-            'id' => $banner->id,
-            'store_id' => $banner->storeId,
-            'placement' => $banner->placement->value,
-            'created_by' => $banner->updatedBy,
-            'created_at' => Rows::at($banner->updatedAt),
-            ...self::written($banner),
-        ]);
-        $this->writeImages($banner);
+        ForeignKeyRefusals::guard(function () use ($banner): void {
+            $this->db->table('content.banners')->insert([
+                'id' => $banner->id,
+                'store_id' => $banner->storeId,
+                'placement' => $banner->placement->value,
+                'created_by' => $banner->updatedBy,
+                'created_at' => Rows::at($banner->updatedAt),
+                ...self::written($banner),
+            ]);
+            $this->writeImages($banner);
+        });
     }
 
     public function update(Banner $banner): void
     {
-        $this->db->table('content.banners')->where('id', $banner->id)->update(self::written($banner));
-        $this->writeImages($banner);
+        ForeignKeyRefusals::guard(function () use ($banner): void {
+            $this->db->table('content.banners')->where('id', $banner->id)->update(self::written($banner));
+            $this->writeImages($banner);
+        });
     }
 
     public function delete(string $id): void

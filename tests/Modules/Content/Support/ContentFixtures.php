@@ -15,6 +15,7 @@ use Modules\Content\Application\Command\SavePage\SavePageHandler;
 use Modules\Content\Application\Command\SavePopup\SavePopup;
 use Modules\Content\Application\Command\SavePopup\SavePopupHandler;
 use Modules\Content\Application\Documents\DocumentInput;
+use Modules\Content\Application\Moments;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
@@ -76,6 +77,12 @@ final class ContentFixtures
         ]);
 
         return $id;
+    }
+
+    /** Now, as the code reads it (`Moments::now`). */
+    public static function now(): \DateTimeImmutable
+    {
+        return Moments::now();
     }
 
     /** A moment as staff type it in the store's zone, so many minutes from now. */

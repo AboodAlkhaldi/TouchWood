@@ -57,6 +57,6 @@ final readonly class BannerBackToDraftHandler
             $this->banners->update($banner);
             $this->platform->recordAudit(ContentAudit::entry('content.banner.unscheduled', 'content.banner', $was->id, $store->id, ContentAudit::diff($was->fields(), $banner->fields())));
             $this->cache->invalidate();
-        });
+        }, 3);
     }
 }

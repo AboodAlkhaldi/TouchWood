@@ -90,6 +90,6 @@ final readonly class SaveSmartBarHandler
             $this->cache->invalidate();
 
             return $bar->id;
-        });
+        }, 3);
     }
 }

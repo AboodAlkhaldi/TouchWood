@@ -62,6 +62,6 @@ final readonly class DeleteBlogCategoryHandler
             $this->categories->reorder(array_map(static fn (BlogCategory $category): string => $category->id, $rest));
             $this->platform->recordAudit(ContentAudit::entry('content.blog_category.deleted', 'content.blog_category', $was->id, $store->id, ContentAudit::diff($was->fields(), [])));
             $this->cache->invalidate();
-        });
+        }, 3);
     }
 }

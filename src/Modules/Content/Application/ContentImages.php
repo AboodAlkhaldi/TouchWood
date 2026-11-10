@@ -74,6 +74,8 @@ final readonly class ContentImages
 
             $status = ($found[strtolower($id)] ?? null)?->variantsStatus;
 
+            // PARKED for the owner (PR 3 review): Platform dedups a public image, so the same file uploaded again after
+            // FAILED answers the same FAILED media - "Upload this image again." cannot be followed until that is settled.
             if ($status !== MediaVariantsStatus::Ready) {
                 throw new ImageNotReady(self::box($box), $status === MediaVariantsStatus::Failed);
             }

@@ -44,18 +44,22 @@ final readonly class DatabasePopups implements Popups
 
     public function add(Popup $popup): void
     {
-        $this->db->table('content.popups')->insert([
-            'id' => $popup->id,
-            'store_id' => $popup->storeId,
-            'created_by' => $popup->updatedBy,
-            'created_at' => Rows::at($popup->updatedAt),
-            ...self::written($popup),
-        ]);
+        ForeignKeyRefusals::guard(function () use ($popup): void {
+            $this->db->table('content.popups')->insert([
+                'id' => $popup->id,
+                'store_id' => $popup->storeId,
+                'created_by' => $popup->updatedBy,
+                'created_at' => Rows::at($popup->updatedAt),
+                ...self::written($popup),
+            ]);
+        });
     }
 
     public function update(Popup $popup): void
     {
-        $this->db->table('content.popups')->where('id', $popup->id)->update(self::written($popup));
+        ForeignKeyRefusals::guard(function () use ($popup): void {
+            $this->db->table('content.popups')->where('id', $popup->id)->update(self::written($popup));
+        });
     }
 
     public function delete(string $id): void

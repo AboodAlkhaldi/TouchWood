@@ -43,7 +43,17 @@ final readonly class EditCheck
     }
 
     /**
-     * Claims the item's addresses: each refused when another item holds it, then kept as the item's.
+     * The store's address lock, taken first in a transaction that will claim or free addresses, before any row is
+     * locked (ContentLocks' order). Held until the transaction ends; taking it again is free.
+     */
+    public function lockAddresses(string $storeId): void
+    {
+        $this->locks->lock($storeId, ContentLocks::SLUGS);
+    }
+
+    /**
+     * Claims the item's addresses, under the store's address lock (`lockAddresses`, taken first by the caller): each
+     * refused when another item holds it, then kept as the item's.
      *
      * @param  array<string, string>  $slugs  language => address
      *
@@ -51,8 +61,6 @@ final readonly class EditCheck
      */
     public function addresses(string $storeId, string $kind, string $itemId, array $slugs): void
     {
-        $this->locks->lock($storeId, ContentLocks::SLUGS);
-
         foreach ($slugs as $locale => $slug) {
             $holder = $this->history->holder($storeId, $kind, $locale, $slug);
 

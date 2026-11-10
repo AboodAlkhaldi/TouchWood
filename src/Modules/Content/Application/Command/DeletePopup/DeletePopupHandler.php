@@ -51,6 +51,6 @@ final readonly class DeletePopupHandler
             $this->popups->delete($was->id);
             $this->platform->recordAudit(ContentAudit::entry('content.popup.deleted', 'content.popup', $was->id, $store->id, ContentAudit::diff($was->fields(), [])));
             $this->cache->invalidate();
-        });
+        }, 3);
     }
 }

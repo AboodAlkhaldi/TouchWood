@@ -19,6 +19,7 @@ use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Domain\Exception\InvalidContentInput;
 use Modules\Content\Domain\Model\Popup;
+use Modules\Content\Domain\Model\ScheduleState;
 use Modules\Content\Domain\Repository\Popups;
 use Modules\Content\Domain\ValueObject\Schedule;
 use Modules\Content\Domain\ValueObject\Words;
@@ -87,6 +88,12 @@ final readonly class SavePopupHandler
 
             $was = $this->popups->lock($command->popupId) ?? throw new ContentNotFound;
             $this->check->version($command->version, $was->version, $was->updatedBy, $was->updatedAt, $store);
+
+            // An ended pop-up is history and stays (§1.1 rule 11); §4.1 has no way from Ended back to Live.
+            if ($was->schedule->state($now) === ScheduleState::Ended) {
+                throw new InvalidContentInput('state', InvalidContentInput::STATE);
+            }
+
             $starts = $fields['starts'] ?? ($was->schedule->isScheduled ? $now : null);
             $popup = $this->popup($was->id, $was->storeId, $fields, new Schedule($was->schedule->isScheduled, $starts, $fields['ends']), $was->version + 1, $staffId, $now);
 
@@ -99,7 +106,7 @@ final readonly class SavePopupHandler
             $this->cache->invalidate();
 
             return $was->id;
-        });
+        }, 3);
     }
 
     /**

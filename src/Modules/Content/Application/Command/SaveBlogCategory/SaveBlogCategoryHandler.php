@@ -63,7 +63,9 @@ final readonly class SaveBlogCategoryHandler
         $staffId = $this->access->staffId();
 
         return $this->db->transaction(function () use ($command, $store, $name, $slugAr, $slugEn, $staffId): string {
+            // The store's locks first, in ContentLocks' order, then the category's row.
             $this->locks->lock($store->id, ContentLocks::BLOG_CATEGORIES);
+            $this->check->lockAddresses($store->id);
             $was = $command->categoryId === null ? null : ($this->categories->lock($command->categoryId) ?? throw new ContentNotFound);
             $id = $was->id ?? strtolower((string) Str::ulid());
             $category = new BlogCategory($id, $store->id, $name['ar'], $name['en'], $slugAr, $slugEn, $was->position ?? count($this->categories->ofStore($store->id)));
@@ -80,6 +82,6 @@ final readonly class SaveBlogCategoryHandler
             $this->cache->invalidate();
 
             return $id;
-        });
+        }, 3);
     }
 }

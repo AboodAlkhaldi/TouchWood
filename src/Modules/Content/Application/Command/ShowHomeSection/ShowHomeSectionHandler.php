@@ -71,7 +71,7 @@ final readonly class ShowHomeSectionHandler
                 AuditChanges::none()->changed('is_visible', $section->isVisible, $command->visible),
             ));
             $this->cache->invalidate();
-        });
+        }, 3);
     }
 
     /**

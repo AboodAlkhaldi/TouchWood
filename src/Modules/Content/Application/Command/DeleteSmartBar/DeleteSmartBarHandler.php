@@ -44,6 +44,6 @@ final readonly class DeleteSmartBarHandler
             $this->bars->delete($was->id);
             $this->platform->recordAudit(ContentAudit::entry('content.smart_bar.deleted', 'content.smart_bar', $was->id, $store->id, ContentAudit::diff($was->fields(), [])));
             $this->cache->invalidate();
-        });
+        }, 3);
     }
 }
