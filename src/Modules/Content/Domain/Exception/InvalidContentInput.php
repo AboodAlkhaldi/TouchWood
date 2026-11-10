@@ -124,6 +124,12 @@ final class InvalidContentInput extends ContentError
     /** A step its item's state does not allow: End Now on what is not live, Back to Draft on what is not scheduled. */
     public const string STATE = 'state';
 
+    /** A title pattern without `:title`, where a page's own title goes (§1.14). */
+    public const string TITLE_PATTERN = 'title_pattern';
+
+    /** A robots line that is not a shop path: `/` and then no space (§1.14, W10). */
+    public const string ROBOTS_PATH = 'robots_path';
+
     /**
      * @param  array<string, string|int>  $values  the rule's own gaps (`max`, `found`, `expected`)
      */

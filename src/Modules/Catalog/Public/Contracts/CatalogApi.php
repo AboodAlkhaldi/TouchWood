@@ -14,6 +14,7 @@ use Modules\Catalog\Public\Dto\LineFactsDto;
 use Modules\Catalog\Public\Dto\ProductCardDto;
 use Modules\Catalog\Public\Dto\ProductDto;
 use Modules\Catalog\Public\Dto\SearchSummaryDto;
+use Modules\Catalog\Public\Dto\SitemapEntriesDto;
 use Modules\Catalog\Public\Dto\StoreVariantDto;
 use Modules\Catalog\Public\Dto\VariantBriefDto;
 use Modules\Catalog\Public\Dto\VariantDto;
@@ -321,4 +322,17 @@ interface CatalogApi
      * the range afresh: pages are steady only over a range already past.
      */
     public function searchSummary(?StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to, ?string $after = null, int $limit = 100): SearchSummaryDto;
+
+    /**
+     * **What Catalog puts in a store's sitemap** (amendment 41(b); content.md §1.14, §2.3 row C3): the pages a
+     * search engine - a guest - finds listed there. **Products** listed now (§1.4: orderable, open to individuals
+     * or companies), in each language they are listed in; **categories** a guest's menu shows (active, listing
+     * something in their pages); **brands** active with a product listed there and shown in the default listings
+     * (amendment 5(k): a secondary brand is reached by its category). Each with its current address per language
+     * and its own last change. A page "Not available now", kept out of search engines, is never one of them.
+     *
+     * Keyset-paged: categories, brands, then products, each by id; `limit` 1 to 1000. One query a page; reads
+     * only, for a caller that builds a file, never in a shopper's request.
+     */
+    public function sitemapEntries(StoreId $store, ?string $after, int $limit): SitemapEntriesDto;
 }

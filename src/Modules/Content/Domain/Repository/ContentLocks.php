@@ -25,5 +25,11 @@ interface ContentLocks
     /** A store's blog categories: a new one's place, and Order. */
     public const string BLOG_CATEGORIES = 'blog_categories';
 
+    /** The redirects, which belong to no store (taken with `ALL_STORES`): a new old address, a sheet applied. */
+    public const string REDIRECTS = 'redirects';
+
+    /** The store name a lock of something that belongs to no store is taken under. */
+    public const string ALL_STORES = '*';
+
     public function lock(string $storeId, string $topic): void;
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Infrastructure\Eloquent;
 
+use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Modules\Catalog\Application\Api\ApiReads;
 use Modules\Catalog\Domain\ValueObject\SellingLimits;
@@ -11,6 +12,8 @@ use Modules\Catalog\Public\Dto\BrandDto;
 use Modules\Catalog\Public\Dto\LineFactsDto;
 use Modules\Catalog\Public\Dto\ProductCardDto;
 use Modules\Catalog\Public\Dto\ProductDto;
+use Modules\Catalog\Public\Dto\SitemapEntriesDto;
+use Modules\Catalog\Public\Dto\SitemapEntryDto;
 use Modules\Catalog\Public\Dto\StoreVariantDto;
 use Modules\Catalog\Public\Dto\VariantBriefDto;
 use Modules\Catalog\Public\Dto\VariantDto;
@@ -447,6 +450,52 @@ final readonly class DatabaseApiReads implements ApiReads
         }
 
         return $found;
+    }
+
+    public function sitemapEntries(string $storeId, ?string $after, int $limit): SitemapEntriesDto
+    {
+        // A cursor is `{rank}:{id}` (1 categories, 2 brands, 3 products); anything else starts from the first.
+        [$rank, $id] = preg_match('/\A([1-3]):([0-9a-z]{26})\z/', strtolower(trim((string) $after)), $cursor) === 1 ? [(int) $cursor[1], $cursor[2]] : [0, ''];
+        $kinds = [1 => SitemapEntryDto::CATEGORY, 2 => SitemapEntryDto::BRAND, 3 => SitemapEntryDto::PRODUCT];
+
+        // What a guest finds listed here (§1.4): a row orderable now and open to individuals or companies - the
+        // guest's own test (DatabaseShopReader::seenBy). Its categories as the guest's menu has them (in category
+        // pages, active), its brands active and shown in the default listings (amendment 5(k)).
+        $rows = $this->db->select(
+            'WITH listed AS (SELECT l.locale, l.product_id, l.slug, l.category_path, l.in_category_pages, l.brand_id, l.brand_visible_by_default'
+            .' FROM catalog.listing l WHERE l.store_id = ? AND l.orderable AND (l.for_individuals OR l.for_companies)),'
+            .' entries AS ('
+            .'SELECT 1 AS rank, c.id::text AS id, c.updated_at FROM catalog.categories c'
+            .' WHERE c.is_active AND c.id::text IN (SELECT unnest(category_path) FROM listed WHERE in_category_pages)'
+            .' UNION ALL SELECT 2, b.id::text, b.updated_at FROM catalog.brands b'
+            .' WHERE b.is_active AND b.id IN (SELECT brand_id FROM listed WHERE brand_visible_by_default)'
+            .' UNION ALL SELECT 3, p.id::text, p.updated_at FROM catalog.products p WHERE p.id IN (SELECT product_id FROM listed))'
+            .' SELECT e.rank, e.id, e.updated_at,'
+            .' CASE e.rank'
+            ." WHEN 1 THEN (SELECT s.slug FROM catalog.category_slugs s WHERE s.category_id = e.id AND s.locale = 'ar' AND s.is_current)"
+            ." WHEN 2 THEN (SELECT s.slug FROM catalog.brand_slugs s WHERE s.brand_id = e.id AND s.locale = 'ar' AND s.is_current)"
+            ." ELSE (SELECT l.slug FROM listed l WHERE l.product_id = e.id AND l.locale = 'ar') END AS slug_ar,"
+            .' CASE e.rank'
+            ." WHEN 1 THEN (SELECT s.slug FROM catalog.category_slugs s WHERE s.category_id = e.id AND s.locale = 'en' AND s.is_current)"
+            ." WHEN 2 THEN (SELECT s.slug FROM catalog.brand_slugs s WHERE s.brand_id = e.id AND s.locale = 'en' AND s.is_current)"
+            ." ELSE (SELECT l.slug FROM listed l WHERE l.product_id = e.id AND l.locale = 'en') END AS slug_en"
+            .' FROM entries e WHERE (e.rank, e.id) > (?, ?) ORDER BY e.rank, e.id LIMIT ?',
+            [strtolower($storeId), $rank, $id, $limit + 1],
+        );
+
+        $entries = array_map(static fn (stdClass $row): SitemapEntryDto => new SitemapEntryDto(
+            $kinds[(int) $row->rank],
+            (string) $row->id,
+            $row->slug_ar === null ? null : (string) $row->slug_ar,
+            $row->slug_en === null ? null : (string) $row->slug_en,
+            new DateTimeImmutable((string) $row->updated_at),
+        ), array_slice($rows, 0, $limit));
+        $last = $entries === [] ? null : $entries[array_key_last($entries)];
+
+        return new SitemapEntriesDto(
+            array_values($entries),
+            count($rows) > $limit && $last !== null ? array_search($last->kind, $kinds, true).':'.$last->id : null,
+        );
     }
 
     /**
