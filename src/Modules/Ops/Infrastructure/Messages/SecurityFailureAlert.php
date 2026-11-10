@@ -29,7 +29,7 @@ use Throwable;
  *
  * **At most once an hour, per channel.** One claim per clock hour and kind in `ops.handled_events`, taken in
  * the same transaction as the entries: one failure of a burst writes them, and the others find the hour taken,
- * so a failure after the first costs two statements. A write that fails releases the claim, and the next
+ * so a failure after the first costs two queries. A write that fails releases the claim, and the next
  * failure tries again.
  *
  * **Never in the way of the person's request.** Written directly, not by a job: the queue may be what is

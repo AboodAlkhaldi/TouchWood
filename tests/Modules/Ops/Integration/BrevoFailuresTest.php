@@ -1446,6 +1446,40 @@ describe('the list jobs, which last about a day (owner, Content round 3 #19)', f
         'the removal' => [fn () => app(NewsletterQueue::class)->remove('gone@example.test', StoreId::fromString(Fx::storeId('sa')), 'en')],
     ]);
 
+    it('ends in the failed jobs after a 429 and a lasting outage, though the waits pass the day Laravel counts failures for', function () {
+        CarbonImmutable::setTestNow('2026-11-10 10:00:00');
+        brevoFailuresList();
+        $row = brevoFailuresGuest();
+        // A 429 first, so each wait after it is one step further along the backoff: the eight-hour waits come sooner,
+        // and the failures' count, kept for one day from the first, ends before the tenth.
+        brevoFailuresFake(fn (Request $request, int $nth) => $nth === 1
+            ? Http::response(['code' => 'too_many_requests', 'message' => 'x'], 429, ['x-sib-ratelimit-reset' => '60'])
+            : Http::response('', 503));
+
+        // The clock moved to each wait's end, so the cache's day passes as it would; bounded, never a loop for ever.
+        for ($runs = 0; $runs < 2 * ProviderFailureRules::MOST_LIST_ATTEMPTS && DB::table('jobs')->exists(); $runs++) {
+            CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC((int) DB::table('jobs')->value('available_at')));
+            Artisan::call('queue:work', ['connection' => 'database', '--once' => true, '--queue' => 'default']);
+        }
+
+        expect(DB::table('jobs')->count())->toBe(0)
+            ->and(DB::table('failed_jobs')->count())->toBe(1)
+            ->and(brevoFailuresCalls())->toBe(ProviderFailureRules::MOST_LIST_ATTEMPTS)
+            ->and(CarbonImmutable::now()->getTimestamp() - CarbonImmutable::parse('2026-11-10 10:00:00')->getTimestamp())->toBeGreaterThan(86_400);
+
+        // Retried from the failed jobs screen, it counts afresh and goes.
+        brevoFailuresAfresh(fn (Request $request) => $request->method() === 'PUT' ? Http::response(null, 204) : Http::response(['id' => 900], 201));
+        brevoFailuresRetry();
+        brevoFailuresWork();
+
+        expect(DB::table('ops.subscribers')->where('id', $row)->value('brevo_email'))->toBe('guest@example.test')
+            ->and(DB::table('failed_jobs')->count())->toBe(0);
+    });
+
+    it('bounds a list job\'s runs by its waits, its long waits and a margin of three', function () {
+        expect(ProviderFailureRules::MOST_LIST_ATTEMPTS)->toBe(count(ProviderFailureRules::LIST_JOB_BACKOFF) + count(ProviderFailureRules::PERSON_WAITS) + 3);
+    });
+
     it('leaves the email jobs as they were: five failures over about 36 minutes', function () {
         foreach ([SendEventEmailJob::class, SendBroadcastEmailJob::class, DeliverDailyReportJob::class] as $job) {
             $defaults = (new ReflectionClass($job))->getDefaultProperties();
@@ -1499,9 +1533,9 @@ describe('the bell when Brevo refuses a queued email for everybody (S10c; owner,
 
         expect([$entry['title_en'], $entry['line_en'], $entry['title_ar'], $entry['line_ar']])->toBe([
             'Queued emails are waiting',
-            'The email provider refused to send them. They are tried again for up to a day: check the email key, credit and sender, and the log.',
+            'The email provider refused to send them. They are tried again for up to a day: see the log for the reason, and check the email key, credit and sender.',
             'رسائل بريد إلكتروني بانتظار الإرسال',
-            'رفض مزوّد البريد الإلكتروني إرسالها. ستُعاد محاولة إرسالها لمدة تصل إلى يوم: راجع مفتاح البريد الإلكتروني ورصيده والمرسل، والسجل.',
+            'رفض مزوّد البريد الإلكتروني إرسالها. ستُعاد محاولة إرسالها لمدة تصل إلى يوم: راجع السجل لمعرفة السبب، وتحقق من مفتاح البريد الإلكتروني ورصيده والمرسل.',
         ])
             ->and($entry['link'])->toBeNull()
             ->and($entry['read_at'])->toBeNull()
@@ -1596,7 +1630,21 @@ describe('the bell when Brevo refuses a queued email for everybody (S10c; owner,
         expect(brevoFailuresQueuedAlertOwners())->toBe(brevoFailuresSuperAdmins());
     });
 
-    it('costs a refusal after the first two statements of its own', function () {
+    it('never replaces the provider\'s failure when the alert cannot even be made: reported, and the email waits as before', function () {
+        brevoFailuresEventEmail();
+        app()->bind(SecurityFailureAlert::class, fn () => throw new RuntimeException('The alert broke.'));
+        brevoFailuresFake(fn () => Http::response(['code' => 'not_enough_credits', 'message' => 'x'], 402));
+
+        $wait = brevoFailuresStep();
+
+        Exceptions::assertReported(static fn (RuntimeException $broken): bool => $broken->getMessage() === 'The alert broke.');
+        Exceptions::assertReported(ProviderFailed::class);
+        expect($wait)->toBeGreaterThan(ProviderFailureRules::PERSON_WAITS[0] - 5)->toBeLessThanOrEqual(ProviderFailureRules::PERSON_WAITS[0])
+            ->and(DB::table('failed_jobs')->count())->toBe(0)
+            ->and(brevoFailuresQueuedAlerts())->toBe([]);
+    });
+
+    it('costs a refusal after the first two queries of its own', function () {
         Fx::staff(superAdmin: true);
         app(SecurityFailureAlert::class)->queuedEmailRefused();
         DB::flushQueryLog();

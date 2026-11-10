@@ -7,6 +7,7 @@ namespace Modules\Ops\Infrastructure\Queue;
 use Modules\Ops\Application\Messages\FailureKind;
 use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Infrastructure\Messages\SecurityFailureAlert;
+use Throwable;
 
 /**
  * How a job meets a provider's failure (ops.md §7). The jobs have `$tries = 0` and `$maxExceptions`: a wait here is no
@@ -21,6 +22,7 @@ use Modules\Ops\Infrastructure\Messages\SecurityFailureAlert;
  *   jobs do not: they send no email.
  * - **Too many calls:** back after the wait Brevo named. A limit on the attempts keeps it from going round for ever.
  * - **Anything else** goes on to the queue, by the job's backoff, until `$maxExceptions`.
+ * - **A list job's last run** (MOST_LIST_ATTEMPTS): whatever it meets goes to the failed jobs, so it never waits for ever.
  *
  * Counted by the job's attempts: a job that already met another failure has fewer of the long waits left.
  */
@@ -40,23 +42,42 @@ final class ProviderFailureRules
     /** One failure more than the waits between them. */
     public const int LIST_JOB_FAILURES = 10;
 
+    /**
+     * The most runs a list job has, whatever it met: the waits of its backoff (9), the long waits (8) and a margin of 3
+     * (the builder's pick). `$maxExceptions` alone cannot end it: Laravel keeps its count in the cache for one day from
+     * the first failure, and a list job's waits, counted by its attempts (a 429's and a long wait's included), can pass a
+     * day, so the count would start again and the job wait 8 hours at a time for ever. At this run a failure goes to the
+     * failed jobs, so a list job's every run is bounded, many 429s in a row included. A retry from the failed jobs
+     * screen counts afresh. Not `retryUntil`: a retried job would find its time already passed.
+     */
+    public const int MOST_LIST_ATTEMPTS = 20;
+
     /** The jobs that send a queued email: a refusal of everybody here raises S10c. */
     public const array EMAIL_JOBS = [SendEventEmailJob::class, SendBroadcastEmailJob::class, DeliverDailyReportJob::class];
+
+    /** The jobs that keep a newsletter list: bounded by MOST_LIST_ATTEMPTS. */
+    public const array LIST_JOBS = [SyncSubscriberJob::class, RemoveNewsletterContactJob::class];
 
     /**
      * @param  SendEventEmailJob|SendBroadcastEmailJob|SyncSubscriberJob|RemoveNewsletterContactJob|DeliverDailyReportJob  $job
      * @param  callable(object): mixed  $next
      *
      * @throws ProviderFailed
+     * @throws Throwable
      */
     public function handle(object $job, callable $next): mixed
     {
         try {
             return $next($job);
         } catch (ProviderFailed $failed) {
+            if ($this->atListJobsEnd($job)) {
+                $job->fail($failed);
+
+                throw $failed;
+            }
+
             if ($failed->kind === FailureKind::WaitsForPerson && in_array($job::class, self::EMAIL_JOBS, true)) {
-                // Reported and swallowed within: the alert never changes what happens to the job.
-                app(SecurityFailureAlert::class)->queuedEmailRefused();
+                $this->alertQueuedEmailRefused();
             }
 
             if ($failed->kind === FailureKind::RateLimited && $failed->retryAfter !== null && $job->attempts() < self::MOST_RATE_LIMITED) {
@@ -78,6 +99,30 @@ final class ProviderFailureRules
             }
 
             throw $failed;
+        } catch (Throwable $other) {
+            if ($this->atListJobsEnd($job)) {
+                $job->fail($other);
+            }
+
+            throw $other;
+        }
+    }
+
+    private function atListJobsEnd(SendEventEmailJob|SendBroadcastEmailJob|SyncSubscriberJob|RemoveNewsletterContactJob|DeliverDailyReportJob $job): bool
+    {
+        return in_array($job::class, self::LIST_JOBS, true) && $job->attempts() >= self::MOST_LIST_ATTEMPTS;
+    }
+
+    /**
+     * S10c, which never changes what happens to the job: whatever breaks here, resolving the alert included, is
+     * reported and goes no further, so the provider's failure is still the one the job meets.
+     */
+    private function alertQueuedEmailRefused(): void
+    {
+        try {
+            app(SecurityFailureAlert::class)->queuedEmailRefused();
+        } catch (Throwable $broken) {
+            report($broken);
         }
     }
 }
