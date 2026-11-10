@@ -1,8 +1,9 @@
 # Ops — Module Specification
 
-**Status:** **DRAFT, 2026-10-28** — written from the owner's answers of 2026-10-28 (rounds 1–4, §9.1)
-and the answers of the sessions that built the modules Ops listens to (§9.2). Not accepted. The picks
-marked "my assumption" are for the owner to reject.
+**Status:** **ACCEPTED by the owner, 2026-11-10, and built** — the backend in the ten steps of its plan and
+every page of §4.15 (the Home card, Q5, goes with the Home dashboard job). Written 2026-10-28 from the owner's
+answers of 2026-10-28 (rounds 1–4, §9.1) and the answers of the sessions that built the modules Ops listens to
+(§9.2).
 **Stage:** 8 (handoff §17), the first of the stage's two modules (owner, 2026-10-28: Ops
 before Content — Content waits for the owner's real content and the old site's SEO).
 **Depends on:** every module's `Public` surface; **nothing depends on Ops** (handoff §4.4; `deptrac.yaml`
