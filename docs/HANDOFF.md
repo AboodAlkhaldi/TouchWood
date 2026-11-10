@@ -1851,8 +1851,9 @@ Decide these when the owning module is reached; do not design them now.
   2 MB / 8 MB).
 - **Staging runs with `APP_ENV=staging`, not `production`, until a real SMS provider is built** (owner,
   2026-11-10). Outside production the `log` SMS provider is allowed, so sign-in and phone codes are written
-  to the server's log (`LogSmsSender`), where they can be read. What production gives by default must then
-  be set by hand in staging's `.env`: **`TEXT_TRANSLATOR=deepl`** with its key (an empty driver means the
+  to the server's log (`LogSmsSender`), where they can be read. Staging's `.env` must then set by hand: **`APP_DEBUG=false`** (staging is reachable from outside, and a debug
+  page shows code and settings; nothing ties it to `APP_ENV`, and `.env.example` has it true);
+  **`TEXT_TRANSLATOR=deepl`** with its key (an empty driver means the
   fake translator everywhere but production); **`SESSION_SECURE_COOKIE=true`** (it defaults to true only
   when `APP_ENV=production`, `config/session.php`); and **`OPS_EMAIL_DRIVER=brevo` and
   `OPS_NEWSLETTER_DRIVER=brevo`** with Brevo's key and secrets, since outside production `log` is accepted

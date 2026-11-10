@@ -351,11 +351,11 @@ describe('the admin menu', function () {
     });
 
     it('names the Store Settings entry apart from its area, so the Arabic menu never reads the same word twice', function () {
-        // The owner, 2026-11-10 (P13): under الإعدادات the entry is إعدادات المتجر. The page's own title and its trail
-        // keep platform::admin_settings.title, a key of their own.
+        // The owner, 2026-11-10 (P13): under الإعدادات the entry is إعدادات المتجر, and the page's own title (its
+        // trail too, platform::admin_settings.title, a key of its own) reads the same.
         expect((string) __('platform::menu.settings', [], 'ar'))->toBe('إعدادات المتجر')
             ->and((string) __('platform::menu.settings', [], 'ar'))->not->toBe((string) __('access::permission_groups.store_settings', [], 'ar'))
             ->and((string) __('platform::menu.settings', [], 'en'))->toBe('Settings')
-            ->and((string) __('platform::admin_settings.title', [], 'ar'))->toBe('الإعدادات');
+            ->and((string) __('platform::admin_settings.title', [], 'ar'))->toBe((string) __('platform::menu.settings', [], 'ar'));
     });
 });
