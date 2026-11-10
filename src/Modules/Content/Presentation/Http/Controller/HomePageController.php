@@ -23,6 +23,7 @@ use Modules\Content\Application\Command\ShowHomeSection\ShowHomeSectionHandler;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\Query\ContentActions\ContentActionsForReader;
 use Modules\Content\Application\Query\HomePage\HomePageHandler;
+use Modules\Content\Domain\Exception\MissingEnglish;
 use Modules\Content\Domain\Model\HomeSection;
 use Modules\Content\Domain\Repository\HomeSections;
 use Modules\Content\Domain\Service\HomeSectionSettings;
@@ -136,6 +137,9 @@ final readonly class HomePageController
 
         try {
             $show->handle(new ShowHomeSection($section, $visible));
+        } catch (MissingEnglish) {
+            // The spec's own words for Show refused (§4.4 W1): "Add the English first."
+            return back()->withErrors(['form' => __('content::admin_home.sections.add_english')]);
         } catch (DomainError $error) {
             return Refusals::back($request, $error, []);
         }
@@ -232,7 +236,7 @@ final readonly class HomePageController
     private static function sectionBoxes(): array
     {
         $pairs = ['eyebrow', 'title', 'line', 'main_button', 'second_button', 'fact', 'promise_title', 'promise_line', 'heading', 'small_heading', 'individuals_title', 'individuals_line', 'individuals_button', 'companies_title', 'companies_line', 'companies_button', 'logo_name', 'text'];
-        $boxes = ['main_button_link', 'second_button_link', 'individuals_button_link', 'companies_button_link', 'promise_icon', 'promises', 'facts', 'count', 'logos', 'logo', 'link'];
+        $boxes = ['main_button_link', 'second_button_link', 'individuals_button_link', 'companies_button_link', 'promise_icon', 'promises', 'facts', 'count', 'logos', 'logo', 'logo_link', 'link'];
 
         foreach ($pairs as $pair) {
             $boxes[] = "{$pair}_ar";

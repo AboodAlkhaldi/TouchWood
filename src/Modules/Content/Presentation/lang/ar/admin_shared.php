@@ -21,6 +21,7 @@ return [
     'ends' => 'النهاية',
     'link' => 'الرابط',
     'link_helper' => 'صفحة من المتجر بلا رمز المتجر واللغة، مثل /categories/chairs، أو عنوان كامل يبدأ بـ https://.',
+    'link_rule' => 'يذهب :field إلى صفحة من المتجر، مثل /categories/chairs، أو إلى عنوان كامل يبدأ بـ https://.',
     'characters' => ':count من :max حرفًا',
     'translate' => [
         'button' => 'ترجمة',

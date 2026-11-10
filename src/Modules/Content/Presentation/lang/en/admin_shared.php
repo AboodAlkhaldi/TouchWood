@@ -22,6 +22,7 @@ return [
     'ends' => 'End',
     'link' => 'Link',
     'link_helper' => 'A page of the shop without its store and language, such as /categories/chairs, or a full https:// address.',
+    'link_rule' => 'The :field goes to a page of the shop, such as /categories/chairs, or to a full https:// address.',
     'characters' => ':count of :max characters',
     'translate' => [
         'button' => 'Translate',
