@@ -12,6 +12,7 @@ use Illuminate\Routing\Route;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Application\Routing\InMemoryOffStoreViewers;
 use Modules\Platform\Infrastructure\LaravelStoreContext;
+use Modules\Platform\Presentation\Http\InMemoryUnmatchedAddresses;
 use Modules\Platform\Presentation\Http\StorefrontLanguage;
 use Modules\Platform\Public\Dto\StoreDto;
 use Symfony\Component\HttpFoundation\Response;
@@ -46,6 +47,7 @@ final readonly class ResolveStore
         private LaravelStoreContext $context,
         private UrlGenerator $url,
         private StorefrontLanguage $languages,
+        private InMemoryUnmatchedAddresses $addresses,
     ) {}
 
     public function handle(Request $request, Closure $next, ?string $finishing = null): Response
@@ -56,6 +58,18 @@ final readonly class ResolveStore
         $store = is_string($code) ? $this->store($code, $request, $finishing !== null) : null;
 
         if (! $route instanceof Route || $store === null || ! is_string($locale) || ! $this->languages->isSupported($locale)) {
+            // A first word that names no store at all - /shop/en/x, an old address that `{store}` takes - is
+            // offered to the modules' answers for an address nobody answers first (content.md §2.3 row L2;
+            // the PR 2 review's pick, as ShopNotFoundController). An off store is never asked about: it
+            // answers not found as if it were never there (§1.6).
+            if (is_string($code) && $store === null && $this->directory->storeByCode($code) === null) {
+                $redirect = $this->addresses->answerRequest($request);
+
+                if ($redirect !== null) {
+                    return $redirect;
+                }
+            }
+
             abort(404);
         }
 

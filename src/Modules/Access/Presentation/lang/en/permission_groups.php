@@ -25,4 +25,5 @@ return [
     'marketing' => 'Marketing',
     'support' => 'Support',
     'messages_and_reports' => 'Messages and Reports',
+    'content' => 'Content',
 ];

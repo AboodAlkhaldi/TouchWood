@@ -56,8 +56,9 @@ return [
     // After Platform and Access: Payments declares its permissions through Access and its settings
     // and their guard through Platform (handoff §4.4, payments.md §2.3).
     PaymentsServiceProvider::class,
-    // Content's public contract only, for now: Ops is built against it before Content (handoff §13.2,
-    // ops.md §1.6). Content's build fills this provider in.
+    // After Platform, Access, Catalog and Pricing: Content declares its permissions through Access and
+    // builds on the other three (content.md §2.3, §9.4 A1). Its public contract is older: Ops is built
+    // against it (handoff §13.2, ops.md §1.6), answered by a placeholder until campaigns land.
     ContentServiceProvider::class,
     // Last: Ops reads every module's public surface and declares its permissions through Access;
     // nothing depends on it (handoff §4.4, ops.md §2).

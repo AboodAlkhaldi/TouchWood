@@ -32,7 +32,7 @@ deptrac:
     - name: Vendor
       collectors:
         - type: classNameRegex
-          value: '#^(Illuminate|Laravel|Symfony|Psr|Carbon|Brick|Spatie|Inertia|Intervention|Tighten|Mpdf|OpenSpout|PragmaRX|BaconQrCode)\\#'
+          value: '#^(Illuminate|Laravel|Symfony|Psr|Carbon|Brick|Spatie|Inertia|Intervention|Tighten|Mpdf|OpenSpout|PragmaRX|BaconQrCode|DeepL)\\#'
 
     # Framework glue that belongs to no module: the error renderer, the form-error helper and the
     # correlation-id middleware (handoff, 2026-09-18). Only a module's Presentation/ may use it —
@@ -248,9 +248,11 @@ deptrac:
       - PaymentsPublic
     Sales: [+SalesPublic, AppHttp]
 
-    # Content → Platform, Catalog, Pricing
+    # Content → Platform, Catalog, Pricing; Access's public surface only to declare its permissions, from
+    # the interior (content.md §9.4 A1), as Catalog's - ContentAccessUseTest keeps it to that. Its screens
+    # use the framework glue, as Sync's do; AppHttpTest keeps that to its Presentation layer.
     ContentPublic: [Shared, Vendor, PlatformPublic, CatalogPublic, PricingPublic]
-    Content: [+ContentPublic]
+    Content: [+ContentPublic, AccessPublic, AppHttp]
 
     # Ops listens everywhere and is depended on by nothing.
     OpsPublic:

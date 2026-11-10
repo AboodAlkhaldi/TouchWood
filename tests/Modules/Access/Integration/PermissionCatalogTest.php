@@ -92,6 +92,11 @@ it('sorts the permissions into store-free and per-store as the owner approved', 
         'catalog.import.run',
         'catalog.listing.rebuild',
         'catalog.search_log.prune',
+        // Reserved: redirects belong to no store, and the system's three jobs to none (content.md §3).
+        'content.campaigns.advance',
+        'content.redirect.manage',
+        'content.redirects.check',
+        'content.sitemap.build',
         // Reserved: telling Catalog's lists every rating again, the repair (feedback.md §3).
         'feedback.ratings.repush',
         // Reserved: the system's jobs belong to no store (inventory.md §3).
@@ -198,9 +203,11 @@ it('gives every command handler a PERMISSION constant, save those that read it f
     // Redeem, the three settlements and the three steps of a points hold, take the calling module's, named by Sales on each call (loyalty.md §2.1, §9.7), so they
     // declare none — as Promotions' three writes for Sales and its coupon hold's three (promotions.md §2.1, §9.6), and Ops' two marks of a
     // bell, which take the reader's own bell's, the shop's or the panel's (ops.md §1.2), and its staff message,
-    // which takes send_one or send_many by its audience (ops.md §1.8); every other
+    // which takes send_one or send_many by its audience (ops.md §1.8), and Content's Translate, which takes the
+    // permission of the kind of item being typed (content.md §1.3, §3); every other
     // handler must, or handlerPermissions() would pass over it.
     expect(handlersWithoutPermissionConstant())->toBe([
+        'Modules\Content\Application\Command\TranslateText\TranslateTextHandler',
         'Modules\Loyalty\Application\Command\ConfirmRedemption\ConfirmRedemptionHandler',
         'Modules\Loyalty\Application\Command\Earn\EarnHandler',
         'Modules\Loyalty\Application\Command\Redeem\RedeemHandler',
@@ -294,9 +301,9 @@ it('gives every action a role can hold a business area, and names every area in 
     // (loyalty.md §3, amendment 66), Sync's jobs Sync (sync.md §3, amendment 68), Promotions' jobs Marketing
     // (promotions.md §3, amendment 69), Feedback's reviews and questions Support (feedback.md §3, amendment 73),
     // Shipping's jobs Shipping (shipping.md §3, amendment 77), Payments' jobs Payments (payments.md §3, amendment 78), Ops' jobs Messages and Reports (ops.md §3,
-    // amendment 86).
+    // amendment 86), Content's jobs Content (content.md §3, row X1).
     ksort($used);
-    expect(array_keys($used))->toBe(['audit', 'catalog', 'companies', 'customers', 'marketing', 'media', 'messages_and_reports', 'orders', 'payments', 'points', 'pricing', 'shipping', 'staff_and_permissions', 'store_settings', 'support', 'sync', 'system']);
+    expect(array_keys($used))->toBe(['audit', 'catalog', 'companies', 'content', 'customers', 'marketing', 'media', 'messages_and_reports', 'orders', 'payments', 'points', 'pricing', 'shipping', 'staff_and_permissions', 'store_settings', 'support', 'sync', 'system']);
 });
 
 it('names every permission in Arabic and English', function () {
