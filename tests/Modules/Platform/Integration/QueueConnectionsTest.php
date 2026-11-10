@@ -12,6 +12,8 @@ use Illuminate\Queue\Attributes\Timeout;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Modules\Catalog\Infrastructure\Queue\BringInImportJob;
+use Modules\Content\Infrastructure\Queue\BuildSitemapsJob;
+use Modules\Content\Infrastructure\Queue\CheckRedirectsJob;
 use Modules\Platform\Public\LongQueue;
 use Modules\Promotions\Infrastructure\Queue\RefreshSegmentsJob;
 use Modules\Sync\Infrastructure\Queue\PruneSyncLogJob;
@@ -166,7 +168,7 @@ it('puts every queued class that may outlast the normal connection on the long o
     $queued = queueConnectionsClasses();
     $long = [];
 
-    // A moved folder must not make this pass over nothing: 70 queued classes, 4 of them long (2026-11-10).
+    // A moved folder must not make this pass over nothing: 74 queued classes, 6 of them long (2026-11-10).
     expect(count($queued))->toBeGreaterThanOrEqual(60);
 
     foreach ($queued as $class => $source) {
@@ -196,7 +198,7 @@ it('puts every queued class that may outlast the normal connection on the long o
         expect($timeout + QUEUE_CONNECTIONS_MARGIN)->toBeLessThanOrEqual($limit, "{$class} may run {$timeout} s, within ".QUEUE_CONNECTIONS_MARGIN." s of its connection's {$limit} s");
     }
 
-    expect(count($long))->toBeGreaterThanOrEqual(4);
+    expect(count($long))->toBeGreaterThanOrEqual(6);
 });
 
 it('sends each long job to the long connection, dispatched or scheduled', function () {
@@ -205,9 +207,10 @@ it('sends each long job to the long connection, dispatched or scheduled', functi
 
     BringInImportJob::dispatch('import');
     ReadStoreJob::dispatch('read');
+    CheckRedirectsJob::dispatch();
 
     // The scheduler's own callback - the one `schedule:run` calls - without its one-server lock.
-    foreach ([RefreshSegmentsJob::class, PruneSyncLogJob::class] as $class) {
+    foreach ([RefreshSegmentsJob::class, PruneSyncLogJob::class, BuildSitemapsJob::class] as $class) {
         $event = collect(app(Schedule::class)->events())->first(static fn ($event): bool => $event->description === $class);
 
         expect($event)->toBeInstanceOf(CallbackEvent::class, "{$class} is not scheduled");
@@ -216,7 +219,7 @@ it('sends each long job to the long connection, dispatched or scheduled', functi
         $callback();
     }
 
-    foreach ([BringInImportJob::class, ReadStoreJob::class, RefreshSegmentsJob::class, PruneSyncLogJob::class] as $class) {
+    foreach ([BringInImportJob::class, ReadStoreJob::class, CheckRedirectsJob::class, RefreshSegmentsJob::class, PruneSyncLogJob::class, BuildSitemapsJob::class] as $class) {
         Queue::assertPushed($class, static fn (object $job): bool => $job->connection === LongQueue::CONNECTION);
     }
 });

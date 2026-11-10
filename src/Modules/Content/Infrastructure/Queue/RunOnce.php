@@ -15,8 +15,9 @@ use stdClass;
 /**
  * **A queued job runs once, whatever the queue hands out** (PR 4 review), as the middleware of Content's long jobs.
  *
- * The database queue gives a job still running to a second worker once its `retry_after` (90 s) has passed, and the
- * sitemaps' build (600 s) and a page of Check Addresses (1200 s) can run longer. That copy carries the job's uuid. So
+ * The database queue gives a job still running to a second worker once its connection's `retry_after` has passed.
+ * The sitemaps' build (600 s) and a page of Check Addresses (1200 s) run on the long connection, whose 3700 s is above
+ * both (owner, 2026-11-10), and this stays for a copy handed out all the same. That copy carries the job's uuid. So
  * a job holds a session lock named for its uuid while it runs, and writes its uuid to `content.job_runs` when it
  * finishes: **a copy that finds the lock held (the job is running) or the row there (it finished) deletes itself**,
  * never running the work again - or, for the build, releasing itself until the running one ends and then building
