@@ -97,10 +97,13 @@ final readonly class UploadMediaHandler
 
         $existing = $isPublic ? $this->media->publicByChecksum($file->checksum) : null;
 
-        if ($existing !== null) {
-            return $this->existing($existing, $command);
+        $existingId = $existing === null ? null : $this->existing($existing, $command);
+
+        if ($existingId !== null) {
+            return $existingId;
         }
 
+        // None, or it was deleted between the check and its lock: this upload stores it anew.
         $actor = $this->actors->current();
 
         $media = Media::upload(
@@ -154,10 +157,10 @@ final readonly class UploadMediaHandler
         // Someone uploaded the same public image between our check and our insert: keep theirs.
         $this->storage->deleteNow($media);
 
-        $winner = $this->media->publicByChecksum($file->checksum)
-            ?? throw new RuntimeException('An identical image uploaded at the same moment was deleted before it could be returned. Upload the file again.');
+        $winner = $this->media->publicByChecksum($file->checksum);
 
-        return $this->existing($winner, $command);
+        return ($winner === null ? null : $this->existing($winner, $command))
+            ?? throw new RuntimeException('An identical image uploaded at the same moment was deleted before it could be returned. Upload the file again.');
     }
 
     /**
@@ -166,25 +169,34 @@ final readonly class UploadMediaHandler
      * work — so they are queued once more, exactly as RetryMediaVariants queues them, audited as that
      * retry marked "by_upload". A PENDING or READY image is left as it is.
      *
-     * Only the upload's own permission is checked (authorizeUpload): retrying needs
-     * platform.media.upload, which an upload through the library already proved, and a module's
-     * upload may retry the image it was allowed to upload — no extra check either way.
+     * Only the upload's own permission is checked (authorizeUpload): through the library that is
+     * platform.media.upload, the permission Retry needs; a module's upload proves its own instead,
+     * and may retry the image it was allowed to upload (platform.md §1.4) — no extra check either way.
      *
      * The status above was read without a lock, so it is read again under the row's lock: two
      * uploads of the same failed image at once queue it once, the second finding it PENDING.
+     *
+     * @return string|null null when the image was deleted between the check and the lock: the
+     *                     caller then stores the file anew, so it never answers a dead id
      */
-    private function existing(Media $existing, UploadMedia $command): string
+    private function existing(Media $existing, UploadMedia $command): ?string
     {
-        if ($existing->variantsStatus() === MediaVariantsStatus::Failed) {
-            $this->db->transaction(function () use ($existing, $command): void {
-                $locked = $this->media->lockById($existing->id());
-
-                if ($locked?->variantsStatus() === MediaVariantsStatus::Failed) {
-                    $this->retry->retry($locked, byUpload: true, forModule: $command->forModule);
-                }
-            });
+        if ($existing->variantsStatus() !== MediaVariantsStatus::Failed) {
+            return $existing->id();
         }
 
-        return $existing->id();
+        return $this->db->transaction(function () use ($existing, $command): ?string {
+            $locked = $this->media->lockById($existing->id());
+
+            if ($locked === null) {
+                return null;
+            }
+
+            if ($locked->variantsStatus() === MediaVariantsStatus::Failed) {
+                $this->retry->retry($locked, byUpload: true, forModule: $command->forModule);
+            }
+
+            return $locked->id();
+        });
     }
 }

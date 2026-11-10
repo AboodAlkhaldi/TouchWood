@@ -633,11 +633,12 @@ describe('the stuck-variants sweep', function () {
 
 /**
  * A media repository whose duplicate check answers one snapshot taken earlier, as two uploads that checked at the
- * same moment both saw it; everything else is the real repository.
+ * same moment both saw it; everything else is the real repository. $beforeLock runs in the gap between that check and
+ * the row's lock, as someone else's change would.
  */
 final class SnapshotChecksumMediaRepository implements MediaRepository
 {
-    public function __construct(private readonly MediaRepository $real, private readonly Media $snapshot) {}
+    public function __construct(private readonly MediaRepository $real, private readonly Media $snapshot, private readonly ?Closure $beforeLock = null) {}
 
     public function nextId(): string
     {
@@ -656,6 +657,10 @@ final class SnapshotChecksumMediaRepository implements MediaRepository
 
     public function lockById(string $id): ?Media
     {
+        if ($this->beforeLock !== null) {
+            ($this->beforeLock)($id);
+        }
+
         return $this->real->lockById($id);
     }
 
@@ -772,6 +777,31 @@ describe('uploading again a public image whose sizes failed (owner 2026-11-10, P
             ->and(retriedAudits($id))->toHaveCount(1)
             // Each read its row under the lock, inside its own transaction (RefreshDatabase's is level 1).
             ->and($locks)->toBe([2, 2]);
+        Queue::assertPushed(GenerateMediaVariantsJob::class, 2);
+    });
+
+    it('stores it anew when it is deleted between the check and the lock, so the id it answers is alive', function () {
+        $path = imageFile(800, 600);
+        $deleted = uploadMedia($path);
+        failVariants($deleted);
+
+        // The check sees it FAILED; then it is deleted before the upload's lock reaches its row.
+        app()->instance(MediaRepository::class, new SnapshotChecksumMediaRepository(
+            app(MediaRepository::class),
+            app(MediaRepository::class)->byId($deleted) ?? throw new LogicException('No media.'),
+            static function (string $id): void {
+                DB::table('platform.media')->where('id', $id)->delete();
+            },
+        ));
+
+        $id = uploadMedia($path, name: 'again.jpg');
+
+        expect($id)->not->toBe($deleted)
+            ->and(mediaRow($id)->variants_status)->toBe('PENDING')
+            ->and(DB::table('platform.media')->pluck('id')->all())->toBe([$id])
+            ->and(DB::table('platform.audit_entries')->where('action', 'platform.media.uploaded')->where('subject_id', $id)->exists())->toBeTrue()
+            ->and(retriedAudits($deleted))->toBe([]);
+        Queue::assertPushed(GenerateMediaVariantsJob::class, fn (GenerateMediaVariantsJob $job): bool => $job->mediaId === $id);
         Queue::assertPushed(GenerateMediaVariantsJob::class, 2);
     });
 

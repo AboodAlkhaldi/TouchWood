@@ -124,10 +124,16 @@ An uploaded file in object storage (handoff §5.5). Global, not store-scoped.
   **[DECIDED 2026-11-10, P10 (a)]** If that Media's variants **failed**, uploading it again is
   how the person asks for them again ("Upload this image again."): they are queued once more
   exactly as `RetryMediaVariants` queues them — `FAILED` → `PENDING`, `READY` when the job
-  succeeds — audited as that retry, marked `by_upload`. The upload's own permission is enough:
-  retrying needs `platform.media.upload`, which an upload through the library already holds, and a
-  module's upload may retry the image it may upload. Two uploads of it at once queue it once (each
-  reads the row again under its lock). An existing `PENDING` or `READY` Media is returned unchanged.
+  succeeds — audited as that retry, marked `by_upload`. The upload's own permission is enough: an
+  upload through the library holds `platform.media.upload`, the permission Retry needs; a module's
+  upload proves only that module's own permission, yet may retry an image first uploaded by
+  someone else or another module. **That reach is intentional:** public files are shared by
+  checksum, so the uploader holds the identical bytes and gets the same Media back anyway; the
+  retry only queues variants again; the audit entry records `for_module` and `under_permission`,
+  so the log says who asked and under what; and private files are never reached, because they are
+  never deduplicated. Two uploads of it at once queue it once (each reads the row again under its
+  lock). If the Media is deleted between the check and the lock, the upload stores the file anew,
+  so it never returns a deleted id. An existing `PENDING` or `READY` Media is returned unchanged.
   **Private files are never deduplicated:** two companies uploading the same receipt get two
   separate Media, so neither ever sees the other's file name or shares its document.
 - **[DECIDED 2026-09-16] Every original is kept private**, public images included: a phone photo

@@ -347,9 +347,12 @@ UploadMedia ──▶ inspect headers (type, displayed size, animation, checksum
   through `MediaVariantsRetry` — the same retry `RetryMediaVariantsHandler` makes: FAILED →
   PENDING, row written, `platform.media.variants_retried` audited (marked `by_upload`, and with
   `for_module`/`under_permission` for a module's upload), the job queued after the commit. Two
-  uploads at once queue it once: the second finds it PENDING under the lock. No permission beyond
-  the upload's own is checked — Retry needs `platform.media.upload`, which a library upload already
-  proved, and a module may retry the image it may upload. A PENDING (even a stuck one) or READY
+  uploads at once queue it once: the second finds it PENDING under the lock. If the row is gone by
+  the time the lock reaches it (deleted in between), the upload stores the file anew, so it never
+  answers a dead id. No permission beyond the upload's own is checked: an upload through the
+  library proves `platform.media.upload`, the permission Retry needs; a module's upload proves only
+  its own permission (for example `content.page.manage` in a store), and may still retry an image
+  another module uploaded — on purpose (platform.md §1.4). A PENDING (even a stuck one) or READY
   duplicate is returned untouched: the stuck sweep and Retry handle a lost job. On a READY hit the
   upload reads 1 query; on a FAILED hit 4 (the check, the lock, the update, the audit entry),
   counted in `MediaTest`.
