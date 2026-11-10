@@ -13,11 +13,12 @@ use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use function Pest\Laravel\seed;
 
 /*
-| O7, Subscribers in a real browser (ops.md §4.15): the columns' words, a customer's hidden email and its reason, a guest
-| removed with Keep and Remove, a customer with no menu, a row kept after a removal below Show More, Arabic and a phone.
+| O7, Subscribers in a real browser (ops.md §4.15): the columns' words, a customer's hidden email and its reason in a
+| Popover (by keyboard, and by a tap on a phone), a guest removed with Keep and Remove, a customer with no menu, newest
+| first, a row kept after a removal below Show More, Arabic and a phone.
 |
-| Deliberately no RefreshDatabase, as the other browser tests. The list is oldest first (§4.5 sets no order; `ORDER BY id`), so
-| each test starts with `ae`'s list empty: another run's rows would push this one's off the page.
+| Deliberately no RefreshDatabase, as the other browser tests. The list is newest first (owner, 2026-11-10; §4.1), so each
+| test starts with `ae`'s list empty: another run's rows would push this one's off the page.
 */
 
 beforeEach(function () {
@@ -81,9 +82,13 @@ it('shows each kind in words, hides a customer\'s email saying why, and removes 
 
     // This reader may not view the store's customers: the email stays hidden, and the reason is there to read.
     expect((string) $page->script("document.querySelector('[data-test=\"subscriber-{$customer}\"] [data-test=\"email\"]').textContent"))->toBe('Hidden');
-    // By keyboard, not only the mouse: the word can take the focus.
-    $page->script("(() => { document.querySelector('[data-test=\"subscriber-{$customer}\"] [data-test=\"hidden-email\"]').focus(); })()");
-    expect(browserSoon($page, "[...document.querySelectorAll('[role=\"tooltip\"]')].some((tip) => tip.textContent.includes('You may not view this store'))"))->toBeTrue();
+    // By keyboard, not only the mouse: the word is a button, Enter opens the reason and Escape closes it.
+    $hidden = "[data-test=\"subscriber-{$customer}\"] [data-test=\"hidden-email\"]";
+    expect(browserSoon($page, "document.querySelector('{$hidden}')?.tagName === 'BUTTON'"))->toBeTrue();
+    $page->keys($hidden, 'Enter');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"hidden-why\"]')?.textContent === 'You may not view this store\\'s customers.'"))->toBeTrue();
+    $page->keys('[data-test="hidden-why"]', 'Escape');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"hidden-why\"]') === null"))->toBeTrue();
 
     // A customer's own switch decides: no menu on their row.
     expect($page->script("document.querySelector('[data-test=\"more-{$customer}\"]') === null"))->toBeTrue();
@@ -115,17 +120,20 @@ it('shows a customer\'s email to someone who may view the store\'s customers', f
 
 it('keeps the rows shown with Show More when a guest below them is removed', function () {
     $run = substr((string) hrtime(true), -10);
-    $ids = array_map(static fn (int $i): string => subscribersBrowserRow("deep{$i}.{$run}@example.test"), range(1, 55));
+    // A minute apart, the first written the oldest.
+    $ids = array_map(static fn (int $i): string => subscribersBrowserRow("deep{$i}.{$run}@example.test", ['created_at' => now()->subMinutes(60 - $i)]), range(1, 55));
     $page = subscribersBrowser(['ops.newsletter.manage']);
     $rows = "document.querySelectorAll('[data-test^=\"subscriber-\"]')";
 
     $page->navigate('/admin/newsletter/subscribers?store=ae', BROWSER_SLOW_PAGE_LOAD);
-    expect(browserSoon($page, "{$rows}.length === 50"))->toBeTrue();
+    expect(browserSoon($page, "{$rows}.length === 50"))->toBeTrue()
+        // Newest first: the last written at the top.
+        ->and((string) $page->script("{$rows}[0].dataset.test"))->toBe("subscriber-{$ids[54]}");
     $page->click('[data-test="more"]');
-    // Oldest first: the last written are on the second page.
-    $deep = $ids[50];
-    $next = $ids[51];
-    $gone = $ids[52];
+    // The first written are on the second page, newest of them first.
+    $deep = $ids[4];
+    $next = $ids[3];
+    $gone = $ids[2];
     expect(browserSoon($page, "document.querySelector('[data-test=\"more-{$deep}\"]') !== null"))->toBeTrue()
         ->and((int) $page->script("{$rows}.length"))->toBe(55);
 
@@ -156,6 +164,8 @@ it('draws right to left in Arabic, in Latin digits, and fits a phone', function 
     $run = substr((string) hrtime(true), -10);
     $long = 'a-very-long-address-with-no-break-in-it-'.$run.'@example.test';
     $guest = subscribersBrowserRow($long);
+    $customerEmail = "phone{$run}@example.test";
+    $customer = subscribersBrowserRow($customerEmail, ['kind' => 'CUSTOMER', 'customer_id' => Fx::customer($customerEmail, 'ae')]);
     $page = subscribersBrowser(['ops.newsletter.manage'], 'ar');
     $page->resize(375, 812);
 
@@ -163,6 +173,14 @@ it('draws right to left in Arabic, in Latin digits, and fits a phone', function 
     expect(browserSoon($page, "document.documentElement.dir === 'rtl' && document.querySelector('[data-test^=\"subscriber-\"]') !== null"))->toBeTrue()
         ->and((bool) $page->script('/[٠-٩]/.test(document.body.textContent)'))->toBeFalse()
         ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+
+    // A tap opens the hidden email's reason, which a tooltip never did; it fits the phone.
+    $page->click("[data-test=\"subscriber-{$customer}\"] [data-test=\"hidden-email\"]");
+    expect(browserSoon($page, "document.querySelector('[data-test=\"hidden-why\"]')?.textContent === 'لا يمكنك عرض عملاء هذا المتجر.'"))->toBeTrue()
+        ->and(browserSoon($page, "(() => { const box = document.querySelector('[data-test=\"hidden-why\"]').getBoundingClientRect(); return box.left >= 0 && box.right <= window.innerWidth; })()"))->toBeTrue()
+        ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    $page->keys('[data-test="hidden-why"]', 'Escape');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"hidden-why\"]') === null"))->toBeTrue();
 
     // The question with a long address fits the phone too, wrapped inside its dialog.
     $page->script("(() => { document.querySelector('[data-test=\"more-{$guest}\"]').scrollIntoView({ block: 'center' }); })()");
