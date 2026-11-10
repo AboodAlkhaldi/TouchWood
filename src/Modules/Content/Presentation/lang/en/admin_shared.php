@@ -49,7 +49,7 @@ return [
         'uploading' => 'Uploading :percent%',
         'size' => 'Upload :width x :height.',
         'size_png' => 'Upload :width x :height, PNG.',
-        'small' => 'This image is :width x :height, under the size it is shown at: it may look soft.',
+        'small' => 'This image is :width x :height, under :needWidth x :needHeight, twice the size it is shown at: it may look soft on a sharp screen.',
         'pending' => 'Being prepared',
         'failed' => 'Upload this image again.',
         'upload_failed' => 'Failed to upload the image. Try again.',

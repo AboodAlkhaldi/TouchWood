@@ -48,7 +48,7 @@ return [
         'uploading' => 'جارٍ الرفع :percent%',
         'size' => 'ارفع صورة بمقاس :width × :height.',
         'size_png' => 'ارفع صورة PNG بمقاس :width × :height.',
-        'small' => 'مقاس هذه الصورة :width × :height، وهو أصغر من مقاس عرضها، فقد تبدو غير حادة.',
+        'small' => 'مقاس هذه الصورة :width × :height، وهو أقل من :needWidth × :needHeight، ضعف مقاس عرضها، فقد تبدو غير حادة على الشاشات الدقيقة.',
         'pending' => 'قيد التجهيز',
         'failed' => 'ارفع هذه الصورة مرة أخرى.',
         'upload_failed' => 'تعذر رفع الصورة. حاول مرة أخرى.',
