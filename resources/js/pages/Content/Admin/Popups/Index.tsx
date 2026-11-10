@@ -120,7 +120,7 @@ export default function Index({ stores, storeCode, popups, next }: PopupsPageDat
                                     </span>,
                                 ],
                                 menu: menu(row),
-                                onOpen: () => router.visit(`${LIST}/${row.id}`),
+                                href: `${LIST}/${row.id}`,
                             }))}
                         />
                         {next !== null ? <LoadMoreButton loading={list.loading || restoring} onClick={() => more(next)} /> : null}

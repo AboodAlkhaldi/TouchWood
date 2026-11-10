@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type RefObject } from 'react';
 import { useForm } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { sentMoment } from '@/components/content/moments';
@@ -27,6 +27,7 @@ export function SmartBarDialog({
     zone,
     categories,
     translationReady,
+    returnFocusTo,
     onClose,
 }: {
     row: SmartBarData | null;
@@ -34,6 +35,8 @@ export function SmartBarDialog({
     zone: string;
     categories: CategoryChoiceData[];
     translationReady: boolean;
+    /** The row's own control, where the focus goes back once the dialog closes. */
+    returnFocusTo: RefObject<HTMLElement | null>;
     onClose: () => void;
 }) {
     const t = useTranslator();
@@ -69,6 +72,7 @@ export function SmartBarDialog({
             wide
             open
             onOpenChange={(open) => (open ? undefined : onClose())}
+            returnFocusTo={returnFocusTo}
             title={row === null ? t('content::admin_bars.smart.add') : t('content::admin_bars.smart.edit')}
             description={t('content::admin_bars.smart.empty_body')}
             busy={form.processing}

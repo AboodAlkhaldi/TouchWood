@@ -9,7 +9,8 @@ import type { BarsPageData } from '@/types/generated/Modules/Content/Presentatio
 
 /*
 | W2's frame (content.md §4.4): the title, the store filter, and the two underlined tabs, Smart Bars with its count. Each
-| tab is its own page (`?tab=`), so neither carries the other's code (JavaScriptBudgetTest).
+| tab is its own page (`?tab=`), so neither carries the other's code (JavaScriptBudgetTest); another store opens on the
+| same tab.
 */
 export function BarsFrame({ page, action, children }: { page: BarsPageData; action?: ReactNode; children: ReactNode }) {
     const t = useTranslator();
@@ -18,7 +19,7 @@ export function BarsFrame({ page, action, children }: { page: BarsPageData; acti
         <AdminLayout title={t('content::admin_bars.title')} subtitle={t('content::admin_bars.subtitle')} action={action}>
             <div className="grid min-w-0 grid-cols-1 gap-4">
                 <FormError />
-                <StoreFilter stores={page.stores.map((each) => ({ code: each.code, name: each.name, isActive: each.isOn }))} value={page.storeCode} drop={['tab']} className="max-w-xs" />
+                <StoreFilter stores={page.stores.map((each) => ({ code: each.code, name: each.name, isActive: each.isOn }))} value={page.storeCode} className="max-w-xs" />
                 <div className="min-w-0 max-w-full overflow-x-auto" data-test="tabs-row">
                     <Tabs value={page.tab} onValueChange={(next) => router.get('/admin/content/bars', { store: page.storeCode, tab: next }, { preserveScroll: true })}>
                         <TabsList variant="line" className="max-w-full overflow-x-auto">
