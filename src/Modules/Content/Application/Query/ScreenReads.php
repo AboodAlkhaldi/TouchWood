@@ -52,11 +52,10 @@ interface ScreenReads
     public function blogCategories(string $storeId): array;
 
     /**
-     * Where Content's own links name one of these paths, in the store (§1.1 rule 16): the footer, the home page's
-     * sections, banners, the bar, smart bars and pop-ups.
+     * Every link staff typed in the store's Content (§1.1 rule 16), as typed: the footer's, the home page's sections'
+     * and logos', banners', the bar's, smart bars' and pop-ups'. Which of them name a page is `LinkMatch`'s question.
      *
-     * @param  list<string>  $paths
-     * @return list<array{place: string, id: string}>
+     * @return list<array{place: string, id: string, link: string}>
      */
-    public function linksTo(string $storeId, array $paths): array;
+    public function links(string $storeId): array;
 }

@@ -12,6 +12,11 @@ use Modules\Content\Domain\Exception\InvalidContentInput;
  * A file or a category checked a moment ago and deleted before the row naming it is written (PR 3 review): the
  * RESTRICT key refuses the row, and the person is told what the check would have said - the file is no image of
  * the library, the category does not exist - rather than seeing a server error. Any other failure is let through.
+ *
+ * **The constraint's name is read from PostgreSQL's message** (`... violates foreign key constraint "bi_media"`), in
+ * English as the server writes it: PDO's pgsql driver gives the SQLSTATE and the message, not the constraint's name
+ * on its own (`errorInfo` holds the state, the driver's code and the text). A message in another wording, or a
+ * constraint not listed, fails safe: the original failure is thrown as it was.
  */
 final class ForeignKeyRefusals
 {

@@ -10,6 +10,7 @@ use Modules\Content\Application\ContentAccess;
 use Modules\Content\Application\ContentAudit;
 use Modules\Content\Application\ContentCache;
 use Modules\Content\Application\ContentPermissions;
+use Modules\Content\Application\EditCheck;
 use Modules\Content\Domain\Exception\CategoryNotEmpty;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\ContentNotFound;
@@ -35,6 +36,7 @@ final readonly class DeleteBlogCategoryHandler
         private Documents $documents,
         private SlugHistory $history,
         private ContentLocks $locks,
+        private EditCheck $check,
         private ConnectionInterface $db,
         private PlatformApi $platform,
         private ContentCache $cache,
@@ -49,7 +51,9 @@ final readonly class DeleteBlogCategoryHandler
         $store = $this->access->authorize(self::PERMISSION, $this->categories->find($command->categoryId)?->storeId, item: true);
 
         $this->db->transaction(function () use ($command, $store): void {
+            // The store's locks first, in ContentLocks' order - its addresses are freed below - then the category's row.
             $this->locks->lock($store->id, ContentLocks::BLOG_CATEGORIES);
+            $this->check->lockAddresses($store->id);
             $was = $this->categories->lock($command->categoryId) ?? throw new ContentNotFound;
 
             if ($this->documents->postsInCategory($was->id) > 0) {
