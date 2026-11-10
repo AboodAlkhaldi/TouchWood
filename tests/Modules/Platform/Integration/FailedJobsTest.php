@@ -26,6 +26,7 @@ use Modules\Platform\Application\Query\ViewFailedJob\ViewFailedJobHandler;
 use Modules\Platform\Domain\Exception\FailedJobNotFound;
 use Modules\Platform\Domain\Exception\FailedJobNotRetryable;
 use Modules\Platform\Presentation\Http\Resource\FailedJobNames;
+use Modules\Platform\Public\LongQueue;
 use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -268,6 +269,33 @@ it('retries one: back on its queue, off the list, and it runs; audited without i
     Artisan::call('queue:work', ['connection' => 'database', '--once' => true]);
 
     expect(cache()->get('failed-jobs-test-ran'))->toBe('retried')
+        ->and(DB::table('jobs')->count())->toBe(0)
+        ->and(DB::table('failed_jobs')->count())->toBe(0);
+});
+
+it('retries one that failed on the long connection back onto it, where only the long worker takes it (owner, 2026-11-10)', function () {
+    FailedJobsTestJob::dispatch('long')->onConnection(LongQueue::CONNECTION);
+    Artisan::call('queue:work', ['connection' => LongQueue::CONNECTION, '--queue' => 'long', '--once' => true]);
+    $id = (string) DB::table('failed_jobs')->value('uuid');
+    failedJobsAdmin();
+    FailedJobsTestJob::$fails = false;
+
+    expect(DB::table('failed_jobs')->where('uuid', $id)->first(['connection', 'queue']))->toEqual((object) ['connection' => LongQueue::CONNECTION, 'queue' => 'long'])
+        ->and(failedJobsList()[0]->retryable)->toBeTrue();
+
+    app(RetryFailedJobHandler::class)->handle(new RetryFailedJob($id));
+
+    expect(DB::table('jobs')->pluck('queue')->all())->toBe(['long']);
+
+    // The normal worker reserves only its own queue: the long job waits for its own worker.
+    Artisan::call('queue:work', ['connection' => 'database', '--once' => true, '--sleep' => 0]);
+
+    expect(DB::table('jobs')->count())->toBe(1)
+        ->and(cache()->get('failed-jobs-test-ran'))->toBeNull();
+
+    Artisan::call('queue:work', ['connection' => LongQueue::CONNECTION, '--queue' => 'long', '--once' => true]);
+
+    expect(cache()->get('failed-jobs-test-ran'))->toBe('long')
         ->and(DB::table('jobs')->count())->toBe(0)
         ->and(DB::table('failed_jobs')->count())->toBe(0);
 });
