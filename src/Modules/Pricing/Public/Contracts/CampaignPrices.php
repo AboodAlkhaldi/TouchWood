@@ -44,11 +44,16 @@ interface CampaignPrices
 
     /**
      * A scheduled or live run's new end, after its start and never before now (`pricing.window_invalid`);
-     * an ended run is never revived (`pricing.not_changeable`).
+     * an ended run is never revived (`pricing.not_changeable`); a run Pricing does not hold changes nothing.
+     * Every moment is kept to the whole second, taken down.
      */
     public function changeEnd(StoreId $store, string $runId, DateTimeImmutable $end): void;
 
-    /** A live run ends now; a scheduled one is removed instead; an ended one is left as it is. */
+    /**
+     * A started run ends now (at the whole second); one not started - or started this very second - is
+     * removed instead; an ended one, or one Pricing does not hold, is left as it is. Content's Cancel calls
+     * this too: Pricing judges "started" by the run's own dates, which Content's state can lag behind.
+     */
     public function endNow(StoreId $store, string $runId): void;
 
     /** The run's prices go, their candidates with them; a run Pricing does not hold changes nothing. */

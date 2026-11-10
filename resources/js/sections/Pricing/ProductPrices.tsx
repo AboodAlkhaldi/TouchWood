@@ -29,6 +29,7 @@ type Today = { price: MoneyData; before: MoneyData | null; why: string; alwaysWi
 type SizePrices = { variantId: string; retail: { price: MoneyData; source: string; updatedAt: string } | null; today: Today | null; bands: BandData[] };
 type ProductSale = { id: string; state: string; percentBasisPoints: number | null; salePrice: MoneyData | null; variantIds: string[]; startsAt: string; endsAt: string | null; alwaysWins: boolean };
 type ProductDiscount = { id: string; categoryId: string; categoryPath: string[]; state: string; percentBasisPoints: number | null; amountOff: MoneyData | null; lines: string; startsAt: string; endsAt: string | null; alwaysWins: boolean };
+type ProductCampaign = { id: string; state: string; lines: string; variantIds: string[]; startsAt: string; endsAt: string | null };
 type Card = {
     storeId: string;
     mayEditPrices: boolean;
@@ -38,6 +39,7 @@ type Card = {
     sizes: SizePrices[];
     sales: ProductSale[];
     discounts: ProductDiscount[];
+    campaigns?: ProductCampaign[];
     decimals: number;
     currency: string;
     timezone: string;
@@ -253,6 +255,21 @@ function Section({ card, store }: { card: Card; store: { code: string; name: str
                                 </li>
                             );
                         })}
+                    </ul>
+                </div>
+            ) : null}
+
+            {(card.campaigns ?? []).length > 0 ? (
+                <div className="grid gap-2">
+                    <h4 className="text-label-14 text-ink">{t('pricing::admin.section.campaigns')}</h4>
+                    <ul className="grid gap-1">
+                        {(card.campaigns ?? []).map((campaign) => (
+                            <li key={campaign.id} className="flex flex-wrap items-center gap-2 text-copy-14" data-test={`section-campaign-${campaign.id}`}>
+                                <StateBadge state={campaign.state} />
+                                <span>{t('pricing::admin.badge.campaign')}</span>
+                                <span className="tw-figure text-copy-13 text-ink-muted">{t('pricing::admin.note.dates', { start: date(campaign.startsAt), end: campaign.endsAt === null ? t('pricing::admin.no_end') : date(campaign.endsAt) })}</span>
+                            </li>
+                        ))}
                     </ul>
                 </div>
             ) : null}

@@ -143,6 +143,7 @@ describe('what the database refuses behind the code (§8 #15)', function () {
             'campaign_left_out_run' => 'c',
             'campaign_sets_store' => 'r',
             'campaign_skips_run' => 'c',
+            'campaign_skips_store' => 'r',
             'campaign_skips_variant' => 'c',
             'campaign_targets_run' => 'c',
             'category_discount_exclusions_discount' => 'c',
@@ -204,11 +205,19 @@ describe('what the database refuses behind the code (§8 #15)', function () {
         $insert([])();
         $insert(['kind' => 'CATEGORY', 'percent_bp' => 1000, 'amount_minor' => null, 'currency_code' => null])();
 
+        // A skip is of its run's own store, never another's.
+        $skip = static fn (string $store): Closure => fn () => DB::transaction(fn () => DB::table('pricing.campaign_skips')->insert(['run_id' => $run, 'variant_id' => $target['target_id'], 'store_id' => $store]));
+
+        expect($skip(Fx::storeId('ae')))->toThrow(QueryException::class, 'campaign_skips_run');
+
+        $skip(Fx::storeId('sa'))();
+
         // Each target named once in a run; the run's rows go with it.
         expect($insert(['amount_minor' => 8000]))->toThrow(QueryException::class, 'campaign_targets_pkey');
 
         DB::table('pricing.campaign_sets')->where('run_id', $run)->delete();
 
-        expect(DB::table('pricing.campaign_targets')->count())->toBe(0);
+        expect(DB::table('pricing.campaign_targets')->count())->toBe(0)
+            ->and(DB::table('pricing.campaign_skips')->count())->toBe(0);
     });
 });

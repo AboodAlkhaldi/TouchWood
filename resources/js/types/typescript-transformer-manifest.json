@@ -29,7 +29,7 @@
     "generated\\Modules\\Platform\\Public\\Dto\\index.ts": "5a2fc4cca076480e1de07f75767b5d92",
     "generated\\Modules\\Platform\\Public\\Enums\\index.ts": "808b10603348cf50ae770d6a0138c982",
     "generated\\Modules\\Pricing\\Domain\\ValueObject\\index.ts": "eb6861bfd7d1d1ffdd54c1202d6c2837",
-    "generated\\Modules\\Pricing\\Presentation\\Http\\Resource\\index.ts": "641cd7a7d65348ed096ff11dedeb53de",
+    "generated\\Modules\\Pricing\\Presentation\\Http\\Resource\\index.ts": "b02fa6f3d8f13b2b5cb609f4c13c4937",
     "generated\\Modules\\Pricing\\Public\\Enums\\index.ts": "0ffd55194be008d4af1c0b7480c42e7e",
     "generated\\Modules\\Promotions\\Domain\\Model\\index.ts": "845ffa427bb7780cd12004e84016a031",
     "generated\\Modules\\Promotions\\Presentation\\Http\\Resource\\index.ts": "bd719f02da4cd7ab2a48293d42969d40",

@@ -94,11 +94,21 @@ final readonly class DatabaseCampaigns implements Campaigns
             ->get()->values()->all());
     }
 
-    public function storesWithCampaigns(DateTimeImmutable $at): array
+    public function storesWithOffers(DateTimeImmutable $at): array
     {
-        return array_values(array_map('strval', $this->db->table(self::SETS)
-            ->where('ends_at', '>', $at->format('Y-m-d H:i:s.uP'))
-            ->distinct()->orderBy('store_id')->pluck('store_id')->all()));
+        $moment = $at->format('Y-m-d H:i:s.uP');
+        $found = ['discounts' => [], 'campaigns' => []];
+
+        foreach ($this->db->select(
+            "SELECT DISTINCT 'discounts' AS kind, store_id FROM pricing.category_discounts WHERE ends_at IS NULL OR ends_at > ?"
+            ." UNION SELECT DISTINCT 'campaigns' AS kind, store_id FROM pricing.campaign_sets WHERE ends_at > ?"
+            .' ORDER BY kind, store_id',
+            [$moment, $moment],
+        ) as $row) {
+            $found[$row->kind === 'discounts' ? 'discounts' : 'campaigns'][] = (string) $row->store_id;
+        }
+
+        return $found;
     }
 
     public function windowsBetween(DateTimeImmutable $from, DateTimeImmutable $to): array

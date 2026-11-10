@@ -22,6 +22,7 @@ final readonly class SizePricesView
      * @param  list<ReachingSale>  $sales
      * @param  list<ReachingDiscount>  $discounts
      * @param  list<BandView>  $bands
+     * @param  list<ReachingCampaign>  $campaigns  the campaign runs pricing it (§9.6 #7)
      */
     public function __construct(
         public SizeView $size,
@@ -37,5 +38,6 @@ final readonly class SizePricesView
         public ?int $wholesaleMinimum,
         public ?int $wholesaleMaximum,
         public bool $minimumChanged,
+        public array $campaigns = [],
     ) {}
 }

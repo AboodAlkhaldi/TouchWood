@@ -731,6 +731,7 @@ describe('the drawer\'s and the dialogs\' reads', function () {
         $reads = [
             'drawer' => '/admin/prices/size?store=sa&size='.$a['variants'][0],
             'note' => "/admin/offers/note?store=sa&product={$a['product']}&percent=20",
+            'note untyped' => "/admin/offers/note?store=sa&product={$a['product']}",
             'products' => '/admin/offers/products?store=sa&q=Alpha',
             'sizes' => "/admin/offers/sizes?store=sa&product={$a['product']}",
             'filter' => '/admin/offers/filter-products?store=sa',
@@ -745,7 +746,7 @@ describe('the drawer\'s and the dialogs\' reads', function () {
         // Recorded, each under the ceiling of 15 (§4.3.1 "Budget"): the drawer, the offer dialog's note, the
         // discount dialog's preview at it.
         expect($counts)->toBe([
-            'drawer' => 13, 'note' => 15, 'products' => 3, 'sizes' => 4, 'filter' => 4, 'offer' => 12,
+            'drawer' => 13, 'note' => 15, 'note untyped' => 14, 'products' => 3, 'sizes' => 4, 'filter' => 4, 'offer' => 12,
             'categories' => 2, 'left out' => 4, 'preview' => 13, 'wholesale sizes' => 3,
         ]);
     });

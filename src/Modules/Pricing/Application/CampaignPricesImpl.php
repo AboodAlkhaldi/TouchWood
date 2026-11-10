@@ -16,6 +16,7 @@ use Modules\Pricing\Application\Prices\CampaignPreviewer;
 use Modules\Pricing\Application\Prices\CandidateWriter;
 use Modules\Pricing\Application\Prices\PriceWindowTasks;
 use Modules\Pricing\Application\Prices\PricingChange;
+use Modules\Pricing\Application\Prices\WholeSecond;
 use Modules\Pricing\Domain\Exception\InvalidPricingInput;
 use Modules\Pricing\Domain\Exception\NotChangeable;
 use Modules\Pricing\Domain\Exception\WindowInvalid;
@@ -102,10 +103,17 @@ final readonly class CampaignPricesImpl implements CampaignPrices
     {
         $this->store($store);
         $runId = CampaignInput::runId($runId);
+        // To the second, as kept: its timed task then finds the moment it was queued for.
+        $end = WholeSecond::of($end);
 
         $this->change->run($store, function () use ($store, $runId, $end): array {
             $now = CarbonImmutable::now()->toDateTimeImmutable();
-            $before = $this->held($store, $runId) ?? throw new InvalidPricingInput('campaign');
+            $before = $this->held($store, $runId);
+
+            // A run Pricing does not hold has no prices to end later (a campaign may carry none), as endNow.
+            if ($before === null) {
+                return [null, []];
+            }
 
             if ($before->ended($now)) {
                 throw new NotChangeable;
@@ -130,7 +138,9 @@ final readonly class CampaignPricesImpl implements CampaignPrices
         $runId = CampaignInput::runId($runId);
 
         $this->change->run($store, function () use ($store, $runId): array {
-            $now = CarbonImmutable::now()->toDateTimeImmutable();
+            // Ended at the second now began, as kept: never a second later, still running when its sizes are
+            // priced again (`WholeSecond`).
+            $now = WholeSecond::now();
             $before = $this->held($store, $runId);
 
             if ($before === null || $before->ended($now)) {
@@ -139,7 +149,8 @@ final readonly class CampaignPricesImpl implements CampaignPrices
 
             $sizes = $this->coverage->pricedSizes($store, [$before]);
 
-            if ($before->scheduled($now)) {
+            // Not started, or started this very second (it has no time to end at): removed.
+            if ($before->startsAt >= $now) {
                 $this->campaigns->remove($before->runId);
             } else {
                 $this->campaigns->save(self::endingAt($before, $now));

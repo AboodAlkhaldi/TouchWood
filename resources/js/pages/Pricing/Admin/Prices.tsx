@@ -524,7 +524,7 @@ function DrawerBody({ view, frame, zone, onBands, onDirty }: { view: SizePricesD
                 <h3 id="drawer-reaches" className="text-heading-14 text-ink">
                     {t('pricing::admin_prices.drawer.reaches')}
                 </h3>
-                {view.sales.length === 0 && view.discounts.length === 0 && view.bands.length === 0 ? <p className="text-copy-14 text-ink-muted">{t('pricing::admin_prices.drawer.nothing')}</p> : null}
+                {view.sales.length === 0 && view.discounts.length === 0 && view.campaigns.length === 0 && view.bands.length === 0 ? <p className="text-copy-14 text-ink-muted">{t('pricing::admin_prices.drawer.nothing')}</p> : null}
                 <ul className="grid gap-3">
                     {view.sales.map((sale) => (
                         <li key={sale.id} className="grid gap-1" data-test={`reach-offer-${sale.id}`}>
@@ -565,6 +565,21 @@ function DrawerBody({ view, frame, zone, onBands, onDirty }: { view: SizePricesD
                             <Link href={`/admin/category-discounts/${discount.id}`} className="w-fit text-copy-13 text-ink underline underline-offset-4">
                                 {t('pricing::admin_prices.drawer.open_discount')}
                             </Link>
+                        </li>
+                    ))}
+                    {view.campaigns.map((campaign) => (
+                        <li key={campaign.id} className="grid gap-1" data-test={`reach-campaign-${campaign.id}`}>
+                            <span className="flex flex-wrap items-center gap-2">
+                                <StateBadge state={campaign.state} />
+                                <span className="text-copy-14 text-ink">{t('pricing::admin.badge.campaign')}</span>
+                                {campaign.priceOnSize !== null ? (
+                                    <span className="text-copy-13">
+                                        <ToArrow /> <Money value={campaign.priceOnSize} />
+                                    </span>
+                                ) : null}
+                                {campaign.winsNow ? <Mark tone="green-subtle">{t('pricing::admin_prices.drawer.wins_now')}</Mark> : null}
+                            </span>
+                            <span className="tw-figure text-copy-12 text-ink-muted">{t('pricing::admin.note.dates', { start: date(campaign.startsAt), end: campaign.endsAt === null ? t('pricing::admin.no_end') : date(campaign.endsAt) })}</span>
                         </li>
                     ))}
                     {view.bands.length > 0 ? (

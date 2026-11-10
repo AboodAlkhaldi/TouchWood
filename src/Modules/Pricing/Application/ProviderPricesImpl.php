@@ -20,6 +20,7 @@ use Modules\Pricing\Application\Prices\PricingChange;
 use Modules\Pricing\Application\Prices\SaleAudit;
 use Modules\Pricing\Application\Prices\SizeInput;
 use Modules\Pricing\Application\Prices\UnpricedRecounts;
+use Modules\Pricing\Application\Prices\WholeSecond;
 use Modules\Pricing\Domain\Exception\InvalidPricingInput;
 use Modules\Pricing\Domain\Exception\PriceNotPositive;
 use Modules\Pricing\Domain\Exception\PriceTooPrecise;
@@ -179,7 +180,8 @@ final readonly class ProviderPricesImpl implements ProviderPrices
             [$outcome, $after] = match (true) {
                 $left !== [] => ['left', self::withSizes($sale, $left, $sale->endsAt)],
                 // Started this very moment, it has no time to end at: removed, as one not started.
-                $sale->running($now) && $sale->startsAt < $now => ['ended', self::withSizes($sale, $sale->variantIds, $now)],
+                // Ended at the whole second, as kept (`WholeSecond`).
+                $sale->running($now) && $sale->startsAt < WholeSecond::of($now) => ['ended', self::withSizes($sale, $sale->variantIds, WholeSecond::of($now))],
                 default => ['removed', null],
             };
 

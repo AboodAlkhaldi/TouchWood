@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Modules\Pricing\Application\Command\EndCategoryDiscount;
 
-use Carbon\CarbonImmutable;
 use Modules\Pricing\Application\Prices\CandidateWriter;
 use Modules\Pricing\Application\Prices\DiscountAudit;
 use Modules\Pricing\Application\Prices\DiscountCoverage;
 use Modules\Pricing\Application\Prices\PricingChange;
+use Modules\Pricing\Application\Prices\WholeSecond;
 use Modules\Pricing\Application\PricingPermissions;
 use Modules\Pricing\Domain\Exception\CategoryDiscountNotFound;
 use Modules\Pricing\Domain\Exception\NotChangeable;
@@ -37,10 +37,11 @@ final readonly class EndCategoryDiscountHandler
         $storeId = $store->storeId();
 
         $this->change->run($storeId, function () use ($command, $storeId, $store): array {
-            $now = CarbonImmutable::now()->toDateTimeImmutable();
+            // Ended at the second now began, as kept (`WholeSecond`), as a sale.
+            $now = WholeSecond::now();
             $before = $this->discounts->find($command->discountId) ?? throw new CategoryDiscountNotFound;
 
-            if (! $before->running($now)) {
+            if (! $before->running($now) || $before->startsAt >= $now) {
                 throw new NotChangeable;
             }
 

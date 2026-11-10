@@ -119,8 +119,9 @@ final readonly class RepriceForDiscounts
      */
     private function reprice(Closure $products, bool $campaignsOnly = false): void
     {
-        $now = CarbonImmutable::now()->toDateTimeImmutable();
-        $stores = array_values(array_unique([...($campaignsOnly ? [] : $this->discounts->storesWithDiscounts($now)), ...$this->campaigns->storesWithCampaigns($now)]));
+        // The stores with a discount and those with a run, in one read (as before campaigns, one query).
+        $offers = $this->campaigns->storesWithOffers(CarbonImmutable::now()->toDateTimeImmutable());
+        $stores = array_values(array_unique([...($campaignsOnly ? [] : $offers['discounts']), ...$offers['campaigns']]));
         sort($stores);
         $products = $stores === [] ? [] : $products();
 

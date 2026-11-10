@@ -253,7 +253,8 @@ describe('campaigns (pricing.md §9.6 #2, #3)', function () {
         'sale before campaign' => [[pricingEngineBase(10000), pricingEngineDated(PriceKind::Campaign, 9000), pricingEngineDated(PriceKind::Sale, 9000)], SaleMode::Retail, PriceKind::Sale],
         'category before campaign' => [[pricingEngineBase(10000), pricingEngineDated(PriceKind::Campaign, 9000), pricingEngineDated(PriceKind::Category, 9000)], SaleMode::Retail, PriceKind::Category],
         'campaign before band' => [[pricingEngineBase(10000, SaleMode::Wholesale), pricingEngineBand(10, 9000), pricingEngineDated(PriceKind::Campaign, 9000, mode: SaleMode::Wholesale)], SaleMode::Wholesale, PriceKind::Campaign],
-        'campaign before retail' => [[pricingEngineBase(9000), pricingEngineDated(PriceKind::Campaign, 9000)], SaleMode::Retail, PriceKind::Campaign],
+        // No "campaign before retail": a campaign at the retail price is never a candidate (CandidateWriter,
+        // the review of Content PR 5), so it never ties with it - CampaignPricesTest proves the line says BASE.
     ]);
 
     it('gives way to an "always wins" sale or discount even when cheaper (content.md Q4 (a))', function () {

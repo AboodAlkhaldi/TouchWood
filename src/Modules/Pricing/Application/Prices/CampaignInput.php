@@ -41,6 +41,9 @@ final class CampaignInput
      */
     public static function campaign(StoreDto $store, string $runId, CampaignPriceSetDto $prices, DateTimeImmutable $start, DateTimeImmutable $end): Campaign
     {
+        // Kept to the second, as the tables keep them, so its timed tasks find the moments they were queued for.
+        [$start, $end] = [WholeSecond::of($start), WholeSecond::of($end)];
+
         if ($end <= $start) {
             throw new WindowInvalid;
         }

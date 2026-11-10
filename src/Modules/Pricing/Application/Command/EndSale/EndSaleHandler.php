@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Modules\Pricing\Application\Command\EndSale;
 
-use Carbon\CarbonImmutable;
 use Modules\Pricing\Application\Prices\CandidateWriter;
 use Modules\Pricing\Application\Prices\PricingChange;
 use Modules\Pricing\Application\Prices\SaleAudit;
+use Modules\Pricing\Application\Prices\WholeSecond;
 use Modules\Pricing\Application\PricingPermissions;
 use Modules\Pricing\Domain\Exception\NotChangeable;
 use Modules\Pricing\Domain\Exception\SaleNotFound;
@@ -35,10 +35,12 @@ final readonly class EndSaleHandler
         $storeId = $store->storeId();
 
         $this->change->run($storeId, function () use ($command, $storeId, $store): array {
-            $now = CarbonImmutable::now()->toDateTimeImmutable();
+            // Ended at the second now began, as kept (`WholeSecond`): never a second later, still running when
+            // its sizes are priced again. One started this very second has no time to end at.
+            $now = WholeSecond::now();
             $before = $this->sales->find($command->saleId) ?? throw new SaleNotFound;
 
-            if (! $before->running($now)) {
+            if (! $before->running($now) || $before->startsAt >= $now) {
                 throw new NotChangeable;
             }
 

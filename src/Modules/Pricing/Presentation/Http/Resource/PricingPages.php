@@ -203,6 +203,7 @@ final readonly class PricingPages
             $view->wholesaleMinimum,
             $view->wholesaleMaximum,
             $view->minimumChanged,
+            array_map(static fn (object $view): ReachingCampaignData => self::same(ReachingCampaignData::class, $view), $view->campaigns),
         );
     }
 

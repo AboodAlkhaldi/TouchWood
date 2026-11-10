@@ -32,7 +32,11 @@ Built in eight steps, one PR each (stage 5's plan; owner's go 2026-10-10):
 
 - **Campaign runs** (Content 5): a price change in a store with a run not ended reads the runs (three queries) and,
   per 500 sizes, Catalog's facts of them (`lineFacts` and `variantBriefs`, two queries); a store with none pays one
-  query. A product changed reads the stores with a run as it reads those with a discount.
+  query. A product changed reads the stores with a discount and those with a run in one query (`storesWithOffers`),
+  as it read the first alone before; an archived or restored size or product costs that one query too. The drawer,
+  the product page, the offer note and the discount preview name runs from the candidates they read already.
+- **Moments to the whole second** (`WholeSecond`): every start and end Pricing writes, its tables being
+  `timestamp(0)` - rounded half up, an end "now" at .7 s would be kept a second late.
 
 What each piece reads, counted from the code - to measure against real data before the screens use
 them at volume:

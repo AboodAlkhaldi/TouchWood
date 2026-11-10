@@ -36,7 +36,8 @@ final class SaleInput
     {
         $start = $startsAt === null ? $now : self::moment($startsAt, 'starts_at');
 
-        return $start < $now ? $now : $start;
+        // To the whole second, as the tables keep it (`WholeSecond`).
+        return WholeSecond::of($start < $now ? $now : $start);
     }
 
     /**
@@ -44,7 +45,7 @@ final class SaleInput
      */
     public static function end(?string $endsAt): ?DateTimeImmutable
     {
-        return $endsAt === null ? null : self::moment($endsAt, 'ends_at');
+        return $endsAt === null ? null : WholeSecond::of(self::moment($endsAt, 'ends_at'));
     }
 
     private static function moment(string $value, string $field): DateTimeImmutable

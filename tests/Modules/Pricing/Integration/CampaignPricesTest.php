@@ -17,6 +17,8 @@ use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Public\Enums\SaleMode;
+use Modules\Catalog\Public\Events\ProductArchived;
+use Modules\Catalog\Public\Events\ProductChanged;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Modules\Platform\Public\Contracts\PlatformApi;
@@ -28,6 +30,10 @@ use Modules\Pricing\Application\Command\ApplyPriceWindow\ApplyPriceWindow;
 use Modules\Pricing\Application\Command\ApplyPriceWindow\ApplyPriceWindowHandler;
 use Modules\Pricing\Application\Command\CheckPriceWindows\CheckPriceWindows;
 use Modules\Pricing\Application\Command\CheckPriceWindows\CheckPriceWindowsHandler;
+use Modules\Pricing\Application\Command\EndCategoryDiscount\EndCategoryDiscount;
+use Modules\Pricing\Application\Command\EndCategoryDiscount\EndCategoryDiscountHandler;
+use Modules\Pricing\Application\Command\EndSale\EndSale;
+use Modules\Pricing\Application\Command\EndSale\EndSaleHandler;
 use Modules\Pricing\Application\Prices\DiscountPreviewer;
 use Modules\Pricing\Application\PricingSettings;
 use Modules\Pricing\Application\Query\ListPrices\ListPrices;
@@ -35,6 +41,10 @@ use Modules\Pricing\Application\Query\ListPrices\ListPricesHandler;
 use Modules\Pricing\Application\Query\ListPrices\PriceRow;
 use Modules\Pricing\Application\Query\OverlapsFor\OverlapsFor;
 use Modules\Pricing\Application\Query\OverlapsFor\OverlapsForHandler;
+use Modules\Pricing\Application\Query\ViewProductPrices\ViewProductPrices;
+use Modules\Pricing\Application\Query\ViewProductPrices\ViewProductPricesHandler;
+use Modules\Pricing\Application\Query\ViewSizePrices\ViewSizePrices;
+use Modules\Pricing\Application\Query\ViewSizePrices\ViewSizePricesHandler;
 use Modules\Pricing\Domain\Exception\CeilingBelowSales;
 use Modules\Pricing\Domain\Exception\NotChangeable;
 use Modules\Pricing\Domain\Exception\OverCeiling;
@@ -42,6 +52,7 @@ use Modules\Pricing\Domain\Exception\PercentOutOfRange;
 use Modules\Pricing\Domain\Exception\WindowInvalid;
 use Modules\Pricing\Domain\ValueObject\CategoryDiscount;
 use Modules\Pricing\Domain\ValueObject\DiscountLines;
+use Modules\Pricing\Infrastructure\Listener\RepriceForDiscounts;
 use Modules\Pricing\Infrastructure\Queue\ApplyPriceWindowJob;
 use Modules\Pricing\Public\Contracts\CampaignPrices;
 use Modules\Pricing\Public\Contracts\PricingApi;
@@ -303,6 +314,20 @@ describe('what a run prices (§9.6 #1, #2)', function () {
     });
 });
 
+it('costs a product changed in Catalog one query where no store has a discount or a run, as before campaigns', function () {
+    $product = Px::ready(['60 cm'])['product'];
+    $listener = app(RepriceForDiscounts::class);
+    $queries = Cx::recordQueries();
+
+    $listener->productChanged(new ProductChanged((string) Str::uuid(), $product, CarbonImmutable::now()));
+    $changed = count($queries);
+    $queries->exchangeArray([]);
+    $listener->archivedOrRestored(new ProductArchived((string) Str::uuid(), $product, CarbonImmutable::now()));
+
+    // The stores with a discount and those with a run, in one read; nothing more when there are none.
+    expect([$changed, count($queries)])->toBe([1, 1]);
+});
+
 describe('among the other prices (§9.6 #3)', function () {
     it('is one more candidate: the lowest wins, a cheaper sale beating it, many runs at once', function () {
         $shop = campaignShop();
@@ -362,6 +387,26 @@ describe('among the other prices (§9.6 #3)', function () {
             ->and($note->sizes[0]->notWinning)->toBe('lower_price')
             ->and($later->campaigns)->toBe([]);
     });
+});
+
+it('is listed in a size\'s drawer and on the product page, each run once with its lines, price and dates', function () {
+    $shop = campaignShop();
+    [$a, $b] = $shop['inChild']['variants'];
+    $run = campaignRun();
+    $later = campaignRun();
+    campaignSave($run, [campaignPercent(CampaignTargetKind::Product, $shop['inChild']['product'], 1000)]);
+    campaignSave($later, [campaignPercent(CampaignTargetKind::Size, $a, 2000)], CampaignLines::Retail, start: '2026-11-12 00:00:00+00');
+    Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+    $drawer = app(ViewSizePricesHandler::class)->handle(new ViewSizePrices(Rx::storeId('sa'), $a));
+    $card = app(ViewProductPricesHandler::class)->handle(new ViewProductPrices($shop['inChild']['product'], [$a, $b], [Rx::storeId('sa')]))[0];
+    $runs = static fn (array $campaigns): array => array_map(static fn ($campaign): array => [$campaign->id, $campaign->state, $campaign->lines], $campaigns);
+
+    expect($runs($drawer->campaigns))->toEqualCanonicalizing([[$run, 'RUNNING', 'BOTH'], [$later, 'SCHEDULED', 'RETAIL']])
+        ->and(array_map(static fn ($campaign): array => [$campaign->id, $campaign->priceOnSize?->minor, $campaign->winsNow], $drawer->campaigns))
+        ->toEqualCanonicalizing([[$run, 9000, true], [$later, 8000, false]])
+        ->and($runs($card->campaigns))->toEqualCanonicalizing([[$run, 'RUNNING', 'BOTH'], [$later, 'SCHEDULED', 'RETAIL']])
+        ->and(collect($card->campaigns)->firstWhere('id', $run)?->variantIds)->toEqualCanonicalizing([$a, $b]);
 });
 
 it('is named in a category discount\'s preview on the sizes it prices, its dates and lines meeting the discount\'s', function () {
@@ -503,25 +548,151 @@ describe('its life (§9.6 #7, #8)', function () {
             ->and(DB::table('pricing.campaign_sets')->where('run_id', $scheduled)->exists())->toBeFalse()
             ->and(fn () => campaignPrices()->changeEnd(campaignSa(), $live, campaignAt('2026-11-30 00:00:00+00')))->toThrow(NotChangeable::class);
 
-        // A run Pricing does not hold: nothing to end or remove (a campaign may carry no prices).
-        campaignPrices()->endNow(campaignSa(), campaignRun());
-        campaignPrices()->remove(campaignSa(), campaignRun());
-        expect(campaignPrices()->read(campaignSa(), campaignRun()))->toBeNull();
+        // A run Pricing does not hold: nothing to end, change or remove (a campaign may carry no prices).
+        $unknown = campaignRun();
+        campaignPrices()->endNow(campaignSa(), $unknown);
+        campaignPrices()->changeEnd(campaignSa(), $unknown, campaignAt('2026-11-30 00:00:00+00'));
+        campaignPrices()->remove(campaignSa(), $unknown);
+        expect(campaignPrices()->read(campaignSa(), $unknown))->toBeNull()
+            ->and(DB::table('pricing.campaign_sets')->where('run_id', $unknown)->exists())->toBeFalse();
     });
 
     it('replaces a scheduled run\'s prices whole, the sizes it reached before written again', function () {
         $shop = campaignShop();
         $run = campaignRun();
-        campaignSave($run, [campaignPercent(CampaignTargetKind::Size, $shop['outside']['variants'][0], 1000)]);
+        [$before, $after] = [$shop['outside']['variants'][0], $shop['inTop']['variants'][0]];
+        campaignSave($run, [campaignPercent(CampaignTargetKind::Size, $before, 1000)], start: '2026-11-12 00:00:00+00');
+        expect(array_filter(Rx::candidates('sa', $before), static fn (string $line): bool => str_contains($line, 'CAMPAIGN')))->not->toBe([]);
+
         // Saved again with other prices before it starts (as Content's Schedule after a change).
-        CarbonImmutable::setTestNow('2026-11-10 08:00:00+00');
-        campaignSave($run, [campaignPercent(CampaignTargetKind::Size, $shop['inTop']['variants'][0], 1000)]);
-        CarbonImmutable::setTestNow('2026-11-10 10:00:00+00');
+        campaignSave($run, [campaignPercent(CampaignTargetKind::Size, $after, 1000)], start: '2026-11-12 00:00:00+00');
+
+        expect(array_filter(Rx::candidates('sa', $before), static fn (string $line): bool => str_contains($line, 'CAMPAIGN')))->toBe([])
+            ->and(array_values(array_filter(Rx::candidates('sa', $after), static fn (string $line): bool => str_contains($line, 'CAMPAIGN'))))->toHaveCount(2)
+            ->and(DB::table('pricing.campaign_targets')->where('run_id', $run)->pluck('target_id')->all())->toBe([$after]);
+
+        CarbonImmutable::setTestNow('2026-11-12 00:00:00+00');
+        expect(campaignUnit($before))->toBe(10000)
+            ->and(campaignUnit($after))->toBe(9000);
+    });
+
+    it('applies a run of another store at the daily check, in that store alone', function () {
+        $size = Px::ready(['60 cm'])['variants'][0];
+        Rx::set('sa', [$size => '100']);
+        Rx::set('ae', [$size => '100']);
+        $run = campaignRun();
+        campaignPrices()->save(StoreId::fromString(Rx::storeId('ae')), $run, campaignSet([campaignPercent(CampaignTargetKind::Size, $size, 1000)]), campaignAt('2026-11-11 00:00:00+00'), campaignAt('2026-11-20 00:00:00+00'));
+        $told = static fn (string $store): ?int => Rx::told($store, $size)[0] ?? null;
+
+        expect($told('ae'))->toBe(10000);
+
+        // Its own start's task lost: the daily check pushes the price in its store, and only there.
+        CarbonImmutable::setTestNow('2026-11-11 03:30:00+00');
         Fx::asSystem(fn () => app(CheckPriceWindowsHandler::class)->handle(new CheckPriceWindows));
 
-        expect(campaignUnit($shop['outside']['variants'][0]))->toBe(10000)
-            ->and(campaignUnit($shop['inTop']['variants'][0]))->toBe(9000)
-            ->and(DB::table('pricing.campaign_targets')->where('run_id', $run)->count())->toBe(1);
+        expect($told('ae'))->toBe(9000)
+            ->and($told('sa'))->toBe(10000);
+    });
+
+    it('writes inside the caller\'s transaction, under the store\'s lock, and a rollback leaves nothing', function () {
+        $shop = campaignShop();
+        $size = $shop['inTop']['variants'][0];
+        $levels = [];
+        DB::listen(static function ($query) use (&$levels): void {
+            if (str_contains($query->sql, 'pg_advisory_xact_lock')) {
+                $levels[] = DB::transactionLevel();
+            }
+        });
+        $outer = DB::transactionLevel();
+
+        try {
+            DB::transaction(function () use ($size): void {
+                campaignSave(campaignRun(), [campaignPercent(CampaignTargetKind::Size, $size, 1000)]);
+
+                throw new RuntimeException('Content\'s Schedule failed after.');
+            });
+        } catch (RuntimeException) {
+        }
+
+        // The lock taken inside a transaction of Pricing's own, nested in the caller's (a savepoint).
+        expect($levels)->not->toBe([])
+            ->and(min([PHP_INT_MAX, ...$levels]))->toBeGreaterThanOrEqual($outer + 2)
+            ->and(DB::table('pricing.campaign_sets')->count())->toBe(0)
+            ->and(array_filter(Rx::candidates('sa', $size), static fn (string $line): bool => str_contains($line, 'CAMPAIGN')))->toBe([])
+            ->and(Rx::told('sa', $size)[0] ?? null)->toBe(10000);
+    });
+
+    it('keeps every moment to the whole second: ending now at .7 s ends at the second, so the price goes at once', function () {
+        $shop = campaignShop();
+        $size = $shop['inTop']['variants'][0];
+        $run = campaignRun();
+        // A start and an end with fractions: kept, and queued, at their seconds.
+        campaignSave($run, [campaignPercent(CampaignTargetKind::Size, $size, 1000)], start: '2026-11-10 09:00:00.400000+00', end: '2026-11-20 00:00:00.900000+00');
+        $queue = Queue::getFacadeRoot();
+        assert($queue instanceof QueueFake);
+        $end = $queue->pushed(ApplyPriceWindowJob::class, static fn (ApplyPriceWindowJob $job): bool => $job->saleId === $run)->last();
+        assert($end instanceof ApplyPriceWindowJob);
+
+        expect(DB::table('pricing.campaign_sets')->where('run_id', $run)->first(['starts_at', 'ends_at']))->toEqual((object) ['starts_at' => '2026-11-10 09:00:00+00', 'ends_at' => '2026-11-20 00:00:00+00'])
+            ->and($end->moment)->toBe('2026-11-20 00:00:00.000000+00:00')
+            ->and(Rx::told('sa', $size)[0] ?? null)->toBe(9000);
+
+        campaignPrices()->changeEnd(campaignSa(), $run, campaignAt('2026-11-25 12:00:00.600000+00'));
+        expect((string) DB::table('pricing.campaign_sets')->where('run_id', $run)->value('ends_at'))->toBe('2026-11-25 12:00:00+00');
+
+        // Rounded half up, 10:00:00.7 would be kept as 10:00:01 - still running when the sizes are priced
+        // again, the campaign's price left on the shop's cards.
+        CarbonImmutable::setTestNow('2026-11-10 10:00:00.700000+00');
+        campaignPrices()->endNow(campaignSa(), $run);
+
+        expect((string) DB::table('pricing.campaign_sets')->where('run_id', $run)->value('ends_at'))->toBe('2026-11-10 10:00:00+00')
+            ->and(Rx::told('sa', $size)[0] ?? null)->toBe(10000)
+            ->and(array_filter(Rx::candidates('sa', $size), static fn (string $line): bool => str_contains($line, 'CAMPAIGN')))->toBe([]);
+    });
+
+    it('removes a run ended in the very second it started: it has no time to end at', function () {
+        $shop = campaignShop();
+        $size = $shop['inTop']['variants'][0];
+        $run = campaignRun();
+        campaignSave($run, [campaignPercent(CampaignTargetKind::Size, $size, 1000)], start: '2026-11-10 10:30:00+00');
+        CarbonImmutable::setTestNow('2026-11-10 10:30:00.500000+00');
+
+        campaignPrices()->endNow(campaignSa(), $run);
+
+        expect(DB::table('pricing.campaign_sets')->where('run_id', $run)->exists())->toBeFalse()
+            ->and(campaignUnit($size))->toBe(10000);
+    });
+
+    it('ends a sale and a category discount at the whole second too', function () {
+        $shop = campaignShop();
+        [$a, $b] = $shop['inChild']['variants'];
+        Rx::switchOn('sa', [$a]);
+        $sale = Fx::asSystem(fn (): string => app(AddSaleHandler::class)->handle(new AddSale(Rx::storeId('sa'), null, [$a], null, '90', null, null)));
+        $discount = Fx::asSystem(fn (): string => app(AddCategoryDiscountHandler::class)->handle(new AddCategoryDiscount(Rx::storeId('sa'), $shop['child'], '20', null, 'BOTH', null, null)));
+        CarbonImmutable::setTestNow('2026-11-10 10:05:00.700000+00');
+
+        Fx::asSystem(fn () => app(EndSaleHandler::class)->handle(new EndSale($sale)));
+        Fx::asSystem(fn () => app(EndCategoryDiscountHandler::class)->handle(new EndCategoryDiscount($discount)));
+
+        expect((string) DB::table('pricing.sales')->where('id', $sale)->value('ends_at'))->toBe('2026-11-10 10:05:00+00')
+            ->and((string) DB::table('pricing.category_discounts')->where('id', $discount)->value('ends_at'))->toBe('2026-11-10 10:05:00+00')
+            ->and(Rx::told('sa', $a)[0] ?? null)->toBe(10000)
+            ->and(Rx::told('sa', $b)[0] ?? null)->toBe(10000);
+    });
+
+    it('never makes a fixed price at or above the retail price a candidate: the line pays the retail price, as BASE', function () {
+        $shop = campaignShop();
+        [$at, $above] = $shop['inChild']['variants'];
+        campaignSave(campaignRun(), [campaignFixed($at, 10000), campaignFixed($above, 10500)]);
+
+        expect(array_filter([...Rx::candidates('sa', $at), ...Rx::candidates('sa', $above)], static fn (string $line): bool => str_contains($line, 'CAMPAIGN')))->toBe([])
+            ->and([campaignUnit($at), campaignKind($at)])->toBe([10000, PriceKind::Base])
+            ->and([campaignUnit($above), campaignKind($above)])->toBe([10000, PriceKind::Base])
+            ->and(Rx::told('sa', $at))->toBe([10000, null, 'SAR']);
+
+        // The retail price raised above it: it is a campaign price now.
+        Rx::set('sa', [$at => '110']);
+        expect([campaignUnit($at), campaignKind($at)])->toBe([10000, PriceKind::Campaign]);
     });
 
     it('refuses what is not a set of prices, before anything is written', function () {
@@ -703,12 +874,23 @@ describe('a wired store (§9.6 #5; sync.md §9.5 amendment 2)', function () {
             ->and($skipped)->toEqualCanonicalizing([$shop['inTop']['variants'][0], $shop['outside']['variants'][0]]);
     });
 
-    it('keeps no skip outside a wired store', function () {
+    it('keeps no skip once the store is no longer wired: the size priced again takes the run\'s price', function () {
         $shop = campaignShop();
+        $size = $shop['inTop']['variants'][0];
+        campaignWired();
         $run = campaignRun();
-        campaignSave($run, [campaignFixed($shop['inTop']['variants'][0], 7000)]);
+        campaignSave($run, [campaignFixed($size, 6000)]);
+
+        expect(campaignPrices()->skippedSizes(campaignSa(), $run))->toBe([$size]);
+
+        // Unwired: a fixed price past the ceiling is staff's to mend now - the next pricing of the size
+        // writes its skips again, none kept for a store not wired.
+        campaignWired(false);
+        // 60 of 85 is 29.4% off: within the ceiling, so staff may set it.
+        Rx::set('sa', [$size => '85']);
 
         expect(campaignPrices()->skippedSizes(campaignSa(), $run))->toBe([])
-            ->and(DB::table('pricing.campaign_skips')->count())->toBe(0);
+            ->and(DB::table('pricing.campaign_skips')->count())->toBe(0)
+            ->and(campaignUnit($size))->toBe(6000);
     });
 });

@@ -236,6 +236,7 @@ return [
         'title' => 'Prices',
         'offers' => 'Offers',
         'discounts' => 'Category Discounts',
+        'campaigns' => 'Campaigns',
         'no_offers' => 'No offers running or scheduled.',
     ],
 

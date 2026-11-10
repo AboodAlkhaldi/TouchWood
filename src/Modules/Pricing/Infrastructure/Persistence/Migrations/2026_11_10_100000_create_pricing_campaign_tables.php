@@ -35,6 +35,8 @@ return new class extends Migration
 
             $table->foreign('store_id', 'campaign_sets_store')->references('id')->on('platform.stores')->restrictOnDelete();
             $table->index(['store_id', 'ends_at'], 'campaign_sets_store_idx');
+            // What a skip's key names, so a skip is always of its run's own store.
+            $table->unique(['run_id', 'store_id'], 'campaign_sets_run_store');
         });
 
         DB::statement(<<<'SQL'
@@ -81,7 +83,9 @@ return new class extends Migration
             $table->ulid('store_id');
 
             $table->primary(['run_id', 'variant_id'], 'campaign_skips_pkey');
-            $table->foreign('run_id', 'campaign_skips_run')->references('run_id')->on('pricing.campaign_sets')->cascadeOnDelete();
+            // Its run, in that run's own store (one key on both); the store kept as every Pricing table keeps it.
+            $table->foreign(['run_id', 'store_id'], 'campaign_skips_run')->references(['run_id', 'store_id'])->on('pricing.campaign_sets')->cascadeOnDelete();
+            $table->foreign('store_id', 'campaign_skips_store')->references('id')->on('platform.stores')->restrictOnDelete();
             $table->foreign('variant_id', 'campaign_skips_variant')->references('id')->on('catalog.variants')->cascadeOnDelete();
             $table->index(['store_id', 'variant_id'], 'campaign_skips_store_idx');
         });

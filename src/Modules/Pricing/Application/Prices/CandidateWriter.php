@@ -161,7 +161,9 @@ final readonly class CandidateWriter
                     foreach ($campaigns as $campaign) {
                         $priced = CampaignCoverage::priceOn($campaign, $variantId, $facts[$variantId] ?? null, $retail[$variantId]);
 
-                        if ($priced === null) {
+                        // A fixed price at or above the retail price is no campaign price: it never wins, even
+                        // a tie, so an order line never says "campaign" at the price it would pay anyway.
+                        if ($priced === null || $priced['price']->compareTo($retail[$variantId]) >= 0) {
                             continue;
                         }
 

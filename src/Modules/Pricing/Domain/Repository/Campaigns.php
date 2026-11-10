@@ -28,9 +28,12 @@ interface Campaigns
     public function notEnded(StoreId $store, DateTimeImmutable $at): array;
 
     /**
-     * @return list<string> the stores with a run not ended by then - where a product moving matters
+     * The stores with a category discount and those with a campaign run not ended by then, in one read - what
+     * a product changed in Catalog asks first, so it costs one query as it did before campaigns.
+     *
+     * @return array{discounts: list<string>, campaigns: list<string>}
      */
-    public function storesWithCampaigns(DateTimeImmutable $at): array;
+    public function storesWithOffers(DateTimeImmutable $at): array;
 
     /**
      * The daily safety check's read (§1.10): every run, in any store, whose start or end fell after

@@ -166,6 +166,15 @@ rows: PickedProductData[],
 next: string | null,
 total: number,
 };
+export type ReachingCampaignData = {
+id: string,
+state: string,
+lines: string,
+priceOnSize: MoneyData | null,
+startsAt: string,
+endsAt: string | null,
+winsNow: boolean,
+};
 export type ReachingDiscountData = {
 id: string,
 categoryId: string,
@@ -272,6 +281,7 @@ bands: BandData[],
 wholesaleMinimum: number | null,
 wholesaleMaximum: number | null,
 minimumChanged: boolean,
+campaigns: ReachingCampaignData[],
 };
 export type SizeResultsData = {
 rows: SizeData[],
