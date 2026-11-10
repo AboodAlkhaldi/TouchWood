@@ -77,7 +77,8 @@ final readonly class OrderPages
         $q = mb_substr(trim($q ?? ''), 0, 100);
         // One customer's orders: every tab, so "See all" shows them all.
         $tab = $customerId === null ? $tab : 'ALL';
-        $page = $list->handle(new ListOrders($chosen?->storeId, $tab, $after, $q, $customerId));
+        // Each tab's count with the first page only: Show More takes the rows, and one customer's orders show no tabs.
+        $page = $list->handle(new ListOrders($chosen?->storeId, $tab, $after, $q, $customerId, counted: $after === null && $customerId === null));
         $codes = self::codes($choices);
 
         return new OrdersPage(
@@ -91,6 +92,7 @@ final readonly class OrderPages
             $q,
             $customerId,
             $customerId === null ? null : ($page->orders[0]->customer->name ?? null),
+            $page->counts,
         );
     }
 

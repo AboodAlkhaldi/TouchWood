@@ -69,10 +69,13 @@ describe('APP_URL on the www. host (PR 4 review)', function () {
         expect(true)->toBeTrue();
     })->with(['https://touchwood.test', 'http://localhost', 'https://staging.touchwood.test', '', null]);
 
-    it('is what the provider checks at boot', function () {
-        $provider = (string) file_get_contents(base_path('src/Modules/Platform/Infrastructure/PlatformServiceProvider.php'));
+    it('is checked at boot when serving HTTP, and never in the console, where config:clear must still run', function () {
+        expect(fn () => CanonicalHost::assertAppUrlAtBoot(false, 'https://www.touchwood.test'))->toThrow(LogicException::class);
 
-        expect($provider)->toContain("CanonicalHost::assertAppUrl(\$this->app->make('config')->get('app.url'));");
+        CanonicalHost::assertAppUrlAtBoot(true, 'https://www.touchwood.test');
+
+        $provider = (string) file_get_contents(base_path('src/Modules/Platform/Infrastructure/PlatformServiceProvider.php'));
+        expect($provider)->toContain("CanonicalHost::assertAppUrlAtBoot(\$this->app->runningInConsole(), \$this->app->make('config')->get('app.url'));");
     });
 });
 

@@ -17,8 +17,9 @@ use Modules\Content\Application\Command\BuildSitemaps\BuildSitemapsHandler;
  *
  * **One build at a time** (PR 4 review): the nightly one is queued without asking, a second can be asked for while
  * one runs, and the database queue hands a job still running to another worker once its `retry_after` (90 s) has
- * passed, well inside this job's ten minutes. So a build holds one lock for every build (`OneSitemapBuild`); another
- * that finds it held goes back to the queue for a minute and builds after, with what changed meanwhile.
+ * passed, well inside this job's ten minutes. So a copy of this very job deletes itself (`RunOnce`), and a build holds
+ * one lock for every build (`OneSitemapBuild`): another build that finds it held goes back to the queue for a minute
+ * and builds after, with what changed meanwhile.
  */
 final class BuildSitemapsJob implements ShouldQueue
 {
@@ -27,10 +28,11 @@ final class BuildSitemapsJob implements ShouldQueue
     use Queueable;
 
     /**
-     * Released while another build runs, so attempts are not the measure (lesson 250): three failures are. No
-     * `retryUntil` (Platform's retry pushes the payload back as it was).
+     * Released while another build runs, so a bound on attempts, not a deadline (lesson 250: no `retryUntil`, which
+     * Platform's retry would carry past): 240 tries, four hours of waiting a minute at a time; three failures end it
+     * sooner. Nothing loops for ever.
      */
-    public int $tries = 0;
+    public int $tries = 240;
 
     public int $maxExceptions = 3;
 
@@ -42,7 +44,7 @@ final class BuildSitemapsJob implements ShouldQueue
      */
     public function middleware(): array
     {
-        return [app(OneSitemapBuild::class)];
+        return [app(RunOnce::class), app(OneSitemapBuild::class)];
     }
 
     public function handle(BuildSitemapsHandler $handler): void

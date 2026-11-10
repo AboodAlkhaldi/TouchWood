@@ -171,7 +171,7 @@ it('draws a report in the account\'s language beside an English page: "—" for 
     $page->navigate('/admin/reports/product-sales', BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"person-menu\"]') !== null"))->toBeTrue();
     if ((string) $page->script('document.documentElement.lang') !== 'en') {
-        $page->click('[data-test="person-menu"]')->click('[data-test="language"]');
+        $page->click('[data-test="language"]');
     }
     expect(browserSoon($page, "document.documentElement.lang === 'en'"))->toBeTrue();
 

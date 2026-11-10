@@ -84,6 +84,8 @@ final readonly class ListOrdersHandler
         return new StaffOrdersPage(
             array_map(fn (array $row): StaffOrderRow => $this->reader->orderRow($row, $customers[(string) $row['customer_id']], $hours), $page),
             count($rows) > self::PAGE && $page !== [] ? (string) $page[count($page) - 1]['id'] : null,
+            // A tab counts what it would list here: the same stores and search, one customer's never asked.
+            $query->counted && $customerId === null ? $this->reads->counts($stores, $q) : [],
         );
     }
 }

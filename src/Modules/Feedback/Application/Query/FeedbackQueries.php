@@ -55,6 +55,20 @@ interface FeedbackQueries
     public function questionsIn(StoreId $store, QuestionStatus $status, ?string $afterId, int $limit): array;
 
     /**
+     * How many reviews a store has in each state, every state named, in one query (round 3 #11: a count on each tab).
+     *
+     * @return array<string, int>
+     */
+    public function reviewCounts(StoreId $store): array;
+
+    /**
+     * How many questions a store has in each state, every state named, in one query.
+     *
+     * @return array<string, int>
+     */
+    public function questionCounts(StoreId $store): array;
+
+    /**
      * The products saved in a store with how many customers saved each, most saved first, then by id;
      * after the count and id of the last row shown.
      *

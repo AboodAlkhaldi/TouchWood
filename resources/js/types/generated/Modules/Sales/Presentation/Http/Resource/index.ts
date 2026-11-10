@@ -402,6 +402,7 @@ storeTimezone: string | null,
 q: string,
 customerId: string | null,
 customerName: string | null,
+counts: Record<string, number>,
 };
 export type OwnLineData = {
 id: string,
@@ -618,6 +619,7 @@ storeCode: string | null,
 stores: SalesStoreData[],
 tabs: string[],
 storeTimezone: string | null,
+counts: Record<string, number>,
 };
 export type SalesStoreData = {
 code: string,

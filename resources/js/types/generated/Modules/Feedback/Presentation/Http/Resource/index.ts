@@ -159,6 +159,7 @@ storeIsActive: boolean,
 storeTimezone: string,
 stores: StoreOptionData[],
 reasons: ReasonData[],
+counts: Record<string, number>,
 };
 export type WishlistItemData = {
 product: ProductCardData,

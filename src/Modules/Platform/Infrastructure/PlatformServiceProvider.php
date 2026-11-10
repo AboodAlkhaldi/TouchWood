@@ -281,8 +281,9 @@ final class PlatformServiceProvider extends ServiceProvider
 
         // First of all, on every request: the other host (www.) answers a permanent redirect to the canonical
         // one before anything runs (content.md §1.14, §2.3 row L5).
-        // An APP_URL on the www. host would make every address the site builds a redirect: refused at boot.
-        CanonicalHost::assertAppUrl($this->app->make('config')->get('app.url'));
+        // An APP_URL on the www. host would make every address the site builds a redirect: refused at boot when
+        // serving HTTP (never in the console, where it would stop config:clear from mending it).
+        CanonicalHost::assertAppUrlAtBoot($this->app->runningInConsole(), $this->app->make('config')->get('app.url'));
         $this->app->make(HttpKernel::class)->prependMiddleware(CanonicalHost::class);
         // On every request, so the audit log can tell a web change from a console or queued one.
         $this->app->make(HttpKernel::class)->pushMiddleware(TrackHttpRequest::class);

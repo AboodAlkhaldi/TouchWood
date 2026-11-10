@@ -1725,6 +1725,8 @@ concept, and profit reporting.
 
 Permission groups seen in the design: catalog and variants · pricing and campaigns · orders
 and fulfilment · company approvals · staff and permissions · store settings and tax.
+(Named since 2026-11-10, round 3 #10: Products · Pricing and campaigns · Sales · Company
+approvals · Staff · Configuration; and Media library → Library. frontend.md §3.4.)
 
 Example roles: Owner · Catalog manager · Order fulfilment · Company accounts · Support.
 
@@ -1828,7 +1830,12 @@ Decide these when the owning module is reached; do not design them now.
   the queue's `retry_after` is 90 s — a second worker would take a long import as failed while it
   still works (the data stays safe: the failure waits for the running job's lock). Give the job a
   queue connection of its own whose `retry_after` is longer than its timeout. **Payments' `CheckAttemptJob` and
-  `HandleNoticeJob` run up to 300 s** (a hanging gateway, asked several times), so they need the same.
+  `HandleNoticeJob` run up to 300 s** (a hanging gateway, asked several times), so they need the same. **So do
+  Content's `BuildSitemapsJob` (600 s) and `CheckRedirectsJob` (1200 s)** (Content PR 4): until then a copy a
+  second worker takes of a running one deletes itself (`RunOnce`), but the queue should not hand it out at all.
+- **The queue worker connects to PostgreSQL directly, never through a transaction-mode pooler** (PgBouncer in
+  `transaction` mode): Content's jobs hold session advisory locks for as long as they run (`RunOnce`,
+  `OneSitemapBuild`), which such a pooler hands to other clients between statements.
 - **The import's zip disk** (`CATALOG_IMPORTS_DISK` in `config/catalog.php`, `local` by default): a
   zip waits there from its upload until its products are brought in or its import discarded. With
   more than one server it must be storage they share.

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 // The names of Inventory's permissions (InventoryPermissions): the one job the role editor shows
-// under Catalog and Variants, named as the owner gave it (2026-10-09; the Arabic is proposed), and the
+// under Products (Catalog and Variants until round 3 #10, 2026-11-10), named as the owner gave it (2026-10-09; the Arabic is proposed), and the
 // system's own jobs, never offered in a role.
 return [
     'stock' => [

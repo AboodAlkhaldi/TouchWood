@@ -9,6 +9,7 @@ use Modules\Promotions\Application\Coupon\Inputs;
 use Modules\Promotions\Application\Query\CouponsPage;
 use Modules\Promotions\Application\Query\MarketingQueries;
 use Modules\Promotions\Application\Query\MarketingReader;
+use Modules\Promotions\Public\Enums\CouponState;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
@@ -42,14 +43,22 @@ final readonly class ListCouponsHandler
         $codeStart = $typed === '' ? null : Inputs::codeStart($typed);
 
         if ($typed !== '' && $codeStart === null) {
-            return new CouponsPage([], null, null);
+            // A start no code can have: every tab lists none.
+            return new CouponsPage([], null, null, $query->counted ? array_fill_keys(array_map(static fn (CouponState $state): string => $state->value, CouponState::cases()), 0) : []);
         }
 
-        $rows = $this->queries->coupons($store, $query->state, $codeStart, $query->beforeAt, $query->beforeId, $perPage + 1, CarbonImmutable::now());
+        $now = CarbonImmutable::now();
+        $rows = $this->queries->coupons($store, $query->state, $codeStart, $query->beforeAt, $query->beforeId, $perPage + 1, $now);
         $more = count($rows) > $perPage;
         $rows = array_slice($rows, 0, $perPage);
         $last = $more ? end($rows) : false;
 
-        return new CouponsPage($rows, $last === false ? null : $last->createdAt, $last === false ? null : $last->id);
+        return new CouponsPage(
+            $rows,
+            $last === false ? null : $last->createdAt,
+            $last === false ? null : $last->id,
+            // A tab counts what it would list here: the same code start, the same moment.
+            $query->counted ? $this->queries->couponCounts($store, $codeStart, $now) : [],
+        );
     }
 }

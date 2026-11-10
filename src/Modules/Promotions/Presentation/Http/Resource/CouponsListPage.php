@@ -17,6 +17,7 @@ final class CouponsListPage extends Data
     /**
      * @param  list<CouponRowData>  $coupons
      * @param  list<StoreOptionData>  $stores
+     * @param  array<string, int>  $counts  each tab's coupons, ALL and every state, for the code typed (round 3 #11); none on a later page
      */
     public function __construct(
         public array $coupons,
@@ -30,5 +31,6 @@ final class CouponsListPage extends Data
         public bool $storeIsActive,
         public string $storeTimezone,
         public array $stores,
+        public array $counts,
     ) {}
 }

@@ -117,7 +117,6 @@ it('shows staff their number, marks a row and all of them, opens the full page i
         ->and($page->script("document.querySelectorAll('[data-test=\"bell-page\"] [data-test=\"bell-row\"]').length"))->toBe(22);
 
     // Arabic, right to left, in Latin digits.
-    $page->click('[data-test="person-menu"]');
     expect(browserSoon($page, "document.querySelector('[data-test=\"language\"]') !== null"))->toBeTrue();
     $page->click('[data-test="language"]');
     expect(browserSoon($page, "document.documentElement.getAttribute('dir') === 'rtl' && document.querySelector('[data-test=\"bell\"]').getAttribute('aria-label') === 'الإشعارات غير المقروءة: 20'"))->toBeTrue()
@@ -125,7 +124,6 @@ it('shows staff their number, marks a row and all of them, opens the full page i
 
     // A phone, the long word included: nothing sideways, the bell's menu inside the screen. The long word's language is
     // English, so the phone reads English here.
-    $page->click('[data-test="person-menu"]');
     expect(browserSoon($page, "document.querySelector('[data-test=\"language\"]') !== null"))->toBeTrue();
     $page->click('[data-test="language"]');
     expect(browserSoon($page, "document.documentElement.getAttribute('dir') === 'ltr'"))->toBeTrue();

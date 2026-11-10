@@ -31,6 +31,18 @@ final class CheckRedirectsJob implements ShouldQueue
         public readonly ?string $after = null,
     ) {}
 
+    /**
+     * A copy a second worker takes of a page still running, or done (its `retry_after` is shorter than this job's
+     * timeout), deletes itself: run again it would ask the page's addresses twice and queue the next page twice,
+     * doubling the chain at each long page (PR 4 review).
+     *
+     * @return list<object>
+     */
+    public function middleware(): array
+    {
+        return [app(RunOnce::class)];
+    }
+
     public function handle(CheckRedirectsHandler $handler): void
     {
         $next = $handler->handle(new CheckRedirects($this->after));

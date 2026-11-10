@@ -328,4 +328,31 @@ describe('the admin menu', function () {
         expect(offeredMenu())->toContain('companies/company_types')
             ->and(offeredMenu())->not->toContain('companies/document_types');
     });
+
+    it('names each area in both languages, five of them by the design\'s shorter word', function () {
+        // Round 3 #10 (owner, 2026-11-10: "keep"): every screen stays in its area and only five labels change; the
+        // role editor reads the same words (PermissionGroup). The media area's Arabic is parked for the owner (P8), so
+        // it keeps today's word.
+        $labels = static function (string $locale): array {
+            $named = [];
+
+            foreach (['catalog', 'orders', 'store_settings', 'staff_and_permissions', 'media', 'pricing', 'sync', 'shipping', 'payments', 'companies', 'customers', 'reports', 'marketing', 'content', 'support', 'points', 'audit', 'system', 'messages_and_reports'] as $group) {
+                $named[$group] = (string) __("access::permission_groups.{$group}", [], $locale);
+            }
+
+            return $named;
+        };
+
+        expect($labels('en'))->toBe([
+            'catalog' => 'Products', 'orders' => 'Sales', 'store_settings' => 'Configuration', 'staff_and_permissions' => 'Staff', 'media' => 'Library',
+            'pricing' => 'Pricing and Campaigns', 'sync' => 'Sync', 'shipping' => 'Shipping', 'payments' => 'Payments', 'companies' => 'Company Approvals',
+            'customers' => 'Customers', 'reports' => 'Reports', 'marketing' => 'Marketing', 'content' => 'Content', 'support' => 'Support', 'points' => 'Points',
+            'audit' => 'Audit Log', 'system' => 'System', 'messages_and_reports' => 'Messages and Reports',
+        ])->and($labels('ar'))->toBe([
+            'catalog' => 'المنتجات', 'orders' => 'المبيعات', 'store_settings' => 'الإعدادات', 'staff_and_permissions' => 'طاقم العمل', 'media' => 'مكتبة الوسائط',
+            'pricing' => 'الأسعار والحملات', 'sync' => 'المزامنة', 'shipping' => 'الشحن', 'payments' => 'المدفوعات', 'companies' => 'اعتماد الشركات',
+            'customers' => 'العملاء', 'reports' => 'التقارير', 'marketing' => 'التسويق', 'content' => 'المحتوى', 'support' => 'الدعم', 'points' => 'النقاط',
+            'audit' => 'سجل التدقيق', 'system' => 'النظام', 'messages_and_reports' => 'الرسائل والتقارير',
+        ]);
+    });
 });

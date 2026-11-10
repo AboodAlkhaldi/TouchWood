@@ -21,6 +21,7 @@ use Modules\Content\Application\Redirects\RedirectAudit;
 use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Domain\Exception\RedirectInvalid;
 use Modules\Content\Domain\Model\Redirect;
+use Modules\Content\Domain\Repository\Redirects;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -229,6 +230,28 @@ describe('the list', function () {
             ->and(array_column($list['rows'], 'check'))->toBe(['FINE', null, Redirect::CANT_BE_REACHED])
             ->and(array_column(app(RedirectsHandler::class)->list('/sa/ar/y', null)['rows'], 'oldPath'))->toBe(['/contact'])
             ->and($list['checkWaits'])->toBeFalse();
+    });
+
+    it('pages by a cursor across lines of other visit counts, each line once, most visited first', function () {
+        foreach (['/a' => 3, '/b' => 2, '/c' => 2, '/d' => 2, '/e' => 1, '/f' => 0] as $old => $visits) {
+            redirectAdd($old, '/sa/ar');
+            DB::table('content.redirects')->where('old_path', $old)->update(['visits' => $visits]);
+        }
+
+        $seen = [];
+        $after = null;
+
+        for ($page = 0; $page < 10; $page++) {
+            $found = app(Redirects::class)->page(null, $after, 2);
+            array_push($seen, ...array_map(static fn (Redirect $line): string => $line->oldPath, $found['rows']));
+            $after = $found['next'];
+
+            if ($after === null) {
+                break;
+            }
+        }
+
+        expect($seen)->toBe(['/a', '/b', '/c', '/d', '/e', '/f']);
     });
 
     it('pages by a cursor', function () {
