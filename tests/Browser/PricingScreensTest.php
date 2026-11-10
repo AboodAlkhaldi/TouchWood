@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Command\AddAttribute\AddAttribute;
 use Modules\Catalog\Application\Command\AddAttribute\AddAttributeHandler;
@@ -36,6 +38,12 @@ use Modules\Pricing\Application\Command\SetRetailPrice\SetRetailPriceHandler;
 use Modules\Pricing\Application\Command\SetWholesalePrices\SetWholesalePrices;
 use Modules\Pricing\Application\Command\SetWholesalePrices\SetWholesalePricesHandler;
 use Modules\Pricing\Application\PricingPermissions as P;
+use Modules\Pricing\Public\Contracts\CampaignPrices;
+use Modules\Pricing\Public\Dto\CampaignPriceSetDto;
+use Modules\Pricing\Public\Dto\CampaignTargetDto;
+use Modules\Pricing\Public\Enums\CampaignLines;
+use Modules\Pricing\Public\Enums\CampaignTargetKind;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
@@ -488,4 +496,50 @@ it('gives focus back inside the store\'s own card when its last offer is removed
     expect(browserSoon($page, "document.querySelector('[data-test=\"offer-actions-{$sales[$first]}\"]') === null && document.querySelector('[role=\"alertdialog\"]') === null"))->toBeTrue()
         ->and(browserSoon($page, "document.activeElement?.getAttribute('data-test') === 'section-add-offer-{$first}'"))->toBeTrue()
         ->and(browserSoon($page, "document.querySelector('[data-test=\"offer-actions-{$sales[$other]}\"]') !== null"))->toBeTrue();
+});
+
+/**
+ * A ready size priced 120.00 in the base store, with a campaign run of 10% off on it running now. The size and the run.
+ *
+ * @return array{size: string, run: string, code: string}
+ */
+function pricingBrowserCampaign(): array
+{
+    $ready = pricingBrowserProduct();
+    [$size] = $ready['sizes'];
+    pricingBrowserPrice('sa', [$size => '120.00']);
+    $run = strtolower((string) Str::ulid());
+    app(CampaignPrices::class)->save(StoreId::fromString(Fx::storeId('sa')), $run, new CampaignPriceSetDto(CampaignLines::Both, [
+        new CampaignTargetDto(CampaignTargetKind::Size, $size, 1000),
+    ]), CarbonImmutable::now()->subHour()->startOfSecond()->toDateTimeImmutable(), CarbonImmutable::now()->addDays(10)->startOfSecond()->toDateTimeImmutable());
+
+    return ['size' => $size, 'run' => $run, 'code' => $ready['codes'][0]];
+}
+
+it('lists a campaign run in a size\'s drawer - its price, Wins now, its dates - on a phone too (pricing.md §9.6 #7)', function () {
+    ['size' => $size, 'run' => $run, 'code' => $code] = pricingBrowserCampaign();
+    $page = pricingBrowser();
+    $page->navigate("/admin/prices?q={$code}&size={$size}", BROWSER_SLOW_PAGE_LOAD);
+    $item = "document.querySelector('[data-test=\"reach-campaign-{$run}\"]')";
+
+    expect(browserSoon($page, "{$item} !== null"))->toBeTrue()
+        ->and(browserSoon($page, "{$item}.textContent.includes('Campaign') && {$item}.textContent.includes('108.00') && {$item}.textContent.includes('Wins now')"))->toBeTrue();
+
+    // A phone (frontend.md §2.1): the drawer with the run fits, nothing scrolling sideways.
+    $page->resize(375, 812);
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('Prices scrolls sideways')
+        ->and($page->script("{$item}.getBoundingClientRect().right <= window.innerWidth"))->toBeTrue('the run is wider than the screen');
+});
+
+it('lists a campaign run in the drawer in Arabic, right to left, its figures in Latin digits', function () {
+    ['size' => $size, 'run' => $run, 'code' => $code] = pricingBrowserCampaign();
+    $page = pricingBrowser('ar');
+    $page->navigate("/admin/prices?q={$code}&size={$size}", BROWSER_SLOW_PAGE_LOAD);
+    $item = "document.querySelector('[data-test=\"reach-campaign-{$run}\"]')";
+
+    expect(browserSoon($page, "{$item} !== null && {$item}.textContent.includes('حملة') && /108/.test({$item}.textContent) && !/[٠-٩]/.test({$item}.textContent)"))->toBeTrue()
+        ->and($page->script('document.documentElement.dir'))->toBe('rtl');
+
+    $page->resize(375, 812);
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('Prices scrolls sideways in Arabic');
 });

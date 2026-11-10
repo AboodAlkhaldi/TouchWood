@@ -74,9 +74,9 @@ export function Mark({ tone: name, children, test }: { tone: Tone; children: Rea
     );
 }
 
-const KIND_TONE: Record<string, Tone> = { SALE_STOPPED: 'amber-subtle', DISCOUNT_SKIPPED: 'amber-subtle', READ_FAILED: 'red-subtle' };
+const KIND_TONE: Record<string, Tone> = { SALE_STOPPED: 'amber-subtle', DISCOUNT_SKIPPED: 'amber-subtle', CAMPAIGN_SKIPPED: 'amber-subtle', READ_FAILED: 'red-subtle' };
 
-/** A report entry's kind (§4.1.1): gray, but Offer Stopped and Discount Skipped amber, Read Failed red. */
+/** A report entry's kind (§4.1.1): gray, but Offer Stopped, Discount Skipped and Campaign Skipped amber, Read Failed red. */
 export function KindBadge({ kind }: { kind: string }) {
     const t = useT();
 
@@ -334,6 +334,9 @@ export function Detail({ about, links }: { about: ReportedData; links: Links }) 
                     <span>{t(`${D}.discount_skipped`)}</span>
                 </span>
             );
+        case 'CAMPAIGN_SKIPPED':
+            // The campaign's name and page are Content's; the entry keeps the run's id until they are read here.
+            return <span>{t(`${D}.campaign_skipped`)}</span>;
         default:
             return null;
     }

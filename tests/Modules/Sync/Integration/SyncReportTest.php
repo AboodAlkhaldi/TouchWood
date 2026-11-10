@@ -336,6 +336,11 @@ describe('the actions (§3: Run Sync Reads)', function () {
             {
                 return $this->real->hasOpen($store, $kind);
             }
+
+            public function keepCampaignRuns(StoreId $store, array $runs, string $closedBy): int
+            {
+                return $this->real->keepCampaignRuns($store, $runs, $closedBy);
+            }
         });
         Fx::actAsStaff(Fx::staffWith([SyncPermissions::READ_RUN], ['sa']));
 

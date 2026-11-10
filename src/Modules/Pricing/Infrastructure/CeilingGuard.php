@@ -33,9 +33,11 @@ final readonly class CeilingGuard implements SettingGuard
         $this->locks->lockStore($store);
         $over = $this->check->salesOver($store, $to);
         $discounts = $this->check->discountsOver($store, $to);
+        // A campaign run scheduled or live too (§9.6 #4): its percentages, and its fixed prices outside a wired store.
+        $campaigns = $this->check->campaignsOver($store, $to);
 
-        if ($over !== [] || $discounts !== []) {
-            throw new CeilingBelowSales([...array_map(static fn (Sale $sale): string => $sale->id, $over), ...array_keys($discounts)], $this->check->namesFor($over, $discounts));
+        if ($over !== [] || $discounts !== [] || $campaigns !== []) {
+            throw new CeilingBelowSales([...array_map(static fn (Sale $sale): string => $sale->id, $over), ...array_keys($discounts), ...array_keys($campaigns)], $this->check->namesFor($over, $discounts, $campaigns));
         }
     }
 }

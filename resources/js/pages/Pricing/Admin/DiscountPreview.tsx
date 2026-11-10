@@ -48,7 +48,7 @@ export function DiscountPreview({ preview, loading = false, zone, more }: Props)
         setFetching(false);
     }, [preview]);
 
-    const overlaps = [...preview.overlappingSales, ...preview.overlappingDiscounts];
+    const overlaps = [...preview.overlappingSales, ...preview.overlappingDiscounts, ...preview.overlappingCampaigns];
 
     return (
         <section aria-labelledby="discount-preview-title" aria-busy={loading || undefined} className="grid gap-3 rounded-[var(--tw-radius)] bg-surface-sunken p-4" data-test="discount-preview">

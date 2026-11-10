@@ -18,6 +18,7 @@ final readonly class OverlapNote
      * @param  list<OverlappingSale>  $sales
      * @param  list<OverlappingDiscount>  $discounts
      * @param  list<OverlapSize>  $sizes  none until a price or a percentage is typed
+     * @param  list<OverlappingCampaign>  $campaigns  the campaign runs reaching its sizes then (§9.6 #7)
      */
     public function __construct(
         public string $productId,
@@ -27,5 +28,6 @@ final readonly class OverlapNote
         public array $sizes = [],
         public bool $atStart = false,
         public ?int $ceilingPercent = null,
+        public array $campaigns = [],
     ) {}
 }

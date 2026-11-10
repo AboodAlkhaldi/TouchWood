@@ -83,13 +83,13 @@ final readonly class DatabasePriceCandidates implements PriceCandidates
     {
         $moment = $at->format('Y-m-d H:i:s.uP');
 
-        // The sizes a sale or a discount reaches on a retail line now, and every candidate of theirs - in one query.
+        // The sizes a sale, a discount or a campaign reaches on a retail line now, and every candidate of theirs - in one query.
         return $this->candidates($this->db->table(self::TABLE.' as c')
             ->where('c.store_id', $store->value)
             ->whereIn('c.variant_id', static fn ($reached) => $reached->select('r.variant_id')->from(self::TABLE.' as r')
                 ->where('r.store_id', $store->value)
                 ->where('r.mode', SaleMode::Retail->value)
-                ->whereIn('r.kind', [PriceKind::Sale->value, PriceKind::Category->value])
+                ->whereIn('r.kind', [PriceKind::Sale->value, PriceKind::Category->value, PriceKind::Campaign->value])
                 ->where('r.starts_at', '<=', $moment)
                 ->where(static fn ($end) => $end->whereNull('r.ends_at')->orWhere('r.ends_at', '>', $moment)))
             ->orderBy('c.id')

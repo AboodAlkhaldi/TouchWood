@@ -291,7 +291,7 @@ describe('Problems (ViewSyncReport, Y1)', function () {
             ->and($codes($third)[19])->toBe('X1')
             ->and($third->next)->toBeNull()
             ->and([$first->total, $first->allOpen, $first->byKind['UNKNOWN_CODE'], $first->byKind['BAD_VALUE']])->toBe([120, 120, 120, 0])
-            ->and(array_keys($first->byKind))->toBe(['UNKNOWN_CODE', 'NOT_IN_PROVIDER', 'ARCHIVED_SKIPPED', 'OFF_OR_DRAFT_PRICED', 'SALE_STOPPED', 'BAD_VALUE', 'READ_FAILED', 'DISCOUNT_SKIPPED'])
+            ->and(array_keys($first->byKind))->toBe(['UNKNOWN_CODE', 'NOT_IN_PROVIDER', 'ARCHIVED_SKIPPED', 'OFF_OR_DRAFT_PRICED', 'SALE_STOPPED', 'BAD_VALUE', 'READ_FAILED', 'DISCOUNT_SKIPPED', 'CAMPAIGN_SKIPPED'])
             // The kind filter: its own total; every kind still counted.
             ->and([$read(null, 'bad_value')->total, $read(null, 'BAD_VALUE')->allOpen])->toBe([0, 120]);
     });

@@ -24,6 +24,7 @@ deepestBasisPoints: number | null,
 leftOut: PreviewProductData[],
 overlappingSales: OverlapOfferData[],
 overlappingDiscounts: OverlapOfferData[],
+overlappingCampaigns: OverlapOfferData[],
 };
 export type DiscountRowData = {
 id: string,
@@ -73,6 +74,7 @@ discounts: OverlapOfferData[],
 sizes: OverlapSizeData[],
 atStart: boolean,
 ceilingPercent: number | null,
+campaigns: OverlapOfferData[],
 };
 export type OverlapOfferData = {
 id: string,
@@ -163,6 +165,15 @@ export type ProductResultsData = {
 rows: PickedProductData[],
 next: string | null,
 total: number,
+};
+export type ReachingCampaignData = {
+id: string,
+state: string,
+lines: string,
+priceOnSize: MoneyData | null,
+startsAt: string,
+endsAt: string | null,
+winsNow: boolean,
 };
 export type ReachingDiscountData = {
 id: string,
@@ -270,6 +281,7 @@ bands: BandData[],
 wholesaleMinimum: number | null,
 wholesaleMaximum: number | null,
 minimumChanged: boolean,
+campaigns: ReachingCampaignData[],
 };
 export type SizeResultsData = {
 rows: SizeData[],

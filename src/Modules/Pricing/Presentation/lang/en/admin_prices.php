@@ -38,6 +38,7 @@ return [
             'BASE' => 'The retail price',
             'SALE' => 'An offer',
             'CATEGORY' => 'A category discount',
+            'CAMPAIGN' => 'A campaign',
             'QUANTITY' => 'A wholesale band',
         ],
         'reaches' => 'What Reaches It',

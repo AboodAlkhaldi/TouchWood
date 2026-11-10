@@ -306,6 +306,16 @@ interface CatalogApi
     public function productIdsInCategories(array $categoryIds): array;
 
     /**
+     * **Each brand's products** (amendment 41(g)), any stage, in one query, keyed by brand in the order
+     * asked, each list in id order; an unknown brand holds none - for Pricing's campaign targets
+     * (pricing.md §9.6 #6).
+     *
+     * @param  list<string>  $brandIds
+     * @return array<string, list<string>>
+     */
+    public function productIdsOfBrands(array $brandIds): array;
+
+    /**
      * **A category's products, and those of every category below it** (amendment 23(c)), any stage, by
      * name in the page's language, found and paged as `searchProducts` - for a discount's "Left Out". An
      * unknown category holds none. A fixed two queries.
