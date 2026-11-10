@@ -233,3 +233,9 @@ it('reads the probe\'s four documents back as themselves (PR 2 review)', functio
 it('refuses a control character that would read as an escape, on its line', function () {
     expect(markTextRefusal("fine\na\x02b"))->toBe([InvalidContentInput::ONE_LINE, 2]);
 });
+
+it('keeps a link whose typed address escapes a dot (PR 2 second review)', function () {
+    expect(markTextBlocks('[a](/x\.y)'))->toBe([
+        ['type' => 'paragraph', 'runs' => [['text' => 'a', 'link' => '/x.y']]],
+    ]);
+});
