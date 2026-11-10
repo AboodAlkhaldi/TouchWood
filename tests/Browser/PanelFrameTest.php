@@ -166,7 +166,7 @@ it('folds the menu into business areas, opens the one being read, lets several s
         ->assertMissing('a[href="/admin/stores"]')
         ->assertAttribute('a[href="/admin/roles"]', 'data-active', 'true');
 
-    // Several may be open at once: opening Store Settings leaves Staff and Permissions open.
+    // Several may be open at once: opening Configuration leaves Staff open.
     $page->click('[data-test="area-store_settings"]')
         ->assertVisible('a[href="/admin/stores"]')
         ->assertAttribute('[data-test="area-staff_and_permissions"]', 'aria-expanded', 'true');

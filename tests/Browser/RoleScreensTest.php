@@ -76,7 +76,7 @@ it('draws the roles screen, and offers it from the menu', function () {
     $page->assertSee($name)
         ->assertSee('Roles')
         // The first real menu entry: the sidebar had nothing in it until roles shipped.
-        ->assertSee('Staff and Permissions')
+        ->assertSeeIn('[data-test="area-staff_and_permissions"]', 'Staff')
         // The comparison table the design asked to keep: areas down the side, roles across.
         ->assertSee('Permissions by Role')
         ->assertNoJavaScriptErrors();
@@ -102,8 +102,8 @@ it('groups the actions by business area in the editor, rather than by declaratio
     $page->navigate('/admin/roles/new');
 
     // The areas staff think in (stage 2b, P2), not the order the modules happened to load.
-    $page->assertSee('Staff and Permissions')
-        ->assertSee('Store Settings and Tax')
+    $page->assertSee('Staff')
+        ->assertSee('Configuration')
         ->assertNoJavaScriptErrors();
 
     // A phone (frontend.md §2.1): the editor fits, with nothing scrolling sideways.
@@ -267,7 +267,7 @@ it('ticks every action of an area with its Select All, stays empty for some, and
     expect(signedInToPanel($page))->toBeTrue();
     $page->navigate('/admin/roles/new');
     // Company Approvals: many actions, none admin-only, so a new role (staff level) may take all of
-    // them - where Staff and Permissions offers a staff-level role a single one.
+    // them - where Staff offers a staff-level role a single one.
     $all = '[data-test="select-all-companies"]';
 
     // One per area (the owner, 2026-10-06), named for a screen reader with its area.
