@@ -12,6 +12,12 @@ use Modules\Content\Domain\Exception\TranslationUnavailable;
  * service, under its 128 KiB), **30 presses a minute** and **300,000 characters a day per person**, which
  * protect the month's allowance.
  *
+ * **One call, under 128 KiB**, checked on the bytes as well (PR 2 review): `deeplcom/deepl-php` writes the
+ * texts with `json_encode()`'s default flags, so an Arabic letter goes as `\uXXXX` - six bytes - and a letter
+ * outside the basic plane as twelve. 20,000 letters can therefore pass the service's limit, so the texts are
+ * encoded as the library encodes them and must stay under `MAX_REQUEST_BYTES`, which leaves 4 KiB for the
+ * request's other fields.
+ *
  * Counted before the call, so presses sent side by side cannot all pass a limit (lesson 17). A press over
  * the day's limit is taken back off the count, so a refused press costs none of it; a press over the
  * minute's still counts as a press. "A day" is 24 hours from a person's first press counted - the
@@ -20,6 +26,9 @@ use Modules\Content\Domain\Exception\TranslationUnavailable;
 final readonly class TranslationLimits
 {
     public const int PER_PRESS = 20_000;
+
+    /** DeepL's 128 KiB request, less 4 KiB for its other fields (the languages, the options). */
+    public const int MAX_REQUEST_BYTES = 128 * 1024 - 4 * 1024;
 
     public const int PRESSES_A_MINUTE = 30;
 
@@ -30,11 +39,15 @@ final readonly class TranslationLimits
     ) {}
 
     /**
+     * @param  list<string>  $pieces  the texts one press sends
+     *
      * @throws TranslationUnavailable over a limit: nothing may be sent
      */
-    public function count(string $person, int $characters): void
+    public function count(string $person, array $pieces): void
     {
-        if ($characters > self::PER_PRESS) {
+        $characters = array_sum(array_map(mb_strlen(...), $pieces));
+
+        if ($characters > self::PER_PRESS || self::requestBytes($pieces) > self::MAX_REQUEST_BYTES) {
             throw new TranslationUnavailable(TranslationUnavailable::TOO_LONG);
         }
 
@@ -49,5 +62,18 @@ final readonly class TranslationLimits
 
             throw new TranslationUnavailable(TranslationUnavailable::DAILY_LIMIT);
         }
+    }
+
+    /**
+     * The bytes the texts take in the request, encoded as the library encodes them (`json_encode()` with its
+     * default flags: every letter past ASCII escaped). A text that will not encode counts as past the limit.
+     *
+     * @param  list<string>  $pieces
+     */
+    public static function requestBytes(array $pieces): int
+    {
+        $encoded = json_encode(['text' => $pieces]);
+
+        return $encoded === false ? PHP_INT_MAX : strlen($encoded);
     }
 }

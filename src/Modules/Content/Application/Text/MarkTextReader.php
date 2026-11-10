@@ -8,7 +8,8 @@ use Modules\Content\Domain\Exception\InvalidContentInput;
 
 /**
  * Reads typed marks line by line for `MarkText::blocks()`: the blocks so far, and the line each starts on,
- * so a refusal names it. Used by `MarkText` alone.
+ * so a refusal names it. Each line comes masked (`MarkText::mask()`): an escaped character is a stand-in no
+ * mark is found in, given back as itself in the runs' words (`MarkText::unmask()`). Used by `MarkText` alone.
  *
  * @internal
  */
@@ -64,7 +65,7 @@ final class MarkTextReader
         if ($image !== null) {
             // An image with no description is RichText's refusal, said on this line through the block.
             $this->close();
-            $this->add(['type' => 'image', 'ref' => $image[1], 'alt' => trim($image[0])], $number);
+            $this->add(['type' => 'image', 'ref' => $image[1], 'alt' => MarkText::unmask(trim($image[0]))], $number);
 
             return;
         }

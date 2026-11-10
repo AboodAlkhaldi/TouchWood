@@ -64,6 +64,9 @@ final class InvalidContentInput extends ContentError
     /** A language that is neither "ar" nor "en". */
     public const string LANGUAGE = 'language';
 
+    /** A text past the bytes one request may carry, refused before it is read (`TranslateTextHandler::MAX_BYTES`). */
+    public const string TOO_LARGE = 'too_large';
+
     /**
      * @param  array<string, string|int>  $values  the rule's own gaps (`max`, `found`, `expected`)
      */

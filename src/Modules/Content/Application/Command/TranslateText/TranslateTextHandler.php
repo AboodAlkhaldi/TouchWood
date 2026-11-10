@@ -48,6 +48,12 @@ final readonly class TranslateTextHandler
      */
     public const bool KEEP_MARKS = false;
 
+    /**
+     * The most bytes one box may hold before it is read: 20,000 letters are at most 80 KB in UTF-8, with
+     * room for the editor's marks. The build's pick (PR 2 review).
+     */
+    public const int MAX_BYTES = 200_000;
+
     public function __construct(
         private Authorizer $authorizer,
         private PlatformApi $platform,
@@ -81,9 +87,7 @@ final readonly class TranslateTextHandler
         // Every box read before anything is counted or sent: one written wrong refuses the press.
         $boxes = array_map(self::box(...), $command->boxes);
         $pieces = array_merge(...array_map(static fn (array $box): array => $box['pieces'], $boxes));
-        $characters = array_sum(array_map(mb_strlen(...), $pieces));
-
-        $this->limits->count($this->person(), $characters);
+        $this->limits->count($this->person(), $pieces);
 
         try {
             $translated = $this->translator->translate($pieces, 'ar', 'en', self::KEEP_MARKS);
@@ -129,6 +133,16 @@ final readonly class TranslateTextHandler
      */
     private static function box(array $box): array
     {
+        // Read as typed only when it can be: not UTF-8 is no text, and past the bytes a press may carry it is
+        // refused before anything is parsed (20,000 letters with their marks need far less).
+        if (strlen($box['text']) > self::MAX_BYTES) {
+            throw new InvalidContentInput('text', InvalidContentInput::TOO_LARGE);
+        }
+
+        if (preg_match('//u', $box['text']) !== 1) {
+            throw new InvalidContentInput('text', InvalidContentInput::FORMAT);
+        }
+
         if (trim($box['text']) === '') {
             throw new InvalidContentInput('text', InvalidContentInput::REQUIRED);
         }

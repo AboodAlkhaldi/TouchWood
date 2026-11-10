@@ -125,8 +125,6 @@ it('gives back a typed text saved unchanged exactly as it was', function (string
 })->with([
     'every kind' => ["# Installation\n\n## Tools\n\nFits **every** cabinet, see [the guide](/pages/guide).\n\n- Soft close\n- **Tool-free**\n\n1. Measure\n2. Fit\n\n![The cabinet open](image:3)\n\n| Size | Price |\n| 60 |  |"],
     'Arabic' => ["# التركيب\n\nيناسب **كل** خزانة، راجع [الدليل](/pages/guide).\n\n- إغلاق هادئ"],
-    'a mark left open' => ['a **b'],
-    'bold beside bold-looking text' => ['a***b**'],
     'a bold link' => ['**[Shop now](https://example.com/sale)** today'],
 ]);
 
@@ -140,10 +138,98 @@ it('gives back a document read from typed text as the same document, however it 
     'numbers not in order' => ["7. a\n3. b"],
     'a link with no slash' => ['[x](categories/chairs)'],
     'Arabic-Indic digits' => ['السعر ١٥٠'],
+    // A mark written wrong reads as its text, and is written back escaped: the same document either way.
+    'a mark left open' => ['a **b'],
+    'bold beside bold-looking text' => ['a***b**'],
+    'escapes typed by hand' => ['\\# not a heading, \\*\\*not bold\\*\\*, \\[not\\](a link), C:\\path'],
 ]);
 
 it('reads nothing typed as an empty document', function () {
     expect(MarkText::blocks('body', '')->isEmpty())->toBeTrue()
         ->and(MarkText::blocks('body', "\n  \n")->isEmpty())->toBeTrue()
         ->and(MarkText::marks(RichText::empty()))->toBe('');
+});
+
+/**
+ * Words that look like marks, or like the escapes of marks: what a translation, or a person, can put into
+ * any block. Each must come back from its written marks as itself.
+ *
+ * @return list<string>
+ */
+function markTextTricky(): array
+{
+    return [
+        '[Photo] cabinet', '2024. A good year', '1. one', '# not a heading', '## nor this', '- not an item',
+        'a|b', '|', '| a |', '**bold**', '*', '**', '***', 'a ** b', 'a*', '*a', 'x **y** z',
+        '[x](/y)', '![a](image:1)', 'a](b)', ')', '(', 'x)y', '\\', 'a\\', '\\*', '\\\\', 'C:\\path', '\\ ',
+        ' lead', 'trail ', ' ', '  both  ', '#', '!', '-', '.', 'end.', 'نص **عريض** و[رابط](/x)', '١٢٣. رقم',
+    ];
+}
+
+/**
+ * Every place a word sits in a document, filled with these words; RichText's own reading first, so the
+ * document is one it keeps (digits 0-9, runs joined, a description trimmed).
+ *
+ * @return list<RichText>
+ */
+function markTextDocumentsOf(string $words): array
+{
+    $documents = [
+        ['type' => 'paragraph', 'runs' => [['text' => $words]]],
+        ['type' => 'paragraph', 'runs' => [['text' => $words], ['text' => $words, 'bold' => true], ['text' => $words, 'link' => '/p'], ['text' => $words]]],
+        ['type' => 'paragraph', 'runs' => [['text' => $words, 'bold' => true]]],
+        ['type' => 'paragraph', 'runs' => [['text' => $words, 'link' => 'https://example.com/a(b)*c|d']]],
+        ['type' => 'paragraph', 'runs' => [['text' => $words, 'bold' => true, 'link' => '/q']]],
+        ['type' => 'heading', 'level' => 2, 'runs' => [['text' => $words]]],
+        ['type' => 'heading', 'level' => 3, 'runs' => [['text' => $words], ['text' => $words, 'bold' => true]]],
+        ['type' => 'list', 'items' => [[['text' => $words]], [['text' => $words, 'link' => '/r']]]],
+        ['type' => 'list', 'ordered' => true, 'items' => [[['text' => $words]], [['text' => $words, 'bold' => true]]]],
+        ['type' => 'table', 'head' => [[['text' => $words]], [['text' => $words, 'bold' => true]]], 'rows' => [[[['text' => $words, 'link' => '/s']], []], [[], [['text' => $words]]]]],
+        ['type' => 'image', 'ref' => 4, 'alt' => $words],
+    ];
+    $kept = [];
+
+    foreach ($documents as $block) {
+        try {
+            $kept[] = RichText::of('body', ['blocks' => [$block]]);
+        } catch (InvalidContentInput) {
+            // Words a block itself refuses (a description of spaces) are no document to write back.
+        }
+    }
+
+    // And all of them at once, block after block, so one block's marks cannot reach into the next.
+    try {
+        $kept[] = RichText::of('body', ['blocks' => array_merge(...array_map(static fn (RichText $text): array => $text->toArray()['blocks'], $kept))]);
+    } catch (InvalidContentInput) {
+    }
+
+    return $kept;
+}
+
+it('reads any document back from its written marks, whatever its words look like', function (string $words) {
+    $documents = markTextDocumentsOf($words);
+
+    // Ten places at least: the guard must not pass over nothing.
+    expect(count($documents))->toBeGreaterThanOrEqual(10);
+
+    foreach ($documents as $document) {
+        $written = MarkText::marks($document);
+
+        expect(MarkText::blocks('body', $written)->toArray())->toBe($document->toArray(), "written as: {$written}");
+    }
+})->with(markTextTricky());
+
+it('reads the probe\'s four documents back as themselves (PR 2 review)', function (array $block) {
+    $document = RichText::of('body', ['blocks' => [$block]]);
+
+    expect(MarkText::blocks('body', MarkText::marks($document))->equals($document))->toBeTrue();
+})->with([
+    'an image described with brackets' => [['type' => 'image', 'ref' => 3, 'alt' => '[Photo] cabinet']],
+    'a paragraph opening with a year' => [['type' => 'paragraph', 'runs' => [['text' => '2024. A good year']]]],
+    'a paragraph opening with a hash' => [['type' => 'paragraph', 'runs' => [['text' => '# not a heading']]]],
+    'a cell with a bar' => [['type' => 'table', 'head' => [[['text' => 'a|b']], [['text' => 'c']]], 'rows' => [[[['text' => '1']], [['text' => '2']]]]]],
+]);
+
+it('refuses a control character that would read as an escape, on its line', function () {
+    expect(markTextRefusal("fine\na\x02b"))->toBe([InvalidContentInput::ONE_LINE, 2]);
 });

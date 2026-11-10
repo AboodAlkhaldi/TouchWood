@@ -184,14 +184,16 @@ final readonly class RichText
 
     /**
      * A link as §1.1 rule 16 takes it, or null for one it refuses: a page of the shop, kept with its leading
-     * slash, or a full https:// address.
+     * slash, or a full https:// address. A space, a control character or an invisible format character
+     * (U+202E right-to-left override, a zero-width space) anywhere in it refuses it: none belongs in an
+     * address, and they can make one read as another.
      */
     public static function link(string $address): ?string
     {
         $address = trim($address);
 
         if ($address === '' || mb_strlen($address) > self::MAX_LINK || preg_match('//u', $address) !== 1
-            || str_contains($address, '\\') || preg_match('/[\s\p{Cc}]/u', $address) === 1) {
+            || str_contains($address, '\\') || preg_match('/[\s\p{Cc}\p{Cf}]/u', $address) === 1) {
             return null;
         }
 

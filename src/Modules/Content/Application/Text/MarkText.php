@@ -20,14 +20,16 @@ use Shared\Domain\Text\LatinDigits;
  * | `**bold**`, `[words](address)` | a run's `bold`, a run's `link` |
  * | `![description](image:3)`, on a line of its own | an image, `ref` 3 |
  * | `\| a \| b \|` lines, the first the heading | a table |
+ * | a backslash before `\ * [ ] \| ) # - .` or a space | that character as text |
  *
  * Lines of one paragraph are joined with a space. Nothing else is special, and no HTML survives: it is text
  * like any other. **A mark written wrong is the text it is** - a `**` left open, a `[` with no address - but
  * a link to an address §1.1 rule 16 refuses, an image mark sharing its line, an image with no description
  * and a table row of another width are refused, naming the line ("Line 12: ...").
  *
- * The two ways meet: the typed text a document is written back as reads again as the same document, so a
- * text saved unchanged stays as it was.
+ * The two ways meet: the typed text a document is written back as reads again as the same document -
+ * **any** document, its words escaped where they would read as marks (a translated "2024. A good year", an
+ * image described "[Photo] cabinet") - so a text saved unchanged stays as it was.
  */
 final class MarkText
 {
@@ -45,6 +47,18 @@ final class MarkText
     private const string LINK = '/\[([^\[\]]+)\]\(([^\s)]*)\)/u';
 
     /**
+     * The characters a backslash before them makes literal (`\*`, `\[`, `\ `...), each kept as a control
+     * character while the line is read, so no mark is found in it; RichText refuses control characters in
+     * text, so none can stand for anything a person typed.
+     *
+     * @var array<string, string>
+     */
+    private const array ESCAPES = [
+        '\\' => "\x01", '*' => "\x02", '[' => "\x03", ']' => "\x04", '|' => "\x05",
+        ')' => "\x06", '#' => "\x07", '-' => "\x08", '.' => "\x0C", ' ' => "\x0E",
+    ];
+
+    /**
      * The typed text as a document. Arabic-Indic digits typed are read as 0-9.
      *
      * @throws InvalidContentInput naming the line where the typed text says it
@@ -54,7 +68,12 @@ final class MarkText
         $reader = new MarkTextReader($attribute);
 
         foreach (preg_split('/\R/u', LatinDigits::of($typed)) ?: [] as $index => $line) {
-            $reader->line(trim($line), $index + 1);
+            // A control character that would read as an escape is refused on its line, as RichText would.
+            if (strpbrk($line, implode('', self::ESCAPES)) !== false) {
+                throw new InvalidContentInput($attribute, InvalidContentInput::ONE_LINE, $index + 1);
+            }
+
+            $reader->line(trim(self::mask($line)), $index + 1);
         }
 
         $reader->close();
@@ -70,7 +89,10 @@ final class MarkText
     }
 
     /**
-     * The document written back as the marks a person types: what the editor's box shows.
+     * The document written back as the marks a person types: what the editor's box shows. Text that would
+     * read as a mark is written with a backslash before it, by its place - a `#`, a `-` or a `2024.` that
+     * opens a paragraph, every `[`, `]` and `|`, a `*` beside another or at a run's edge, a space at a
+     * line's edge - so the marks read back as this same document, whatever its words.
      */
     public static function marks(RichText $text): string
     {
@@ -80,9 +102,9 @@ final class MarkText
             $written[] = match ($block['type']) {
                 'heading' => str_repeat('#', ((int) $block['level']) - 1).' '.self::line($block['runs']),
                 'list' => self::listItems($block),
-                'image' => '!['.self::string($block['alt']).'](image:'.self::string($block['ref']).')',
+                'image' => '!['.self::escape(self::string($block['alt']), false, false).'](image:'.self::string($block['ref']).')',
                 'table' => self::table($block),
-                default => self::line($block['runs']),
+                default => self::paragraphStart(self::line($block['runs'])),
             };
         }
 
@@ -90,21 +112,21 @@ final class MarkText
     }
 
     /**
-     * One line of runs as typed: bold between `**`, a link as `[words](address)`.
+     * One line of runs as typed: bold between `**`, a link as `[words](address)`, every literal mark escaped.
      */
     public static function line(mixed $runs): string
     {
+        $runs = array_values(array_filter(is_array($runs) ? $runs : [], is_array(...)));
+        $last = count($runs) - 1;
         $line = '';
 
-        foreach (is_array($runs) ? $runs : [] as $run) {
-            if (! is_array($run)) {
-                continue;
-            }
-
-            $text = self::string($run['text'] ?? '');
+        foreach ($runs as $index => $run) {
+            $plain = ! is_string($run['link'] ?? null) && ($run['bold'] ?? false) !== true;
+            // A space at the line's own edge would be trimmed away: only a plain run reaches the edge.
+            $text = self::escape(self::string($run['text'] ?? ''), $plain && $index === 0, $plain && $index === $last);
 
             if (is_string($run['link'] ?? null)) {
-                $text = '['.$text.']('.$run['link'].')';
+                $text = '['.$text.']('.strtr($run['link'], [')' => '\\)', '*' => '\\*', '|' => '\\|']).')';
             }
 
             $line .= ($run['bold'] ?? false) === true ? '**'.$text.'**' : $text;
@@ -114,7 +136,8 @@ final class MarkText
     }
 
     /**
-     * A line's runs from its marks: bold split first, as Catalog's, then each part's links.
+     * A line's runs from its marks, the line as `mask()` gives it: bold split first, as Catalog's, then each
+     * part's links; the escaped characters given back as the characters they are.
      *
      * @return list<array<string, mixed>>
      *
@@ -143,6 +166,76 @@ final class MarkText
         }
 
         return $runs;
+    }
+
+    /** The escaped characters of a masked text given back as the characters they are. */
+    public static function unmask(string $text): string
+    {
+        return strtr($text, array_flip(self::ESCAPES));
+    }
+
+    /**
+     * A line with each backslash-escaped character turned into its stand-in, so nothing reads it as a mark.
+     * A backslash before any other character is the backslash it is.
+     */
+    private static function mask(string $line): string
+    {
+        $characters = mb_str_split($line);
+        $masked = '';
+
+        for ($at = 0, $count = count($characters); $at < $count; $at++) {
+            $next = $characters[$at + 1] ?? null;
+
+            if ($characters[$at] === '\\' && $next !== null && isset(self::ESCAPES[$next])) {
+                $masked .= self::ESCAPES[$next];
+                $at++;
+
+                continue;
+            }
+
+            $masked .= $characters[$at];
+        }
+
+        return $masked;
+    }
+
+    /**
+     * A run's words written so none of them reads as a mark: `[`, `]` and `|` always escaped, a `*` beside
+     * another or at the run's edge, a backslash before an escapable character or at the end, and a space at
+     * the line's edge when the run stands there.
+     */
+    private static function escape(string $text, bool $atLineStart, bool $atLineEnd): string
+    {
+        $characters = mb_str_split($text);
+        $last = count($characters) - 1;
+        $written = '';
+
+        foreach ($characters as $at => $character) {
+            $previous = $characters[$at - 1] ?? null;
+            $next = $characters[$at + 1] ?? null;
+
+            $escaped = match ($character) {
+                '[', ']', '|' => true,
+                '*' => $previous === null || $next === null || $previous === '*' || $next === '*',
+                '\\' => $next === null || isset(self::ESCAPES[$next]),
+                ' ' => ($at === 0 && $atLineStart) || ($at === $last && $atLineEnd),
+                default => false,
+            };
+
+            $written .= ($escaped ? '\\' : '').$character;
+        }
+
+        return $written;
+    }
+
+    /** A paragraph's line that would open as a heading, a list item or a numbered item, escaped there. */
+    private static function paragraphStart(string $line): string
+    {
+        if (str_starts_with($line, '#') || str_starts_with($line, '-')) {
+            return '\\'.$line;
+        }
+
+        return (string) preg_replace('/\A([0-9]+)\./', '$1\\\\.', $line, 1);
     }
 
     /**
@@ -207,21 +300,21 @@ final class MarkText
             [$whole, $start] = $match[0];
 
             if ($start > $at) {
-                $runs[] = ['text' => substr($part, $at, $start - $at)];
+                $runs[] = ['text' => self::unmask(substr($part, $at, $start - $at))];
             }
 
-            $address = RichText::link($match[2][0]);
+            $address = RichText::link(self::unmask($match[2][0]));
 
             if ($address === null) {
                 throw new InvalidContentInput($attribute, InvalidContentInput::LINK, $number);
             }
 
-            $runs[] = ['text' => $match[1][0], 'link' => $address];
+            $runs[] = ['text' => self::unmask($match[1][0]), 'link' => $address];
             $at = $start + strlen($whole);
         }
 
         if ($at < strlen($part)) {
-            $runs[] = ['text' => substr($part, $at)];
+            $runs[] = ['text' => self::unmask(substr($part, $at))];
         }
 
         return $runs;

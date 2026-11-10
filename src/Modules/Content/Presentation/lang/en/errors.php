@@ -25,6 +25,7 @@ return [
             'kind' => 'There is no such kind of item.',
             'store' => 'There is no such store.',
             'language' => 'The language is Arabic or English.',
+            'too_large' => 'This text is too long to send at once. Translate it in parts, or type the English.',
             // The same refusals, on the line of the typed text they are on (§1.2).
             'too_long_line' => 'Line :line: the :attribute holds more than :max characters.',
             'required_line' => 'Line :line: type the :attribute.',
@@ -86,7 +87,8 @@ return [
         'detail' => ':image is not ready.',
         'rules' => [
             'pending' => ':image is still being prepared. Try again in a minute.',
-            'failed' => ':image could not be prepared. Upload this image again.',
+            // The spec's own words (content.md §1.1 rule 10).
+            'failed' => 'Upload this image again.',
         ],
     ],
     'campaign_prices_not_allowed' => [

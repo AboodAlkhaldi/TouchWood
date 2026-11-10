@@ -67,7 +67,8 @@ it('answers each box\'s English, and how many blocks lost their marks', function
         'boxes' => [['text' => 'عنوان', 'rich' => '0'], ['text' => 'فقرة **عريضة**', 'rich' => '1']],
     ], TRANSLATE_ROUTE_JSON)
         ->assertOk()
-        ->assertExactJson(['texts' => ['[en] عنوان', '[en] فقرة عريضة'], 'lostMarks' => [0, 1]]);
+        // A rich box's English in the editor's marks: the fake's "[en]" escaped there, as any bracket is.
+        ->assertExactJson(['texts' => ['[en] عنوان', '\[en\] فقرة عريضة'], 'lostMarks' => [0, 1]]);
 });
 
 it('says a failure in its own words, as a problem document', function () {
@@ -96,6 +97,10 @@ it('refuses boxes it cannot read, naming the line of a rich one written wrong', 
     $browser->post('/admin/content/translate', ['kind' => 'page', 'store' => $store, 'boxes' => 'text'], TRANSLATE_ROUTE_JSON)->assertStatus(422);
     $browser->post('/admin/content/translate', ['kind' => 'page', 'store' => $store, 'boxes' => [['text' => 'x', 'rich' => 'maybe']]], TRANSLATE_ROUTE_JSON)->assertStatus(422);
     $browser->post('/admin/content/translate', ['kind' => 'page', 'store' => $store, 'boxes' => array_fill(0, 51, ['text' => 'x'])], TRANSLATE_ROUTE_JSON)->assertStatus(422);
+    // Past the bytes a box may hold, refused before it is read (PR 2 review).
+    $browser->post('/admin/content/translate', ['kind' => 'page', 'store' => $store, 'boxes' => [['text' => str_repeat('a', 200_001)]]], TRANSLATE_ROUTE_JSON)
+        ->assertStatus(422)
+        ->assertJsonPath('detail', 'This text is too long to send at once. Translate it in parts, or type the English.');
     $browser->post('/admin/content/translate', ['kind' => 'page', 'store' => $store, 'boxes' => [['text' => "سطر\n\n[x](javascript:alert(1))", 'rich' => '1']]], TRANSLATE_ROUTE_JSON)
         ->assertStatus(422)
         ->assertJsonPath('detail', 'Line 3: a link goes to a page of the shop, such as /categories/chairs, or to a full https:// address.');

@@ -102,7 +102,8 @@ it('sends a rich text block by block, keeps its structure and images, and counts
     // Each heading, paragraph, list item, cell and description its own text; no address and no image ref sent.
     expect(translateFake()->calls()[0]['texts'])->toBe(['التركيب', 'يناسب كل خزانة، راجع الدليل.', 'إغلاق هادئ', 'بلا أدوات', 'الخزانة مفتوحة', 'المقاس', 'السعر', '60'])
         ->and(implode(' ', translateFake()->calls()[0]['texts']))->not->toContain('/pages/guide')
-        ->and($translated->texts[0])->toBe("# [en] التركيب\n\n[en] يناسب كل خزانة، راجع الدليل.\n\n- [en] إغلاق هادئ\n- [en] بلا أدوات\n\n![[en] الخزانة مفتوحة](image:3)\n\n| [en] المقاس | [en] السعر |\n| [en] 60 |  |")
+        // The fake's own "[en]" written escaped, as any bracket in a rich text is (the round trip, PR 2 review).
+        ->and($translated->texts[0])->toBe('# \[en\] التركيب'."\n\n".'\[en\] يناسب كل خزانة، راجع الدليل.'."\n\n".'- \[en\] إغلاق هادئ'."\n".'- \[en\] بلا أدوات'."\n\n".'![\[en\] الخزانة مفتوحة](image:3)'."\n\n".'| \[en\] المقاس | \[en\] السعر |'."\n".'| \[en\] 60 |  |')
         // The paragraph's bold and link and the item's bold, gone plain (§1.3 (b)).
         ->and($translated->lostMarks)->toBe([2]);
 });
@@ -114,7 +115,7 @@ it('counts every box of Translate All together, in one call', function () {
 
     expect(translateFake()->calls())->toHaveCount(1)
         ->and(translateFake()->calls()[0]['texts'])->toBe(['عنوان', 'فقرة', 'بند'])
-        ->and($translated->texts)->toBe(['[en] عنوان', "[en] فقرة\n\n- [en] بند"]);
+        ->and($translated->texts)->toBe(['[en] عنوان', '\[en\] فقرة'."\n\n".'- \[en\] بند']);
 });
 
 it('checks the kind\'s permission in the store, so an item not saved yet can be translated', function (string $kind, string $permission) {
@@ -216,6 +217,59 @@ it('sends nothing over 20,000 characters a press, Translate All counted as one',
     expect(translatePress('page', Fx::storeId('sa'), [['text' => $half, 'rich' => false], ['text' => $half, 'rich' => false]])->texts)->toHaveCount(2)
         ->and(translateRefusal('page', Fx::storeId('sa'), [['text' => $half, 'rich' => false], ['text' => $half.'ب', 'rich' => false]]))->toBe(TranslationUnavailable::TOO_LONG)
         ->and(translateFake()->calls())->toHaveCount(1);
+});
+
+it('sends nothing past DeepL\'s 128 KiB as the library encodes it, within 20,000 characters (PR 2 review)', function () {
+    translateAsEditorOf(ContentPermissions::PAGE_MANAGE);
+    // A letter outside the basic plane is one character and twelve bytes as `😀`.
+    $emoji = str_repeat("\u{1F600}", 11_000);
+
+    expect(TranslationLimits::requestBytes([$emoji]))->toBeGreaterThan(TranslationLimits::MAX_REQUEST_BYTES)
+        ->and(mb_strlen($emoji))->toBeLessThan(TranslationLimits::PER_PRESS)
+        ->and(translateRefusal('page', Fx::storeId('sa'), [['text' => $emoji, 'rich' => false]]))->toBe(TranslationUnavailable::TOO_LONG)
+        ->and(translateFake()->calls())->toBe([]);
+
+    // Just under the bytes, the press goes.
+    $fits = str_repeat("\u{1F600}", 10_000);
+    expect(TranslationLimits::requestBytes([$fits]))->toBeLessThanOrEqual(TranslationLimits::MAX_REQUEST_BYTES)
+        ->and(translatePress('page', Fx::storeId('sa'), [['text' => $fits, 'rich' => false]])->texts)->toHaveCount(1);
+});
+
+it('counts the encoded bytes as the library writes them: Arabic as six bytes a letter, every piece\'s quotes', function () {
+    // The letter escaped as a backslash, a u and four hex digits: six bytes.
+    expect(TranslationLimits::requestBytes(['ب']))->toBe(strlen('{"text":[""]}') + 6)
+        ->and(TranslationLimits::requestBytes(['a', 'b']))->toBe(strlen('{"text":["a","b"]}'));
+});
+
+it('refuses a box that is not UTF-8, or past the bytes a box may hold, before reading it', function (string $text, string $rule) {
+    translateAsEditorOf(ContentPermissions::PAGE_MANAGE);
+
+    foreach ([false, true] as $rich) {
+        try {
+            translatePress('page', Fx::storeId('sa'), [['text' => $text, 'rich' => $rich]]);
+            throw new LogicException('Not refused.');
+        } catch (InvalidContentInput $refused) {
+            expect($refused->rule)->toBe($rule)
+                ->and($refused->category()->value)->toBe('INVALID');
+        }
+    }
+
+    expect(translateFake()->calls())->toBe([]);
+})->with([
+    'not UTF-8' => ["\xC3\x28 نص", InvalidContentInput::FORMAT],
+    'past the bytes' => [str_repeat('a', TranslateTextHandler::MAX_BYTES + 1), InvalidContentInput::TOO_LARGE],
+]);
+
+it('says "not set up" in production with nothing set, never a failure', function () {
+    translateAsEditorOf(ContentPermissions::BANNER_MANAGE);
+    app()->detectEnvironment(fn (): string => 'production');
+    config(['services.deepl.driver' => null, 'services.deepl.key' => '']);
+
+    try {
+        expect(translateRefusal('banner', Fx::storeId('sa'), [['text' => 'نص', 'rich' => false]]))->toBe(TranslationUnavailable::NOT_SET);
+    } finally {
+        app()->detectEnvironment(fn (): string => 'testing');
+    }
 });
 
 it('holds a person to 30 presses a minute, and lets them press again the next minute', function () {

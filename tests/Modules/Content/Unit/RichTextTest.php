@@ -106,6 +106,10 @@ it('refuses a link that could leave the rules', function (string $address) {
     'no host' => ['https://'],
     'empty' => [''],
     'past the length' => ['/'.str_repeat('a', RichText::MAX_LINK)],
+    // Invisible format characters (PR 2 review): they make one address read as another.
+    'a right-to-left override' => ["https://example.com/\u{202E}gpj.exe"],
+    'a zero-width space' => ["/pages/ab\u{200B}out"],
+    'a zero-width joiner in a host' => ["https://exa\u{200D}mple.com"],
 ]);
 
 it('refuses a document of no blocks list, or a block of no known kind', function (mixed $document) {
