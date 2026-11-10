@@ -8,6 +8,8 @@ use Modules\Content\Presentation\Http\Controller\BannersController;
 use Modules\Content\Presentation\Http\Controller\BarsController;
 use Modules\Content\Presentation\Http\Controller\HomePageController;
 use Modules\Content\Presentation\Http\Controller\PopupsController;
+use Modules\Content\Presentation\Http\Controller\RedirectsController;
+use Modules\Content\Presentation\Http\Controller\SeoController;
 use Modules\Content\Presentation\Http\Controller\TranslateController;
 use Modules\Content\Presentation\Http\Controller\UploadsController;
 
@@ -53,6 +55,23 @@ Route::prefix(AdminArea::PREFIX)
         Route::post('content/banners/{banner}/end', [BannersController::class, 'end'])->name('content.admin.banners.end');
         Route::post('content/banners/{banner}/draft', [BannersController::class, 'draft'])->name('content.admin.banners.draft');
         Route::post('content/banners/{banner}/delete', [BannersController::class, 'delete'])->name('content.admin.banners.delete');
+
+        // W10 · SEO.
+        Route::get('content/seo', [SeoController::class, 'index'])->name('content.admin.seo');
+        Route::post('content/seo', [SeoController::class, 'save'])->name('content.admin.seo.save');
+        Route::post('content/seo/sitemap', [SeoController::class, 'rebuild'])->name('content.admin.seo.sitemap');
+
+        // W11 · Redirects, and W11b the checked sheet. A line is named in the body: an address holds slashes.
+        Route::get('content/redirects', [RedirectsController::class, 'index'])->name('content.admin.redirects');
+        Route::post('content/redirects', [RedirectsController::class, 'add'])->name('content.admin.redirects.add');
+        Route::post('content/redirects/change', [RedirectsController::class, 'change'])->name('content.admin.redirects.change');
+        Route::post('content/redirects/reset', [RedirectsController::class, 'reset'])->name('content.admin.redirects.reset');
+        Route::post('content/redirects/final', [RedirectsController::class, 'final'])->name('content.admin.redirects.final');
+        Route::post('content/redirects/delete', [RedirectsController::class, 'delete'])->name('content.admin.redirects.delete');
+        Route::post('content/redirects/check', [RedirectsController::class, 'check'])->name('content.admin.redirects.check');
+        Route::post('content/redirects/sheets', [RedirectsController::class, 'upload'])->name('content.admin.redirects.upload');
+        Route::get('content/redirects/sheets/{upload}', [RedirectsController::class, 'sheet'])->name('content.admin.redirects.sheet');
+        Route::post('content/redirects/sheets/{upload}/apply', [RedirectsController::class, 'apply'])->name('content.admin.redirects.apply');
 
         // W6 · Pop-Ups.
         Route::get('content/popups', [PopupsController::class, 'index'])->name('content.admin.popups');

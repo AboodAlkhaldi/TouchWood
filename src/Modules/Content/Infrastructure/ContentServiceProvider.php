@@ -151,6 +151,8 @@ final class ContentServiceProvider extends ServiceProvider
             new MenuEntryDto('content', 'bars', 'content', 'content.admin.bars', ContentPermissions::BAR_MANAGE, 20, icon: 'bars'),
             new MenuEntryDto('content', 'banners', 'content', 'content.admin.banners', ContentPermissions::BANNER_MANAGE, 30, icon: 'banners'),
             new MenuEntryDto('content', 'popups', 'content', 'content.admin.popups', ContentPermissions::POPUP_MANAGE, 60, icon: 'popups'),
+            new MenuEntryDto('content', 'seo', 'content', 'content.admin.seo', ContentPermissions::SEO_MANAGE, 100, icon: 'seo'),
+            new MenuEntryDto('content', 'redirects', 'content', 'content.admin.redirects', ContentPermissions::REDIRECT_MANAGE, 110, icon: 'redirects'),
         );
 
         // An old site's address on a line of the redirects answers 301 where nothing else answers (§1.15, row L2).

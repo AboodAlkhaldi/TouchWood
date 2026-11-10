@@ -161,6 +161,51 @@ storeTimezone: string,
 popups: PopupRowData[],
 next: string | null,
 };
+export type RedirectRowData = {
+oldPath: string,
+newPath: string,
+visits: number,
+lastVisitAt: string | null,
+check: string | null,
+finalPath: string | null,
+};
+export type RedirectSheetPageData = {
+uploadId: string,
+lines: SheetLineData[],
+counts: Record<string, number>,
+applied: boolean,
+tab: string,
+};
+export type RedirectsPageData = {
+rows: RedirectRowData[],
+next: string | null,
+q: string,
+checkWaits: boolean,
+};
+export type SeoPageData = {
+stores: ContentStoreData[],
+storeCode: string,
+siteNameAr: string | null,
+siteNameEn: string | null,
+titlePatternAr: string | null,
+titlePatternEn: string | null,
+descriptionAr: string | null,
+descriptionEn: string | null,
+shareImage: ContentImageData | null,
+robotsLines: string,
+sitemapBuiltAt: string | null,
+sitemapUrls: number,
+sitemapAddress: string,
+rebuildWaits: boolean,
+translationReady: boolean,
+};
+export type SheetLineData = {
+line: number,
+old: string,
+new: string,
+result: string,
+reason: string | null,
+};
 export type SmartBarData = {
 id: string,
 scope: string,

@@ -113,6 +113,8 @@ const ICONS = {
     bars: Megaphone,
     banners: Image,
     popups: MessageCircleQuestion,
+    seo: Store,
+    redirects: RefreshCw,
 } as const;
 
 type Props = {

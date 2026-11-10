@@ -136,6 +136,8 @@ describe('the admin menu', function () {
             'content/bars',
             'content/banners',
             'content/popups',
+            'content/seo',
+            'content/redirects',
             'support/reviews',
             'support/questions',
             'support/reasons',
