@@ -62,10 +62,7 @@ final class MarkTextReader
         $image = MarkText::image($line);
 
         if ($image !== null) {
-            if (trim($image[0]) === '') {
-                throw new InvalidContentInput($this->attribute, InvalidContentInput::IMAGE, $number);
-            }
-
+            // An image with no description is RichText's refusal, said on this line through the block.
             $this->close();
             $this->add(['type' => 'image', 'ref' => $image[1], 'alt' => trim($image[0])], $number);
 
