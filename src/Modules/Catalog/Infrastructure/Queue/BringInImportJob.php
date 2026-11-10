@@ -10,6 +10,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Modules\Catalog\Application\Command\BringInImportProducts\BringInImportProducts;
 use Modules\Catalog\Application\Command\BringInImportProducts\BringInImportProductsHandler;
+use Modules\Platform\Public\LongQueue;
 use Throwable;
 
 /**
@@ -28,12 +29,14 @@ final class BringInImportJob implements ShouldQueue
      */
     public int $tries = 1;
 
-    /** A zip of photos takes minutes. */
+    /** A zip of photos takes minutes: on the long connection, whose `retry_after` is above it. */
     public int $timeout = 3600;
 
     public function __construct(
         public readonly string $importId,
-    ) {}
+    ) {
+        $this->onConnection(LongQueue::connection());
+    }
 
     public function handle(BringInImportProductsHandler $handler): void
     {

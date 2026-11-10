@@ -19,6 +19,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | The Connection For Long Jobs
+    |--------------------------------------------------------------------------
+    |
+    | A database queue hands a job to another worker once it has been reserved
+    | longer than `retry_after`. A job that may run longer than the normal
+    | connection's limit is queued here instead (`LongQueue`, Platform), and
+    | its own worker runs it: `queue:work database-long --queue=long`. Tests
+    | set it to `sync`, as they set the default (owner, 2026-11-10).
+    |
+    */
+
+    'long_connection' => env('QUEUE_LONG_CONNECTION', 'database-long'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Queue Connections
     |--------------------------------------------------------------------------
     |
@@ -42,7 +57,21 @@ return [
             'connection' => env('DB_QUEUE_CONNECTION'),
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => env('DB_QUEUE', 'default'),
-            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 90),
+            // Above every job on it, 300 s at most (Payments' check and notice, Sales' reviews), and a
+            // check's own 320 s claim; QueueConnectionsTest keeps each job 30 s under it.
+            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 330),
+            'after_commit' => true,
+        ],
+
+        // The long jobs (an import, a store's read, the nightly segments): the same table, a queue
+        // of its own, so the normal worker never reserves one and never hands it on at 330 s.
+        'database-long' => [
+            'driver' => 'database',
+            'connection' => env('DB_QUEUE_CONNECTION'),
+            'table' => env('DB_QUEUE_TABLE', 'jobs'),
+            'queue' => env('DB_QUEUE_LONG', 'long'),
+            // Above the longest job on it, 3600 s (the product import, the segments' refresh).
+            'retry_after' => (int) env('DB_QUEUE_LONG_RETRY_AFTER', 3700),
             'after_commit' => true,
         ],
 
