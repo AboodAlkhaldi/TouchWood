@@ -58,6 +58,6 @@ final readonly class PopupBackToDraftHandler
             $this->popups->update($popup);
             $this->platform->recordAudit(ContentAudit::entry('content.popup.unscheduled', 'content.popup', $was->id, $store->id, ContentAudit::diff($was->fields(), $popup->fields())));
             $this->cache->invalidate();
-        });
+        }, 3);
     }
 }

@@ -56,6 +56,6 @@ final readonly class DeleteBannerHandler
             $this->banners->reorder(array_map(static fn ($banner): string => $banner->id, $rest));
             $this->platform->recordAudit(ContentAudit::entry('content.banner.deleted', 'content.banner', $was->id, $store->id, ContentAudit::diff($was->fields(), [])));
             $this->cache->invalidate();
-        });
+        }, 3);
     }
 }

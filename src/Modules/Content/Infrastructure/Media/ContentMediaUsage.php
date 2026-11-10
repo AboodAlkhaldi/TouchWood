@@ -15,6 +15,8 @@ use Modules\Platform\Public\Contracts\MediaUsage;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\MediaUseDto;
+use Shared\Application\ActorContext;
+use Shared\Application\ActorType;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Domain\ValueObject\StoreId;
@@ -47,6 +49,7 @@ final readonly class ContentMediaUsage implements MediaUsage
         private ConnectionInterface $db,
         private Authorizer $authorizer,
         private PlatformApi $platform,
+        private ActorContext $actors,
         private ContentCache $cache,
     ) {}
 
@@ -71,6 +74,9 @@ final readonly class ContentMediaUsage implements MediaUsage
             $this->authorizer->authorize($use['permission'], PermissionScope::store(StoreId::fromString($use['store'])));
         }
 
+        $actor = $this->actors->current();
+        $by = $actor->type === ActorType::Staff ? $actor->id : null;
+
         foreach ($uses as $use) {
             match ($use['subject']) {
                 'content.home_section' => $this->db->table('content.home_section_media')->where('section_id', $use['id'])->where('media_id', $mediaId)->delete(),
@@ -87,7 +93,8 @@ final readonly class ContentMediaUsage implements MediaUsage
             };
 
             // A new version: a form opened before the detach is told rather than writing the file back.
-            $this->db->table($table)->where('id', $use['id'])->increment('version', 1, ['updated_at' => Rows::at(Moments::now())]);
+            // Who changed it is the person deleting the file; the system's delete (no staff member) leaves the last name.
+            $this->db->table($table)->where('id', $use['id'])->increment('version', 1, ['updated_at' => Rows::at(Moments::now()), ...($by === null ? [] : ['updated_by' => $by])]);
             $this->platform->recordAudit(ContentAudit::entry("{$use['subject']}.image_detached", $use['subject'], $use['id'], $use['store'], AuditChanges::none()->changed('media_id', $mediaId, null)));
         }
 

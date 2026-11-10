@@ -81,19 +81,21 @@ final readonly class DatabaseHomeSections implements HomeSections
 
     public function replaceLogos(string $sectionId, array $logos): void
     {
-        $this->db->table('content.home_section_media')->where('section_id', strtolower($sectionId))->where('slot', 'LOGO')->delete();
+        ForeignKeyRefusals::guard(function () use ($sectionId, $logos): void {
+            $this->db->table('content.home_section_media')->where('section_id', strtolower($sectionId))->where('slot', 'LOGO')->delete();
 
-        foreach ($logos as $position => $logo) {
-            $this->db->table('content.home_section_media')->insert([
-                'section_id' => strtolower($sectionId),
-                'slot' => 'LOGO',
-                'position' => $position,
-                'media_id' => $logo->mediaId,
-                'name_ar' => $logo->nameAr,
-                'name_en' => $logo->nameEn,
-                'link' => $logo->link,
-            ]);
-        }
+            foreach ($logos as $position => $logo) {
+                $this->db->table('content.home_section_media')->insert([
+                    'section_id' => strtolower($sectionId),
+                    'slot' => 'LOGO',
+                    'position' => $position,
+                    'media_id' => $logo->mediaId,
+                    'name_ar' => $logo->nameAr,
+                    'name_en' => $logo->nameEn,
+                    'link' => $logo->link,
+                ]);
+            }
+        });
     }
 
     /**

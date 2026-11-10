@@ -78,6 +78,8 @@ final readonly class DocumentWriter
 
         return $this->db->transaction(function () use ($kind, $input, $store, $staffId, $read): string {
             $now = Moments::now();
+            // The store's address lock before any row's (ContentLocks: store locks first, then rows).
+            $this->check->lockAddresses($store->id);
 
             // The category held while the post is written, so a delete of it waits and then sees the post.
             if ($read['category'] !== null && $this->categories->lock($read['category']) === null) {
@@ -108,7 +110,7 @@ final readonly class DocumentWriter
             $this->cache->invalidate();
 
             return $document->id;
-        });
+        }, 3);
     }
 
     /**
@@ -127,10 +129,11 @@ final readonly class DocumentWriter
             $now = Moments::now();
             $document = $this->with($was, Publication::Published, $now, $staffId, $now);
             $this->requirePublishable($document);
-            $this->documents->update($document);
+            // Only the state changes: its words, images and photos are left as they are.
+            $this->documents->updateRow($document);
             $this->platform->recordAudit(ContentAudit::entry("content.{$kind->key()}.published", "content.{$kind->key()}", $id, $store->id, AuditChanges::none()->changed('status', $was->status->value, Publication::Published->value)));
             $this->cache->invalidate();
-        });
+        }, 3);
     }
 
     /**
@@ -146,10 +149,10 @@ final readonly class DocumentWriter
                 return;
             }
 
-            $this->documents->update($this->with($was, Publication::Draft, null, $staffId, Moments::now()));
+            $this->documents->updateRow($this->with($was, Publication::Draft, null, $staffId, Moments::now()));
             $this->platform->recordAudit(ContentAudit::entry("content.{$kind->key()}.unpublished", "content.{$kind->key()}", $id, $store->id, AuditChanges::none()->changed('status', $was->status->value, Publication::Draft->value)));
             $this->cache->invalidate();
-        });
+        }, 3);
     }
 
     /**
@@ -158,6 +161,8 @@ final readonly class DocumentWriter
     public function delete(DocumentKind $kind, string $id, StoreDto $store): void
     {
         $this->db->transaction(function () use ($kind, $id, $store): void {
+            // Its addresses are freed below: the store's address lock first, then the row.
+            $this->check->lockAddresses($store->id);
             $was = $this->documents->lock($kind, $id) ?? throw new ContentNotFound;
 
             if ($was->status !== Publication::Draft) {
@@ -169,7 +174,7 @@ final readonly class DocumentWriter
             $this->history->forget($kind->value, $was->id);
             $this->platform->recordAudit(ContentAudit::entry("content.{$kind->key()}.deleted", "content.{$kind->key()}", $was->id, $store->id, self::changes($was, null)));
             $this->cache->invalidate();
-        });
+        }, 3);
     }
 
     /**

@@ -52,6 +52,26 @@ final class ContentAudit
     }
 
     /**
+     * Nested words as short fields, each by its path (`main.text.ar`, `facts.0.en`), for `diff()`.
+     *
+     * @param  array<array-key, mixed>  $value
+     * @return array<string, bool|int|string|null>
+     */
+    public static function flatten(array $value, string $prefix = ''): array
+    {
+        $fields = [];
+
+        foreach ($value as $key => $item) {
+            $path = $prefix === '' ? (string) $key : "{$prefix}.{$key}";
+            $fields = is_array($item)
+                ? [...$fields, ...self::flatten($item, $path)]
+                : [...$fields, $path => is_bool($item) || is_int($item) || is_string($item) || $item === null ? $item : (string) json_encode($item)];
+        }
+
+        return $fields;
+    }
+
+    /**
      * A structured value written as one text, for `long()`: the same value always the same text.
      *
      * @param  array<array-key, mixed>  $value

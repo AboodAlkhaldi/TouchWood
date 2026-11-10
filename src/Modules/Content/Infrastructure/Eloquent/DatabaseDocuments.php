@@ -35,22 +35,31 @@ final readonly class DatabaseDocuments implements Documents
 
     public function add(Document $document, ?string $by): void
     {
-        $tables = DocumentTables::of($document->kind);
-        $this->db->table($tables->items)->insert([
-            'id' => $document->id,
-            'store_id' => $document->storeId,
-            'created_by' => $by,
-            'created_at' => Rows::at($document->updatedAt),
-            ...self::written($document),
-        ]);
-        $this->writeParts($document);
+        ForeignKeyRefusals::guard(function () use ($document, $by): void {
+            $tables = DocumentTables::of($document->kind);
+            $this->db->table($tables->items)->insert([
+                'id' => $document->id,
+                'store_id' => $document->storeId,
+                'created_by' => $by,
+                'created_at' => Rows::at($document->updatedAt),
+                ...self::written($document),
+            ]);
+            $this->writeParts($document);
+        });
     }
 
     public function update(Document $document): void
     {
-        $tables = DocumentTables::of($document->kind);
-        $this->db->table($tables->items)->where('id', $document->id)->update(self::written($document));
-        $this->writeParts($document);
+        ForeignKeyRefusals::guard(function () use ($document): void {
+            $tables = DocumentTables::of($document->kind);
+            $this->db->table($tables->items)->where('id', $document->id)->update(self::written($document));
+            $this->writeParts($document);
+        });
+    }
+
+    public function updateRow(Document $document): void
+    {
+        $this->db->table(DocumentTables::of($document->kind)->items)->where('id', $document->id)->update(self::written($document));
     }
 
     public function delete(DocumentKind $kind, string $id): void

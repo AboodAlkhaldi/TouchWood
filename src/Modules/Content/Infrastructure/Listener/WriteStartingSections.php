@@ -40,6 +40,6 @@ final readonly class WriteStartingSections
             foreach (HomeSectionType::cases() as $type) {
                 $this->sections->add(new HomeSection(strtolower((string) Str::ulid()), $storeId, $type, $type->startingPosition(), false, [], 1, null, Moments::now()));
             }
-        });
+        }, 3);
     }
 }

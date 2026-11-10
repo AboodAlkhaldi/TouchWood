@@ -64,6 +64,6 @@ final readonly class ScheduleBannerHandler
             $this->banners->update($banner);
             $this->platform->recordAudit(ContentAudit::entry('content.banner.scheduled', 'content.banner', $was->id, $store->id, ContentAudit::diff($was->fields(), $banner->fields())));
             $this->cache->invalidate();
-        });
+        }, 3);
     }
 }

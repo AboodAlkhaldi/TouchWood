@@ -65,7 +65,7 @@ final readonly class SaveFooterHandler
             $this->frame->saveFooter($saved);
             $this->platform->recordAudit(ContentAudit::entry('content.footer.saved', 'content.footer', $store->id, $store->id, ContentAudit::diff($footer->fields(), $saved->fields(), ['phone', 'email', 'address_ar', 'address_en'])));
             $this->cache->invalidate();
-        });
+        }, 3);
     }
 
     /**

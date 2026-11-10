@@ -55,6 +55,6 @@ final readonly class OrderHomeSectionsHandler
                 implode(',', array_map(static fn (string $id): string => (string) $types[$id], $ids)),
             )));
             $this->cache->invalidate();
-        });
+        }, 3);
     }
 }

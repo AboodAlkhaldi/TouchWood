@@ -51,6 +51,6 @@ final readonly class RemoveHomeSectionHandler
             $this->sections->reorder(array_map(static fn ($other): string => $other->id, $rest));
             $this->platform->recordAudit(ContentAudit::entry('content.home_section.removed', 'content.home_section', $section->id, $store->id, AuditChanges::none()->changed('type', $section->type->value, null)));
             $this->cache->invalidate();
-        });
+        }, 3);
     }
 }

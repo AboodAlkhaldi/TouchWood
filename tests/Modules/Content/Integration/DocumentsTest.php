@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Database\Seeders\PlatformSeeder;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Modules\Content\Application\Command\DeleteBlogCategory\DeleteBlogCategory;
@@ -27,6 +28,8 @@ use Modules\Content\Application\Command\SaveProject\SaveProject;
 use Modules\Content\Application\Command\SaveProject\SaveProjectHandler;
 use Modules\Content\Application\Command\UnpublishPage\UnpublishPage;
 use Modules\Content\Application\Command\UnpublishPage\UnpublishPageHandler;
+use Modules\Content\Application\Command\UnpublishProject\UnpublishProject;
+use Modules\Content\Application\Command\UnpublishProject\UnpublishProjectHandler;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\Documents\DocumentInput;
 use Modules\Content\Application\Query\Documents\DocumentsHandler;
@@ -201,6 +204,24 @@ describe('§1.13 projects', function () {
 
         expect(DB::table('content.project_photos')->where('project_id', $project)->orderBy('position')->pluck('media_id')->all())->toBe($photos)
             ->and(DB::table('content.projects')->where('id', $project)->value('status'))->toBe('PUBLISHED');
+    });
+
+    it('publishes and unpublishes by its own row alone, its words and images left as they are', function () {
+        Cx::editor([ContentPermissions::PROJECT_MANAGE]);
+        $project = app(SaveProjectHandler::class)->handle(new SaveProject(documentInput(['photos' => [Cx::image()], 'bodyAr' => '![صورة](image:1)', 'imagesAr' => [1 => Cx::image()]])));
+        /** @var ArrayObject<int, string> $written */
+        $written = new ArrayObject;
+        DB::listen(function (QueryExecuted $query) use ($written): void {
+            if (preg_match('/^\s*(insert|delete|update)/i', $query->sql) === 1 && preg_match('/content\.|"content"\./', $query->sql) === 1) {
+                $written[] = $query->sql;
+            }
+        });
+
+        app(PublishProjectHandler::class)->handle(new PublishProject($project, 1));
+        app(UnpublishProjectHandler::class)->handle(new UnpublishProject($project, 2));
+
+        expect(array_filter($written->getArrayCopy(), static fn (string $sql): bool => preg_match('/translations|images|photos|products/', $sql) === 1))->toBe([])
+            ->and($written->getArrayCopy())->not->toBe([]);
     });
 
     it('removes an item\'s rows with it: translations, images, photos and products', function () {

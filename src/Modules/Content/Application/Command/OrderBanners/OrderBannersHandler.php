@@ -52,6 +52,6 @@ final readonly class OrderBannersHandler
             $this->banners->reorder($ids);
             $this->platform->recordAudit(ContentAudit::entry('content.banners.ordered', 'content.banners', $store->id, $store->id, AuditChanges::none()->changed('order', "{$placement->value}: ".implode(',', $present), "{$placement->value}: ".implode(',', $ids))));
             $this->cache->invalidate();
-        });
+        }, 3);
     }
 }

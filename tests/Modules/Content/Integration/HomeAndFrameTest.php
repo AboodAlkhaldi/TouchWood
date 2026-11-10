@@ -198,6 +198,23 @@ describe('§1.4 the home page', function () {
             ->and(homeSection('CLIENT_LOGOS')->is_visible)->toBeTrue();
     });
 
+    it('audits each box of a section by value, from and to (§1.1 rule 13)', function () {
+        Cx::editor([ContentPermissions::HOMEPAGE_MANAGE]);
+        $hero = homeSection('HERO');
+        homeFill($hero->id, ['title' => ['ar' => 'أول'], 'facts' => [['ar' => 'حقيقة']]]);
+        homeFill($hero->id, ['title' => ['ar' => 'ثان'], 'facts' => [['ar' => 'حقيقة']]]);
+
+        $entries = DB::table('platform.audit_entries')->where('action', 'content.home_section.filled')->where('subject_id', $hero->id)->orderBy('id')->pluck('changes')->all();
+        $first = json_decode((string) $entries[0], true);
+        $second = json_decode((string) $entries[1], true);
+
+        // Compared key by key with toBe: a swapped from and to must fail (lesson 105).
+        expect($first['title.ar'])->toBe([null, 'أول'])
+            ->and($first['facts.0.ar'])->toBe([null, 'حقيقة'])
+            ->and($second['title.ar'])->toBe(['أول', 'ثان'])
+            ->and($second)->not->toHaveKey('facts.0.ar');
+    });
+
     it('refuses a fill over a newer version (§1.1 rule 12)', function () {
         Cx::editor([ContentPermissions::HOMEPAGE_MANAGE]);
         $hero = homeSection('HERO');

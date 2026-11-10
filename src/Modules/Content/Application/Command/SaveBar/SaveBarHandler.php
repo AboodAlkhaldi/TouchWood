@@ -59,6 +59,6 @@ final readonly class SaveBarHandler
             $this->frame->saveBar($saved);
             $this->platform->recordAudit(ContentAudit::entry('content.bar.saved', 'content.bar', $store->id, $store->id, ContentAudit::diff($bar->fields(), $saved->fields())));
             $this->cache->invalidate();
-        });
+        }, 3);
     }
 }

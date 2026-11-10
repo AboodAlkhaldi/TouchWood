@@ -325,6 +325,18 @@ it('§1.1 rule 16: refuses a link that is neither a shop page nor an https:// ad
     ]);
 });
 
+it('§1.1 rule 16: finds a link to a page written percent-encoded, or in full on the shop\'s own host', function () {
+    Cx::editor([ContentPermissions::PAGE_MANAGE, ContentPermissions::BANNER_MANAGE]);
+    $page = Cx::page(['titleAr' => 'الضمان', 'titleEn' => 'Warranty']);
+    $host = (string) parse_url((string) config('app.url'), PHP_URL_HOST);
+    $encoded = Cx::banner(['link' => '/pages/'.rawurlencode('الضمان')]);
+    $full = Cx::banner(['link' => "https://{$host}/sa/en/pages/warranty?from=mail"]);
+    Cx::banner(['link' => 'https://elsewhere.example/sa/en/pages/warranty']);
+
+    expect($host)->not->toBe('')
+        ->and(array_column(app(DocumentsHandler::class)->linksTo(DocumentKind::Page, $page), 'id'))->toEqualCanonicalizing([$encoded, $full]);
+});
+
 it('§1.1 rule 17: refuses Catalog\'s delete of a category a banner or a smart bar names, naming the use', function () {
     Cx::editor([ContentPermissions::BANNER_MANAGE, ContentPermissions::BAR_MANAGE]);
     $listed = Px::category();

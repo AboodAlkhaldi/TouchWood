@@ -6,8 +6,9 @@ namespace Modules\Content\Domain\Repository;
 
 /**
  * Per-store locks for the checks no row can hold (content.md §1.1 rule 12): two pop-ups scheduled over each other,
- * two items taking one address. Held until the transaction ends. **One order**: a store's lock first, then its rows
- * (lesson 37).
+ * two items taking one address. Held until the transaction ends. **One order**: a store's locks first, then its rows
+ * (lesson 37); of a store's locks, a transaction taking two takes them in this order - home, banners, pop-ups, blog
+ * categories, addresses (`SLUGS`) - and the frame's own (`DatabaseFrameItems`) is taken alone.
  */
 interface ContentLocks
 {

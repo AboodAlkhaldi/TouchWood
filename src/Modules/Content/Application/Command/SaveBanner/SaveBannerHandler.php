@@ -91,11 +91,16 @@ final readonly class SaveBannerHandler
 
             $was = $this->banners->lock($command->bannerId) ?? throw new ContentNotFound;
             $this->check->version($command->version, $was->version, $was->updatedBy, $was->updatedAt, $store);
+
+            // An ended banner is history and stays (§1.1 rule 11); §4.1 has no way from Ended back to Live.
+            if ($was->schedule->state($now) === ScheduleState::Ended) {
+                throw new InvalidContentInput('state', InvalidContentInput::STATE);
+            }
             // A scheduled banner always has a start: left blank, it is Now (W3's default).
             $starts = $fields['starts'] ?? ($was->schedule->isScheduled ? $now : null);
             $banner = new Banner($was->id, $was->storeId, $placement, $fields['category'], $fields['name'], $fields['link'], $command->hasWords, $fields['alt']['ar'], $fields['alt']['en'], new Schedule($was->schedule->isScheduled, $starts, $fields['ends']), $was->position, $fields['images'], $was->version + 1, $staffId, $now);
 
-            // Ended is history: re-dating it is a new schedule, held to the same rules as a scheduled one.
+            // Scheduled or live, it stays held to Schedule's rules.
             if ($was->schedule->state($now) !== ScheduleState::Draft) {
                 $this->rules->requireSchedulable($banner, $now);
             }
@@ -105,7 +110,7 @@ final readonly class SaveBannerHandler
             $this->cache->invalidate();
 
             return $was->id;
-        });
+        }, 3);
     }
 
     /**
