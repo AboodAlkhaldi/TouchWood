@@ -149,6 +149,20 @@ export function SectionForm({ store, section, logos: savedLogos, icons, translat
             },
             { preserveScroll: 'errors', onStart: () => setSaving(true), onFinish: () => setSaving(false), onSuccess: () => setDirty(false) },
         );
+    // A list's rows share one box name (`fact`, `promise_title`): the server's refusal names the box, not the row, so it
+    // goes under the first row breaking that box's rule - the first row of the box when none does - never under each.
+    const owner = (spec: Spec, language: 'ar' | 'en'): boolean => {
+        const rows = specs.filter((each) => each.box === spec.box);
+        // Breaking: too long, or empty while the other language is typed (a missing English, an English with no Arabic).
+        const other = language === 'ar' ? 'en' : 'ar';
+        const breaking = rows.find((each) => {
+            const value = words(at(settings, each.path));
+
+            return value[language].length > each.max || (value[language].trim() === '' && value[other].trim() !== '');
+        });
+
+        return (breaking ?? rows[0])?.name === spec.name;
+    };
     const pairOf = (spec: Spec) => {
         const value = words(at(settings, spec.path));
         const labels = pairLabel(spec.label);
@@ -163,7 +177,7 @@ export function SectionForm({ store, section, logos: savedLogos, icons, translat
                 ar={value.ar}
                 en={value.en}
                 onChange={(language, typed) => change([...spec.path, language], typed)}
-                errors={{ [`${spec.name}_ar`]: errors[`${spec.box}_ar`], [`${spec.name}_en`]: errors[`${spec.box}_en`] }}
+                errors={{ [`${spec.name}_ar`]: owner(spec, 'ar') ? errors[`${spec.box}_ar`] : undefined, [`${spec.name}_en`]: owner(spec, 'en') ? errors[`${spec.box}_en`] : undefined }}
                 checks={checks}
                 translation={translation}
             />
@@ -217,7 +231,8 @@ export function SectionForm({ store, section, logos: savedLogos, icons, translat
                                 {f('facts')}
                             </FieldLegend>
                             <FieldDescription>{f('facts_helper')}</FieldDescription>
-                            {errors.fact_ar || errors.fact_en || errors.facts ? <p className="text-copy-14 text-bad">{errors.fact_ar ?? errors.fact_en ?? errors.facts}</p> : null}
+                            {/* A fact's own refusal is said under its row (pairOf); only the list's is said here. */}
+                            {errors.facts ? <p className="text-copy-14 text-bad">{errors.facts}</p> : null}
                             {specs.slice(5).map((spec, index) => (
                                 <div key={spec.name} className="grid gap-2">
                                     {pairOf(spec)}
