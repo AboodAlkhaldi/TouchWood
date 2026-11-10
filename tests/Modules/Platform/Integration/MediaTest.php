@@ -691,12 +691,13 @@ function failVariants(string $mediaId): void
 }
 
 /**
- * @return list<array<string, mixed>>
+ * @return list<array<array-key, mixed>> each entry's changes
  */
 function retriedAudits(string $mediaId): array
 {
-    return DB::table('platform.audit_entries')->where('action', 'platform.media.variants_retried')->where('subject_id', $mediaId)
-        ->pluck('changes')->map(fn (mixed $changes): array => json_decode((string) $changes, true))->all();
+    $rows = DB::table('platform.audit_entries')->where('action', 'platform.media.variants_retried')->where('subject_id', $mediaId)->pluck('changes')->all();
+
+    return array_values(array_map(static fn (mixed $changes): array => json_decode((string) $changes, true, flags: JSON_THROW_ON_ERROR), $rows));
 }
 
 describe('uploading again a public image whose sizes failed (owner 2026-11-10, P10 (a))', function () {
@@ -806,18 +807,17 @@ describe('uploading again a public image whose sizes failed (owner 2026-11-10, P
         $ready = uploadMedia($readyPath);
         runQueuedVariants($ready);
 
-        $sql = [];
-        DB::listen(function ($query) use (&$sql): void {
-            $sql[] = $query->sql;
-        });
-
+        DB::enableQueryLog();
+        DB::flushQueryLog();
         uploadMedia($readyPath);
-        [$readyQueries, $sql] = [$sql, []];
+        $readyQueries = array_column(DB::getQueryLog(), 'query');
+        DB::flushQueryLog();
         uploadMedia($failedPath);
+        $failedQueries = array_column(DB::getQueryLog(), 'query');
 
         expect($readyQueries)->toHaveCount(1)
-            ->and($sql)->toHaveCount(4)
-            ->and($sql[1])->toContain('for update');
+            ->and($failedQueries)->toHaveCount(4)
+            ->and($failedQueries[1] ?? null)->toContain('for update');
     });
 });
 
