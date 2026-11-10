@@ -36,11 +36,14 @@ final class RemoveNewsletterContactJob implements ShouldBeEncrypted, ShouldQueue
     /** No limit on tries, which the waits of ProviderFailureRules would use up: failures are what count. */
     public int $tries = 0;
 
-    /** Five failures over about 36 minutes: Brevo away. */
-    public int $maxExceptions = 5;
+    /**
+     * Ten failures over about a day (owner, Content round 3 #19; ops.md §9.6 #2): a contact who withdrew leaves
+     * Brevo's list once Brevo is back, without anyone retrying. The waits are the builder's pick (K5).
+     */
+    public int $maxExceptions = ProviderFailureRules::LIST_JOB_FAILURES;
 
     /** @var list<int> seconds before each retry */
-    public array $backoff = [10, 60, 300, 1800];
+    public array $backoff = ProviderFailureRules::LIST_JOB_BACKOFF;
 
     public function __construct(
         public string $email,

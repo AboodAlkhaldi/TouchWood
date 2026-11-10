@@ -371,6 +371,13 @@ return [
         'title' => 'A security SMS could not be sent',
         'line' => 'If this repeats, check the SMS settings and the log.',
     ],
+    // S10c, the bell alone (ops.md §1.6; owner, Content round 3 #20): Brevo refused a queued email for everybody, a key, the
+    // credit, the sender or any other refusal in its JSON, so the log gives the reason. It names no one and nothing of the
+    // email. Wording approved for now (full review at the end).
+    'queued_email_refused' => [
+        'title' => 'Queued emails are waiting',
+        'line' => 'The email provider refused to send them. They are tried again for up to a day: see the log for the reason, and check the email key, credit and sender.',
+    ],
 
     // Steps 5 and 6: the button that opens a message's page, and the order's items and totals in its
     // two emails (C1, C6b).
