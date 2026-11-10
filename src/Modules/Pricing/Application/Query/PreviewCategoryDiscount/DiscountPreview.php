@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Pricing\Application\Query\PreviewCategoryDiscount;
 
+use Modules\Pricing\Application\Query\OverlapsFor\OverlappingCampaign;
 use Modules\Pricing\Application\Query\OverlapsFor\OverlappingDiscount;
 use Modules\Pricing\Application\Query\OverlapsFor\OverlappingSale;
 
@@ -23,6 +24,7 @@ final readonly class DiscountPreview
      * @param  list<PreviewProduct>  $leftOut
      * @param  list<OverlappingSale>  $overlappingSales
      * @param  list<OverlappingDiscount>  $overlappingDiscounts
+     * @param  list<OverlappingCampaign>  $overlappingCampaigns  the campaign runs reaching its sizes then (§9.6 #7)
      */
     public function __construct(
         public array $reached,
@@ -35,5 +37,6 @@ final readonly class DiscountPreview
         public array $leftOut,
         public array $overlappingSales = [],
         public array $overlappingDiscounts = [],
+        public array $overlappingCampaigns = [],
     ) {}
 }

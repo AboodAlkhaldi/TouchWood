@@ -18,6 +18,7 @@ final class DiscountPreviewData extends Data
      * @param  list<PreviewProductData>  $leftOut
      * @param  list<OverlapOfferData>  $overlappingSales
      * @param  list<OverlapOfferData>  $overlappingDiscounts
+     * @param  list<OverlapOfferData>  $overlappingCampaigns
      */
     public function __construct(
         public array $reached,
@@ -30,5 +31,6 @@ final class DiscountPreviewData extends Data
         public array $leftOut,
         public array $overlappingSales,
         public array $overlappingDiscounts,
+        public array $overlappingCampaigns = [],
     ) {}
 }

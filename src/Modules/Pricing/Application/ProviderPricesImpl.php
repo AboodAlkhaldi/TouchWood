@@ -23,9 +23,11 @@ use Modules\Pricing\Application\Prices\UnpricedRecounts;
 use Modules\Pricing\Domain\Exception\InvalidPricingInput;
 use Modules\Pricing\Domain\Exception\PriceNotPositive;
 use Modules\Pricing\Domain\Exception\PriceTooPrecise;
+use Modules\Pricing\Domain\Repository\Campaigns;
 use Modules\Pricing\Domain\Repository\CategoryDiscounts;
 use Modules\Pricing\Domain\Repository\RetailPrices;
 use Modules\Pricing\Domain\Repository\Sales;
+use Modules\Pricing\Domain\ValueObject\Campaign;
 use Modules\Pricing\Domain\ValueObject\PriceSource;
 use Modules\Pricing\Domain\ValueObject\Sale;
 use Modules\Pricing\Public\Contracts\ProviderPrices;
@@ -59,6 +61,7 @@ final readonly class ProviderPricesImpl implements ProviderPrices
         private CeilingCheck $ceiling,
         private CandidateWriter $writer,
         private UnpricedRecounts $recounts,
+        private Campaigns $campaigns,
     ) {}
 
     public function apply(StoreId $store, array $prices, string $readRef): ProviderPricesResult
@@ -104,7 +107,7 @@ final readonly class ProviderPricesImpl implements ProviderPrices
         }
 
         ksort($given, SORT_STRING);
-        $changed = $offOrDraft = $salesStopped = $discountsSkipped = $changes = [];
+        $changed = $offOrDraft = $salesStopped = $discountsSkipped = $campaignsSkipped = $changes = [];
         $wired = true;
 
         foreach (array_chunk($given, self::CHUNK, true) as $chunk) {
@@ -127,15 +130,16 @@ final readonly class ProviderPricesImpl implements ProviderPrices
             array_push($offOrDraft, ...$done['offOrDraft']);
             array_push($salesStopped, ...$done['salesStopped']);
             array_push($discountsSkipped, ...$done['discountsSkipped']);
+            array_push($campaignsSkipped, ...$done['campaignsSkipped']);
             array_push($changes, ...$done['changes']);
         }
 
-        return new ProviderPricesResult($wired, $changed, $offOrDraft, $salesStopped, $discountsSkipped, $archived, $notFound, $invalid, $changes);
+        return new ProviderPricesResult($wired, $changed, $offOrDraft, $salesStopped, $discountsSkipped, $archived, $notFound, $invalid, $changes, $campaignsSkipped);
     }
 
     /**
      * @param  array<string, array{string, Money, bool}>  $chunk  own id => [the id as given, its price, off or a draft]
-     * @return array{array{changed: list<string>, offOrDraft: list<string>, salesStopped: list<array{saleId: string, variantId: string, outcome: 'left'|'ended'|'removed'}>, discountsSkipped: list<array{discountId: string, variantId: string}>, changes: list<array{variantId: string, before: string|null, after: string}>}|null, list<AuditEntryDto>}
+     * @return array{array{changed: list<string>, offOrDraft: list<string>, salesStopped: list<array{saleId: string, variantId: string, outcome: 'left'|'ended'|'removed'}>, discountsSkipped: list<array{discountId: string, variantId: string}>, campaignsSkipped: list<array{runId: string, variantId: string}>, changes: list<array{variantId: string, before: string|null, after: string}>}|null, list<AuditEntryDto>}
      */
     private function applyChunk(StoreId $store, StoreDto $found, array $chunk, string $readRef): array
     {
@@ -153,7 +157,7 @@ final readonly class ProviderPricesImpl implements ProviderPrices
             }
         }
 
-        $done = ['changed' => [], 'offOrDraft' => [], 'salesStopped' => [], 'discountsSkipped' => [], 'changes' => []];
+        $done = ['changed' => [], 'offOrDraft' => [], 'salesStopped' => [], 'discountsSkipped' => [], 'campaignsSkipped' => [], 'changes' => []];
 
         if ($new === []) {
             return [$done, []];
@@ -205,6 +209,17 @@ final readonly class ProviderPricesImpl implements ProviderPrices
             foreach ($new as $size => $amount) {
                 if (isset($reaches[$productOf[$size] ?? '']) && $discount->priceOn($amount) !== null && $discount->depthOn($amount) > $ceiling) {
                     $done['discountsSkipped'][] = ['discountId' => $discount->id, 'variantId' => $chunk[$size][0]];
+                }
+            }
+        }
+
+        // A campaign run's fixed price the new price takes past the ceiling skips the size (§9.6 #5): the
+        // candidate writer leaves it out and keeps the skip for the run's page; named here so Sync reports it.
+        // A size's own target is always its run's price there, so only those can go past it.
+        foreach ($this->campaigns->notEnded($store, $now) as $campaign) {
+            foreach ($campaign->targets as $target) {
+                if ($target->amount !== null && isset($new[$target->id]) && Campaign::depthOn($target, $new[$target->id]) > $ceiling) {
+                    $done['campaignsSkipped'][] = ['runId' => $campaign->runId, 'variantId' => $chunk[$target->id][0]];
                 }
             }
         }

@@ -13,6 +13,7 @@ use Modules\Catalog\Public\Contracts\ListingFacts;
 use Modules\Catalog\Public\Dto\ListingPrice;
 use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Pricing\Domain\Exception\PriceNotPositive;
+use Modules\Pricing\Domain\Repository\Campaigns;
 use Modules\Pricing\Domain\Repository\CategoryDiscounts;
 use Modules\Pricing\Domain\Repository\PriceCandidates;
 use Modules\Pricing\Domain\Repository\RetailPrices;
@@ -23,6 +24,7 @@ use Modules\Pricing\Domain\Service\PriceResolution;
 use Modules\Pricing\Domain\ValueObject\Candidate;
 use Modules\Pricing\Domain\ValueObject\Sale;
 use Modules\Pricing\Public\Enums\PriceKind;
+use Modules\Pricing\Public\Events\CampaignReachChecked;
 use Modules\Pricing\Public\Events\DiscountReachChecked;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
@@ -39,7 +41,8 @@ use Shared\Domain\ValueObject\StoreId;
  * The retail price, a candidate on both lines; every sale not ended on the size, on both lines too -
  * a percentage worked out on the retail price, half up to the coin, a sale whose percentage would
  * leave 0 at today's retail price left out; the wholesale bands, on wholesale lines only; every
- * category discount not ended reaching the size's product, on its lines.
+ * category discount not ended reaching the size's product, on its lines; every campaign run not ended
+ * reaching the size, on its lines (pricing.md §9.6 #7).
  */
 final readonly class CandidateWriter
 {
@@ -57,25 +60,35 @@ final readonly class CandidateWriter
         private CatalogApi $catalog,
         private CeilingCheck $ceilingCheck,
         private Dispatcher $events,
+        private Campaigns $campaigns,
+        private CampaignCoverage $campaignCoverage,
     ) {}
 
     /**
      * @param  list<string>  $variantIds
      * @param  bool  $discountsChanged  a category discount was added, changed, ended or removed: a wired
      *                                  store is told what its discounts reach even when none is left
+     * @param  bool  $campaignsChanged  a campaign run was saved, changed, ended or removed: the same for runs
      */
-    public function refresh(StoreId $store, array $variantIds, bool $discountsChanged = false): void
+    public function refresh(StoreId $store, array $variantIds, bool $discountsChanged = false, bool $campaignsChanged = false): void
     {
         $now = CarbonImmutable::now()->toDateTimeImmutable();
         // The store's discounts not ended, each with the products it reaches now - read once.
         $discounts = $this->discounts->notEnded($store, $now);
+        // Its campaign runs not ended (§9.6 #7): what each reaches is judged size by size from Catalog's facts.
+        $campaigns = $this->campaigns->notEnded($store, $now);
         $reaches = [];
         // In a wired store a fixed amount never goes deeper than the ceiling: where the provider's price
         // would let it, it skips the size (sync.md §9.3 #17). Elsewhere such a price is refused (§1.12).
-        // Asked only when a discount is there or changed: any other price costs no more.
-        $wired = ($discounts !== [] || $discountsChanged) && $this->ceilingCheck->skipsPastCeiling($store);
-        $ceiling = $discounts !== [] && $wired ? $this->ceilingCheck->ceiling($store) * 100 : PHP_INT_MAX;
+        // Asked only when a discount or a run is there or changed: any other price costs no more.
+        $isWired = ($discounts !== [] || $discountsChanged || $campaigns !== [] || $campaignsChanged) && $this->ceilingCheck->skipsPastCeiling($store);
+        $wired = $isWired && ($discounts !== [] || $discountsChanged);
+        // A campaign skips a size the provider's price takes it past the ceiling on, and rejoins it once the
+        // price allows (§9.6 #5): its skips are written again with the size's candidates.
+        $campaignsWired = $isWired && ($campaigns !== [] || $campaignsChanged);
+        $ceiling = ($discounts !== [] || $campaigns !== []) && $isWired ? $this->ceilingCheck->ceiling($store) * 100 : PHP_INT_MAX;
         $skipped = [];
+        $campaignsSkipped = [];
 
         foreach ($discounts as $discount) {
             $reaches[$discount->id] = $this->coverage->products($discount);
@@ -84,6 +97,7 @@ final readonly class CandidateWriter
         foreach (array_chunk($variantIds, self::CHUNK) as $chunk) {
             $retail = $this->retailPrices->forVariants($store, $chunk);
             $productOf = $discounts === [] ? [] : array_map(static fn ($variant): string => $variant->productId, $this->catalog->variants($chunk));
+            $facts = $campaigns === [] ? [] : $this->campaignCoverage->facts($chunk);
             $salesOn = [];
 
             foreach ($this->sales->notEndedOn($store, $chunk, $now) as $sale) {
@@ -139,6 +153,30 @@ final readonly class CandidateWriter
                             }
                         }
                     }
+
+                    // Every run reaching the size, on its lines (§9.6 #2, #7): a percentage worked out on
+                    // today's retail price, so a retail change re-prices it; never "always wins" - a sale or
+                    // discount marked so beats it (§9.6 #3). In a wired store one the provider's price takes
+                    // past the ceiling skips the size, named for Sync (§9.6 #5).
+                    foreach ($campaigns as $campaign) {
+                        $priced = CampaignCoverage::priceOn($campaign, $variantId, $facts[$variantId] ?? null, $retail[$variantId]);
+
+                        if ($priced === null) {
+                            continue;
+                        }
+
+                        if ($campaignsWired && $priced['depth'] > $ceiling) {
+                            $campaignsSkipped[] = ['runId' => $campaign->runId, 'variantId' => $variantId];
+
+                            continue;
+                        }
+
+                        foreach ([SaleMode::Retail, SaleMode::Wholesale] as $mode) {
+                            if ($campaign->lines->covers($mode)) {
+                                $candidates[] = new Candidate($mode, 1, $priced['price'], PriceKind::Campaign, false, $campaign->startsAt, $campaign->endsAt, $campaign->runId);
+                            }
+                        }
+                    }
                 }
 
                 $written[$variantId] = $candidates;
@@ -157,6 +195,17 @@ final readonly class CandidateWriter
         // Sync closes a skipped discount's entry the moment it reaches the size again (sync.md §9.3 #28).
         if ($wired && $variantIds !== []) {
             $this->events->dispatch(new DiscountReachChecked((string) Str::uuid(), $store->value, $variantIds, $skipped, CarbonImmutable::now()));
+        }
+
+        // What a run skips now, kept for its page (`CampaignPrices::skippedSizes`) - none in a store not
+        // wired, or no longer - and Sync told, so its entry closes the moment the size rejoins (the build's
+        // pick for sync.md amendment 2 (b): Pricing's `CampaignReachChecked`, as `DiscountReachChecked`).
+        if (($campaigns !== [] || $campaignsChanged) && $variantIds !== []) {
+            $this->campaigns->replaceSkips($store, $variantIds, $campaignsSkipped);
+
+            if ($campaignsWired) {
+                $this->events->dispatch(new CampaignReachChecked((string) Str::uuid(), $store->value, $variantIds, $campaignsSkipped, CarbonImmutable::now()));
+            }
         }
     }
 

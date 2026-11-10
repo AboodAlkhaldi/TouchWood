@@ -11,4 +11,5 @@ return [
     'sale_price' => ':price · :sizes',
     'discount_percent' => ':category: خصم :percent%',
     'discount_amount' => ':category: خصم :amount',
+    'campaign' => 'حملة',
 ];

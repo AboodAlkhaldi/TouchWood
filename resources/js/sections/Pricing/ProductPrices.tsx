@@ -170,9 +170,15 @@ function Section({ card, store }: { card: Card; store: { code: string; name: str
                                             <span className="grid gap-1">
                                                 {size.today.before !== null ? <Money value={size.today.before} className="text-copy-12 text-ink-muted line-through" /> : null}
                                                 <Money value={size.today.price} />
-                                                {size.today.why === 'SALE' || size.today.why === 'CATEGORY' ? (
+                                                {size.today.why === 'SALE' || size.today.why === 'CATEGORY' || size.today.why === 'CAMPAIGN' ? (
                                                     <span className="flex flex-wrap gap-1">
-                                                        <Mark tone="green-subtle">{size.today.why === 'SALE' ? t('pricing::admin.badge.offer') : t('pricing::admin.badge.discount')}</Mark>
+                                                        <Mark tone="green-subtle">
+                                                            {size.today.why === 'SALE'
+                                                                ? t('pricing::admin.badge.offer')
+                                                                : size.today.why === 'CAMPAIGN'
+                                                                  ? t('pricing::admin.badge.campaign')
+                                                                  : t('pricing::admin.badge.discount')}
+                                                        </Mark>
                                                         {size.today.alwaysWins ? <Mark tone="amber-subtle">{t('pricing::admin.badge.always_wins')}</Mark> : null}
                                                     </span>
                                                 ) : null}

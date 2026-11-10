@@ -58,6 +58,7 @@ return [
     'badge' => [
         'offer' => 'Offer',
         'discount' => 'Discount',
+        'campaign' => 'Campaign',
         'always_wins' => 'Always Wins',
         'wholesale_only' => 'Wholesale Only',
         'not_switched_on' => 'Not Switched On',

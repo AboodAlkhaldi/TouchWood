@@ -429,7 +429,7 @@ function OfferNote({ note, loading, zone }: { note: OverlapNoteData | null; load
     }
 
     const deep = note.sizes.filter((size) => size.overCeiling && size.depthBasisPoints !== null);
-    const overlaps = [...note.sales, ...note.discounts];
+    const overlaps = [...note.sales, ...note.discounts, ...note.campaigns];
 
     return (
         <section aria-labelledby="offer-note-title" aria-busy={loading || undefined} className="grid gap-3 rounded-[var(--tw-radius)] bg-surface-sunken p-4" data-test="offer-note">

@@ -58,6 +58,7 @@ return [
     'badge' => [
         'offer' => 'عرض',
         'discount' => 'خصم',
+        'campaign' => 'حملة',
         'always_wins' => 'يتقدّم دائمًا',
         'wholesale_only' => 'جملة فقط',
         'not_switched_on' => 'غير مفعّل',

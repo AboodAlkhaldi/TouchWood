@@ -367,9 +367,11 @@ function Today({ row, zone }: { row: PriceRowData; zone: string }) {
         <span className="grid gap-1">
             {today.before !== null ? <Money value={today.before} className="text-copy-12 text-ink-muted line-through" /> : null}
             <Money value={today.price} />
-            {today.why === 'SALE' || today.why === 'CATEGORY' ? (
+            {today.why === 'SALE' || today.why === 'CATEGORY' || today.why === 'CAMPAIGN' ? (
                 <span className="flex flex-wrap items-center gap-1">
-                    <Mark tone="green-subtle">{today.why === 'SALE' ? t('pricing::admin.badge.offer') : t('pricing::admin.badge.discount')}</Mark>
+                    <Mark tone="green-subtle">
+                        {today.why === 'SALE' ? t('pricing::admin.badge.offer') : today.why === 'CAMPAIGN' ? t('pricing::admin.badge.campaign') : t('pricing::admin.badge.discount')}
+                    </Mark>
                     {today.alwaysWins ? <Mark tone="amber-subtle">{t('pricing::admin.badge.always_wins')}</Mark> : null}
                 </span>
             ) : null}

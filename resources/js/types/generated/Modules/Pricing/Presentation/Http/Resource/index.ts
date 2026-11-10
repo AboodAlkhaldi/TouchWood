@@ -24,6 +24,7 @@ deepestBasisPoints: number | null,
 leftOut: PreviewProductData[],
 overlappingSales: OverlapOfferData[],
 overlappingDiscounts: OverlapOfferData[],
+overlappingCampaigns: OverlapOfferData[],
 };
 export type DiscountRowData = {
 id: string,
@@ -73,6 +74,7 @@ discounts: OverlapOfferData[],
 sizes: OverlapSizeData[],
 atStart: boolean,
 ceilingPercent: number | null,
+campaigns: OverlapOfferData[],
 };
 export type OverlapOfferData = {
 id: string,
