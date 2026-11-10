@@ -2,9 +2,9 @@
 | A theme is data, not code (frontend.md §1.8, owner 2026-09-22).
 |
 | Every colour, radius and shadow the interface uses is a custom property here. Light and dark are
-| simply the first two themes; the owner intends campaign themes - the whole system dressed for
-| National Day, Ramadan, a sale - and each of those is another block in this file plus a row in a
-| table one day. It is never a change to a component.
+| simply the first two themes; the owner's campaign themes - the shop dressed for National Day,
+| Ramadan, a sale - are Content's data (below), never another block here and never a change to a
+| component.
 |
 | Rules that keep that true:
 |   - No component carries a colour, a font or a radius of its own. A test fails the build when a
@@ -16,29 +16,33 @@
 |
 | The values are the design handoff of 2026-09-22 (docs/design/v2), read from its own token block.
 | Its names there are the hex digits themselves (--k0B3B63); here they say what they are for, so a
-| campaign can change what navy means without every component having to know it changed.
+| component never needs to know a value changed. (That a campaign could change what navy means was
+| the plan of 2026-09-22; replaced 2026-11-10, below: a theme changes no colour.)
 |
-| ## A campaign and a mode are two different things (owner, 2026-09-22)
+| ## A campaign and a mode are two different things (owner, 2026-09-22; partly replaced, below)
 |
-| A **mode** is light or dark. A **campaign** is a dress - National Day, Ramadan, a sale - and each
-| campaign has its own light and its own dark. What is written here is the campaign every store
-| wears until it is told otherwise; the owner calls it the base one, and it is a campaign like any
-| other rather than a special case.
+| A **mode** is light or dark. A **campaign** is a dress - National Day, Ramadan, a sale. (That each
+| campaign has its own light and its own dark is replaced: one set of artwork serves both.) What
+| is written here is the look every store wears until a theme dresses it; the owner calls it the
+| base one.
 |
 |     <html data-campaign="national-day" data-mode="dark">
 |
-| So a campaign is written as a pair of blocks and nothing else:
+| That was the plan of 2026-09-22: a campaign written as a pair of blocks of its own values. It is
+| replaced (owner, 2026-11-10): one set of artwork serves light and dark (content.md Q8 (a)), and
+| no block of campaign values is ever written here.
 |
-|     [data-campaign='national-day'] { ...its light values... }
-|     [data-campaign='national-day'][data-mode='dark'] { ...its dark ones... }
+| A campaign's look is a theme, Content's (docs/modules/content.md §1.8; owner, 2026-11-10), and a
+| theme is 11 parts only: announcement bar, hero artwork, promises row, points band, logos band,
+| product flag and ribbon, product badge, listing banner, cart message, footer artwork, and the
+| page background at the edges only. A Super Admin makes it from artwork and words, so none of
+| them appears in this file: Content's server writes their images into the page as custom
+| properties, --tw-backdrop among them.
 |
-| Campaigns are made by an admin, with their own colours and poster, so most of them will never
-| appear in this file at all: their values arrive as data and are written into the page as the same
-| custom properties. This file is the one campaign that ships with the system, and the shape every
-| other one follows.
-|
-| Only colour, radius and shadow are a campaign's to change (owner, 2026-09-22). Fonts and spacing
-| stay as they are, in app.css, for every campaign.
+| A theme changes no colour, radius or shadow token here (replacing the owner's note of
+| 2026-09-22 that those three were a campaign's to change). Text and button colours, prices,
+| cards, photo backgrounds, the phone tab bar, stars, hearts and the logo stay as they are in every
+| theme; fonts and spacing stay in app.css.
 */
 
 :root,
@@ -117,15 +121,15 @@
     /*
     | What the shop sits on (owner, 2026-09-22).
     |
-    | Held as a whole `background` value rather than a colour, because a campaign may want a colour,
-    | a gradient, a photograph, or several things layered over one another - lanterns, a pattern, a
-    | flag - and CSS already lets one property carry all of that:
+    | Held as a whole `background` value rather than a colour, so several images can be layered. (The
+    | plan of 2026-09-22 let a campaign put a colour or a gradient here; since 2026-11-10 a theme puts
+    | artwork only, at the page's edges: content.md §1.8 part 11, Q7 (a).) The example is that plan's:
     |
     |     --tw-backdrop: url('/storage/campaigns/national-day/lanterns.png') center / cover no-repeat,
     |                    linear-gradient(#0b3b63, #07273e);
     |
-    | The admin panel sets it; nothing in a component knows or cares which of those it turned out
-    | to be.
+    | Content's server sets it from a theme's artwork; nothing in a component knows or cares what it
+    | holds.
     */
     --tw-backdrop: var(--tw-page);
 }

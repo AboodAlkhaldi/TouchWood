@@ -349,7 +349,8 @@ no error classes.
 
 ### 2.5 Later
 
-- **Campaign prices** (Content, stage 8; owner, 2026-10-08): the `CAMPAIGN` kind is reserved.
+- **Campaign prices** (Content, stage 8; owner, 2026-10-08): the `CAMPAIGN` kind is reserved. **Specified: §9.6**
+  (accepted with content.md, 2026-11-10).
 
 ### 2.6 What Pricing gives Sync
 
@@ -992,7 +993,7 @@ Every refusal's **words** say **Offer** where this spec says sale (in Arabic ع�
 | 1 | **SETTLED 2026-10-13 (owner): the discounts are ours only** - base prices from the provider, nothing written back (§1.1 rule 9). Was: **The discount strategy in a wired store**: (A) discounts made only in the provider (Odoo), sent to us with full details and applied here read-only; or (B) both ways, full details, each discount edited only where it was made, never echoed back — which reverses "we never write to the provider" (handoff §12.2). The provider's sales are an amount off or a percentage off its base price (owner, 2026-10-09) | The owner, with the provider's team (asked 2026-10-09) |
 | 2 | Does the provider call us when something changes (a webhook), besides our reading every few minutes? | Same |
 | 3 | What a company's card shows when its first size sells wholesale only (catalog.md amendment 15) — Pricing would push the same one-piece price | The owner, with Catalog's amendment |
-| 4 | Campaign prices | Stage 8 (owner, 2026-10-08) |
+| 4 | ~~Campaign prices~~ **Settled: §9.6** (content.md, 2026-11-10) | Stage 8 (owner, 2026-10-08) |
 | 5 | Pricing's screens: prices, sales, wholesale bands, category discounts and their preview, the note before saving, Needs a Price | The frontend session, after this spec |
 | 6 | `pricesForEdit` and `KeptPartDto` — the shapes for an edited order (§1.11, §2.1) | The owner's review of this amendment |
 
@@ -1121,3 +1122,48 @@ order_total    = goods_total + vat + shipping
 
 **Applied in place** (stage 7 step 6, 2026-10-30): §1.7's formula, the `totals()` row of §2 and its note on the
 shipping, and `TotalsDto`, with Sales's §9.5 #1; handoff §10.2 amended with it.
+
+### 9.6 Stage 8 — **[ACCEPTED by the owner, 2026-11-10, with content.md; not built]**: campaign prices
+
+Content's campaigns price through the `CAMPAIGN` kind reserved in §2.5 (content.md §1.7, §2.3 P1, §9.4 A6). Content
+keeps the campaign, its stores and a draft's choices; **Pricing holds and applies the prices from the moment a run is
+scheduled**. Still to be applied in place when built: §1.6 step 2, §2.1's contract list, §5 (§2.5 and §9.1 #4 point here already).
+
+1. **What a campaign prices** (owner, 2026-11-09, Content round 4 #2): products, sizes, categories and brands, each a
+   percentage off; products and sizes may also take **a fixed price per size**; categories and brands a percentage only.
+   Products can be left out of a category or a brand. Rounded half up to the coin (§1.1 rule 5). An archived size is
+   never a candidate, as today's sales.
+2. **Lines** (content.md Q3 (a)): each campaign is for **Retail, Wholesale or Both**, as a category discount (§1.5); a
+   wholesale line pays the lower of the campaign and its band.
+3. **Resolution** (§1.6): a running campaign is one more candidate, **the lowest price winning**; many campaigns may run
+   at once. **A sale or category discount marked "always wins" beats a cheaper campaign** while both run (content.md Q4
+   (a); the category discount inferred from Q4's reason, "the mark keeps its one meaning"), and still never a wholesale band. Among equal prices the order already in code stands: `SALE`, `CATEGORY`,
+   `CAMPAIGN`, `QUANTITY`, `BASE` (`PriceResolution::RANK`).
+4. **The ceiling** (§1.12; content.md Q2 (a)): a campaign deeper than the store's ceiling is refused when saved, naming
+   the products (`pricing.over_ceiling`). `CeilingCheck` and its two guards cover campaigns: a retail price, or a lower
+   ceiling, that would take a scheduled or live campaign past it is held back, naming the campaigns.
+5. **A wired store** (owner, 2026-11-10; content.md §1.7 #17): a provider's price that would take a campaign past the
+   ceiling on a size **is taken, and the campaign skips that size**, as a fixed-amount category discount does (§2.6,
+   sync.md §9.3 #17); it rejoins by itself once the price allows. `ProviderPricesResult` names the size and the
+   campaign, for Sync's `CAMPAIGN_SKIPPED` (sync.md §9.5 amendment 2), and `skippedSizes` (#8) lists them for the campaign's page. **Open with Sync**: an event, like `DiscountReachChecked`, telling Sync when a size rejoins or a campaign ends, so its entry closes (sync.md amendment 2 (b)).
+6. **A category or brand target follows its products** (content.md Q18 (a)): a product moved in gains the price at
+   once and one moved out loses it, through `ProductChanged` and `CategoryMoved`, as a category discount does (§6.2);
+   products and sizes picked by name stay as picked. A brand's products come from Catalog (`CatalogApi::productIdsOfBrands`,
+   catalog.md amendment 41 (g)).
+7. **The candidates.** `CandidateWriter::refresh` writes `CAMPAIGN` candidates too, so a retail price change re-prices a
+   percentage campaign; timed tasks at a run's start and end and the daily check, as for sales (§1.10); the reads that
+   name offers — `DatabasePriceCandidates::reducedAt` (On Sale Now), `OverlapsFor`, the previews — include campaigns.
+8. **The contract** — `Public/Contracts/CampaignPrices`, module to module, no permission checked (Content checks
+   `content.campaign.manage` and `pricing.price.edit` itself):
+
+   | Method | Says |
+   |---|---|
+   | `preview(StoreId, CampaignPriceSetDto, $start, $end, ?string $after): CampaignPreviewDto` | Each size's new price, the sizes skipped and why, the other offers on them in those dates, the deepest reduction; 20 products a page, totals for all. Writes nothing |
+   | `save(StoreId, string $runId, CampaignPriceSetDto, $start, $end): void` | Called only when a run is scheduled: writes or replaces the run's prices and candidates inside the caller's transaction, under that store's pricing lock |
+   | `changeEnd(StoreId, string $runId, $end)` · `endNow(StoreId, string $runId)` · `remove(StoreId, string $runId)` | The run's life |
+   | `read(StoreId, string $runId): ?CampaignPriceSetDto` · `productIds(StoreId, string $runId, ?string $after, int $limit)` | The campaign's form, and the shop's campaign page |
+   | `skippedSizes(StoreId, string $runId): list<string>` | The sizes the run skips now in a wired store (#5), for the campaign's page; one query. Pricing decides the skip, so it answers, and Content needs no arrow to Sync (the build coordinator's pick, 2026-11-10) |
+
+   `CampaignPriceSetDto`: `lines` (`RETAIL`, `WHOLESALE`, `BOTH`), `targets` (each `{kind: PRODUCT, SIZE, CATEGORY or
+   BRAND, id, percentBp}` or `{kind: SIZE, id, amount: Money}`), `leftOut` product ids. The tables are written with the
+   build, in §5's style, one set per run.
