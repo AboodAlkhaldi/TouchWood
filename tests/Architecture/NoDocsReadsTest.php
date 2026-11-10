@@ -9,7 +9,10 @@ declare(strict_types=1);
 */
 
 /**
- * Each quoted path into docs/ in the code, as `file:line`.
+ * Each path into docs/ the code builds, as `file:line`: the word as a path's first part - right after a
+ * quote or the `}` that closes an interpolation, behind any `/`, `./` or `../` - followed by a `/` or by
+ * the closing quote (base_path of 'docs', a folder joined to 'docs'); in a template literal, followed by
+ * a `/`. Prose that names the folder without a quote before it, or in backticks alone, is left alone.
  *
  * @return list<string>
  */
@@ -18,7 +21,7 @@ function docsReadsIn(string $file, string $code): array
     $found = [];
 
     foreach (explode("\n", $code) as $index => $line) {
-        if (preg_match('#[\'"`](?:\.\./|/)*docs/#', $line) === 1) {
+        if (preg_match('#[\'"}](?:\.{0,2}/)*docs(?:/|[\'"])|`(?:\.{0,2}/)*docs/#', $line) === 1) {
             $found[] = $file.':'.($index + 1);
         }
     }
@@ -32,11 +35,24 @@ it('spots a quoted path into docs/', function (string $code) {
     'from the base' => ["file_get_contents(base_path('docs/modules/catalog-import/README.md'));"],
     'from a folder' => ["dirname(__DIR__, 4).'/docs/modules/catalog-import/'"],
     'in a template' => ['fetch(`../docs/guide.md`)'],
+    'the folder itself, from the base' => ["base_path('docs')"],
+    'the folder, then a file' => ["base_path('docs').'/modules/catalog.md'"],
+    'after an interpolation' => ['"{$root}/docs/modules/catalog.md"'],
+    'the bare word as a path part' => ["\$root.DIRECTORY_SEPARATOR.'docs'.DIRECTORY_SEPARATOR.'modules'"],
+    'one part of a list' => ["implode('/', [\$root, \"docs\", 'modules'])"],
+    'from the current folder' => ["'./docs/guide.md'"],
 ]);
 
-it('leaves a mention of docs/ in prose alone', function () {
-    expect(docsReadsIn('x.php', ' * (docs/modules/catalog.md §1.12)'))->toBe([]);
-});
+it('leaves a mention of docs/ in prose alone', function (string $code) {
+    expect(docsReadsIn('x.php', $code))->toBe([]);
+})->with([
+    'a spec in a comment' => [' * (docs/modules/catalog.md §1.12)'],
+    'the word in a sentence' => [' // the docs folder leaves GitHub; see the docs'],
+    'a site\'s docs' => [' /** MyFatoorah\'s answer (docs.myfatoorah.com/docs/api-key). */'],
+    'a word that starts with docs' => ["\$kind = 'docsets';"],
+    'a quoted sentence about docs' => ["'Read the docs first'"],
+    'the folder named in backticks' => [' * the `docs` folder need not ship'],
+]);
 
 it('reads nothing under docs/ from the app or the tests', function () {
     $root = dirname(__DIR__, 2);
