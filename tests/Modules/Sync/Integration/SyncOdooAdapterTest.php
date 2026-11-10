@@ -304,6 +304,21 @@ describe('the calls (§2.4)', function () {
         expect(odooRead(['101', '102', '103']))->toBe([['101', 10.0, 1.0], ['103', 30.0, 3.0]]);
     });
 
+    it('takes from each call only the ids that call asked: one of ours asked in another call is not yielded twice', function () {
+        $codes = array_map(static fn (int $n): string => (string) (10000 + $n), range(1, 501));
+        // Each call answers its own ids, and the last one (asked in the second call) every time.
+        Http::fake(['example.odoo.com/*' => function (Request $request) {
+            $ids = array_values(array_map(intval(...), (array) (json_decode($request->body(), true)['ids'] ?? [])));
+
+            return Http::response(odooJson(array_map(static fn (int $id): array => odooItem($id, 5.0, 1.0), array_values(array_unique([...$ids, 10501])))));
+        }]);
+
+        $values = array_column(odooRead($codes), 0);
+
+        expect(count(odooIdsAsked()))->toBe(2)
+            ->and($values)->toBe($codes);
+    });
+
     it('answers nothing, with no error, when Odoo has none of the ids asked', function () {
         Http::fake(['example.odoo.com/*' => Http::response([])]);
 
