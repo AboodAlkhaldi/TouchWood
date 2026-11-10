@@ -47,6 +47,8 @@ final readonly class HomePageHandler
                 'position' => $section->position,
                 'isVisible' => $section->isVisible,
                 'version' => $section->version,
+                // For the list's one-line summary (§4.4 W1): read with the sections, no query more.
+                'settings' => $section->settings,
             ], $sections),
             'addable' => array_values(array_diff(array_map(static fn (HomeSectionType $type): string => $type->value, HomeSectionType::cases()), $present)),
         ];
