@@ -83,6 +83,8 @@ use Modules\Platform\Presentation\Console\CreateCurrencyCommand;
 use Modules\Platform\Presentation\Console\CreateStoreCommand;
 use Modules\Platform\Presentation\Console\RequeueStuckMediaVariantsCommand;
 use Modules\Platform\Presentation\Home\StoresAndSystemCard;
+use Modules\Platform\Presentation\Http\InMemoryUnmatchedAddresses;
+use Modules\Platform\Presentation\Http\Middleware\AnswerUnmatchedAddresses;
 use Modules\Platform\Presentation\Http\Middleware\ResolveStore;
 use Modules\Platform\Presentation\Http\Middleware\ShareStorefront;
 use Modules\Platform\Presentation\Http\Middleware\TrackHttpRequest;
@@ -104,6 +106,7 @@ use Modules\Platform\Public\Contracts\ShopperType;
 use Modules\Platform\Public\Contracts\StaffNames;
 use Modules\Platform\Public\Contracts\StoreChoices;
 use Modules\Platform\Public\Contracts\TextTranslator;
+use Modules\Platform\Public\Contracts\UnmatchedAddresses;
 use Modules\Platform\Public\Dto\HomeCardDto;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\PlatformPermissions;
@@ -169,6 +172,11 @@ final class PlatformServiceProvider extends ServiceProvider
         // Who may see an off store in the shop: nobody, unless a module says so (platform.md §2.7).
         $this->app->singleton(InMemoryOffStoreViewers::class);
         $this->app->alias(InMemoryOffStoreViewers::class, OffStoreViewers::class);
+
+        // Who may answer an address nobody answers - Content's redirects from the old site (content.md
+        // §2.3 row L2). Nobody, until a module registers.
+        $this->app->singleton(InMemoryUnmatchedAddresses::class);
+        $this->app->alias(InMemoryUnmatchedAddresses::class, UnmatchedAddresses::class);
 
         // Machine translation of staff text (content.md §2.2, row L1), an adapter chosen by configuration:
         // DeepL with the server's token, or the fake that sends nothing - once for the process, so a test's
@@ -271,6 +279,9 @@ final class PlatformServiceProvider extends ServiceProvider
 
         // On every request, so the audit log can tell a web change from a console or queued one.
         $this->app->make(HttpKernel::class)->pushMiddleware(TrackHttpRequest::class);
+        // On every request too: a read no route matched is offered to the modules' answers before it is
+        // answered not found (content.md §2.3 row L2); every other answer passes through untouched.
+        $this->app->make(HttpKernel::class)->pushMiddleware(AnswerUnmatchedAddresses::class);
 
         $this->app->make(SettingsRegistry::class)->define('platform', ...MediaSettings::definitions());
 
