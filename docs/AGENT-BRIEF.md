@@ -162,8 +162,8 @@ From the specs and the owner — each one cited where it is written:
 - **Roles nest**: Super Admin ⊃ admin ⊃ staff. The store file's job is **admin roles only**
   (amendment 6(h); access.md amendment 62); **the import is the Super Admin's only** (a reserved
   permission).
-- **Prices and stock are shown, not kept, until stage 5**: a store file's page says so, once
-  (catalog.md §2.3, §9.3 #15).
+- **A store file holds codes only** (catalog.md amendment 43): no prices, no stock, no note about
+  them - a store's come from Odoo.
 - **The import's page** shows, part by part, what catalog.md §1.12 lists: the names to decide (with
   how many catalog items a name matches), the codes to decide (update, replace, skip, new codes; keep
   on sale or take off sale for a product on sale), the changes to all or the selected, the addresses
@@ -173,8 +173,8 @@ From the specs and the owner — each one cited where it is written:
   discarding a file not brought in. `ImportUndecided` carries how many of each still wait: `names`,
   `codes`, `addresses`, `sales`, `code_changes`.
 - **The limits** the pages state: a products file of 2,000 products, a JSON of 20 MB, a zip of
-  500 MB and 100,000 entries; a store file of 1,000 items, each code once, 2 MB; a price with at most
-  6 decimal places; a stock up to 2,147,483,647 (catalog.md §1.3, §1.12).
+  500 MB and 100,000 entries; a store file of 1,000 items, each code once, 2 MB, codes only (catalog.md
+  §1.3, §1.12, amendment 43).
 - **Out of stock never shows**: never listed, searched or suggested; a direct link opens a "Not
   available now" page with no Add to Cart (HANDOFF §9.2).
 - **Every error** has its type (`catalog.{name}`) and both languages' text in

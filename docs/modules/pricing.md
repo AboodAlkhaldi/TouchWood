@@ -56,7 +56,8 @@ the timing one replaced on 2026-10-09 (§9.2). What waits for the provider's tea
 ### 1.2 Retail price
 
 The price of one piece of a size in a store: **one per size per store**, above 0, in the store's
-currency. Set by staff, by the store's file (§1.8) or, in a wired store, by the provider. **Removing
+currency. Set by staff or, in a wired store, by the provider (~~by the store's file~~ — removed, §1.8,
+catalog.md amendment 43). **Removing
 it** (owner, 2026-10-08) takes the size off sale there; it returns to the Needs a Price list. A
 changed or removed price is audited from and to. **An archived size — or a size of an archived
 product — is read-only until it is restored** (owner, 2026-10-11): its price is kept as it is, and
@@ -335,7 +336,7 @@ no error classes.
 ### 2.3 What Pricing gives Catalog
 
 - `ListingFacts::prices` — §1.10 (the shape is catalog.md's amendment 15: `ListingPrice{now, ?before}`).
-- An `ImportSection` for the store's file — §1.8.
+- ~~An `ImportSection` for the store's file — §1.8.~~ Removed (catalog.md amendment 43).
 
 ### 2.4 What Pricing needs from other modules
 
@@ -402,7 +403,7 @@ group; their names accepted by the owner (2026-10-08).
 | `NeedsAPrice` — the list and its count | `pricing.price.edit` (owner, 2026-10-08) | That store |
 | The screens' reads of §4.3.3 (`ListPrices`, `ViewSizePrices`, `ViewProductPrices`, `ListSales`, `ViewSale`, `ListSaleProducts`, `ListCategoryDiscounts`, `ListWholesale`, `OverlapsFor`) and `PricingActionsForReader` | Any of the three, in that store; `PreviewCategoryDiscount` Manage Category Discounts; `NeedsAPrice` Edit Prices and Sales | That store (`ViewProductPrices`: every store of the page where the reader holds one) |
 | `CountUnpricedSizes` — Needs a Price's count kept per store (Q43) | System (reserved): `pricing.needs_a_price.count` | — |
-| The store's file — Pricing's section (§1.8) | Catalog's `catalog.listing.fill` (admin roles), checked by Catalog's handler | That store |
+| ~~The store's file — Pricing's section (§1.8)~~ — removed (catalog.md amendment 43) | ~~Catalog's `catalog.listing.fill` (admin roles), checked by Catalog's handler~~ | — |
 | `RebuildPriceCandidates` — a repair job, every size rewritten and compared · `ApplyPriceWindow` — the timed task at a sale's or discount's start and end · `CheckPriceWindows` — the daily safety check (owner, 2026-10-09) | System (reserved): `pricing.candidates.rebuild`, `pricing.windows.apply`, `pricing.windows.check` | — |
 
 **A store that is off**: every change above is refused to anyone who may not switch stores
@@ -979,8 +980,9 @@ Every refusal's **words** say **Offer** where this spec says sale (in Arabic ع�
     and new prices; a sub-category's products included; a product moving in or out follows; a draft
     whose category changed follows when made ready; a category moved under a discounted parent (and
     out of one) brings its products' candidates with it; the preview's names read in one call.
-12. **The store's file**: the page's lines (set, refused for decimals or 0, ignored in a wired store);
-    switching on sets the retail price of the sizes it switched on, audited.
+12. ~~**The store's file**: the page's lines (set, refused for decimals or 0, ignored in a wired store);
+    switching on sets the retail price of the sizes it switched on, audited.~~ Removed with the file's
+    prices (catalog.md amendment 43).
 13. **Needs a Price**: a switched-on size with no retail price is listed and counted; setting a price
     removes it; removing the price brings it back; only `pricing.price.edit` holders see it.
 14. **Audit**: every change by value, from and to, both languages.
@@ -1043,7 +1045,7 @@ used up a 30% ceiling on its own.
 |---|---|---|
 | S1 | **Catalog's `searchVariants`** (catalog.md amendment 23): a store's switched-on variants, and those named, found by name or code, keyset-paged - for every store-wide list in Pricing and Inventory | Pricing and Inventory keep no names; one Catalog read a page keeps each list within its 15 queries |
 | S2 | **A wired store's retail price is shown, never a box**: "From the provider", with the last read's time | The provider owns it (§1.1 rule 9); a box that always refuses would only mislead |
-| S3 | **Catalog's product page gains the modules' store sections** through a registry (catalog.md amendment 23), as its store files gained `ImportSections` | The owner chose prices and stock on the product page (2026-10-18); Catalog's page shows them without Catalog reading Pricing or Inventory |
+| S3 | **Catalog's product page gains the modules' store sections** through a registry (catalog.md amendment 23), as its store files once gained `ImportSections` (removed by catalog.md amendment 43) | The owner chose prices and stock on the product page (2026-10-18); Catalog's page shows them without Catalog reading Pricing or Inventory |
 | S4 | **One money formatter** shared by every Pricing screen: the store's currency, its own decimals, Latin digits | Prices look the same on every screen; frontend.md has none yet |
 
 ### 9.4 Questions for stage 5's screens - answered (owner, 2026-10-19), one list for Pricing, Inventory and Sync

@@ -38,8 +38,8 @@ Odoo is built to §2.4 (2026-10-20) and tested against a faked HTTP API (§9.1 #
    1–10 of them). A code is compared **exactly as written, spaces around it trimmed**.
 6. **The provider's values are read-only in our panel** while the store is wired: Pricing refuses a
    hand price (`pricing.provider_owns_price`), Inventory a hand stock change
-   (`inventory.provider_owns_stock`). The store's file's prices and stock are ignored there, with a
-   warning (pricing.md §1.8, inventory.md §1.8).
+   (`inventory.provider_owns_stock`). (A store's file brings no prices or stock since catalog.md
+   amendment 43, so there is nothing of it to ignore.)
 7. **Nothing is rolled back.** A bad value skips that one size and is reported; the rest is applied
    (handoff §12.2).
 8. **A wired store that is switched off is still read**, so it is right the moment it is switched on
