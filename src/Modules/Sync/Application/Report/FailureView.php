@@ -36,6 +36,14 @@ final readonly class FailureView
 
         $provider = ProviderReason::fromStored($stored);
 
-        return new self(null, null, $provider === null ? $stored : $words->line("provider_failures.{$provider->code}", $provider->values));
+        if ($provider !== null) {
+            return new self(null, null, $words->line("provider_failures.{$provider->code}", $provider->values));
+        }
+
+        // Kept as an adapter's code that this version no longer has (sync.md §2.4: the custom API's paging
+        // reasons, say): one plain sentence, never its JSON. Other words are the provider's, shown as they came.
+        return ProviderReason::looksStored($stored)
+            ? new self(null, $words->line('admin_report.provider_unknown'), null)
+            : new self(null, null, $stored);
     }
 }

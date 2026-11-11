@@ -183,6 +183,11 @@ final readonly class CatalogApiImpl implements CatalogApi
         return $this->reads->switchedOnVariantIds($store->value);
     }
 
+    public function variantCodes(): array
+    {
+        return $this->reads->variantCodes();
+    }
+
     public function variants(array $variantIds): array
     {
         return $this->reads->variants($variantIds);

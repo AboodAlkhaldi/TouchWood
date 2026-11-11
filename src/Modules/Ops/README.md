@@ -31,7 +31,8 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
 | After the pass | S10, S10b, the bell alerts that a security email or SMS could not be sent; a form's segments, and the segment's name on what was written (owner, 2026-11-01) | `Infrastructure/Messages/SecurityFailureAlert`, `Application/Query/ListSegments` |
 | Stage 7's last events | C11 on `PaymentRequested`, S6 on `TransferOverdue`, C10 checked on a request's online payment, transfers overdue in the daily report and its totals (2026-11-03) | `Infrastructure/Listener/TellCustomerAboutPaymentRequest`, `AlertStaff`, `Application/Alerts/MessageWriter`, `Application/DailyReport/DailyReportReader` |
 | After the screens' spec | A whole store's audience, `ops.admin.audience` (ops.md §9.4 Q14), on Access's `customerCountInStore` (access.md amendment 94) | `Application/Query/CountStoreAudience`, `Presentation/Http/Controller/AudienceController` |
-| Content round 3 (2026-11-10) | The list jobs try for about a day; S10c, the bell when Brevo refuses a queued email for everybody (ops.md §9.6 #2, #3). The nightly read of Brevo's unsubscribes (#1) waits for the owner | `Infrastructure/Queue/ProviderFailureRules`, `Infrastructure/Messages/SecurityFailureAlert` |
+| Content round 3 (2026-11-10) | The list jobs try for about a day; S10c, the bell when Brevo refuses a queued email for everybody (ops.md §9.6 #2, #3) | `Infrastructure/Queue/ProviderFailureRules`, `Infrastructure/Messages/SecurityFailureAlert` |
+| The owner's answer (b), 2026-11-10 | The nightly read of Brevo's unsubscribes (ops.md §9.6 #1), 03:20 Riyadh: each kept list's contacts changed since its last full read; blacklisted, or off our list, taken as the webhook's unsubscribe. **Off** until one real run has shown the right people (`BREVO_NIGHTLY_READ`) | `Infrastructure/External/BrevoUnsubscribeRead`, `Infrastructure/Queue/ReadBrevoUnsubscribesJob`, `ReadBrevoListUnsubscribesJob` |
 
 ## What is here
 
@@ -71,7 +72,7 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
 - **`Infrastructure/Listener`** — `TellCustomerAboutOrder`, `…Return`, `…Money`, `…PaymentRequest`, `…Points`, `…Feedback`,
   `TellCustomersAboutCoupon`, `AlertStaff`, `StartCampaignNotice`, `RefreshNewsletterSubscription`, `ForgetAnonymizedCustomer`: each on
   the queue, once per event through `Infrastructure/Eloquent/HandledEvents`.
-- **`Infrastructure/External`** — `BrevoEmailSender`, `BrevoNewsletterList`, `BrevoAnswers` (the key as pasted, how
+- **`Infrastructure/External`** — `BrevoEmailSender`, `BrevoNewsletterList`, `BrevoUnsubscribeRead` (the nightly read, §9.6 #1), `BrevoAnswers` (the key as pasted, how
   long a call waits, what each refusal means: ops.md §7), the `Log*` adapters for development
   and tests (refused in production), `BuiltSmsSenders`, `DailyReportEmailMailer`. **`Infrastructure/Queue/ProviderFailureRules`** —
   a job's answer to a provider's failure: the failed jobs at once for one address refused, long waits for up to a day when Brevo refuses everybody (S10c for a queued email), Brevo's own wait on a 429, no attempt spent; the list jobs' backoff of about a day.
@@ -192,7 +193,7 @@ Each checked against the code on 2026-11-01, the first two on 2026-11-03, C11's 
 | A notice sent when a campaign goes live (§1.7) | Built on Ops' side (`StartCampaignNotice`): a waiting notice only. No state makes a notice wait for its campaign (ops.md §9.5) | Content: to fire `CampaignWentLive`; the owner |
 | The SMS provider | `log` only | The owner (Mobily being checked) |
 | Brevo on the live system | The adapters are built, every failure covered with faked answers (ops.md §7), and in production a web request or a worker refuses to boot on either `log` driver, or without a usable key and `MAIL_FROM_ADDRESS`, and logs loudly without `BREVO_NEWSLETTER_FOLDER_ID` or `BREVO_WEBHOOK_SECRET`, all the server's; other console commands are left alone; the webhook is made in Brevo, unbatched, with the secret as its custom header. Run `php artisan ops:brevo:check` once the key is in, and `php artisan queue:restart` after changing it. Not yet proven against the real Brevo | The owner, at hosting |
-| A lost unsubscribe (ops.md §9.6 #1): the nightly read | Not built: Brevo's reference shows a list-only unsubscribe (`listUnsubscribed`) beside `emailBlacklisted`, so what the read acts on is the owner's (§9.6). A long outage (#2) and a refused key on queued mail (#3) are built | The owner |
+| A lost unsubscribe (ops.md §9.6 #1): the nightly read | Built and **switched off** (`BREVO_NIGHTLY_READ=false`): tested only against faked answers. Turn it on after one real run at staging has shown the right people (docs/HANDOFF.md §15.4) | The owner, at staging |
 | Staging's `APP_ENV` | ops.md §9.6 #7, not asked yet (as #4 and #5); #6 answered: the log line, as built | The owner |
 | The words' full review | The reports' and unsubscribe pages' words are marked approved for now, the full review at the end (owner, 2026-10-31) | The owner |
 | The screens | Built (ops.md §4.15): SMS Countries, the two bells with their full pages, Customer Messages and Offer Notices with their forms, Subscribers, Reports, Daily Reports, the newsletter box, the consent switch and box, and the confirm, leave and unsubscribe pages. The Home card goes with the Home dashboard job | The screens agent |
@@ -262,7 +263,7 @@ before, or it opens raw JSON. Before touching `AdminMenu`, `AdminLayout` or `Sto
 
 `tests/Modules/Ops/Integration` — `EventMessagesTest` (§1.5, §1.6, the sent-then-marked row, C14, the critical
 SMS), `PaymentEventsTest` (C10, C11, S6 and transfers overdue from Stage 7's real flow), `CampaignEventsTest`, `MessageKindsTest`, `SecurityMessagesTest`, `SecurityFailureAlertTest`, `SecurityFailureAlertRaceTest`, `WrittenTextDigitsTest`, `SendersTest`, `BrevoFailuresTest` (every way Brevo can fail, on every path, on the real database queue), `SmsCountriesTest`, `RealEmailDriverTest`,
-`BellsTest`, `NoticesTest`, `NoticeSegmentTest`, `StaffMessagesTest`, `NewsletterTest`, `BrevoNewsletterListTest`,
+`BellsTest`, `NoticesTest`, `NoticeSegmentTest`, `StaffMessagesTest`, `NewsletterTest`, `BrevoNewsletterListTest`, `BrevoNightlyReadTest`,
 `ReportsTest`, `DailyReportTest`, `DailyReportEmailTest`, `PruneTest`, `OpsPermissionsTest`, `OpsSchemaTest`,
 `OpsTablesTest`. `tests/Modules/Ops/Feature` over HTTP — `BellRoutesTest`, `WrittenRoutesTest`, `ReportRoutesTest`,
 `DailyReportRoutesTest`, `StopEmailPagesTest`, `SmsCountryRoutesTest`, `SmsCountriesScreenTest`, `BellScreensTest`, `WrittenScreensTest`, `SubscribersScreenTest`, `ReportsScreenTest`, `DailyReportsScreenTest`, `ScreensReadsTest`, `SegmentReadsTest`, `AudienceCountTest`. The consent itself is Access's: `tests/Modules/Access/Integration/MarketingConsentTest`,

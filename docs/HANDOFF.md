@@ -1828,6 +1828,15 @@ Decide these when the owning module is reached; do not design them now.
   a pooler hands to other clients between statements. Without the long worker, the long jobs wait in the
   `jobs` table and never run. Platform's `QueueConnectionsTest` fails for a new job whose `$timeout`
   is within 30 s of the normal limit and is not on the long connection (`LongQueue`).
+- **Brevo's nightly unsubscribe read stays off until one real run shows the right people** (ops.md §9.6 #1; owner's
+  answer (b), 2026-11-10). It is `BREVO_NIGHTLY_READ=false` in `.env.example`, and off it calls nothing. To check it at
+  staging, with the real key and `OPS_NEWSLETTER_DRIVER=brevo`: in Brevo, unsubscribe one test contact from one store's
+  list only, blacklist another, and add a third back to the list after it unsubscribed (subscribe again on the shop);
+  set `BREVO_NIGHTLY_READ=true`, run `php artisan config:clear`, then `php artisan schedule:test` and pick
+  `ReadBrevoUnsubscribesJob` (or wait for 03:20 Riyadh), with the normal worker running. Right people: the first two are
+  withdrawn (a guest's row gone, a customer's consent off with source `NEWSLETTER_PROVIDER`), the third is **not**, and
+  nobody else changed. If the third was withdrawn, switch it back off and tell the owner: Brevo keeps `listUnsubscribed`
+  after a contact is added back, and the read must be changed before it runs.
 - **Sync's notifications** (Sync step 5b): when Ops listens to `SyncNeedsAttention`, its listener
   must be queued - Sync marks the entries told before the event goes out, so a send that fails must be
   retried by the queue, not lost.

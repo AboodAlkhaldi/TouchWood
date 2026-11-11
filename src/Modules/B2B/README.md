@@ -385,6 +385,26 @@ column, its IBAN in a read-only field with a Copy button. Before the first send 
 draft alone. The design is look and behaviour: its own fields, company types and structured address
 lose to the spec.
 
+**Two Inertia pages at that one address** (amendment 35; owner, 2026-11-10). The one page carried
+the whole form's code in every state and sat at 59.7 of its 60 KB budget (`JavaScriptBudgetTest`).
+`MyCompanyController::show` now draws `B2B/Storefront/Company/Edit` — the form's page — while a
+draft is open that may change (no company yet, approved, rejected), and `B2B/Storefront/Company/Company`
+— the view page — otherwise: nothing started, under review, approved or rejected with no draft,
+suspended. Both get the same `CompanyPage`, in the same queries (recorded per state in
+`MyCompanyPageTest`). No route moved: Start, Change Company Details and Apply Again post to
+`draft/start` and come back to the address, which then draws the form; Send and Discard come back
+and draw the view. What both pages share — the frame, the history, the companies elsewhere, the
+lifecycle, the status boxes, the company's card, the bank account — is `CompanyShell.tsx`; the
+view page never imports `CompanyForm.tsx` (`CompanyPagesSplitTest`).
+
+**The two confirmations load on their first press** (owner, 2026-11-11: "continue trimming"):
+Discard — the form's and a suspended company's frozen draft's — and Remove File are in
+`dialogs.tsx`, which no page imports statically (`CompanyPagesSplitTest`). Each is mounted on its
+first press and kept mounted after, so it closes with its animation and gives focus back as before
+(the Discard button; the paper's ⋯ button, or Choose File once it is removed); the server never
+renders one, since a closed dialog is not there (lesson 180). Sizes on 2026-11-11 (local build): the
+view page 51.2 KB, the form's 57.8 KB.
+
 **It reaches the shop's frame through Access** (access.md amendment 50), never by being written into
 it: `CustomerAccountPages` lists it beside the account's tabs for company accounts, and
 `CompanyShopperLine` says one line under the header on every shop page while the company cannot

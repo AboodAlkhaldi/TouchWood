@@ -14,6 +14,8 @@ return [
     'send_broadcast_email' => 'إرسال إشعار أو رسالة موظف بالبريد إلى عميل واحد',
     'sync_subscriber' => 'تحديث مشترك النشرة لدى مزوّد النشرة',
     'remove_newsletter_contact' => 'إزالة بريد من قائمة النشرة لدى مزوّد النشرة',
+    'read_brevo_unsubscribes' => 'بدء القراءة الليلية لمن ألغى اشتراكه لدى مزوّد النشرة',
+    'read_brevo_list_unsubscribes' => 'قراءة من ألغى اشتراكه في قائمة نشرة واحدة لدى مزوّد النشرة',
     'withdraw_marketing_consent' => 'إيقاف العروض والأخبار لعميل ألغى اشتراكه',
     'refresh_newsletter_subscription' => 'تحديث مكان العميل في قائمة النشرة',
     'forget_anonymized_customer' => 'حذف إشعارات العميل المحذوف ورسائله واشتراكه في النشرة',
