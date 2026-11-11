@@ -55,11 +55,11 @@ final class ProviderFailureRules
     /** The jobs that send a queued email: a refusal of everybody here raises S10c. */
     public const array EMAIL_JOBS = [SendEventEmailJob::class, SendBroadcastEmailJob::class, DeliverDailyReportJob::class];
 
-    /** The jobs that keep a newsletter list: bounded by MOST_LIST_ATTEMPTS. */
-    public const array LIST_JOBS = [SyncSubscriberJob::class, RemoveNewsletterContactJob::class];
+    /** The jobs that keep or read a newsletter list (the nightly read's, ops.md §9.6 #1): bounded by MOST_LIST_ATTEMPTS. */
+    public const array LIST_JOBS = [SyncSubscriberJob::class, RemoveNewsletterContactJob::class, ReadBrevoListUnsubscribesJob::class];
 
     /**
-     * @param  SendEventEmailJob|SendBroadcastEmailJob|SyncSubscriberJob|RemoveNewsletterContactJob|DeliverDailyReportJob  $job
+     * @param  SendEventEmailJob|SendBroadcastEmailJob|SyncSubscriberJob|RemoveNewsletterContactJob|ReadBrevoListUnsubscribesJob|DeliverDailyReportJob  $job
      * @param  callable(object): mixed  $next
      *
      * @throws ProviderFailed
@@ -108,7 +108,7 @@ final class ProviderFailureRules
         }
     }
 
-    private function atListJobsEnd(SendEventEmailJob|SendBroadcastEmailJob|SyncSubscriberJob|RemoveNewsletterContactJob|DeliverDailyReportJob $job): bool
+    private function atListJobsEnd(SendEventEmailJob|SendBroadcastEmailJob|SyncSubscriberJob|RemoveNewsletterContactJob|ReadBrevoListUnsubscribesJob|DeliverDailyReportJob $job): bool
     {
         return in_array($job::class, self::LIST_JOBS, true) && $job->attempts() >= self::MOST_LIST_ATTEMPTS;
     }
