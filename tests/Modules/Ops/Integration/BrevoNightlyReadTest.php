@@ -96,8 +96,15 @@ function brevoNightlyRequests(): array
 function brevoNightlyQuery(Request $request): array
 {
     parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+    $sent = [];
 
-    return array_map(strval(...), $query);
+    foreach ($query as $name => $value) {
+        // Each of the read's parameters is one plain value; a list or a nested one would be no request of ours.
+        expect($value)->toBeString();
+        $sent[(string) $name] = is_string($value) ? $value : '';
+    }
+
+    return $sent;
 }
 
 /**
