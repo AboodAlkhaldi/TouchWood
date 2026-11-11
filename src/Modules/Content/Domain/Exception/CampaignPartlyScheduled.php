@@ -32,6 +32,8 @@ final class CampaignPartlyScheduled extends ContentError
         public readonly string $reason,
         public readonly ?DomainError $refusal,
         ?Throwable $failure = null,
+        /** The refused store's id: which store's prices the sizes it names are (W4b marks them in that tab only). */
+        public readonly ?string $storeId = null,
     ) {
         parent::__construct("Not scheduled in {$store}; scheduled already in {$scheduled}.", 0, $failure ?? $refusal);
     }

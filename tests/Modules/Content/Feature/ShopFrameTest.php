@@ -362,7 +362,8 @@ describe('Preview Theme on the shop (W5b)', function () {
         DB::table('access.staff_users')->where('id', $super)->update(['locale' => 'en']);
 
         $browser = shopFrameStaffBrowser($super);
-        $browser->post("/admin/content/themes/{$theme}/preview")->assertRedirect('/sa/ar');
+        // The cookie, back to the theme's page; W5b then opens the staff view (PR 8).
+        $browser->post("/admin/content/themes/{$theme}/preview", [], ['HTTP_REFERER' => url("/admin/content/themes/{$theme}")])->assertRedirect("/admin/content/themes/{$theme}");
         $browser->post('/admin/staff-view', ['store' => 'sa']);
         $page = $browser->get('/sa/en');
 

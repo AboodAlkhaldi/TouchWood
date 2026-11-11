@@ -25,5 +25,9 @@ final readonly class SaveTheme
         public ?string $endsAt,
         public array $storeIds,
         public array $parts = [],
+        /** An English box still carries Translate's mark (content.md §1.3, P14). */
+        public bool $translated = false,
+        /** "I read the translated English." ticked: the mark goes. */
+        public bool $read = false,
     ) {}
 }

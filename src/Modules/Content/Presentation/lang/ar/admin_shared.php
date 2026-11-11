@@ -11,6 +11,7 @@ return [
         'ENDED' => 'منتهٍ',
         'PUBLISHED' => 'منشور',
         'CANCELLED' => 'ملغى',
+        'MIXED' => 'مختلط',
     ],
     'store' => 'المتجر',
     'arabic' => 'العربية',

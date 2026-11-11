@@ -13,6 +13,7 @@ use Modules\Content\Domain\Exception\MissingEnglish;
 use Modules\Content\Domain\Exception\PopupClash;
 use Modules\Content\Domain\Exception\RedirectInvalid;
 use Modules\Content\Domain\Exception\SlugTaken;
+use Modules\Content\Domain\Exception\ThemeClash;
 use Shared\Domain\Error\DomainError;
 
 /**
@@ -59,6 +60,8 @@ final class Refusals
             $error instanceof ImageNotReady => $error->image,
             $error instanceof SlugTaken => "slug_{$error->locale}",
             $error instanceof PopupClash => 'starts_at',
+            // A theme's clash is said under its dates (§1.8, W5b).
+            $error instanceof ThemeClash => 'starts_at',
             // A redirect's rule names which of its two addresses it refuses; a line taken is its old address.
             $error instanceof RedirectInvalid => str_starts_with($error->rule, 'new_') ? 'new_path' : 'old_path',
             default => null,

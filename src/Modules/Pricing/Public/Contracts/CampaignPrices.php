@@ -81,12 +81,26 @@ interface CampaignPrices
     public function reachedProductIds(StoreId $store, string $runId): array;
 
     /**
-     * The sizes the run skips now because a provider's price would take it past the store's ceiling (§9.6
-     * #5), in id order, for the campaign's page; one query.
+     * The sizes the run skips now because it would take them past the store's ceiling (§9.6 #5) - a
+     * provider's price, or a store no longer wired (amendment 2, owner 2026-11-12) - in id order, for the
+     * campaign's page; one query.
      *
      * @return list<string>
      */
     public function skippedSizes(StoreId $store, string $runId): array;
+
+    /**
+     * How many sizes each of these runs prices now, for Content's list of campaigns (content.md W4's Offers
+     * column; pricing.md §9.6 amendment row): the sizes its `CAMPAIGN` candidates name - written by
+     * `CandidateWriter` with the preview's own rules (`CampaignCoverage::priceOn`: archived, unpriced, 0 or
+     * below, not below retail and past the ceiling all left out), so the count is the preview's
+     * reached sizes. One query for every run named, whatever its store. A run Pricing holds no prices for -
+     * a draft, one ended - is left out.
+     *
+     * @param  list<string>  $runIds
+     * @return array<string, int> run id => sizes it prices
+     */
+    public function reachedSizes(array $runIds): array;
 
     /**
      * Of these sizes, the runs skipping each now in the store (§9.6 #5), in id order - a size none skips left

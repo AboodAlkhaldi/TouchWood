@@ -10,5 +10,7 @@ final readonly class ScheduleTheme
     public function __construct(
         public string $themeId,
         public int $version,
+        /** "I read the translated English." ticked (content.md §1.3, P14). */
+        public bool $read = false,
     ) {}
 }

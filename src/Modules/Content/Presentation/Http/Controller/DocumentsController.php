@@ -163,9 +163,9 @@ final readonly class DocumentsController
     /** The ready products a post or project may link, found by a name or a code (§1.12, §1.13). */
     public function products(Request $request, string $kind, DocumentsHandler $documents): JsonResponse
     {
-        $found = $documents->findProducts(self::kind($kind), Inputs::text($request, 'store'), Inputs::text($request, 'q'));
+        $found = $documents->findProducts(self::kind($kind), Inputs::text($request, 'store'), Inputs::text($request, 'q'), Inputs::text($request, 'after'));
 
-        return new JsonResponse(['products' => array_map(static fn (array $product): array => ProductChoiceData::fromRead($product)->toArray(), $found)]);
+        return new JsonResponse(['products' => array_map(static fn (array $product): array => ProductChoiceData::fromRead($product)->toArray(), $found['products']), 'next' => $found['next']]);
     }
 
     /**

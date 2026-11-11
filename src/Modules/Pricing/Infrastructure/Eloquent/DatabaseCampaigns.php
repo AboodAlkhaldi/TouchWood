@@ -13,6 +13,7 @@ use Modules\Pricing\Domain\ValueObject\Campaign;
 use Modules\Pricing\Domain\ValueObject\CampaignTarget;
 use Modules\Pricing\Domain\ValueObject\DiscountLines;
 use Modules\Pricing\Public\Enums\CampaignTargetKind;
+use Modules\Pricing\Public\Enums\PriceKind;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 use stdClass;
@@ -147,6 +148,25 @@ final readonly class DatabaseCampaigns implements Campaigns
             ->where('run_id', strtolower(trim($runId)))
             ->orderBy('variant_id')
             ->pluck('variant_id')->all()));
+    }
+
+    public function reachedSizes(array $runIds): array
+    {
+        $ids = array_values(array_filter(array_unique(array_map(static fn (string $id): string => strtolower(trim($id)), $runIds)), static fn (string $id): bool => preg_match('/\A[0-9a-z]{26}\z/', $id) === 1));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $reached = [];
+
+        // A size a run prices on both lines has a candidate on each: counted once.
+        foreach ($this->db->table('pricing.price_candidates')->where('kind', PriceKind::Campaign->value)->whereIn('source_id', $ids)->groupBy('source_id')->get(['source_id', $this->db->raw('count(DISTINCT variant_id) AS n')]) as $row) {
+            /** @var stdClass $row */
+            $reached[(string) $row->source_id] = (int) $row->n;
+        }
+
+        return $reached;
     }
 
     public function skipsOf(StoreId $store, array $variantIds): array

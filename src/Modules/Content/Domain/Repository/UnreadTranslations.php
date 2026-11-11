@@ -22,6 +22,12 @@ interface UnreadTranslations
     /** The announcement bar: its item is its store. */
     public const string BAR = 'BAR';
 
+    /** A campaign's name (PR 8): its row names the campaign's first store, in store-id order. */
+    public const string CAMPAIGN = 'CAMPAIGN';
+
+    /** A theme's name and parts' words (PR 8): its row names the theme's first store, in store-id order. */
+    public const string THEME = 'THEME';
+
     public function has(string $kind, string $itemId): bool;
 
     /**

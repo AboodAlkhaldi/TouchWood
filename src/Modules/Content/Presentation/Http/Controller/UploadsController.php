@@ -21,6 +21,8 @@ use Modules\Content\Application\Command\UploadProjectImage\UploadProjectImage;
 use Modules\Content\Application\Command\UploadProjectImage\UploadProjectImageHandler;
 use Modules\Content\Application\Command\UploadSeoImage\UploadSeoImage;
 use Modules\Content\Application\Command\UploadSeoImage\UploadSeoImageHandler;
+use Modules\Content\Application\Command\UploadThemeImage\UploadThemeImage;
+use Modules\Content\Application\Command\UploadThemeImage\UploadThemeImageHandler;
 use Modules\Content\Domain\Exception\InvalidContentInput;
 
 /**
@@ -41,6 +43,7 @@ final readonly class UploadsController
         UploadBlogImageHandler $blog,
         UploadProjectImageHandler $project,
         UploadSeoImageHandler $seo,
+        UploadThemeImageHandler $theme,
     ): JsonResponse {
         $file = $request->file('file');
 
@@ -60,6 +63,7 @@ final readonly class UploadsController
             'blog' => $blog->handle(new UploadBlogImage($store, $path, $name)),
             'project' => $project->handle(new UploadProjectImage($store, $path, $name)),
             'seo' => $seo->handle(new UploadSeoImage($store, $path, $name)),
+            'theme' => $theme->handle(new UploadThemeImage($store, $path, $name)),
             default => throw new InvalidContentInput('kind', InvalidContentInput::KIND),
         };
 

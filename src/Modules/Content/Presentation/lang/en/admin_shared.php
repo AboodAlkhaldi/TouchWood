@@ -12,6 +12,7 @@ return [
         'ENDED' => 'Ended',
         'PUBLISHED' => 'Published',
         'CANCELLED' => 'Cancelled',
+        'MIXED' => 'Mixed',
     ],
     'store' => 'Store',
     'arabic' => 'Arabic',

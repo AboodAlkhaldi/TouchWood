@@ -13,12 +13,14 @@ use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\EditCheck;
 use Modules\Content\Application\Moments;
 use Modules\Content\Application\ThemeRules;
+use Modules\Content\Application\TranslationMarks;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Domain\Exception\InvalidContentInput;
 use Modules\Content\Domain\Model\Theme;
 use Modules\Content\Domain\Model\ThemePart;
 use Modules\Content\Domain\Repository\Themes;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Modules\Content\Domain\ValueObject\Words;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Unauthorized;
@@ -44,6 +46,7 @@ final readonly class SaveThemeHandler
         private ConnectionInterface $db,
         private PlatformApi $platform,
         private ContentCache $cache,
+        private TranslationMarks $marks,
     ) {}
 
     /**
@@ -90,6 +93,8 @@ final readonly class SaveThemeHandler
                 $this->themes->add($theme);
                 $this->themes->replaceParts($id, $parts);
                 $this->platform->recordAudit(ContentAudit::entry('content.theme.created', 'content.theme', $id, null, ContentAudit::diff([], [...$theme->fields(), ...self::partFields($parts)])));
+                // A new theme is a draft: an unread English box keeps its mark (§1.3 #4).
+                $this->marks->saved(UnreadTranslations::THEME, $id, (string) array_key_first($byId), $command->translated, $command->read, false);
                 $this->cache->invalidate();
 
                 return $id;
@@ -113,6 +118,8 @@ final readonly class SaveThemeHandler
             $this->themes->update($theme);
             $this->themes->replaceParts($was->id, $parts);
             $this->platform->recordAudit(ContentAudit::entry('content.theme.changed', 'content.theme', $was->id, null, ContentAudit::diff([...$was->fields(), ...self::partFields($before)], [...$theme->fields(), ...self::partFields($parts)])));
+            // A scheduled theme, live included, is due to reach shoppers: unread English asks for the tick (§1.3 #4).
+            $this->marks->saved(UnreadTranslations::THEME, $was->id, (string) array_key_first($byId), $command->translated, $command->read, $was->isScheduled);
             $this->cache->invalidate();
 
             return $was->id;

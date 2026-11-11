@@ -14,5 +14,7 @@ final readonly class ScheduleCampaign
         public string $campaignId,
         public int $version,
         public ?string $storeId = null,
+        /** "I read the translated English." ticked (content.md §1.3, P14). */
+        public bool $read = false,
     ) {}
 }

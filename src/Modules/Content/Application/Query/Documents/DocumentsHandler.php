@@ -33,6 +33,9 @@ use Shared\Domain\ValueObject\StoreId;
  */
 final readonly class DocumentsHandler
 {
+    /** Add Product's page (§9.3c S4). */
+    public const int PRODUCTS = 20;
+
     public function __construct(
         private ContentAccess $access,
         private Documents $documents,
@@ -146,18 +149,22 @@ final readonly class DocumentsHandler
 
     /**
      * The products a post or a project may link (§1.12, §1.13: "ready products"): the store's ready products with a size
-     * switched on there, found by a name in either language or a code, 20 at a time. Two queries.
+     * switched on there (Catalog's `readySwitchedOn`, filtered in its query, so a page is never short), found by a name in
+     * either language or a code, 20 at a time after `$after` (the `next` of the page before; §9.3c S4). Two queries.
      *
-     * @return list<array{id: string, nameAr: string, nameEn: string|null, archived: bool}>
+     * @return array{products: list<array{id: string, nameAr: string, nameEn: string|null, archived: bool}>, next: string|null}
      *
      * @throws ContentError|Unauthorized
      */
-    public function findProducts(DocumentKind $kind, ?string $storeId, ?string $text): array
+    public function findProducts(DocumentKind $kind, ?string $storeId, ?string $text, ?string $after = null): array
     {
         $store = $this->access->authorize(self::permission($kind), $storeId);
-        $found = $this->catalog->searchProducts(StoreId::fromString($store->id), $text, true, null, null, 20);
+        $found = $this->catalog->searchProducts(StoreId::fromString($store->id), $text, true, null, $after, self::PRODUCTS);
 
-        return array_values(array_map(static fn (FoundProductDto $product): array => ['id' => strtolower($product->productId), 'nameAr' => $product->nameAr, 'nameEn' => $product->nameEn, 'archived' => false], array_filter($found->rows, static fn (FoundProductDto $product): bool => $product->stage === ProductStage::Ready)));
+        return [
+            'products' => array_map(static fn (FoundProductDto $product): array => ['id' => strtolower($product->productId), 'nameAr' => $product->nameAr, 'nameEn' => $product->nameEn, 'archived' => false], $found->rows),
+            'next' => $found->next,
+        ];
     }
 
     /**

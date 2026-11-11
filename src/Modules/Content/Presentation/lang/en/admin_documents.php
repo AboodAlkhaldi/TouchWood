@@ -83,6 +83,7 @@ return [
         'full' => 'At most :max products.',
         'failed' => 'Failed to search. Try again.',
         'close' => 'Done',
+        'more' => 'Show More',
     ],
     'save_draft' => 'Save Draft',
     'save' => 'Save Changes',

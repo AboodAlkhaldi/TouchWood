@@ -85,6 +85,18 @@ final readonly class ContentAccess
         return $store;
     }
 
+    /**
+     * The stores the person holds a permission in, lower-cased; null for every store.
+     *
+     * @return list<string>|null
+     */
+    public function storesHeld(string $permission): ?array
+    {
+        $held = $this->authorizer->storesWith($permission);
+
+        return $held === null ? null : array_map(static fn (StoreId $store): string => $store->value, $held);
+    }
+
     /** Whether the person holds a permission in this store (asked, never thrown: a campaign's prices, §1.7 #5, #16). */
     public function holdsIn(string $permission, string $storeId): bool
     {

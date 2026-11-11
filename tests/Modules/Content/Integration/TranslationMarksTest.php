@@ -10,18 +10,26 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Content\Application\Command\AddHomeSection\AddHomeSection;
 use Modules\Content\Application\Command\AddHomeSection\AddHomeSectionHandler;
+use Modules\Content\Application\Command\DeleteBanner\DeleteBanner;
+use Modules\Content\Application\Command\DeleteBanner\DeleteBannerHandler;
 use Modules\Content\Application\Command\DeletePage\DeletePage;
 use Modules\Content\Application\Command\DeletePage\DeletePageHandler;
+use Modules\Content\Application\Command\DeletePopup\DeletePopup;
+use Modules\Content\Application\Command\DeletePopup\DeletePopupHandler;
 use Modules\Content\Application\Command\FillHomeSection\FillHomeSection;
 use Modules\Content\Application\Command\FillHomeSection\FillHomeSectionHandler;
 use Modules\Content\Application\Command\PublishPage\PublishPage;
 use Modules\Content\Application\Command\PublishPage\PublishPageHandler;
+use Modules\Content\Application\Command\RemoveHomeSection\RemoveHomeSection;
+use Modules\Content\Application\Command\RemoveHomeSection\RemoveHomeSectionHandler;
 use Modules\Content\Application\Command\SaveBanner\SaveBanner;
 use Modules\Content\Application\Command\SaveBanner\SaveBannerHandler;
 use Modules\Content\Application\Command\SaveBar\SaveBar;
 use Modules\Content\Application\Command\SaveBar\SaveBarHandler;
 use Modules\Content\Application\Command\SavePage\SavePage;
 use Modules\Content\Application\Command\SavePage\SavePageHandler;
+use Modules\Content\Application\Command\SavePopup\SavePopup;
+use Modules\Content\Application\Command\SavePopup\SavePopupHandler;
 use Modules\Content\Application\Command\ScheduleBanner\ScheduleBanner;
 use Modules\Content\Application\Command\ScheduleBanner\ScheduleBannerHandler;
 use Modules\Content\Application\Command\SchedulePopup\SchedulePopup;
@@ -162,6 +170,41 @@ it('keeps the bar\'s mark while it is off, and asks for the tick to switch it on
 });
 
 it('refuses a kind no item has', function () {
-    expect(fn () => DB::table('content.unread_translations')->insert(['kind' => 'THEME', 'item_id' => strtolower((string) Str::ulid()), 'store_id' => Fx::storeId('sa'), 'marked_at' => CarbonImmutable::now()]))
+    // The footer asks for both languages at its save (§1.3 #4), so it never keeps a mark.
+    expect(fn () => DB::table('content.unread_translations')->insert(['kind' => 'FOOTER', 'item_id' => strtolower((string) Str::ulid()), 'store_id' => Fx::storeId('sa'), 'marked_at' => CarbonImmutable::now()]))
         ->toThrow(QueryException::class);
+});
+
+it('takes a deleted banner\'s, pop-up\'s and removed home section\'s marks with them (the #386 review)', function () {
+    Cx::editor([ContentPermissions::BANNER_MANAGE, ContentPermissions::POPUP_MANAGE, ContentPermissions::HOMEPAGE_MANAGE]);
+    $banner = Cx::banner(['translated' => true]);
+    $popup = Cx::popup(['translated' => true]);
+    $section = DB::table('content.home_sections')->where('store_id', Fx::storeId('sa'))->where('type', 'CATEGORIES')->value('id')
+        ?? app(AddHomeSectionHandler::class)->handle(new AddHomeSection(Fx::storeId('sa'), 'CATEGORIES'));
+    DB::table('content.home_sections')->where('id', $section)->update(['is_visible' => false]);
+    app(FillHomeSectionHandler::class)->handle(new FillHomeSection((string) $section, (int) DB::table('content.home_sections')->where('id', $section)->value('version'), ['heading' => ['ar' => 'التصنيفات', 'en' => 'Categories']], translated: true));
+
+    expect(unreadMarks('BANNER') + unreadMarks('POPUP') + unreadMarks('HOME_SECTION'))->toBe(3);
+
+    app(DeleteBannerHandler::class)->handle(new DeleteBanner($banner));
+    app(DeletePopupHandler::class)->handle(new DeletePopup($popup));
+    app(RemoveHomeSectionHandler::class)->handle(new RemoveHomeSection((string) $section));
+
+    expect(unreadMarks('BANNER'))->toBe(0)
+        ->and(unreadMarks('POPUP'))->toBe(0)
+        ->and(unreadMarks('HOME_SECTION'))->toBe(0);
+});
+
+it('refuses a scheduled pop-up\'s save with unread translated English, and keeps no mark (the #386 review)', function () {
+    Cx::editor([ContentPermissions::POPUP_MANAGE]);
+    $popup = Cx::popup();
+    app(SchedulePopupHandler::class)->handle(new SchedulePopup($popup, 1));
+    $save = fn (bool $read) => app(SavePopupHandler::class)->handle(new SavePopup($popup, Fx::storeId('sa'), 2, 'Welcome', 'أهلًا بك', 'Welcome back', 'خصم على أول طلب', 'A discount', 'تسوق', 'Shop', '/categories/kitchens', null, null, null, null, translated: true, read: $read));
+
+    expect(refusedUnread(fn () => $save(false)))->toBeTrue()
+        ->and(DB::table('content.popups')->where('id', $popup)->value('title_en'))->toBe('Welcome')
+        ->and(unreadMarks('POPUP'))->toBe(0);
+
+    $save(true);
+    expect(DB::table('content.popups')->where('id', $popup)->value('title_en'))->toBe('Welcome back');
 });

@@ -23,16 +23,18 @@ const SHARED_PAGE_PROPS = [
 ];
 
 /**
- * Every page resource: the data classes a controller hands whole to a page, named `...Page`.
+ * Every page resource: the data classes a controller hands whole to a page, named `...Page` - or `...PageData`, as
+ * Content's are (PR 8: a campaign's page carried its linked theme as `theme`, the shared light-or-dark choice, and the
+ * panel's theme switch broke on it with nothing to say why).
  *
  * @return list<class-string>
  */
 function pageResourceClasses(): array
 {
     $classes = [];
+    $resources = dirname(__DIR__, 2).'/src/Modules/*/Presentation/Http/Resource';
 
-    // `...Page` and `...PageData` alike: Content's pages name theirs the second way.
-    foreach ([...(glob(dirname(__DIR__, 2).'/src/Modules/*/Presentation/Http/Resource/*Page.php') ?: []), ...(glob(dirname(__DIR__, 2).'/src/Modules/*/Presentation/Http/Resource/*PageData.php') ?: [])] as $file) {
+    foreach ([...(glob("{$resources}/*Page.php") ?: []), ...(glob("{$resources}/*PageData.php") ?: [])] as $file) {
         $module = basename(dirname($file, 4));
         /** @var class-string $class */
         $class = "Modules\\{$module}\\Presentation\\Http\\Resource\\".basename($file, '.php');
@@ -52,7 +54,9 @@ it('finds the page resources to check', function () {
         ->toContain('Modules\\Access\\Presentation\\Http\\Resource\\StaffMemberPage')
         ->toContain('Modules\\Access\\Presentation\\Http\\Resource\\InviteStaffPage')
         // Content names its page resources `...PageData` (plan PR 10's trap).
-        ->toContain('Modules\\Content\\Presentation\\Http\\Resource\\BannersPageData');
+        ->toContain('Modules\\Content\\Presentation\\Http\\Resource\\BannersPageData')
+        ->toContain('Modules\\Content\\Presentation\\Http\\Resource\\CampaignFormPageData')
+        ->toContain('Modules\\Content\\Presentation\\Http\\Resource\\ThemeFormPageData');
 });
 
 it('gives no page a field named like one every page already carries', function () {
