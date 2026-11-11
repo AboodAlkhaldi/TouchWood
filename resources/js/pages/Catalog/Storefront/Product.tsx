@@ -276,7 +276,7 @@ function ProductPrice({ variant, wholesale, wholesaleMinimum }: { variant: ShopV
         return null;
     }
 
-    // On a sale, the old price struck through beside it, as a retail size's (amendment 43): the band's own, or the size's.
+    // On a sale, the old price struck through beside it, as a retail size's (amendment 45): the band's own, or the size's.
     const band = only.bands.filter((each) => each.minQuantity <= Math.max(1, wholesaleMinimum ?? 1)).pop() ?? null;
 
     return (

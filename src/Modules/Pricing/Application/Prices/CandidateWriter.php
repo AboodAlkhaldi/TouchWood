@@ -34,7 +34,7 @@ use Shared\Domain\ValueObject\StoreId;
  * the change's transaction, then tells Catalog the price a card shows (§1.10): what one piece costs
  * now on a retail line, and the retail price before it only while the price now is lower — and the
  * least one piece costs now on a wholesale line (catalog.md amendment 35, the card's "Wholesale from"),
- * with its normal price while an offer takes it lower (amendment 43, struck through beside it).
+ * with its normal price while an offer takes it lower (amendment 45, struck through beside it).
  *
  * In chunks, so the repair of a whole store stays under PostgreSQL's 65,535 parameters a statement
  * (as Catalog's listing rows): a few reads and writes a chunk, however many sizes.
@@ -219,7 +219,7 @@ final readonly class CandidateWriter
      * and from each band's start — the price only changes there — the cheapest kept. And the least of the
      * line's normal prices at those quantities — its band, or the retail price (§1.6 step 5) — kept as
      * `before` only while the price now is lower: a sale, discount or campaign took it there, never a band
-     * alone (catalog.md amendment 43). None: not priced.
+     * alone (catalog.md amendment 45). None: not priced.
      *
      * @param  list<Candidate>  $candidates
      * @return array{now: Money, before: ?Money}|null

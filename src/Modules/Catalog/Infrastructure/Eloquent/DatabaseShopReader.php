@@ -795,7 +795,7 @@ final readonly class DatabaseShopReader implements ShopReader
      * buy — a retail one — or, for a company or a guest, the first on sale here (§2.2: companies and
      * guests share a card); its labels, read with it; its side's "Last pieces" (amendment 16(h)); and its
      * price (amendment 35): retail for every viewer — the retail card size's, and "From" — and "Wholesale
-     * from" for a company or a guest, with its price before while an offer lowers it (amendment 43).
+     * from" for a company or a guest, with its price before while an offer lowers it (amendment 45).
      *
      * @param  array<array-key, mixed>  $rows  listing rows, each with its labels
      * @return list<ProductCard>
@@ -827,7 +827,7 @@ final readonly class DatabaseShopReader implements ShopReader
                     self::minor($row->retail_from_minor),
                     // Never an individual's; a guest's only where companies may buy it (its category open to them).
                     $individual || ! (bool) ($row->for_companies ?? true) ? null : self::minor($row->wholesale_from_minor),
-                    // Its normal price, crossed out beside it while an offer takes it lower (amendment 43).
+                    // Its normal price, crossed out beside it while an offer takes it lower (amendment 45).
                     self::minor($row->wholesale_from_before_minor),
                 ),
             );

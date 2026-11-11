@@ -145,7 +145,7 @@ describe('a card', function () {
             ->where('products.0.price.before', null)
             ->where('products.0.price.from.minor', 25_00)
             ->where($wholesaleFrom === null ? 'products.0.price.wholesaleFrom' : 'products.0.price.wholesaleFrom.minor', $wholesaleFrom)
-            // A band is a wholesale line's normal price, not a reduction: nothing struck (amendment 43).
+            // A band is a wholesale line's normal price, not a reduction: nothing struck (amendment 45).
             ->where('products.0.price.wholesaleFromBefore', null);
 
         // A guest: the least a piece costs on a wholesale line of any wholesale size — 80 cm's band from 5.
@@ -204,7 +204,7 @@ describe('a card', function () {
             app(AddSaleHandler::class)->handle(new AddSale(Fx::storeId('sa'), null, [$eighty], null, '18.00', null, null));
         });
 
-        // "Wholesale from" 18.00 is the sale under 80 cm's band of 20.00: that band struck through (amendment 43).
+        // "Wholesale from" 18.00 is the sale under 80 cm's band of 20.00: that band struck through (amendment 45).
         get($url)->assertInertia(fn (AssertableInertia $page) => $page
             ->where('products.0.price.now.minor', 24_00)
             ->where('products.0.price.before.minor', 30_00)
@@ -213,7 +213,7 @@ describe('a card', function () {
             ->where('products.0.price.wholesaleFromBefore.minor', 20_00));
     });
 
-    // Amendment 43 (owner, 2026-11-11): a wholesale-only sale shows its old price struck through.
+    // Amendment 45 (owner, 2026-11-11): a wholesale-only sale shows its old price struck through.
     it('strikes "Wholesale from" through only while an offer takes the card\'s least wholesale price lower', function () {
         $p = shopPricesProduct();
         [, $eighty, $hundred] = $p['sizes'];
@@ -323,7 +323,7 @@ describe('a product page', function () {
             ->where('sections', fn ($sections): bool => array_key_exists('pricing.wholesale', shopPricesSections($sections)) && shopPricesBands($sections) === null));
     });
 
-    // Amendment 43 (owner, 2026-11-11): a wholesale-only size on sale shows its old price struck through.
+    // Amendment 45 (owner, 2026-11-11): a wholesale-only size on sale shows its old price struck through.
     it('gives each wholesale price its normal price while an offer takes it lower, and none for a band alone', function () {
         $p = shopPricesProduct();
         [, $eighty, $hundred] = $p['sizes'];

@@ -11,7 +11,7 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 /**
  * A size on a wholesale line, as the shop's product page shows it (catalog.md amendment 35): `price`,
  * what one piece costs now on a wholesale line below any band (its base price, or a sale or discount
- * below it), `priceBefore`, its base price only while `price` is lower (catalog.md amendment 43), and
+ * below it), `priceBefore`, its base price only while `price` is lower (catalog.md amendment 45), and
  * its `bands`, lowest start first — none when it has none. Without VAT.
  */
 #[TypeScript]

@@ -104,7 +104,7 @@ it('draws a guest the card\'s prices, each size\'s price and sale, and the whole
     expect(browserUntil($page, "!document.querySelector('[data-test=\"bands\"]')"))->toBeTrue();
 });
 
-// Amendment 43 (owner, 2026-11-11): a wholesale-only sale shows its old price struck through, as a retail sale.
+// Amendment 45 (owner, 2026-11-11): a wholesale-only sale shows its old price struck through, as a retail sale.
 it('strikes a wholesale-only size\'s old price through on a sale, on its card and its page, in both languages and on a phone', function () {
     // 100 cm, wholesale only from 5: 40.00, bands from 5 at 35.00 and from 20 at 32.00; on sale at 30.00.
     $category = Px::category('Kitchens');

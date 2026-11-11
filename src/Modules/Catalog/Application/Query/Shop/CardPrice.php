@@ -10,7 +10,7 @@ namespace Modules\Catalog\Application\Query\Shop;
  * lower) of the card's retail size, and `$from`, the lowest `$now` among the retail sizes, only when they
  * differ — and a company or a guest also `$wholesaleFrom`, the least one piece costs on a wholesale line
  * of any size that sells wholesale, where companies may buy it, and `$wholesaleFromBefore`, what it would
- * be with no sale, discount or campaign, only while `$wholesaleFrom` is lower (amendment 43). A part with
+ * be with no sale, discount or campaign, only while `$wholesaleFrom` is lower (amendment 45). A part with
  * no price is null; a card with none has no price.
  */
 final readonly class CardPrice

@@ -106,7 +106,7 @@ describe('the listing\'s facts', function () {
             ->and(fn () => new ListingPrice(Money::of(100, 'SAR'), Money::of(200, 'EGP')))->toThrow(InvalidArgumentException::class);
     });
 
-    // Amendment 43 (owner, 2026-11-11): a wholesale price on sale is struck through beside its normal price.
+    // Amendment 45 (owner, 2026-11-11): a wholesale price on sale is struck through beside its normal price.
     it('takes a wholesale price before only with a wholesale price, above it, in its currency, and keeps it', function () {
         $sar = static fn (int $minor): Money => Money::of($minor, 'SAR');
 

@@ -13,7 +13,7 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
  * store's currency: the retail price `now` and `before` (only while now is lower), `from` the lowest
  * retail price among its sizes (only when they differ), and `wholesaleFrom` — a company's and a guest's
  * only — the least one piece costs on a wholesale line, and `wholesaleFromBefore`, its price with no sale,
- * discount or campaign, only while `wholesaleFrom` is lower (amendment 43). A part with no price is null.
+ * discount or campaign, only while `wholesaleFrom` is lower (amendment 45). A part with no price is null.
  */
 #[TypeScript]
 final class ShopCardPriceData extends Data

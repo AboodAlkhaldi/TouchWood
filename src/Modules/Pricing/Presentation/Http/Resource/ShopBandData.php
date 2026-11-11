@@ -12,7 +12,7 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
  * A wholesale band as the shop's product page shows it (catalog.md amendment 35): from `minQuantity`
  * pieces on a wholesale line, one piece costs `unit` now — the band, or a sale or discount below it —
  * and `unitBefore`, the band (or the retail price, when lower) only while a sale, discount or campaign
- * takes `unit` below it (catalog.md amendment 43), without VAT, written by the server in the store's currency.
+ * takes `unit` below it (catalog.md amendment 45), without VAT, written by the server in the store's currency.
  */
 #[TypeScript]
 final class ShopBandData extends Data

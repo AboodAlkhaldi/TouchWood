@@ -35,7 +35,7 @@ use stdClass;
  *   retail for individuals. And the cards' "From" and "Wholesale from" (amendment 35): the lowest
  *   price now among the retail sizes, only when they differ, and the least a piece costs on a
  *   wholesale line among the wholesale sizes — with, while an offer takes it lower, the least of their
- *   normal prices, crossed out beside it (amendment 43).
+ *   normal prices, crossed out beside it (amendment 45).
  * - **The search reads** the names (A), the search words (B) and the names of its category and of
  *   every category above it (C), **in both languages on every page** (amendment 5(f), (g)), each as
  *   search compares words (handoff §5.2) — never the brand, the code or the description (5(c), (d)).
@@ -234,7 +234,7 @@ final readonly class DatabaseListingRows implements ListingRows
                 $wholesale = array_values(array_filter($variants, static fn (array $variant): bool => $variant['wholesale'] && $variant['wholesaleFrom'] !== null));
                 $wholesaleFrom = array_values(array_filter(array_column($wholesale, 'wholesaleFrom'), is_int(...)));
                 // Each wholesale size's normal price — before any sale, discount or campaign — and the card's,
-                // the least of them: what "Wholesale from" would say with no offer (amendment 43).
+                // the least of them: what "Wholesale from" would say with no offer (amendment 45).
                 $wholesaleNormal = array_map(static fn (array $variant): int => $variant['wholesaleFromBefore'] ?? (int) $variant['wholesaleFrom'], $wholesale);
                 $wholesaleBefore = $wholesaleFrom === [] || $wholesaleNormal === [] || min($wholesaleNormal) <= min($wholesaleFrom) ? null : min($wholesaleNormal);
                 $sides = [
@@ -254,7 +254,7 @@ final readonly class DatabaseListingRows implements ListingRows
                     // "From" — only when the retail sizes' prices differ — and "Wholesale from" (amendment 35).
                     'retail_from_minor' => $retailPrices !== [] && count(array_unique($retailPrices)) > 1 ? min($retailPrices) : null,
                     'wholesale_from_minor' => $wholesaleFrom === [] ? null : min($wholesaleFrom),
-                    // Crossed out beside it only while it is lower (amendment 43).
+                    // Crossed out beside it only while it is lower (amendment 45).
                     'wholesale_from_before_minor' => $wholesaleBefore,
                 ];
 

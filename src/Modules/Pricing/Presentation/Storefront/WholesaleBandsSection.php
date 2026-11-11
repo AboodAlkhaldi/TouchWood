@@ -26,7 +26,7 @@ use Shared\Domain\ValueObject\Money;
  * each of the page's sizes that sells wholesale (as Catalog read them, in the product's order) and is
  * priced: what one piece costs now on a wholesale line below any band, and its bands — from each band's
  * start, what a piece costs there now (the band, or a sale or discount below it) — each with its normal
- * price while an offer takes it lower, struck through (amendment 43). Without VAT. Catalog's
+ * price while an offer takes it lower, struck through (amendment 45). Without VAT. Catalog's
  * own size price is retail only, so a size sold wholesale only is priced here alone. One read of the
  * sizes' candidates, none when no size sells wholesale; the store from Platform's cache.
  */
@@ -58,7 +58,7 @@ final readonly class WholesaleBandsSection implements ShopProductSection
         $sizes = [];
 
         // The normal price - the band, or the retail price - only while a sale, discount or campaign takes
-        // the price below it, so a band alone is never shown as a reduction (catalog.md amendment 43).
+        // the price below it, so a band alone is never shown as a reduction (catalog.md amendment 45).
         $before = static fn (ResolvedPrice $price): ?Money => $price->unit->compareTo($price->listUnit) < 0 ? $price->listUnit : null;
 
         foreach ($visit->wholesaleSizes as $variantId) {

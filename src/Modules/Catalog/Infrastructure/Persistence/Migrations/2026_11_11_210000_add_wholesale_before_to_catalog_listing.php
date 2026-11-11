@@ -6,7 +6,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
 /*
-| catalog.md amendment 43 (owner, 2026-11-11): a wholesale price on sale shows its old price struck through.
+| catalog.md amendment 45 (owner, 2026-11-11): a wholesale price on sale shows its old price struck through.
 |
 | - **`store_variant_facts.wholesale_from_before_minor`**: pushed by Pricing with each price (`ListingPrice`), the
 |   least a piece would cost on a wholesale line with no sale, discount or campaign, only while

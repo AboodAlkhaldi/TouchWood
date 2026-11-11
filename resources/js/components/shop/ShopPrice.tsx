@@ -44,7 +44,7 @@ export function ShopPrice({ now, before = null, className }: { now: MoneyData; b
 /**
  * A card's price (amendment 35(a)): "From" the lowest where its sizes differ, else today's with any sale; a guest's or a
  * company's "Wholesale from" under it - on a sale, its old price struck through and its percent off, as the retail price's
- * (amendment 43).
+ * (amendment 45).
  */
 export function CardPrice({ price }: { price: ShopCardPriceData | null }) {
     const t = useTranslator();

@@ -169,7 +169,7 @@ For a line — a size, its sale mode, a quantity — in a store, at a moment:
    discount ceiling (handoff §11.3) measures real reductions only. A card crosses out the retail price
    (it shows retail-line prices, §1.10), and its "Wholesale from" crosses out this normal price while a
    sale, discount or campaign takes the wholesale line below it — never a band alone (catalog.md
-   amendment 43, owner 2026-11-11).
+   amendment 45, owner 2026-11-11).
 6. **When it stops applying**: the end of the winning sale or discount — or the start of an "always
    wins" one scheduled on the size, which would replace it — or null.
 
@@ -241,7 +241,7 @@ the size sells wholesale. On the product page, Pricing's section `pricing.wholes
 (`Presentation/Storefront/WholesaleBandsSection`) shows a company or a guest each wholesale size's
 bands: from each band's start, what a piece costs there now, without VAT; never an individual.
 
-**And the wholesale price before an offer** (catalog.md amendment 43, owner 2026-11-11): with
+**And the wholesale price before an offer** (catalog.md amendment 45, owner 2026-11-11): with
 `wholesaleFrom`, `ListingPrice.wholesaleFromBefore` — the least the line's normal price (§1.6 step 5:
 its band, else the retail price) comes to at the same quantities, **only while `wholesaleFrom` is
 lower**, so a sale, category discount or campaign shows the old price struck through and a band alone
