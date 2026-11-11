@@ -66,8 +66,10 @@ final readonly class RepriceForDiscounts
     }
 
     /**
-     * The ceiling changed in a wired store: its fixed-amount discounts reach or skip sizes again
-     * (sync.md §9.3 #17, #20). Elsewhere the ceiling never decides what a discount reaches.
+     * The ceiling changed: in a wired store its fixed-amount discounts reach or skip sizes again (sync.md
+     * §9.3 #17, #20) - elsewhere the ceiling never decides what a discount reaches; and in every store a
+     * campaign's fixed prices do (pricing.md §9.6 #5, amendment 2): a run left past the ceiling in a store no
+     * longer wired takes its sizes back once the ceiling is raised.
      */
     public function ceilingChanged(SettingChanged $event): void
     {
@@ -76,18 +78,13 @@ final readonly class RepriceForDiscounts
         }
 
         $store = StoreId::fromString($event->storeId);
-
-        if (! $this->ceiling->skipsPastCeiling($store)) {
-            return;
-        }
-
         $now = CarbonImmutable::now()->toDateTimeImmutable();
-        $fixed = array_values(array_filter(
+        // A campaign's fixed prices, in any store (pricing.md §9.6 #5, amendment 2).
+        $campaigns = array_values(array_filter($this->campaigns->notEnded($store, $now), static fn (Campaign $campaign): bool => $campaign->hasFixedPrices()));
+        $fixed = ! $this->ceiling->skipsPastCeiling($store) ? [] : array_values(array_filter(
             $this->discounts->notEnded($store, $now),
             static fn (CategoryDiscount $discount): bool => $discount->amount !== null,
         ));
-        // A campaign's fixed prices the same way (pricing.md §9.6 #5).
-        $campaigns = array_values(array_filter($this->campaigns->notEnded($store, $now), static fn (Campaign $campaign): bool => $campaign->hasFixedPrices()));
 
         if ($fixed === [] && $campaigns === []) {
             return;

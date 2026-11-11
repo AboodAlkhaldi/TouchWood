@@ -918,7 +918,7 @@ describe('a wired store (§9.6 #5; sync.md §9.5 amendment 2)', function () {
             ->and(campaignPrices()->skippedSizes(campaignSa(), $run))->toBe([]);
     });
 
-    it('judges past the ceiling by one rule in both kinds of store: the preview\'s sizes are the sizes refused, or skipped once wired (§9.6 #4-5)', function () {
+    it('judges past the ceiling by one rule in both kinds of store: the preview\'s sizes are the sizes refused, and the sizes skipped in every store (§9.6 #4-5, amendment 2)', function () {
         $shop = campaignShop();
         $deep = $shop['inTop']['variants'][0];
         $fine = $shop['inChild']['variants'][0];
@@ -959,6 +959,16 @@ describe('a wired store (§9.6 #5; sync.md §9.5 amendment 2)', function () {
         expect($pastCeiling($preview()))->toBe([$deep])
             ->and(campaignPrices()->skippedSizes(campaignSa(), $run))->toBe([$deep])
             ->and(campaignUnit($fine))->not->toBeNull();
+
+        // No longer wired, the sizes priced again: the same size named, the same size skipped (amendment 2).
+        campaignWired(false);
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        app(UpdateSettingHandler::class)->handle(new UpdateSetting(PricingSettings::MAX_DISCOUNT_PERCENT, 'sa', 35));
+
+        expect($pastCeiling($preview()))->toBe([$deep])
+            ->and(campaignPrices()->skippedSizes(campaignSa(), $run))->toBe([$deep])
+            ->and(campaignUnit($deep))->toBe(10000)
+            ->and(campaignUnit($fine))->toBe(9000);
     });
 
     it('reads the sizes a run skips in one query', function () {
@@ -975,7 +985,7 @@ describe('a wired store (§9.6 #5; sync.md §9.5 amendment 2)', function () {
             ->and($skipped)->toEqualCanonicalizing([$shop['inTop']['variants'][0], $shop['outside']['variants'][0]]);
     });
 
-    it('keeps no skip once the store is no longer wired: the size priced again takes the run\'s price', function () {
+    it('keeps skipping the size once the store is no longer wired, never selling past the ceiling, until the price allows (amendment 2)', function () {
         $shop = campaignShop();
         $size = $shop['inTop']['variants'][0];
         campaignWired();
@@ -984,14 +994,25 @@ describe('a wired store (§9.6 #5; sync.md §9.5 amendment 2)', function () {
 
         expect(campaignPrices()->skippedSizes(campaignSa(), $run))->toBe([$size]);
 
-        // Unwired: a fixed price past the ceiling is staff's to mend now - the next pricing of the size
-        // writes its skips again, none kept for a store not wired.
+        // Unwired, the size priced again: 60 of 100 is still 40% off, past a ceiling raised to 35% - the run skips
+        // the size in a store not wired too (owner, 2026-11-12), and the shop sells it at its retail price.
         campaignWired(false);
-        // 60 of 85 is 29.4% off: within the ceiling, so staff may set it.
+        Event::fake([CampaignReachChecked::class]);
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        app(UpdateSettingHandler::class)->handle(new UpdateSetting(PricingSettings::MAX_DISCOUNT_PERCENT, 'sa', 35));
+
+        expect(campaignPrices()->skippedSizes(campaignSa(), $run))->toBe([$size])
+            ->and(campaignUnit($size))->toBe(10000)
+            ->and(campaignKind($size))->not->toBe(PriceKind::Campaign);
+
+        // 60 of 85 is 29.4% off: within the ceiling, so staff may set it, and the run takes the size back.
         Rx::set('sa', [$size => '85']);
 
         expect(campaignPrices()->skippedSizes(campaignSa(), $run))->toBe([])
             ->and(DB::table('pricing.campaign_skips')->count())->toBe(0)
             ->and(campaignUnit($size))->toBe(6000);
+
+        // No Sync to tell in a store not wired: unwiring closed its entries (sync.md §1.8).
+        Event::assertNotDispatched(CampaignReachChecked::class);
     });
 });

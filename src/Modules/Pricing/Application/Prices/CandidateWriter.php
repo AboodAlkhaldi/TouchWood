@@ -82,12 +82,17 @@ final readonly class CandidateWriter
         // In a wired store a fixed amount never goes deeper than the ceiling: where the provider's price
         // would let it, it skips the size (sync.md §9.3 #17). Elsewhere such a price is refused (§1.12).
         // Asked only when a discount or a run is there or changed: any other price costs no more.
-        $isWired = ($discounts !== [] || $discountsChanged || $campaigns !== [] || $campaignsChanged) && $this->ceilingCheck->skipsPastCeiling($store);
+        $campaignsSeen = $campaigns !== [] || $campaignsChanged;
+        $isWired = ($discounts !== [] || $discountsChanged || $campaignsSeen) && $this->ceilingCheck->skipsPastCeiling($store);
         $wired = $isWired && ($discounts !== [] || $discountsChanged);
-        // A campaign skips a size the provider's price takes it past the ceiling on, and rejoins it once the
-        // price allows (§9.6 #5): its skips are written again with the size's candidates.
-        $campaignsWired = $isWired && ($campaigns !== [] || $campaignsChanged);
-        $ceiling = ($discounts !== [] || $campaigns !== []) && $isWired ? $this->ceilingCheck->ceiling($store) * 100 : PHP_INT_MAX;
+        $campaignsWired = $isWired && $campaignsSeen;
+        // A campaign skips a size it would take past the ceiling **in every store, wired or not** (§9.6 amendment
+        // 2, owner 2026-11-12), as its preview judges it, and rejoins it once the price allows: its skips are
+        // written again with the size's candidates. A store not wired still refuses such a run on saving (§9.6
+        // #4); one left so - a store no longer wired - skips the size, never sells past the ceiling.
+        $limit = ($discounts !== [] && $isWired) || $campaigns !== [] ? $this->ceilingCheck->ceiling($store) * 100 : PHP_INT_MAX;
+        $ceiling = $discounts !== [] && $isWired ? $limit : PHP_INT_MAX;
+        $campaignCeiling = $campaigns !== [] ? $limit : PHP_INT_MAX;
         $skipped = [];
         $campaignsSkipped = [];
 
@@ -157,8 +162,8 @@ final readonly class CandidateWriter
 
                     // Every run reaching the size, on its lines (§9.6 #2, #7): a percentage worked out on
                     // today's retail price, so a retail change re-prices it; never "always wins" - a sale or
-                    // discount marked so beats it (§9.6 #3). In a wired store one the provider's price takes
-                    // past the ceiling skips the size, named for Sync (§9.6 #5).
+                    // discount marked so beats it (§9.6 #3). One past the ceiling skips the size in every store
+                    // (§9.6 #5, amendment 2), named for Sync where a provider's price took it there.
                     foreach ($campaigns as $campaign) {
                         $priced = CampaignCoverage::priceOn($campaign, $variantId, $facts[$variantId] ?? null, $retail[$variantId]);
 
@@ -168,7 +173,7 @@ final readonly class CandidateWriter
                             continue;
                         }
 
-                        if ($campaignsWired && $priced['depth'] > $ceiling) {
+                        if ($priced['depth'] > $campaignCeiling) {
                             $campaignsSkipped[] = ['runId' => $campaign->runId, 'variantId' => $variantId];
 
                             continue;
@@ -202,10 +207,11 @@ final readonly class CandidateWriter
             $this->events->dispatch(new DiscountReachChecked((string) Str::uuid(), $store->value, $variantIds, $skipped, CarbonImmutable::now()));
         }
 
-        // What a run skips now, kept for its page (`CampaignPrices::skippedSizes`) - none in a store not
-        // wired, or no longer - and Sync told, so its entry closes the moment the size rejoins (the build's
-        // pick for sync.md amendment 2 (b): Pricing's `CampaignReachChecked`, as `DiscountReachChecked`).
-        if (($campaigns !== [] || $campaignsChanged) && $variantIds !== []) {
+        // What a run skips now, kept for its page (`CampaignPrices::skippedSizes`) in every store (§9.6
+        // amendment 2), and, in a wired store, Sync told, so its entry closes the moment the size rejoins (the
+        // build's pick for sync.md amendment 2 (b): Pricing's `CampaignReachChecked`, as `DiscountReachChecked`).
+        // A store not wired has no entry to close: unwiring closes them all (sync.md §1.8).
+        if ($campaignsSeen && $variantIds !== []) {
             $this->campaigns->replaceSkips($store, $variantIds, $campaignsSkipped);
 
             if ($campaignsWired) {

@@ -96,7 +96,7 @@ return [
         'amount_rule' => 'A price above 0 in :currency.',
         'ceiling' => 'The store\'s discount ceiling: :percent%',
         'over_ceiling' => 'Deeper than the ceiling of :ceiling% on some sizes. Schedule refuses it.',
-        'skipped_now' => 'Skipped now: the provider\'s price takes these sizes past the ceiling.',
+        'skipped_now' => 'Skipped now: at today\'s price, these sizes would go past the store\'s ceiling.',
         'unsaved' => 'Prices not saved yet.',
         'save_first' => 'Save the prices typed in :stores first.',
     ],

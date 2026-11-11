@@ -350,7 +350,7 @@ Each row is an amendment to that module's spec; the module's builder is asked fi
 | `save(StoreId, string $runId, CampaignPriceSetDto, $start, $end): void` | Called only at Schedule (§1.7 #14). Writes or replaces the run's prices and their candidates of kind `CAMPAIGN`, inside the caller's transaction, under that one store's pricing lock (§1.7 #15), timed tasks at start and end |
 | `changeEnd(StoreId, string $runId, DateTimeImmutable $end): void` · `endNow(StoreId, string $runId): void` · `remove(StoreId, string $runId): void` | The run's life, §1.7 #8, #12 |
 | `read(StoreId, string $runId): ?CampaignPriceSetDto` · `productIds(StoreId, string $runId, ?string $after, int $limit)` | The page's form; the shop's campaign page (H7) |
-| `skippedSizes(StoreId, string $runId): list<string>` | The sizes the run skips now because a provider's price would take it past the ceiling (§1.7 #17), for W4b; one query (the build coordinator's pick, 2026-11-10) |
+| `skippedSizes(StoreId, string $runId): list<string>` | The sizes the run skips now because it would take them past the ceiling (§1.7 #17; in any store since pricing.md §9.6 amendment 2, §9.3e E24), for W4b; one query (the build coordinator's pick, 2026-11-10) |
 
 `CampaignPriceSetDto`: `lines` (`RETAIL`, `WHOLESALE`, `BOTH`; §1.7 #4) · `targets`: each `{kind: PRODUCT, SIZE, CATEGORY or BRAND, id, percentBp}` or `{kind: SIZE, id, amount: Money}` · `leftOut` product ids. **Pricing owes, in all:**
 
@@ -835,6 +835,8 @@ The build's picks where the text above leaves the detail open, marked so for the
 | E20 | A refusal naming sizes says whose store's they are (`errors.rows_store`), so only that store's Prices tab marks them | W4b |
 | E21 | Categories and brands as targets are searched and paged 20 at a time as products and sizes are | W4b |
 | E22 | A product linked to a post or project before is kept whatever it became - archived, a draft again, switched off - the shop showing only what it may (§1.1 rule 17); one deleted since is dropped on the next save, and only it (PR 8's second review) | W8, W9 |
+| E23 | W4's Offers count reads a **plain index** on Pricing's candidates (`source_id`, `kind`, `variant_id`), not a partial one: **the owner's choice (a), 2026-11-12** (pricing.md §9.6 amendment 1) | W4 |
+| E24 | **A run skips a size it would take past the ceiling in every store, wired or not** (owner, 2026-11-12, option (b); pricing.md §9.6 amendment 2): a run left past it in a store no longer wired skips the size rather than selling past the ceiling, and W4b lists the size as skipped there too; saving still refuses such a run in a store not wired (§1.7 Q2 (a)) | W4b |
 
 ### 9.4 Amendments other documents would need
 
