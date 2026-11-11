@@ -1,4 +1,5 @@
 import { TextareaField, TextField } from '@/components/Fields';
+import { isShopLink } from '@/components/content/links';
 import { TranslateButton, type Translation } from '@/components/content/translate';
 import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
@@ -24,37 +25,19 @@ type PairProps = {
     rows?: number;
     /** Typed marks (§1.2), sent to Translate block by block. */
     rich?: boolean;
+    /** Each box's own line under it, in place of the shared `helper`: a count of its characters. */
+    helpers?: { ar: string; en: string };
+    /** What each box falls back to when left blank, shown inside it. */
+    placeholders?: { ar: string; en: string };
 };
 
-/**
- * A link as the server takes one (Words::link, RichText::link): a full https:// address with a host, or a page of the shop -
- * one line, no backslash, no other scheme, never `//`. Checked as it is typed; the server checks it again.
- */
-export function isShopLink(value: string): boolean {
-    const address = value.trim();
-
-    if (address === '' || [...address].length > 2000 || address.includes('\\') || /[\s\p{Cc}\p{Cf}]/u.test(address)) {
-        return false;
-    }
-
-    if (address.toLowerCase().startsWith('https://')) {
-        try {
-            return new URL(address).hostname !== '';
-        } catch {
-            return false;
-        }
-    }
-
-    const page = `/${address.replace(/^\/+/, '')}`;
-
-    return !address.startsWith('//') && !page.includes(':') && !page.includes('//');
-}
+export { isShopLink };
 
 /** A link box's own rule, for `use-checks`: its sentence's key when the link is not one the server takes. */
 export const linkRule = (text: string): string | null => (isShopLink(text) ? null : 'content::admin_shared.link_rule');
 
 /** Arabic and English side by side, stacked on a phone, each in its own direction, Translate under the English. */
-export function PairFields({ name, labelAr, labelEn, helper, ar, en, onChange, errors, checks, translation, rows, rich = false }: PairProps) {
+export function PairFields({ name, labelAr, labelEn, helper, ar, en, onChange, errors, checks, translation, rows, rich = false, helpers, placeholders }: PairProps) {
     const t = useTranslator();
     const marked = translation.marked.has(name);
     const note = translation.note(name);
@@ -69,7 +52,8 @@ export function PairFields({ name, labelAr, labelEn, helper, ar, en, onChange, e
                 dir="rtl"
                 lang="ar"
                 label={labelAr}
-                helper={helper}
+                helper={helpers?.ar ?? helper}
+                placeholder={placeholders?.ar}
                 rows={rows}
                 check={checks.box(`${name}_ar`, errors[`${name}_ar`])}
                 value={ar}
@@ -82,7 +66,8 @@ export function PairFields({ name, labelAr, labelEn, helper, ar, en, onChange, e
                     dir="ltr"
                     lang="en"
                     label={labelEn}
-                    helper={marked ? t('content::admin_shared.translate.marked') : helper}
+                    helper={marked ? t('content::admin_shared.translate.marked') : (helpers?.en ?? helper)}
+                    placeholder={placeholders?.en}
                     rows={rows}
                     check={checks.box(english, errors[english])}
                     value={en}

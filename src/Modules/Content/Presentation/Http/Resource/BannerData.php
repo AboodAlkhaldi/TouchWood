@@ -30,6 +30,8 @@ final class BannerData extends Data
         public ?string $endsAt,
         public array $images,
         public int $version,
+        /** Translate filled its English and nobody has ticked that they read it (content.md §1.3, P14). */
+        public bool $translationUnread = false,
     ) {}
 
     /**
@@ -55,6 +57,7 @@ final class BannerData extends Data
             $text('ends_at'),
             $images,
             (int) ($banner['version'] ?? 0),
+            ($banner['translation_unread'] ?? false) === true,
         );
     }
 }

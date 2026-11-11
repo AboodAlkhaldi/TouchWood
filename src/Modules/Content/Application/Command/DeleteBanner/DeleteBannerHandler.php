@@ -9,11 +9,13 @@ use Modules\Content\Application\ContentAccess;
 use Modules\Content\Application\ContentAudit;
 use Modules\Content\Application\ContentCache;
 use Modules\Content\Application\ContentPermissions;
+use Modules\Content\Application\TranslationMarks;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Domain\Exception\NotDeletable;
 use Modules\Content\Domain\Repository\Banners;
 use Modules\Content\Domain\Repository\ContentLocks;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Unauthorized;
 
@@ -32,6 +34,7 @@ final readonly class DeleteBannerHandler
         private ConnectionInterface $db,
         private PlatformApi $platform,
         private ContentCache $cache,
+        private TranslationMarks $marks,
     ) {}
 
     /**
@@ -52,6 +55,7 @@ final readonly class DeleteBannerHandler
             }
 
             $this->banners->delete($was->id);
+            $this->marks->forget(UnreadTranslations::BANNER, $was->id);
             $rest = array_values(array_filter($this->banners->inPlacement($store->id, $was->placement), static fn ($banner): bool => $banner->id !== $was->id));
             $this->banners->reorder(array_map(static fn ($banner): string => $banner->id, $rest));
             $this->platform->recordAudit(ContentAudit::entry('content.banner.deleted', 'content.banner', $was->id, $store->id, ContentAudit::diff($was->fields(), [])));

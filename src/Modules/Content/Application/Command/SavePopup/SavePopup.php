@@ -26,5 +26,7 @@ final readonly class SavePopup
         public ?string $mediaId,
         public ?string $startsAt,
         public ?string $endsAt,
+        public bool $translated = false,
+        public bool $read = false,
     ) {}
 }

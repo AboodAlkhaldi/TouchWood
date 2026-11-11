@@ -9,10 +9,12 @@ use Modules\Content\Application\ContentAccess;
 use Modules\Content\Application\ContentAudit;
 use Modules\Content\Application\ContentCache;
 use Modules\Content\Application\ContentPermissions;
+use Modules\Content\Application\TranslationMarks;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Domain\Repository\ContentLocks;
 use Modules\Content\Domain\Repository\HomeSections;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Shared\Application\Unauthorized;
@@ -32,6 +34,7 @@ final readonly class RemoveHomeSectionHandler
         private ConnectionInterface $db,
         private PlatformApi $platform,
         private ContentCache $cache,
+        private TranslationMarks $marks,
     ) {}
 
     /**
@@ -47,6 +50,7 @@ final readonly class RemoveHomeSectionHandler
             $this->locks->lock($store->id, ContentLocks::HOME);
             $section = $this->sections->lock($command->sectionId) ?? throw new ContentNotFound;
             $this->sections->delete($section->id);
+            $this->marks->forget(UnreadTranslations::HOME_SECTION, $section->id);
             $rest = array_values(array_filter($this->sections->ofStore($store->id), static fn ($other): bool => $other->id !== $section->id));
             $this->sections->reorder(array_map(static fn ($other): string => $other->id, $rest));
             $this->platform->recordAudit(ContentAudit::entry('content.home_section.removed', 'content.home_section', $section->id, $store->id, AuditChanges::none()->changed('type', $section->type->value, null)));

@@ -9,6 +9,7 @@ use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\Query\ScreenReads;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Repository\FrameItems;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Shared\Application\Unauthorized;
 
 /**
@@ -24,6 +25,7 @@ final readonly class BarsHandler
         private ContentAccess $access,
         private FrameItems $frame,
         private ScreenReads $reads,
+        private UnreadTranslations $marks,
     ) {}
 
     /**
@@ -36,7 +38,7 @@ final readonly class BarsHandler
         $store = $this->access->authorize(self::PERMISSION, $storeId);
         $bar = $this->frame->bar($store->id);
 
-        return [...$bar->fields(), 'version' => $bar->version];
+        return [...$bar->fields(), 'version' => $bar->version, 'translation_unread' => $this->marks->has(UnreadTranslations::BAR, $store->id)];
     }
 
     /**

@@ -13,6 +13,7 @@ use Modules\Content\Application\ContentImages;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\EditCheck;
 use Modules\Content\Application\Moments;
+use Modules\Content\Application\TranslationMarks;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Domain\Exception\InvalidContentInput;
@@ -20,6 +21,7 @@ use Modules\Content\Domain\Model\HomeLogo;
 use Modules\Content\Domain\Model\HomeSection;
 use Modules\Content\Domain\Model\HomeSectionType;
 use Modules\Content\Domain\Repository\HomeSections;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Modules\Content\Domain\Service\HomeSectionSettings;
 use Modules\Content\Domain\ValueObject\Words;
 use Modules\Platform\Public\Contracts\PlatformApi;
@@ -43,6 +45,7 @@ final readonly class FillHomeSectionHandler
         private ConnectionInterface $db,
         private PlatformApi $platform,
         private ContentCache $cache,
+        private TranslationMarks $marks,
     ) {}
 
     /**
@@ -68,6 +71,7 @@ final readonly class FillHomeSectionHandler
                 $this->images->requireReady(ShowHomeSectionHandler::logoBoxes($logos));
             }
 
+            $this->marks->saved(UnreadTranslations::HOME_SECTION, $section->id, $store->id, $command->translated, $command->read, $section->isVisible);
             $before = $this->sections->logos($section->id);
             $this->sections->update(new HomeSection($section->id, $section->storeId, $section->type, $section->position, $section->isVisible, $settings, $section->version + 1, $staffId, Moments::now()));
 

@@ -135,6 +135,8 @@ final readonly class PopupsController
                 Inputs::text($request, 'media_id'),
                 Inputs::text($request, 'starts_at'),
                 Inputs::text($request, 'ends_at'),
+                Inputs::flag($request, 'translated'),
+                Inputs::flag($request, 'read'),
             ));
         } catch (DomainError $error) {
             return Refusals::back($request, $error, self::BOXES);
@@ -145,7 +147,7 @@ final readonly class PopupsController
 
         if (Inputs::text($request, 'intent') === 'schedule' && $read['is_scheduled'] !== true) {
             try {
-                $schedule->handle(new SchedulePopup($saved, (int) $read['version']));
+                $schedule->handle(new SchedulePopup($saved, (int) $read['version'], Inputs::flag($request, 'read')));
             } catch (DomainError $error) {
                 return Refusals::to(self::LIST."/{$saved}", $error, self::BOXES);
             }
