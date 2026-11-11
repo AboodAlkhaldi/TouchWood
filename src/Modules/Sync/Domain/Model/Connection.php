@@ -26,7 +26,6 @@ final readonly class Connection
         #[\SensitiveParameter] public string $key,
         #[\SensitiveParameter] public string $secret,
         public ConnectionState $state,
-        public ?DateTimeImmutable $lastReadAt,
         public ?string $lastError,
         public string $createdBy,
         public ?DateTimeImmutable $updatedAt = null,

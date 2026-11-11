@@ -104,6 +104,8 @@ it('skips both though the two come in different batches of the read', function (
 });
 
 it('keeps a code we do not have unknown, once, though it came twice', function () {
+    // It answers codes not asked - one we do not have, a code it should not send - as a provider might (§2.4: Odoo answers only ours).
+    FakeProvider::bound()->answersUnasked = true;
     FakeProvider::bound()->values = [new ProviderValue('987654', '5', 1), new ProviderValue('987654', '6', 1)];
 
     $read = syncTwiceRun();

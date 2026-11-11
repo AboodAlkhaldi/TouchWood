@@ -180,7 +180,7 @@ final readonly class RunReadHandler
             }
 
             [$prices, $stock, $skipped] = $counts;
-            $this->connections->markRead($store, $read->coversChanges() ? $read->startedAt : null, $read->isFull());
+            $this->connections->markRead($store, $read->isFull() ? $read->startedAt : null);
             $this->entries->closeKind($store, ReportKind::ReadFailed, self::CLOSED_BY_READ);
             $this->platform->recordAudit(new AuditEntryDto('sync.read.done', 'sync.read', $read->id, $store->value, AuditChanges::none()
                 ->changed('kind', null, $read->kind->value)
@@ -269,13 +269,15 @@ final readonly class RunReadHandler
     private function run(StoreId $store, Read $read, Connection $connection): bool
     {
         $wiring = $this->connections->wiredAt($store);
-        $changedSince = $read->kind === ReadKind::Hourly ? $connection->lastReadAt : null;
         $seen = [];
+        // A notice's or one code's codes; every other read asks for every code of ours, archived ones left
+        // out (§2.4: Odoo's API cannot say what changed, nor list what it has for us).
+        $codes = $read->codes ?? array_values($this->catalog->variantCodes());
 
         // The whole read first, its values grouped by code: a code that comes twice - however far apart,
-        // a page or a batch apart too - is known before anything is written, so both of its values are
+        // a call or a batch apart too - is known before anything is written, so both of its values are
         // skipped (§2.4; owner, 2026-10-19). Then written 500 codes a batch, as before.
-        foreach (array_chunk(self::byCode($this->adapters->for($connection->provider)->read($connection, $read->codes, $changedSince)), self::BATCH) as $batch) {
+        foreach (array_chunk(self::byCode($this->adapters->for($connection->provider)->read($connection, $codes)), self::BATCH) as $batch) {
             if (! $this->current($store, $read, $wiring) || ! $this->batch($store, $read, $wiring, $batch, $seen)) {
                 return false;
             }
@@ -334,6 +336,14 @@ final readonly class RunReadHandler
             // the first few values and how many came, so a provider repeating a code keeps the entry small.
             if (count($values) > 1) {
                 $bad[$variant->id] = ['twice' => array_map(self::detail(...), array_slice($values, 0, self::TWICE_KEPT)), 'count' => count($values)];
+
+                continue;
+            }
+
+            // A code the provider refused on its own (Odoo's `403` or other `4xx` for one id, §2.4): no value
+            // came, so nothing is written; the size is reported as a bad value naming the status.
+            if ($value->refused !== null) {
+                $bad[$variant->id] = ['price' => null, 'stock' => null, 'refused' => 'both', 'provider_refused' => $value->refused];
 
                 continue;
             }

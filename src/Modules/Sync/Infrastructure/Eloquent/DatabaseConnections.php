@@ -84,7 +84,6 @@ final readonly class DatabaseConnections implements Connections
             $this->db->table(self::TABLE)->insert([
                 ...$columns,
                 'state' => $connection->state->value,
-                'last_read_at' => $connection->lastReadAt,
                 'last_error' => $connection->lastError,
                 'store_id' => $connection->storeId,
                 'created_by' => $connection->createdBy,
@@ -97,13 +96,12 @@ final readonly class DatabaseConnections implements Connections
         return true;
     }
 
-    public function markRead(StoreId $store, ?DateTimeImmutable $changesUpTo, bool $full): void
+    public function markRead(StoreId $store, ?DateTimeImmutable $fullReadAt): void
     {
         $this->db->table(self::TABLE)->where('store_id', $store->value)->update([
             'state' => 'OK',
             'last_error' => null,
-            ...($changesUpTo === null ? [] : ['last_read_at' => $changesUpTo]),
-            ...($full && $changesUpTo !== null ? ['last_full_read_at' => $changesUpTo] : []),
+            ...($fullReadAt === null ? [] : ['last_full_read_at' => $fullReadAt]),
         ]);
     }
 
@@ -144,7 +142,6 @@ final readonly class DatabaseConnections implements Connections
             $this->encrypter->decryptString((string) $row->key_encrypted),
             $this->encrypter->decryptString((string) $row->secret_encrypted),
             ConnectionState::from((string) $row->state),
-            $row->last_read_at === null ? null : CarbonImmutable::parse((string) $row->last_read_at)->toDateTimeImmutable(),
             $row->last_error === null ? null : (string) $row->last_error,
             (string) $row->created_by,
             CarbonImmutable::parse((string) $row->updated_at)->toDateTimeImmutable(),

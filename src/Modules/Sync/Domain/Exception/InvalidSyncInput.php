@@ -33,7 +33,10 @@ final class InvalidSyncInput extends SyncError
     /** An address with a query (`?`) or a fragment (`#`), where the provider's takes none (Odoo's, §2.4). */
     public const string ADDRESS_QUERY = 'address_query';
 
-    /** An address whose path is not the provider's (Odoo's ends in `/touchwood/v1`, §2.4). */
+    /** A host that is, or resolves to, a loopback, private, link-local, unique-local or unspecified address (§2.4). */
+    public const string ADDRESS_INTERNAL = 'address_internal';
+
+    /** An address with a path where the provider takes none (Odoo's is the account's address alone, §2.4). */
     public const string ADDRESS_PATH = 'address_path';
 
     public function __construct(
