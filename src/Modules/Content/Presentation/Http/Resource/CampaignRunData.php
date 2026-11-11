@@ -10,7 +10,7 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 /**
  * One store's run as W4b shows it (content.md §4.4): its state and moments, its prices and whether they may still
  * change, the reader's rights there, the store's ceiling and currency, the sizes it skips now, its notice and the
- * store's drafts.
+ * store's drafts - and, once it is scheduled, its shop page's address (H7; the owner, 2026-11-12).
  */
 #[TypeScript]
 final class CampaignRunData extends Data
@@ -35,5 +35,6 @@ final class CampaignRunData extends Data
         public array $skipped,
         public ?CampaignNoticeData $notice,
         public array $drafts,
+        public ?string $address = null,
     ) {}
 }

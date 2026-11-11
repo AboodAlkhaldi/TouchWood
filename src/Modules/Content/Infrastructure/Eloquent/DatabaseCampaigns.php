@@ -23,7 +23,7 @@ final readonly class DatabaseCampaigns implements Campaigns
 {
     private const string COLUMNS = 'id, name_ar, name_en, starts_at_local, ends_at_local, theme_id, version, updated_by, updated_at';
 
-    private const string RUN_COLUMNS = 'id, campaign_id, store_id, state, starts_at, ends_at, price_choices, notice_id, went_live_at, ended_at, cancelled_at, warned_72_at, warned_24_at';
+    private const string RUN_COLUMNS = 'id, campaign_id, store_id, state, starts_at, ends_at, price_choices, notice_id, went_live_at, ended_at, cancelled_at, warned_72_at, warned_24_at, slug_ar, slug_en';
 
     public function __construct(
         private ConnectionInterface $db,
@@ -313,6 +313,8 @@ final readonly class DatabaseCampaigns implements Campaigns
             Rows::moment($row->cancelled_at),
             Rows::moment($row->warned_72_at),
             Rows::moment($row->warned_24_at),
+            Rows::text($row->slug_ar ?? null),
+            Rows::text($row->slug_en ?? null),
         );
     }
 

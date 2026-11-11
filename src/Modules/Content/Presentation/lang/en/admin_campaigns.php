@@ -29,6 +29,9 @@ return [
     'open' => 'Open',
     'details' => [
         'title' => 'Details',
+        'page_address' => 'Campaign Page',
+        'page_address_helper' => 'The shop shows the campaign\'s products here while it runs. Link a banner or an ad to it.',
+        'page_address_copy' => 'Copy the campaign page\'s address in :store',
         'name_ar' => 'Name (Arabic)',
         'name_en' => 'Name (English)',
         'name_rule' => 'Up to 100 characters. Staff see it, and the ending alerts name it.',

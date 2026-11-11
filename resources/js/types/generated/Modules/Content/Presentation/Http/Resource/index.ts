@@ -172,6 +172,7 @@ prices: CampaignPricesData | null,
 skipped: CampaignTargetData[],
 notice: CampaignNoticeData | null,
 drafts: CampaignNoticeData[],
+address: string | null,
 };
 export type CampaignTargetData = {
 kind: string,
