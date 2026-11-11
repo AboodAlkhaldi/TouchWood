@@ -158,6 +158,8 @@ describe('a read that crashes, or is picked up twice', function () {
     it('keeps the batches it wrote, starts the store\'s next read, and is tried again - its record exact, its counts from what it wrote', function () {
         ['variants' => [$first, $second], 'codes' => [$a, $b]] = syncPassProduct(['60 cm', '80 cm']);
         // 499 codes we do not have and the first size fill the first batch of 500; the second size is the next.
+        // It answers codes not asked - one we do not have, a code it should not send - as a provider might (§2.4: Odoo answers only ours).
+        FakeProvider::bound()->answersUnasked = true;
         FakeProvider::bound()->values = [
             ...array_map(static fn (int $n): ProviderValue => new ProviderValue('X'.$n, '1', 1), range(1, 499)),
             new ProviderValue($a, '120.50', null),
@@ -233,6 +235,8 @@ describe('a read that crashes, or is picked up twice', function () {
 describe('what the provider sends that we cannot keep as it is', function () {
     it('reports a code with a control character written with "?", and keeps 100 characters of a value', function () {
         ['variants' => [$size], 'codes' => [$code]] = syncPassProduct();
+        // It answers codes not asked - one we do not have, a code it should not send - as a provider might (§2.4: Odoo answers only ours).
+        FakeProvider::bound()->answersUnasked = true;
         FakeProvider::bound()->values = [new ProviderValue("AB\u{0001}C", '5', 1), new ProviderValue($code, str_repeat('9', 300), null)];
 
         syncPassRun();
@@ -246,14 +250,14 @@ describe('one store never touches another (§8.9)', function () {
     it('leaves another wired store as it is when a store\'s read fails, and its report and reads', function () {
         app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('ae'), 'ODOO', 'https://odoo.test/api', 'key', 'the-secret'));
         DB::table('sync.report_entries')->insert(['store_id' => Fx::storeId('ae'), 'kind' => 'UNKNOWN_CODE', 'code' => '9', 'detail' => '{}', 'opened_at' => now(), 'seen_at' => now()]);
-        $before = DB::table('sync.connections')->where('store_id', Fx::storeId('ae'))->first(['state', 'last_error', 'last_read_at']);
+        $before = DB::table('sync.connections')->where('store_id', Fx::storeId('ae'))->first(['state', 'last_error', 'last_full_read_at']);
         $read = (string) DB::table('sync.reads')->where('store_id', Fx::storeId('sa'))->value('id');
         FakeProvider::bound()->failure = 'Timed out';
         DB::table('sync.reads')->where('id', $read)->update(['state' => 'RUNNING', 'started_at' => now()]);
 
         Fx::asSystem(fn () => app(RunReadHandler::class)->failed($read, 'Timed out'));
 
-        expect(DB::table('sync.connections')->where('store_id', Fx::storeId('ae'))->first(['state', 'last_error', 'last_read_at']))->toEqual($before)
+        expect(DB::table('sync.connections')->where('store_id', Fx::storeId('ae'))->first(['state', 'last_error', 'last_full_read_at']))->toEqual($before)
             ->and(DB::table('sync.report_entries')->where('store_id', Fx::storeId('ae'))->whereNull('closed_at')->count())->toBe(1)
             ->and(DB::table('sync.report_entries')->where('store_id', Fx::storeId('ae'))->where('kind', 'READ_FAILED')->count())->toBe(0)
             ->and(DB::table('sync.reads')->where('store_id', Fx::storeId('ae'))->value('state'))->toBe('QUEUED');

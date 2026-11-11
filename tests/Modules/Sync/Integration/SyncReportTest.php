@@ -88,6 +88,8 @@ function syncReportRead(): array
     $ready = Px::ready(['60 cm', '80 cm']);
     Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $ready['product'], true)));
     $code = static fn (string $size): string => (string) DB::table('catalog.variants')->where('id', $size)->value('code');
+    // It answers a code we do not have though not asked, as a provider might (§2.4: Odoo answers only ours).
+    FakeProvider::bound()->answersUnasked = true;
     FakeProvider::bound()->values = [new ProviderValue($code($ready['variants'][0]), '120.50', 7), new ProviderValue($code($ready['variants'][1]), '0', null), new ProviderValue('987654', '5', 1)];
     $read = (string) DB::table('sync.reads')->value('id');
     Fx::asSystem(fn () => app(RunReadHandler::class)->handle(new RunRead($read)));
