@@ -146,6 +146,33 @@ step branches under them: they left a tangled history, with no version marking w
   with a clear, translated error. The database should never receive a row it would refuse.
 - A new constraint ships with its code-level rule and a test that the code refuses the value first.
 
+## Database: Laravel's tools first (owner, 2026-11-11)
+
+The database is PostgreSQL today; it may change after launch, depending on the hosting provider. The
+code already holds about 500 raw SQL pieces outside migrations and 700 inside them (measured
+2026-11-11); converting them is planned for later, not now. New code must not add to them.
+
+- **Queries** go through Eloquent or the query builder: `where`, `whereIn`, `join`, `whereLike`,
+  `where('column->key', …)`, `whereJsonContains`, `lockForUpdate()`, `sharedLock()`, `upsert()`,
+  `insertOrIgnore()`. `upsert()` and `insertOrIgnore()` never on store-scoped tables: those rows are
+  created through the model (see Stores).
+- **Migrations** use the Schema builder: `enum()` for a fixed list of values, `json()` or `jsonb()`
+  (MySQL gets `json`), `timestampTz()`. Indexes with `index()` / `unique()`.
+- **No new PostgreSQL-only SQL written by hand**: `pg_advisory_*` locks, `ON CONFLICT`, `RETURNING`,
+  `FILTER (WHERE …)`, `::type` casts, JSON operators and functions (`->>`, `@>`, `jsonb_agg`,
+  `string_agg`), arrays (`ARRAY[]`, `ANY()`, `unnest`), `DISTINCT ON`, `LATERAL`, `ILIKE` (use
+  `whereLike`), `COLLATE "C"`, regex `~`, `pg_trgm` / `tsvector`, date arithmetic (`interval`,
+  `date_trunc`, `generate_series`), `gen_random_uuid()`, `SET LOCAL`, triggers, functions, sequences.
+- **Locks**: use the module's existing lock class (only its inside changes later) or `lockForUpdate()`
+  on the rows involved.
+- **When the builder cannot say it** (a CHECK, a window function): raw SQL only in `Infrastructure/`
+  or a migration, in standard SQL (`IS NULL`, `OR`, `>=`, `IN`, `CASE WHEN`), with a one-line comment
+  saying why. The code rule still comes first (see above).
+- **Something with no standard SQL form at all** (a partial or expression index, a regex CHECK, a new
+  search feature) needs the owner's OK, named in the PR description.
+- Existing raw SQL and the module schemas (see Layout) stay as they are until the conversion; do not
+  rewrite them inside other jobs. Tests keep running on PostgreSQL.
+
 ## Cache, sessions and queues: PostgreSQL only (owner, 2026-09-18)
 
 - **No Redis for now.** Sessions, cache and queues use the `database` drivers; Redis comes back only
