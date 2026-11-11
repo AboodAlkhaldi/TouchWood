@@ -961,7 +961,9 @@ amount still owed (§4.2 B1).
   sales, labels, campaigns' looks — is settled before launch** (owner, 2026-10-27; §9.2).
 - **A card** shows **"From 85.00"**, the lowest price among its sizes this viewer sees, when they differ;
   the price itself when they do not (R2-4). **A guest's card** shows the retail price and, when it also
-  sells wholesale, **"Wholesale from 70.00"** under it (R2-5).
+  sells wholesale, **"Wholesale from 70.00"** under it (R2-5) — on a sale, its old price struck through
+  with its percent off, as the retail price's; a band alone is not a sale (catalog.md amendment 43, owner
+  2026-11-11). **A size sold wholesale only**, under its name, the same.
 - **Wholesale bands** on the product page, under the Wholesale choice (companies and guests): "From 20
   pieces: 85.00 · From 100 pieces: 78.00", the band that applies to the quantity typed highlighted (R2-3).
 - **The screens session's picks, for the owner to change** (2026-10-27): the bands start with the wholesale
