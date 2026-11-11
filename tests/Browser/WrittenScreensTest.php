@@ -518,6 +518,40 @@ it('fits a phone in Arabic with a picker and a row open', function () {
     $page->assertNoJavaScriptErrors();
 });
 
+it('saves a draft With a Campaign on a phone, without asking, and lists it as Draft (ops.md §9.7 #1, O5, O6)', function () {
+    $run = writtenBrowserRun();
+    // A draft is written as any waiting notice: to a store with someone to send to.
+    Wx::agreeing("draft{$run}@example.test", 'ae');
+    $page = writtenBrowser(['ops.notice.manage']);
+    $page->resize(375, 812);
+
+    $page->navigate('/admin/notices/new?store=ae', BROWSER_SLOW_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('#title_ar') !== null && document.querySelector('[data-test=\"when-CAMPAIGN\"]') !== null"))->toBeTrue();
+    writtenBrowserBoxes($page, "Draft {$run}");
+    $page->click('[data-test="when-CAMPAIGN"]');
+
+    expect(browserSoon($page, "document.querySelector('[data-test=\"when-campaign-helper\"]')?.textContent === 'Sent when a campaign that names it goes live.' && document.querySelector('#when-time') === null"))->toBeTrue()
+        ->and(browserSoon($page, "document.querySelector('[data-test=\"send\"]').textContent.includes('Save Draft')"))->toBeTrue();
+    writtenBrowserFits($page);
+
+    $page->click('[data-test="send"]');
+    expect(browserSoon($page, "window.location.pathname === '/admin/notices' && document.body.textContent.includes('Draft saved.')"))->toBeTrue();
+
+    $id = (string) DB::table('ops.notices')->where('title_en', "Draft {$run}")->value('id');
+    expect(DB::table('ops.notices')->where('id', $id)->value('status'))->toBe('DRAFT')
+        ->and(DB::table('ops.notices')->where('id', $id)->value('send_at'))->toBeNull()
+        ->and(browserSoon($page, "document.querySelector('[data-test=\"notice-{$id}\"] [data-test=\"status\"]')?.textContent === 'Draft' && document.querySelector('[data-test=\"notice-{$id}\"] [data-test=\"with-campaign\"]') !== null"))->toBeTrue();
+    writtenBrowserFits($page);
+
+    // Edit opens on With a Campaign, and keeps it a draft.
+    $page->navigate("/admin/notices/{$id}/edit", BROWSER_SLOW_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"when-CAMPAIGN\"]')?.getAttribute('data-state') === 'checked'"))->toBeTrue();
+    $page->type('#title_en', "Draft again {$run}")->click('[data-test="send"]');
+    expect(browserSoon($page, "window.location.pathname === '/admin/notices'"))->toBeTrue()
+        ->and(DB::table('ops.notices')->where('id', $id)->value('status'))->toBe('DRAFT');
+    $page->assertNoJavaScriptErrors();
+});
+
 it('draws all four pages right to left in Arabic, in Latin digits, and fits a phone', function () {
     $run = writtenBrowserRun();
     $notice = writtenBrowserNotice("Arabic {$run}");

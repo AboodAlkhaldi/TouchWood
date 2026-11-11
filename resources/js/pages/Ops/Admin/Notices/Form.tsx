@@ -8,7 +8,7 @@ import { Note } from '@/components/Note';
 import { HowItGoes, MessageBoxes, messageBoxes, SegmentPicker, SendToManyDialog, showRefusal, storeOption } from '@/components/ops/written-form';
 import { useLeaveGuard } from '@/components/SaveBar';
 import { Button } from '@/components/ui/button';
-import { Field, FieldError, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
+import { Field, FieldDescription, FieldError, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
 import { NativeSelectOption } from '@/components/ui/native-select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { AdminLayout } from '@/layouts/AdminLayout';
@@ -52,6 +52,9 @@ export default function Form({ stores, storeCode, notice }: NoticeFormPageData) 
     });
     const [when, setWhen] = useState<MomentInput>(() => sendingAt(notice?.sendAtLocal));
     const [whenTouched, setWhenTouched] = useState(false);
+    // The fourth When (ops.md §9.7 #1): a draft with no time, sent when a campaign that names it goes live.
+    const wasDraft = notice?.status === 'DRAFT';
+    const [withCampaign, setWithCampaign] = useState(wasDraft);
     const [toSegment, setToSegment] = useState(notice !== null && notice.segmentId !== null);
     const [segment, setSegment] = useState<SegmentChoiceData | null>(
         hadSegment ? { id: notice.segmentId as string, nameAr: notice.segmentNameAr as string, nameEn: notice.segmentNameEn as string, memberCount: notice.segmentMemberCount ?? 0 } : null,
@@ -79,14 +82,15 @@ export default function Form({ stores, storeCode, notice }: NoticeFormPageData) 
             },
         },
         // Judged against the present, not the minute it was typed in: a notice's time must still be to come when it is sent.
-        momentBox({ ...when, typedAt: 0 }, { id: 'when', label: t('ops::admin_written.notices.when'), kind: 'start', zone }),
+        // A draft has no time to judge.
+        ...(withCampaign ? [] : [momentBox({ ...when, typedAt: 0 }, { id: 'when', label: t('ops::admin_written.notices.when'), kind: 'start', zone })]),
     ]);
     const errors = form.errors as Record<string, string | undefined>;
     // The server's refusal has this name; the form sends no field of it.
     const clearAudience = () => (form.clearErrors as unknown as (field: string) => void)('audience');
     const started = pageErrors.started !== undefined;
-    const leave = useLeaveGuard(form.isDirty || whenTouched || toSegment !== (notice?.segmentId != null), { description: t('ops::admin_written.notices.leave') });
-    const now = when.none;
+    const leave = useLeaveGuard(form.isDirty || whenTouched || withCampaign !== wasDraft || toSegment !== (notice?.segmentId != null), { description: t('ops::admin_written.notices.leave') });
+    const now = !withCampaign && when.none;
 
     const send = () => {
         // Never to every customer because a segment was lost on the way.
@@ -94,7 +98,7 @@ export default function Form({ stores, storeCode, notice }: NoticeFormPageData) 
             return;
         }
 
-        form.transform((data) => ({ ...data, segment: toSegment ? data.segment : '', link: link.part, send_at: now ? '' : `${when.date} ${when.time.trim()}` }));
+        form.transform((data) => ({ ...data, segment: toSegment ? data.segment : '', link: link.part, draft: withCampaign, send_at: now || withCampaign ? '' : `${when.date} ${when.time.trim()}` }));
         form.post(notice === null ? LIST : `${LIST}/${notice.id}`, {
             preserveScroll: 'errors',
             onError: (answer) => {
@@ -111,7 +115,17 @@ export default function Form({ stores, storeCode, notice }: NoticeFormPageData) 
     };
 
     const reason = checks.reason ?? (toSegment && form.data.segment === '' ? t('ops::admin_written.segments.rule') : !form.data.by_bell && !form.data.by_email ? t('ops::admin_written.fields.channels_rule') : undefined);
-    const button = notice === null ? (now ? t('ops::admin_written.notices.send') : t('ops::admin_written.notices.schedule')) : now ? t('ops::admin_written.notices.send_now') : t('ops::admin_written.notices.save');
+    const button = withCampaign
+        ? notice === null
+            ? t('ops::admin_written.notices.save_draft')
+            : t('ops::admin_written.notices.save')
+        : notice === null
+          ? now
+              ? t('ops::admin_written.notices.send')
+              : t('ops::admin_written.notices.schedule')
+          : now
+            ? t('ops::admin_written.notices.send_now')
+            : t('ops::admin_written.notices.save');
     const backToList = `${LIST}?store=${encodeURIComponent(form.data.store)}`;
 
     return (
@@ -120,6 +134,7 @@ export default function Form({ stores, storeCode, notice }: NoticeFormPageData) 
                 className="grid max-w-4xl gap-6"
                 onSubmit={(event) => {
                     event.preventDefault();
+                    // Now asks first (Q12); a time or a draft sends nothing now, so nothing is asked.
                     checks.submit(() => (now ? setAsking(true) : send()));
                 }}
             >
@@ -233,19 +248,42 @@ export default function Form({ stores, storeCode, notice }: NoticeFormPageData) 
                     error={errors.channels}
                 />
 
-                <DateTimeField
-                    id="when"
-                    label={t('ops::admin_written.notices.when')}
-                    kind="start"
-                    value={when}
-                    onChange={(next) => {
-                        setWhen(next);
-                        setWhenTouched(true);
-                    }}
-                    zone={zone}
-                    refusesPast
-                    check={checks.box('when-time', errors.send_at)}
-                />
+                <FieldSet className="gap-3" data-test="when-mode">
+                    <FieldLegend variant="label" className="text-label-14 text-ink">
+                        {t('ops::admin_written.notices.when')}
+                    </FieldLegend>
+                    <RadioGroup value={withCampaign ? 'CAMPAIGN' : 'TIME'} onValueChange={(next) => setWithCampaign(next === 'CAMPAIGN')}>
+                        <Field orientation="horizontal">
+                            <RadioGroupItem id="when-TIME" value="TIME" data-test="when-TIME" />
+                            <FieldLabel htmlFor="when-TIME" className="font-normal">
+                                {t('ops::admin_written.notices.when_time')}
+                            </FieldLabel>
+                        </Field>
+                        <Field orientation="horizontal">
+                            <RadioGroupItem id="when-CAMPAIGN" value="CAMPAIGN" data-test="when-CAMPAIGN" />
+                            <FieldLabel htmlFor="when-CAMPAIGN" className="font-normal">
+                                {t('ops::admin_written.notices.when_campaign')}
+                            </FieldLabel>
+                        </Field>
+                    </RadioGroup>
+                    {withCampaign ? (
+                        <FieldDescription data-test="when-campaign-helper">{t('ops::admin_written.notices.when_campaign_helper')}</FieldDescription>
+                    ) : (
+                        <DateTimeField
+                            id="when"
+                            label={t('ops::admin_written.notices.when')}
+                            kind="start"
+                            value={when}
+                            onChange={(next) => {
+                                setWhen(next);
+                                setWhenTouched(true);
+                            }}
+                            zone={zone}
+                            refusesPast
+                            check={checks.box('when-time', errors.send_at)}
+                        />
+                    )}
+                </FieldSet>
 
                 <div>
                     <ActionButton type="submit" loading={form.processing} disabledReason={reason} data-test="send">

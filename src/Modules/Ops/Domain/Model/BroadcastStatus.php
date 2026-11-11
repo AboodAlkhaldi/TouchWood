@@ -9,9 +9,11 @@ namespace Modules\Ops\Domain\Model;
  * notice only), sending in batches, sent, or cancelled before it started (a notice only). Once sending
  * starts nothing can be recalled. **Failed**: a batch failed its last attempt - it waits on the failed
  * jobs screen, and retrying it there carries on from where it stopped (a batch is safe to run again).
+ * **Draft** (a notice only, §9.7 #1): no time, never sent by the scheduler; a campaign that names it starts it.
  */
 enum BroadcastStatus: string
 {
+    case Draft = 'DRAFT';
     case Scheduled = 'SCHEDULED';
     case Sending = 'SENDING';
     case Sent = 'SENT';

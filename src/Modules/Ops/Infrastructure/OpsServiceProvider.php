@@ -30,6 +30,7 @@ use Modules\Access\Public\Events\CustomerUnblocked;
 use Modules\Access\Public\Events\GuestBecameCustomer;
 use Modules\Access\Public\Events\MarketingConsentChanged;
 use Modules\B2B\Public\Events\CompanyApplicationSubmitted;
+use Modules\Content\Public\Contracts\CampaignNotices;
 use Modules\Content\Public\Events\CampaignExpiring;
 use Modules\Content\Public\Events\CampaignWentLive;
 use Modules\Feedback\Public\Events\QuestionAnswered;
@@ -97,6 +98,7 @@ use Modules\Ops\Infrastructure\Listener\TellCustomerAboutPaymentRequest;
 use Modules\Ops\Infrastructure\Listener\TellCustomerAboutPoints;
 use Modules\Ops\Infrastructure\Listener\TellCustomerAboutReturn;
 use Modules\Ops\Infrastructure\Listener\TellCustomersAboutCoupon;
+use Modules\Ops\Infrastructure\Messages\OpsCampaignNotices;
 use Modules\Ops\Infrastructure\Messages\OpsSecurityMessages;
 use Modules\Ops\Infrastructure\Newsletter\QueuedNewsletter;
 use Modules\Ops\Infrastructure\Pdf\MpdfDailyReportRenderer;
@@ -207,6 +209,8 @@ final class OpsServiceProvider extends ServiceProvider
         // amendment 90): the security messages, and whether a phone's country is on the SMS list.
         $this->app->bind(PhoneCountries::class, ListedPhoneCountries::class);
         $this->app->bind(SecurityMessages::class, OpsSecurityMessages::class);
+        // Content's port, the same way (ops.md §9.7 #1): the draft notices a campaign's page offers.
+        $this->app->bind(CampaignNotices::class, OpsCampaignNotices::class);
 
         $this->app->bind(NewsletterList::class, fn (Application $app): NewsletterList => match ($app->make('config')->get('ops.newsletter.driver')) {
             'brevo' => new BrevoNewsletterList(

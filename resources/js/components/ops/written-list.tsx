@@ -16,7 +16,7 @@ import type { SharedProps } from '@/types/page';
 | read-back dialog, Refresh while something sends. Nothing here reads the server by itself on a clock (Q7, Q15).
 */
 
-const LOOKS: Record<string, Tone> = { SCHEDULED: 'blue-subtle', SENDING: 'amber-subtle', SENT: 'green-subtle', CANCELLED: 'gray-subtle', FAILED: 'red-subtle' };
+const LOOKS: Record<string, Tone> = { DRAFT: 'gray-subtle', SCHEDULED: 'blue-subtle', SENDING: 'amber-subtle', SENT: 'green-subtle', CANCELLED: 'gray-subtle', FAILED: 'red-subtle' };
 
 export function WrittenStatus({ status }: { status: string }) {
     const t = useTranslator();

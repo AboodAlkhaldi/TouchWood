@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
+use Illuminate\Database\QueryException;
 use Illuminate\Events\CallQueuedListener;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -13,8 +14,10 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Public\Enums\StaffNotificationTopic;
+use Modules\Content\Public\Contracts\CampaignNotices;
 use Modules\Content\Public\Contracts\ContentApi;
 use Modules\Content\Public\Dto\CampaignMessageDto;
+use Modules\Content\Public\Dto\NoticeChoiceDto;
 use Modules\Content\Public\Events\CampaignExpiring;
 use Modules\Content\Public\Events\CampaignWentLive;
 use Modules\Ops\Application\Command\CancelNotice\CancelNotice;
@@ -25,6 +28,7 @@ use Modules\Ops\Infrastructure\Listener\AlertStaff;
 use Modules\Ops\Infrastructure\Listener\StartCampaignNotice;
 use Modules\Ops\Infrastructure\Queue\StartDueNoticesJob;
 use Modules\Platform\Public\Dto\TranslatedTextDto;
+use Shared\Domain\ValueObject\StoreId;
 use Shared\Infrastructure\Outbox\Outbox;
 use Shared\Infrastructure\Outbox\OutboxRelay;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -110,6 +114,26 @@ function campaignEventsNotice(string $storeCode = 'sa'): string
     ));
 }
 
+/** A draft notice of the store, with no time, for a campaign to start (§9.7 #1). */
+function campaignEventsDraft(string $storeCode = 'sa'): string
+{
+    Fx::actAsAdmin(['sa', 'ae'], ['ops.notice.manage']);
+
+    return app(CreateNoticeHandler::class)->handle(new CreateNotice(
+        Fx::storeId($storeCode),
+        'عروض رمضان بدأت',
+        'Ramadan offers have started',
+        'خصم على كل الكراسي.',
+        'A discount on every chair.',
+        null,
+        true,
+        true,
+        // A time typed beside the draft is not read.
+        CarbonImmutable::now('Asia/Riyadh')->addDay()->format('Y-m-d H:i'),
+        draft: true,
+    ));
+}
+
 /** @return object{status: string, bell_count: int, email_count: int, send_at: string, started_at: ?string} */
 function campaignEventsRow(string $id): object
 {
@@ -123,26 +147,27 @@ function campaignEventsNoticeBells(): int
 }
 
 describe('S8, a campaign about to end (§1.6)', function () {
-    it('alerts the Super Admins and the store\'s admins alone, once per event, with no link', function () {
-        campaignEventsContent(campaignEventsCampaign());
+    it('alerts the holders of content.campaign.manage in the store, once per event, with the run\'s page (§9.7 #2, #3)', function () {
+        $campaign = campaignEventsCampaign();
+        campaignEventsContent($campaign);
         $super = Fx::staff(superAdmin: true);
-        $admin = Fx::staffWith(['ops.message.send_many'], ['sa'], RoleLevel::Admin);
-        $elsewhere = Fx::staffWith(['ops.message.send_many'], ['eg'], RoleLevel::Admin);
-        $adminWithout = Fx::staffWith(['sales.order.view'], ['sa'], RoleLevel::Admin);
+        $holder = Fx::staffWith(['content.campaign.manage'], ['sa']);
+        $elsewhere = Fx::staffWith(['content.campaign.manage'], ['eg']);
+        $sendsToMany = Fx::staffWith(['ops.message.send_many'], ['sa'], RoleLevel::Admin);
         $staff = Fx::staffWith(['ops.notice.manage'], ['sa']);
         $event = campaignEventsExpiring();
 
         event($event);
         event($event);
 
-        $entry = DB::table('ops.inbox_entries')->where('staff_id', $admin)->first();
+        $entry = DB::table('ops.inbox_entries')->where('staff_id', $holder)->first();
 
         expect(campaignEventsBellOf($super))->toBe(1)
-            ->and(campaignEventsBellOf($admin))->toBe(1)
+            ->and(campaignEventsBellOf($holder))->toBe(1)
             ->and(campaignEventsBellOf($elsewhere))->toBe(0)
-            ->and(campaignEventsBellOf($adminWithout))->toBe(0)
+            ->and(campaignEventsBellOf($sendsToMany))->toBe(0)
             ->and(campaignEventsBellOf($staff))->toBe(0)
-            ->and($entry?->link)->toBeNull()
+            ->and($entry?->link)->toBe('/admin/content/campaigns/runs/'.$campaign->campaignId)
             ->and($entry?->store_id)->toBe(Fx::storeId('sa'));
     });
 
@@ -163,8 +188,8 @@ describe('S8, a campaign about to end (§1.6)', function () {
 
     it('goes by each person\'s switches for the topic, the email in their language', function (string $locale, string $subject) {
         campaignEventsContent(campaignEventsCampaign());
-        $bellOnly = Fx::staffWith(['ops.message.send_many'], ['sa'], RoleLevel::Admin);
-        $emailOnly = Fx::staffWith(['ops.message.send_many'], ['sa'], RoleLevel::Admin);
+        $bellOnly = Fx::staffWith(['content.campaign.manage'], ['sa']);
+        $emailOnly = Fx::staffWith(['content.campaign.manage'], ['sa']);
         DB::table('access.staff_users')->where('id', $emailOnly)->update(['locale' => $locale]);
         campaignEventsSwitch($emailOnly, panel: false, email: true);
 
@@ -183,7 +208,7 @@ describe('S8, a campaign about to end (§1.6)', function () {
         'English' => ['en', 'The Ramadan Offers campaign in Saudi Arabia ends on 2026-12-01'],
     ]);
 
-    it('sends nothing while Content is not built: the binding answers no campaign', function () {
+    it('sends nothing for a run Content does not know: the binding answers no campaign', function () {
         expect(app(ContentApi::class)->campaignForMessage((string) Str::ulid()))->toBeNull();
 
         $super = Fx::staff(superAdmin: true);
@@ -247,6 +272,60 @@ describe('the notice a campaign carries (§1.7)', function () {
             ->and(DB::table('ops.inbox_entries')->where('kind', 'offer_notice')->pluck('customer_id')->all())->toEqualCanonicalizing([$sara, $omar])
             ->and(DB::table('ops.inbox_entries')->where('customer_id', $elsewhere)->count())->toBe(0)
             ->and(CapturedEmails::installed()->to())->toBe(['sara@example.test']);
+    });
+
+    it('keeps a draft with no time, never sent by the scheduler, and starts it when its campaign goes live (§9.7 #1)', function () {
+        Wx::agreeing('sara@example.test');
+        $id = campaignEventsDraft();
+
+        expect(campaignEventsRow($id)->status)->toBe('DRAFT')
+            ->and(campaignEventsRow($id)->send_at)->toBeNull();
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addDays(30));
+        app()->call([new StartDueNoticesJob, 'handle']);
+        CarbonImmutable::setTestNow(TestCase::FROZEN_AT);
+
+        expect(campaignEventsRow($id)->status)->toBe('DRAFT')
+            ->and(campaignEventsNoticeBells())->toBe(0);
+
+        event(campaignEventsLive($id));
+
+        expect(campaignEventsRow($id)->status)->toBe('SENT')
+            ->and(campaignEventsRow($id)->send_at)->not->toBeNull()
+            ->and(campaignEventsNoticeBells())->toBe(1);
+    });
+
+    it('answers Content\'s port: the store\'s drafts newest first, and the notices it names with their status now', function () {
+        Wx::agreeing('sara@example.test');
+        Wx::agreeing('ae@example.test', 'ae');
+        $older = campaignEventsDraft();
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinute());
+        $newer = campaignEventsDraft();
+        $scheduled = campaignEventsNotice();
+        $elsewhere = campaignEventsDraft('ae');
+        CarbonImmutable::setTestNow(TestCase::FROZEN_AT);
+        $port = app(CampaignNotices::class);
+        $sa = StoreId::fromString(Fx::storeId('sa'));
+
+        expect(array_map(static fn (NoticeChoiceDto $notice): string => $notice->id, $port->drafts($sa, null, 10)))->toBe([$newer, $older])
+            ->and(array_map(static fn (NoticeChoiceDto $notice): string => $notice->id, $port->drafts($sa, $newer, 10)))->toBe([$older])
+            ->and($port->drafts($sa, $elsewhere, 10))->toBe([])
+            ->and(array_map(static fn (NoticeChoiceDto $notice): string => $notice->status, $port->named($sa, [$scheduled, $elsewhere, $older])))->toEqualCanonicalizing(['SCHEDULED', 'DRAFT']);
+    });
+
+    it('cancels a draft as a waiting one, and the database holds a draft to having no time', function () {
+        Wx::agreeing('sara@example.test');
+        $id = campaignEventsDraft();
+        app(CancelNoticeHandler::class)->handle(new CancelNotice($id));
+
+        expect(campaignEventsRow($id)->status)->toBe('CANCELLED')
+            ->and(campaignEventsRow($id)->send_at)->toBeNull();
+
+        $draft = campaignEventsDraft();
+
+        // NULL-safe both ways: a draft with a time, a waiting notice with none.
+        expect(fn () => DB::transaction(fn () => DB::table('ops.notices')->where('id', $draft)->update(['send_at' => CarbonImmutable::now()])))->toThrow(QueryException::class)
+            ->and(fn () => DB::transaction(fn () => DB::table('ops.notices')->where('id', campaignEventsNotice())->update(['send_at' => null])))->toThrow(QueryException::class);
     });
 
     it('sends once: the same event again, another event, and the notice\'s own time all send nothing more', function () {

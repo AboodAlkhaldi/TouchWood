@@ -5,6 +5,7 @@ declare(strict_types=1);
 // Customer Messages and Offer Notices (ops.md §4.15 O3-O6). Wording approved for now; the owner checks the whole site's wording later.
 return [
     'status' => [
+        'DRAFT' => 'مسودة',
         'SCHEDULED' => 'مجدول',
         'SENDING' => 'قيد الإرسال',
         'SENT' => 'تم الإرسال',
@@ -163,6 +164,11 @@ return [
         'link_other_site' => 'هذا العنوان في موقع آخر. استخدم صفحة من المتجر.',
         'link_rule' => 'استخدم صفحة من المتجر، حتى 500 حرف، بلا مسافات وبلا نقطتين.',
         'when' => 'الموعد',
+        'when_time' => 'الآن أو في وقت محدد',
+        'when_campaign' => 'مع حملة',
+        'when_campaign_helper' => 'يُرسل عندما تبدأ حملة تختاره.',
+        'with_campaign' => 'مع حملة',
+        'save_draft' => 'حفظ المسودة',
         'send' => 'إرسال الإشعار',
         'schedule' => 'جدولة الإشعار',
         'save' => 'حفظ التغييرات',
@@ -170,6 +176,7 @@ return [
         'leave' => 'سيضيع الإشعار الذي كتبته.',
         'back_to_list' => 'العودة إلى إشعارات العروض',
         'toast_now' => 'الإشعار في طريقه.',
+        'toast_draft' => 'حُفظت المسودة. تُرسلها الحملة التي تختارها عند بدئها.',
         'toast_scheduled' => 'جُدول الإشعار. يُرسل في :at بتوقيت المتجر.',
     ],
 ];

@@ -37,7 +37,7 @@ use Shared\Domain\ValueObject\Money;
  * - C11: the event's request is still the order's open one, and the order was not ended since;
  * - C15: the coupon was not deleted since;
  * - S6: the order was not ended since;
- * - S8: Content still knows the campaign.
+ * - S8: Content still knows the campaign run, and it is live (`ContentApi::campaignForMessage` answers null otherwise).
  *
  * **A read that names another store, or another customer, than the event did sends nothing** - it is
  * logged with its ids only, never a name or an address: a message never reaches the wrong person.
@@ -387,7 +387,9 @@ final readonly class MessageWriter
     }
 
     /**
-     * S8: the campaign by its name, its last day in the store's own zone. No link: Content has no page yet.
+     * S8: the campaign by its name, its last day in the store's own zone, and its run's page in the panel (§9.7 #3). It
+     * reaches the holders of `content.campaign.manage` in the store, the page's own permission, so whoever it reaches
+     * can open it (`AlertLinks` keeps no link from anyone).
      *
      * @param  array<string, string>  $values
      */
@@ -401,7 +403,7 @@ final readonly class MessageWriter
 
         $date = CarbonImmutable::parse($to->message->string('endsAt'))->setTimezone($to->store->timezone)->format('Y-m-d');
 
-        return $this->text($to->message->kind, $locale, [...$values, 'campaign' => $campaign->name->in($locale), 'date' => $date], null);
+        return $this->text($to->message->kind, $locale, [...$values, 'campaign' => $campaign->name->in($locale), 'date' => $date], '/admin/content/campaigns/runs/'.strtolower($campaign->campaignId));
     }
 
     /**

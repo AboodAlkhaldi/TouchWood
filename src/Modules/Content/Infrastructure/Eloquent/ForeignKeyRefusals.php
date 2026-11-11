@@ -41,6 +41,12 @@ final class ForeignKeyRefusals
         'pp_media' => ['photos', InvalidContentInput::IMAGE_FILE],
         // PR 4: SEO defaults' share image.
         'seo_defaults_share' => ['share_image', InvalidContentInput::IMAGE_FILE],
+        // PR 6: campaigns and themes.
+        'campaigns_theme' => ['theme', InvalidContentInput::THEME],
+        'crt_category' => ['targets', InvalidContentInput::CATEGORY],
+        'crt_brand' => ['targets', InvalidContentInput::BRAND],
+        'tpi_media' => ['images', InvalidContentInput::IMAGE_FILE],
+        'smart_bars_run' => ['run', InvalidContentInput::RUN],
     ];
 
     /**

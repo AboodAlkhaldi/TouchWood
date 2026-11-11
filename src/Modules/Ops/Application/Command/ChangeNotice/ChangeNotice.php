@@ -25,5 +25,7 @@ final readonly class ChangeNotice
          * the store; none: the notice keeps the audience it has.
          */
         public ?string $segmentId = null,
+        /** Kept, or made, a draft with no time, for a campaign to start (§9.7 #1); `sendAt` is not read then. */
+        public bool $draft = false,
     ) {}
 }

@@ -53,6 +53,7 @@ use Modules\Pricing\Infrastructure\Eloquent\DatabaseRetailPrices;
 use Modules\Pricing\Infrastructure\Eloquent\DatabaseSales;
 use Modules\Pricing\Infrastructure\Eloquent\DatabaseUnpricedCounts;
 use Modules\Pricing\Infrastructure\Eloquent\DatabaseWholesaleBands;
+use Modules\Pricing\Infrastructure\External\NoCampaignNames;
 use Modules\Pricing\Infrastructure\External\NoStoreWired;
 use Modules\Pricing\Infrastructure\Import\PriceImportSection;
 use Modules\Pricing\Infrastructure\Listener\RecountUnpricedSizes;
@@ -63,6 +64,7 @@ use Modules\Pricing\Infrastructure\Queue\QueuedPriceWindowTasks;
 use Modules\Pricing\Infrastructure\Queue\QueuedUnpricedRecounts;
 use Modules\Pricing\Presentation\Console\RebuildPriceCandidatesCommand;
 use Modules\Pricing\Presentation\Storefront\WholesaleBandsSection;
+use Modules\Pricing\Public\Contracts\CampaignNames;
 use Modules\Pricing\Public\Contracts\CampaignPrices;
 use Modules\Pricing\Public\Contracts\PricingApi;
 use Modules\Pricing\Public\Contracts\ProviderPrices;
@@ -96,6 +98,8 @@ final class PricingServiceProvider extends ServiceProvider
         // Campaign prices (§9.6): Content's runs, held and applied here once scheduled.
         $this->app->bind(Campaigns::class, DatabaseCampaigns::class);
         $this->app->bind(CampaignPrices::class, CampaignPricesImpl::class);
+        // A run's name and page come from Content, which binds this after (PR 6); none until then.
+        $this->app->bind(CampaignNames::class, NoCampaignNames::class);
         $this->app->bind(PriceWindowTasks::class, QueuedPriceWindowTasks::class);
         $this->app->bind(Words::class, LangWords::class);
         $this->app->bind(UnpricedCounts::class, DatabaseUnpricedCounts::class);

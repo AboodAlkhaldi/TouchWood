@@ -29,6 +29,21 @@ interface Notices
     public function page(StoreId $store, ?string $afterId, int $limit): array;
 
     /**
+     * The store's drafts, newest first, after the one named (§9.7 #1: what a campaign's page offers). One query.
+     *
+     * @return list<Notice>
+     */
+    public function drafts(StoreId $store, ?string $afterId, int $limit): array;
+
+    /**
+     * These of the store's notices, whatever their status, in no set order; another store's left out. One query.
+     *
+     * @param  list<string>  $ids
+     * @return list<Notice>
+     */
+    public function named(StoreId $store, array $ids): array;
+
+    /**
      * Starts every waiting notice whose time has come.
      *
      * @return list<string> their ids

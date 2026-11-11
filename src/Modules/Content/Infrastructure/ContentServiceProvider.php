@@ -19,10 +19,12 @@ use Modules\Content\Application\Query\ScreenReads;
 use Modules\Content\Application\Query\Shop\ShopReads;
 use Modules\Content\Application\Redirects\AddressProbe;
 use Modules\Content\Application\Redirects\SheetReader;
+use Modules\Content\Application\RefusalWords;
 use Modules\Content\Application\Sitemap\SitemapFiles;
 use Modules\Content\Application\Sitemap\SitemapSources;
 use Modules\Content\Domain\Repository\Banners;
 use Modules\Content\Domain\Repository\BlogCategories;
+use Modules\Content\Domain\Repository\Campaigns;
 use Modules\Content\Domain\Repository\ContentLocks;
 use Modules\Content\Domain\Repository\Documents;
 use Modules\Content\Domain\Repository\FrameItems;
@@ -33,12 +35,14 @@ use Modules\Content\Domain\Repository\RedirectUploads;
 use Modules\Content\Domain\Repository\SlugHistory;
 use Modules\Content\Domain\Repository\SmartBars;
 use Modules\Content\Domain\Repository\StoreSeo;
+use Modules\Content\Domain\Repository\Themes;
 use Modules\Content\Domain\Repository\UnreadTranslations;
 use Modules\Content\Domain\Repository\WaitingJobs;
 use Modules\Content\Infrastructure\Cache\VersionedContentCache;
 use Modules\Content\Infrastructure\Eloquent\ContentCatalogUsage;
 use Modules\Content\Infrastructure\Eloquent\DatabaseBanners;
 use Modules\Content\Infrastructure\Eloquent\DatabaseBlogCategories;
+use Modules\Content\Infrastructure\Eloquent\DatabaseCampaigns;
 use Modules\Content\Infrastructure\Eloquent\DatabaseContentLocks;
 use Modules\Content\Infrastructure\Eloquent\DatabaseDocuments;
 use Modules\Content\Infrastructure\Eloquent\DatabaseFrameItems;
@@ -52,21 +56,27 @@ use Modules\Content\Infrastructure\Eloquent\DatabaseSitemapSources;
 use Modules\Content\Infrastructure\Eloquent\DatabaseSlugHistory;
 use Modules\Content\Infrastructure\Eloquent\DatabaseSmartBars;
 use Modules\Content\Infrastructure\Eloquent\DatabaseStoreSeo;
+use Modules\Content\Infrastructure\Eloquent\DatabaseThemes;
 use Modules\Content\Infrastructure\Eloquent\DatabaseUnreadTranslations;
 use Modules\Content\Infrastructure\Eloquent\DatabaseWaitingJobs;
+use Modules\Content\Infrastructure\External\ContentApiImpl;
+use Modules\Content\Infrastructure\External\ContentCampaignNames;
 use Modules\Content\Infrastructure\External\HttpAddressProbe;
-use Modules\Content\Infrastructure\External\NoCampaignsYet;
+use Modules\Content\Infrastructure\External\NoCampaignNotices;
 use Modules\Content\Infrastructure\Files\LocalSitemapFiles;
 use Modules\Content\Infrastructure\Listener\ForgetShopCopiesOfFile;
 use Modules\Content\Infrastructure\Listener\QueueSitemapBuild;
 use Modules\Content\Infrastructure\Listener\WriteStartingSections;
 use Modules\Content\Infrastructure\Media\ContentMediaUsage;
+use Modules\Content\Infrastructure\Queue\AdvanceCampaignsJob;
 use Modules\Content\Infrastructure\Queue\BuildSitemapsJob;
 use Modules\Content\Infrastructure\Queue\PruneRedirectUploadsJob;
 use Modules\Content\Infrastructure\Queue\QueuedContentJobs;
 use Modules\Content\Infrastructure\Queue\QueueWantedSitemapsJob;
 use Modules\Content\Infrastructure\Sheets\OpenSpoutSheetReader;
+use Modules\Content\Presentation\Http\FormRefusalWords;
 use Modules\Content\Presentation\Http\RedirectAnswer;
+use Modules\Content\Public\Contracts\CampaignNotices;
 use Modules\Content\Public\Contracts\ContentApi;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
@@ -76,6 +86,7 @@ use Modules\Platform\Public\Events\MediaVariantsReady;
 use Modules\Platform\Public\Events\StoreActivated;
 use Modules\Platform\Public\Events\StoreCreated;
 use Modules\Platform\Public\Events\StoreDeactivated;
+use Modules\Pricing\Public\Contracts\CampaignNames;
 
 /**
  * Content's wiring (content.md; handoff §13.2): what the shop says and how it is dressed. Registered after
@@ -86,14 +97,22 @@ use Modules\Platform\Public\Events\StoreDeactivated;
  * history, the text format and Translate. PR 3, its own items: the home page, the bar and footer, banners, pop-ups,
  * smart bars, pages, the blog and projects, their uploads, Platform's `MediaUsage` and Catalog's `CatalogUsage`, and
  * the shop's cached reads (registered as the frame's part with the shop's frame, PR 9). PR 4: SEO defaults, the
- * sitemaps and the robots file, the redirects and their answer to an address nobody answers. `ContentApi` stays answered by
- * the placeholder - no campaign exists yet - until campaigns land (PR 6), so Ops, built against it, runs.
+ * sitemaps and the robots file, the redirects and their answer to an address nobody answers. PR 6: campaigns and their
+ * runs going live through the outbox, `ContentApi` answering for a live run, the notices' port Ops binds, Pricing's
+ * `CampaignNames`, and themes.
  */
 final class ContentServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind(ContentApi::class, NoCampaignsYet::class);
+        // PR 6: campaigns and themes. Ops binds the notices' port after this (it registers last), as it does Access's.
+        $this->app->bind(ContentApi::class, ContentApiImpl::class);
+        $this->app->bind(CampaignNotices::class, NoCampaignNotices::class);
+        $this->app->bind(CampaignNames::class, ContentCampaignNames::class);
+        $this->app->bind(Campaigns::class, DatabaseCampaigns::class);
+        $this->app->bind(Themes::class, DatabaseThemes::class);
+        // A refusal carried inside another (a schedule stopped part way) is said in a form's own words.
+        $this->app->bind(RefusalWords::class, FormRefusalWords::class);
 
         $this->app->bind(HomeSections::class, DatabaseHomeSections::class);
         $this->app->bind(FrameItems::class, DatabaseFrameItems::class);
@@ -174,6 +193,9 @@ final class ContentServiceProvider extends ServiceProvider
             $schedule->job(new QueueWantedSitemapsJob)->everyTenMinutes()->onOneServer();
             // Checked redirect sheets nobody applied, gone after 24 hours.
             $schedule->job(new PruneRedirectUploadsJob)->hourly()->onOneServer();
+            // Campaign runs going live and ending, and their ending alerts (§1.7 #9, #11): Platform's pattern for the
+            // outbox relay.
+            $schedule->job(AdvanceCampaignsJob::class)->everyMinute()->onOneServer();
         });
 
         if (! $this->app->routesAreCached()) {

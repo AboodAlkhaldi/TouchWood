@@ -125,6 +125,7 @@ final readonly class NoticesController
                 Inputs::flag($request, 'by_email'),
                 Inputs::text($request, 'send_at'),
                 Inputs::text($request, 'segment') ?? Inputs::text($request, 'segment_id'),
+                Inputs::flag($request, 'draft'),
             ));
 
             return $this->pages->notice($view->handle(new ViewNotice($id)));
@@ -147,6 +148,7 @@ final readonly class NoticesController
                 Inputs::flag($request, 'by_email'),
                 Inputs::text($request, 'send_at'),
                 self::segment($request),
+                Inputs::flag($request, 'draft'),
             ));
 
             return $this->pages->notice($view->handle(new ViewNotice($notice)));
@@ -199,9 +201,11 @@ final readonly class NoticesController
             return WrittenRefusals::back($request, $error);
         }
 
-        return redirect()->route('ops.admin.notices', ['store' => $notice->storeCode])->with('status', $notice->status === 'SCHEDULED'
-            ? __('ops::admin_written.notices.toast_scheduled', ['at' => $notice->sendAtLocal])
-            : __('ops::admin_written.notices.toast_now'));
+        return redirect()->route('ops.admin.notices', ['store' => $notice->storeCode])->with('status', match ($notice->status) {
+            'DRAFT' => __('ops::admin_written.notices.toast_draft'),
+            'SCHEDULED' => __('ops::admin_written.notices.toast_scheduled', ['at' => $notice->sendAtLocal]),
+            default => __('ops::admin_written.notices.toast_now'),
+        });
     }
 
     /**

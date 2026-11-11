@@ -232,10 +232,11 @@ describe('§1.9 smart bars', function () {
             ->and(Fx::audits('content.smart_bar.deleted', $bar))->toBe(1);
     });
 
-    it('waits for campaign runs before a campaign\'s bar can be made (plan PR 6)', function () {
+    it('refuses a campaign\'s bar that names no run of the store, and a place shown that is neither (CampaignsTest makes one)', function () {
         Cx::editor([ContentPermissions::BAR_MANAGE]);
 
-        expect(bannerRefusal(fn () => app(SaveSmartBarHandler::class)->handle(new SaveSmartBar(null, Fx::storeId('sa'), 'CAMPAIGN', null, strtolower((string) Str::ulid()), 'خصم', 'Sale', null))))->toBe('scope:choice');
+        expect(bannerRefusal(fn () => app(SaveSmartBarHandler::class)->handle(new SaveSmartBar(null, Fx::storeId('sa'), 'CAMPAIGN', null, strtolower((string) Str::ulid()), 'خصم', 'Sale', null))))->toBe('run:run')
+            ->and(bannerRefusal(fn () => app(SaveSmartBarHandler::class)->handle(new SaveSmartBar(null, Fx::storeId('sa'), 'TOP', null, null, 'خصم', 'Sale', null))))->toBe('scope:choice');
     });
 });
 

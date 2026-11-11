@@ -35,7 +35,7 @@ function contentAuditNamesRecorded(): array
         }
     }
 
-    foreach (['home_section', 'banner', 'popup'] as $subject) {
+    foreach (['home_section', 'banner', 'popup', 'theme'] as $subject) {
         $actions[] = "content.{$subject}.image_detached";
     }
 
@@ -51,8 +51,8 @@ function contentAuditNamesRecorded(): array
 it('finds the actions Content records', function () {
     // A guard over files must find something, or it passes over nothing.
     // PR 3's 49, and PR 4's six: the SEO defaults saved and their image detached, a redirect added, changed,
-    // deleted and its count reset.
-    expect(count(contentAuditNamesRecorded()))->toBe(55)
+    // deleted and its count reset. PR 6's sixteen: a campaign's eight, a theme's seven and its image detached.
+    expect(count(contentAuditNamesRecorded()))->toBe(71)
         ->and(contentAuditNamesRecorded())->toContain('content.banner.scheduled', 'content.home_sections.ordered', 'content.post.published');
 });
 

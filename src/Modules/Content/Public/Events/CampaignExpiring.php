@@ -8,11 +8,10 @@ use DateTimeImmutable;
 use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
 
 /**
- * A campaign is about to end (handoff §13.2; ops.md §1.6 S8). `endsAt` is the moment it ends. Ops alerts the
- * store's staff on the Campaign expiry topic, and reads the campaign's name through `ContentApi`.
- *
- * Declared ahead of Content's build, so Ops' side could be finished first: **nothing fires it yet, Content's
- * build will**, and its spec decides how long before the end. Ids only, through the outbox, after commit.
+ * A campaign run is about to end (handoff §13.2; ops.md §1.6 S8; content.md §1.7 #11). `campaignId` is the **run's**
+ * id, `endsAt` the moment it ends. Ops alerts the store's staff on the Campaign expiry topic, and reads the campaign's
+ * name through `ContentApi`. Up to two a run - 72 and 24 hours before its end, by its length - each with its own
+ * `eventId`, fired by `AdvanceCampaignsJob`. Ids only, through the outbox, after commit.
  */
 final readonly class CampaignExpiring implements ShouldDispatchAfterCommit
 {

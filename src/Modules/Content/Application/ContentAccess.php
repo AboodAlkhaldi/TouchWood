@@ -85,6 +85,14 @@ final readonly class ContentAccess
         return $store;
     }
 
+    /** Whether the person holds a permission in this store (asked, never thrown: a campaign's prices, §1.7 #5, #16). */
+    public function holdsIn(string $permission, string $storeId): bool
+    {
+        $held = $this->authorizer->storesWith($permission);
+
+        return $held === null || in_array(strtolower($storeId), array_map(static fn (StoreId $store): string => $store->value, $held), true);
+    }
+
     /**
      * A screen's store asked for by its code and not offered (`StoreChoices` answers alike for every store it does not
      * offer): when it is a store that is off and the person holds the job there, it is refused as off (`StoreOff`, §1.1
