@@ -79,9 +79,10 @@ final readonly class CandidateWriter
         // Its campaign runs not ended (§9.6 #7): what each reaches is judged size by size from Catalog's facts.
         $campaigns = $this->campaigns->notEnded($store, $now);
         $reaches = [];
-        // In a wired store a fixed amount never goes deeper than the ceiling: where the provider's price
-        // would let it, it skips the size (sync.md §9.3 #17). Elsewhere such a price is refused (§1.12).
-        // Asked only when a discount or a run is there or changed: any other price costs no more.
+        // In a wired store a fixed-amount discount never goes deeper than the ceiling: where the provider's
+        // price would let it, it skips the size (sync.md §9.3 #17); elsewhere such a price is refused (§1.12).
+        // A campaign skips such a size in every store (below). Whether the store is wired is asked only when a
+        // discount or a run is there or changed: any other price costs no more.
         $campaignsSeen = $campaigns !== [] || $campaignsChanged;
         $isWired = ($discounts !== [] || $discountsChanged || $campaignsSeen) && $this->ceilingCheck->skipsPastCeiling($store);
         $wired = $isWired && ($discounts !== [] || $discountsChanged);

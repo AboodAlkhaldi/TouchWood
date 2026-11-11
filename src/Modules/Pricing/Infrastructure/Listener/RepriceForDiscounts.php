@@ -15,7 +15,6 @@ use Modules\Catalog\Public\Events\ProductRestored;
 use Modules\Catalog\Public\Events\VariantArchived;
 use Modules\Catalog\Public\Events\VariantRestored;
 use Modules\Platform\Public\Events\SettingChanged;
-use Modules\Pricing\Application\Prices\CampaignCoverage;
 use Modules\Pricing\Application\Prices\CandidateWriter;
 use Modules\Pricing\Application\Prices\CeilingCheck;
 use Modules\Pricing\Application\Prices\DiscountCoverage;
@@ -47,7 +46,6 @@ final readonly class RepriceForDiscounts
         private CatalogApi $catalog,
         private CeilingCheck $ceiling,
         private Campaigns $campaigns,
-        private CampaignCoverage $campaignCoverage,
     ) {}
 
     public function productChanged(ProductChanged $event): void
@@ -70,6 +68,12 @@ final readonly class RepriceForDiscounts
      * §9.3 #17, #20) - elsewhere the ceiling never decides what a discount reaches; and in every store a
      * campaign's fixed prices do (pricing.md §9.6 #5, amendment 2): a run left past the ceiling in a store no
      * longer wired takes its sizes back once the ceiling is raised.
+     *
+     * **Only the sizes a run gives a fixed price** are written again (PR 8's third review): a percentage is
+     * held to the ceiling on saving and a lower ceiling is held back while a run would go past it, so a run's
+     * other sizes never move with it - a brand-wide 10% with one fixed size is one size, not the brand's
+     * thousands. In a store not wired only a fixed size a run skips now can move (a raise lets it back; a
+     * lower ceiling is held back), so nothing is written where none is skipped.
      */
     public function ceilingChanged(SettingChanged $event): void
     {
@@ -79,25 +83,54 @@ final readonly class RepriceForDiscounts
 
         $store = StoreId::fromString($event->storeId);
         $now = CarbonImmutable::now()->toDateTimeImmutable();
-        // A campaign's fixed prices, in any store (pricing.md §9.6 #5, amendment 2).
-        $campaigns = array_values(array_filter($this->campaigns->notEnded($store, $now), static fn (Campaign $campaign): bool => $campaign->hasFixedPrices()));
-        $fixed = ! $this->ceiling->skipsPastCeiling($store) ? [] : array_values(array_filter(
+        $wired = $this->ceiling->skipsPastCeiling($store);
+        $fixedSizes = self::fixedSizes($this->campaigns->notEnded($store, $now));
+
+        if (! $wired && $fixedSizes !== []) {
+            $fixedSizes = array_values(array_intersect($fixedSizes, array_map('strval', array_keys($this->campaigns->skipsOf($store, $fixedSizes)))));
+        }
+
+        $fixed = ! $wired ? [] : array_values(array_filter(
             $this->discounts->notEnded($store, $now),
             static fn (CategoryDiscount $discount): bool => $discount->amount !== null,
         ));
 
-        if ($fixed === [] && $campaigns === []) {
+        if ($fixed === [] && $fixedSizes === []) {
             return;
         }
 
-        $this->change->run($store, function () use ($store, $fixed, $campaigns): array {
-            $sizes = [...($fixed === [] ? [] : array_keys($this->coverage->pricedSizes($store, $fixed))), ...($campaigns === [] ? [] : $this->campaignCoverage->pricedSizes($store, $campaigns))];
+        $this->change->run($store, function () use ($store, $fixed, $fixedSizes): array {
+            $sizes = [...($fixed === [] ? [] : array_keys($this->coverage->pricedSizes($store, $fixed))), ...$fixedSizes];
             $sizes = array_values(array_unique(array_map('strval', $sizes)));
             sort($sizes);
-            $this->writer->refresh($store, $sizes, campaignsChanged: $campaigns !== []);
+            $this->writer->refresh($store, $sizes, campaignsChanged: $fixedSizes !== []);
 
             return [null, []];
         });
+    }
+
+    /**
+     * The sizes these runs give a fixed price, each once, in id order.
+     *
+     * @param  list<Campaign>  $campaigns
+     * @return list<string>
+     */
+    private static function fixedSizes(array $campaigns): array
+    {
+        $sizes = [];
+
+        foreach ($campaigns as $campaign) {
+            foreach ($campaign->targets as $target) {
+                if ($target->amount !== null) {
+                    $sizes[strtolower($target->id)] = true;
+                }
+            }
+        }
+
+        $sizes = array_map('strval', array_keys($sizes));
+        sort($sizes);
+
+        return $sizes;
     }
 
     /**

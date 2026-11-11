@@ -235,6 +235,11 @@ final readonly class CampaignPricesImpl implements CampaignPrices
         return $this->campaigns->skipsOf($store, $variantIds);
     }
 
+    public function skipsInStore(StoreId $store): array
+    {
+        return $this->campaigns->skipsInStore($store);
+    }
+
     /** The run in this store, for a read: one of another store, or no id at all, is none here. */
     private function here(StoreId $store, string $runId): ?Campaign
     {
