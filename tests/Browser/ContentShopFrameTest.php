@@ -93,8 +93,8 @@ it('opens the drawer of option C3: categories, then account and settings with th
 
     $page->click('[data-test="category-sheet-open"]');
     expect(browserSoon($page, "document.querySelector('[data-test=\"drawer-switch\"]') !== null"))->toBeTrue()
-        // From the page's start side: the right in Arabic.
-        ->and(browserUntil($page, "(() => { const r = document.querySelector('[data-test=\"category-sheet\"]').getBoundingClientRect(); return r.right >= window.innerWidth - 1 && r.left > 0; })()"))->toBeTrue()
+        // From the page's start side: the right in Arabic (as ShopPagesTest measures it: innerWidth counts the scroll lock's gap).
+        ->and(browserUntil($page, "(() => { const r = document.querySelector('[data-test=\"category-sheet\"]').getBoundingClientRect(); return Math.round(r.width) <= 320 && r.left > 20 && r.right > window.innerWidth * 0.9; })()"))->toBeTrue('the drawer is not on the right in Arabic')
         ->and($page->script("document.querySelector('[data-test=\"drawer-categories\"]').getAttribute('data-state')"))->toBe('active');
 
     $page->click('[data-test="drawer-account"]');

@@ -36,7 +36,9 @@ use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Content\Support\ContentFixtures as Cx;
 
 use function Pest\Laravel\get;
+use function Pest\Laravel\post;
 use function Pest\Laravel\seed;
+use function Pest\Laravel\withCookie;
 
 /*
 | The shop's frame over HTTP (content.md §1.5, §1.8, §1.10; plan PR 9): Content's part of every shop page
@@ -102,7 +104,11 @@ function shopFrameListingBanner(): string
     });
 }
 
-/** Every part a frame draws, artwork ready. */
+/**
+ * Every part a frame draws, artwork ready.
+ *
+ * @return list<array<string, mixed>>
+ */
 function shopFrameParts(string $badge = 'عرض'): array
 {
     return [
@@ -117,7 +123,11 @@ function shopFrameParts(string $badge = 'عرض'): array
     ];
 }
 
-/** A shop page's props, as Inertia hands them; the page is a fresh request. */
+/**
+ * A shop page's props, as Inertia hands them; the page is a fresh request.
+ *
+ * @return array<string, mixed>
+ */
 function shopFramePage(string $url): array
 {
     app()->forgetScopedInstances();
@@ -280,20 +290,22 @@ describe('above a product list (§1.9, §1.6 LISTING, §1.8 part 8; catalog.md a
         // The top category's bar reaches the one under it; a brand's or a search's list has no category.
         expect(ContentFrame::listing($kept, 'en', [$top, $under], $now)['smartBar'])->toBe(['text' => 'Kitchens on sale', 'link' => null])
             ->and(ContentFrame::listing($kept, 'en', [], $now)['smartBar'])->toBeNull()
-            ->and(ContentFrame::listing($kept, 'en', [], $now)['banner']['link'])->toBe('/categories/summer');
+            ->and(ContentFrame::listing($kept, 'en', [], $now)['banner']['link'] ?? null)->toBe('/categories/summer');
 
         $bar($under, 'Cabinets on sale');
         $kept = app(ContentFrame::class)->kept($store, 'en');
 
-        expect(ContentFrame::listing($kept, 'en', [$top, $under], $now)['smartBar']['text'])->toBe('Cabinets on sale')
-            ->and(ContentFrame::listing($kept, 'en', [$top], $now)['smartBar']['text'])->toBe('Kitchens on sale');
+        expect(ContentFrame::listing($kept, 'en', [$top, $under], $now)['smartBar']['text'] ?? null)->toBe('Cabinets on sale')
+            ->and(ContentFrame::listing($kept, 'en', [$top], $now)['smartBar']['text'] ?? null)->toBe('Kitchens on sale');
 
         shopFrameTheme(shopFrameParts());
         Cx::clockOn(2);
         $themed = ContentFrame::listing(app(ContentFrame::class)->kept($store, 'en'), 'en', [$top], CarbonImmutable::now())['banner'];
 
-        expect($themed['link'])->toBeNull()
-            ->and($themed['desktop'])->not->toBe([]);
+        expect($themed)->not->toBeNull()
+            // The theme's banner, which links nowhere, ahead of the ordinary one, which links to /categories/summer.
+            ->and(array_key_exists('link', $themed ?? []) && ($themed['link'] ?? null) === null)->toBeTrue()
+            ->and($themed['desktop'] ?? [])->not->toBe([]);
     });
 
     it('carries the slot on a search page, read once with the frame, and never on a Show More', function () {
@@ -352,7 +364,7 @@ describe('Preview Theme on the shop (W5b)', function () {
         $cookie = (string) $browser->cookie(ThemePreviewCookie::NAME);
         expect($cookie)->not->toBe('');
         app()->forgetScopedInstances();
-        $this->withCookie(ThemePreviewCookie::NAME, $cookie)->get('/sa/en')->assertOk()->assertInertia(fn (AssertableInertia $view) => $view->where('theme.campaign', 'base')->where('frame.content.preview', null));
+        withCookie(ThemePreviewCookie::NAME, $cookie)->get('/sa/en')->assertOk()->assertInertia(fn (AssertableInertia $view) => $view->where('theme.campaign', 'base')->where('frame.content.preview', null));
     });
 
     it('shows nothing to the staff view of someone who is not a Super Admin, though the cookie is real', function () {
@@ -370,7 +382,7 @@ describe('Preview Theme on the shop (W5b)', function () {
     });
 
     it('stops on the shop\'s own line: the cookie forgotten, back to the page', function () {
-        $this->post('/sa/en/theme-preview/stop', [], ['Referer' => url('/sa/en/search?q=Drawer')])
+        post('/sa/en/theme-preview/stop', [], ['Referer' => url('/sa/en/search?q=Drawer')])
             ->assertRedirect(url('/sa/en/search?q=Drawer'))
             ->assertCookieExpired(ThemePreviewCookie::NAME);
     });
