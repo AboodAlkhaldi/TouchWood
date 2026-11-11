@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from '@inertiajs/react';
 import { cn } from 'cn';
 import { Note } from '@/components/Note';
+import { isReduced, ThemeBadge, ThemeFlag, ThemeRibbon } from '@/components/content/ThemeMarks';
 import { type FeedbackSections, QuestionsSection, RatingLine, ReviewsSection, SaveHeart } from '@/components/feedback/shop';
 import { AddToCart } from '@/components/sales/AddToCart';
 import { type CardFacts, ProductCards, useCardFacts } from '@/components/shop/ProductCards';
@@ -72,7 +73,7 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
 
                 <div className="grid gap-8 md:grid-cols-2">
                     {/* A new set of photos starts at its first. */}
-                    <Gallery key={variant?.id ?? 'product'} photos={photos} name={name} />
+                    <Gallery key={variant?.id ?? 'product'} photos={photos} name={name} reduced={isReduced(variant?.price, variant?.priceBefore)} />
 
                     <div className="grid content-start gap-4">
                         {page.brand !== null ? (
@@ -92,6 +93,11 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
                         <h1 className="text-heading-32 text-ink">{name}</h1>
                         <RatingLine reviews={sections['feedback.reviews']} />
                         {available ? <ProductPrice variant={variant} wholesale={sections['pricing.wholesale'] ?? null} wholesaleMinimum={selling?.wholesaleMinimum ?? null} /> : null}
+                        {available ? (
+                            <span className="flex empty:hidden">
+                                <ThemeBadge reduced={isReduced(variant?.price, variant?.priceBefore)} />
+                            </span>
+                        ) : null}
 
                         {available ? null : (
                             <Note variant="warning" label={t('catalog::shop.product.not_available')} data-test="not-available">
@@ -212,14 +218,18 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
     );
 }
 
-/** A large photo and its thumbnails. */
-function Gallery({ photos, name }: { photos: PhotoSizes[]; name: string }) {
+/** A large photo and its thumbnails; a live theme's ribbon and flag on it while the chosen size shows a reduced price. */
+function Gallery({ photos, name, reduced }: { photos: PhotoSizes[]; name: string; reduced: boolean }) {
     const t = useTranslator();
     const [shown, setShown] = useState(0);
 
     return (
         <div className="grid content-start gap-3" data-test="gallery">
-            <ShopPhoto photo={photos[shown] ?? null} size="detail" alt={name} eager className="aspect-square w-full rounded-lg bg-surface" />
+            <div className="relative overflow-hidden rounded-lg">
+                <ShopPhoto photo={photos[shown] ?? null} size="detail" alt={name} eager className="aspect-square w-full rounded-lg bg-surface" />
+                <ThemeRibbon reduced={reduced} />
+                <ThemeFlag reduced={reduced} />
+            </div>
             {photos.length > 1 ? (
                 <div className="flex flex-wrap gap-2">
                     {photos.map((photo, index) => (

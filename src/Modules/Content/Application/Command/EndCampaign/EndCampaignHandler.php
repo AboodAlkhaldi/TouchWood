@@ -8,6 +8,7 @@ use Illuminate\Database\ConnectionInterface;
 use Modules\Content\Application\CampaignRules;
 use Modules\Content\Application\ContentAccess;
 use Modules\Content\Application\ContentAudit;
+use Modules\Content\Application\ContentCache;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\Moments;
 use Modules\Content\Domain\Exception\CampaignNotChangeable;
@@ -35,6 +36,7 @@ final readonly class EndCampaignHandler
         private CampaignRules $rules,
         private ConnectionInterface $db,
         private PlatformApi $platform,
+        private ContentCache $cache,
     ) {}
 
     /**
@@ -87,6 +89,8 @@ final readonly class EndCampaignHandler
             [$starts, $ends] = Moments::endNow($run->startsAt, $now);
             $ended = $run->with(state: RunState::Ended, startsAt: $starts, endsAt: $ends, endedAt: $now);
             $this->campaigns->updateRun($ended);
+            // Its smart bar stops now (§1.9): the shop's frame copy goes.
+            $this->cache->invalidate();
             $this->rules->keepTargets($run, null);
             $this->platform->recordAudit(ContentAudit::entry('content.campaign.ended', 'content.campaign_run', $run->id, $store->id, ContentAudit::diff($run->fields(), $ended->fields())));
         }, 3);

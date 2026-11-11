@@ -634,7 +634,7 @@ describe('the queries', function () {
         // the frame's read, none here. Less than the page in stock, which has Add to Cart. The limits are a
         // target, not a cap (owner, 2026-10-19).
         expect(['in stock' => $inStock, 'sold out' => $noFeedback, 'sold out, with reviews and answers' => $withFeedback, 'marked by staff' => $markedByStaff])
-            ->toBe(['in stock' => 16, 'sold out' => 9, 'sold out, with reviews and answers' => 12, 'marked by staff' => 8]);
+            ->toBe(['in stock' => 18, 'sold out' => 11, 'sold out, with reviews and answers' => 14, 'marked by staff' => 10]); // Content's frame, 2 more since 2026-11-11 (content.md §1.5, plan PR 9): its one cached read, the cache's version and copy.
     });
 
     it('records an emptied category and brand, for a guest, in production\'s session', function () {
@@ -660,7 +660,7 @@ describe('the queries', function () {
         // (`categoryTrail`, amendment 40(d)), which a top category asks too and finds nothing above it. A brand
         // 1 more: `onlySoldOut`, for its sentence. A page still listing asks neither.
         expect(['on sale' => $onSale, 'emptied' => $measure()])
-            ->toBe(['on sale' => ['sub-category' => 8, 'top category' => 8, 'brand' => 8], 'emptied' => ['sub-category' => 10, 'top category' => 10, 'brand' => 9]]);
+            ->toBe(['on sale' => ['sub-category' => 10, 'top category' => 10, 'brand' => 10], 'emptied' => ['sub-category' => 12, 'top category' => 12, 'brand' => 11]]); // Content's frame, 2 more since 2026-11-11 (content.md §1.5, plan PR 9): its one cached read, the cache's version and copy.
     });
 });
 

@@ -35,9 +35,72 @@ final readonly class DatabaseShopReads implements ShopReads
              FROM content.popups WHERE store_id = ? AND is_scheduled AND (ends_at IS NULL OR ends_at > ?::timestamptz) ORDER BY starts_at, id',
             [$storeId, $now],
         );
-        $urls = $this->urls(array_map(static fn (stdClass $popup): ?string => Rows::text($popup->media_id), $popups));
+        // The store's themes scheduled and not ended, by its own moments (content.md §1.8): one is live at a time, the
+        // clock decides which (§1.5).
+        /** @var list<stdClass> $themes */
+        $themes = $this->db->select(
+            'SELECT t.id, t.slug, s.starts_at, s.ends_at FROM content.themes t JOIN content.theme_stores s ON s.theme_id = t.id
+             WHERE s.store_id = ? AND t.is_scheduled AND s.ends_at > ?::timestamptz ORDER BY s.starts_at, t.id',
+            [$storeId, $now],
+        );
+        // Smart bars (§1.9): a category's by its own optional dates, a campaign's **while its run is live** - the job's
+        // going live, End and a moved end replace this copy - until the run's end; newest first, as the nearest-first rule
+        // reads them.
+        /** @var list<stdClass> $smartBars */
+        $smartBars = $this->db->select(
+            "SELECT b.id, b.scope, b.category_id, b.message_ar, b.message_en, b.link,
+                    CASE WHEN b.scope = 'CAMPAIGN' THEN r.starts_at ELSE b.starts_at END AS starts_at,
+                    CASE WHEN b.scope = 'CAMPAIGN' THEN r.ends_at ELSE b.ends_at END AS ends_at
+             FROM content.smart_bars b LEFT JOIN content.campaign_runs r ON r.id = b.run_id
+             WHERE b.store_id = ? AND (
+                 (b.scope = 'CATEGORY' AND (b.ends_at IS NULL OR b.ends_at > ?::timestamptz))
+                 OR (b.scope = 'CAMPAIGN' AND r.state = 'LIVE' AND r.ends_at > ?::timestamptz))
+             ORDER BY b.created_at DESC, b.id DESC",
+            [$storeId, $now, $now],
+        );
+
+        // Listing banners (§1.6): one category's (and those below it) or every list's, in order.
+        /** @var list<stdClass> $listings */
+        $listings = $this->db->select(
+            "SELECT id, category_id, link, alt_ar, alt_en, starts_at, ends_at FROM content.banners
+             WHERE store_id = ? AND placement = 'LISTING' AND is_scheduled AND (ends_at IS NULL OR ends_at > ?::timestamptz) ORDER BY position, id",
+            [$storeId, $now],
+        );
+        /** @var list<stdClass> $listingImages */
+        $listingImages = $listings === [] ? [] : $this->db->select('SELECT banner_id, kind, locale, media_id FROM content.banner_images WHERE banner_id IN ('.implode(', ', array_fill(0, count($listings), '?')).')', array_map(static fn (stdClass $banner): string => (string) $banner->id, $listings));
+
+        $urls = $this->urls([
+            ...array_map(static fn (stdClass $popup): ?string => Rows::text($popup->media_id), $popups),
+            ...array_map(static fn (stdClass $image): string => (string) $image->media_id, $listingImages),
+        ]);
+
+        $bannerImages = [];
+
+        foreach ($listingImages as $image) {
+            $bannerImages[(string) $image->banner_id]["{$image->kind}:{$image->locale}"] = $urls[(string) $image->media_id] ?? [];
+        }
 
         return [
+            'themes' => $this->themes($themes),
+            'smartBars' => array_map(static fn (stdClass $bar): array => [
+                'id' => (string) $bar->id,
+                'categoryId' => Rows::text($bar->category_id),
+                'message_ar' => (string) $bar->message_ar,
+                'message_en' => (string) $bar->message_en,
+                'link' => Rows::text($bar->link),
+                'starts' => self::iso($bar->starts_at),
+                'ends' => self::iso($bar->ends_at),
+            ], $smartBars),
+            'listings' => array_map(static fn (stdClass $banner): array => [
+                'id' => (string) $banner->id,
+                'categoryId' => Rows::text($banner->category_id),
+                'link' => Rows::text($banner->link),
+                'alt_ar' => Rows::text($banner->alt_ar),
+                'alt_en' => Rows::text($banner->alt_en),
+                'images' => $bannerImages[(string) $banner->id] ?? [],
+                'starts' => self::iso($banner->starts_at),
+                'ends' => self::iso($banner->ends_at),
+            ], $listings),
             'bar' => $bar instanceof stdClass ? ['text_ar' => (string) $bar->text_ar, 'text_en' => (string) $bar->text_en, 'link' => Rows::text($bar->link), 'starts' => self::iso($bar->starts_at), 'ends' => self::iso($bar->ends_at)] : null,
             'footer' => $footer instanceof stdClass ? [...array_map(Rows::text(...), (array) $footer), 'columns' => Rows::decode($footer->columns)] : null,
             'popups' => array_map(static fn (stdClass $popup): array => [
@@ -55,6 +118,74 @@ final readonly class DatabaseShopReads implements ShopReads
                 'ends' => self::iso($popup->ends_at),
             ], $popups),
         ];
+    }
+
+    public function previewTheme(string $themeId, string $storeId): ?array
+    {
+        $theme = $this->db->selectOne(
+            'SELECT t.id, t.slug, t.name_ar, t.name_en FROM content.themes t JOIN content.theme_stores s ON s.theme_id = t.id WHERE t.id = ? AND s.store_id = ?',
+            [strtolower($themeId), strtolower($storeId)],
+        );
+
+        if (! $theme instanceof stdClass) {
+            return null;
+        }
+
+        // Shown whatever its dates: a preview is of the theme as it will look (content.md W5b).
+        $theme->starts_at = null;
+        $theme->ends_at = null;
+
+        return [...$this->themes([$theme])[0], 'starts' => null, 'ends' => null, 'name_ar' => (string) $theme->name_ar, 'name_en' => Rows::text($theme->name_en)];
+    }
+
+    /**
+     * Themes with their parts' words and images, each image as its sizes' addresses.
+     *
+     * @param  list<stdClass>  $themes
+     * @return list<array{id: string, slug: string, parts: array<string, array<string, mixed>>, starts: string|null, ends: string|null}>
+     */
+    private function themes(array $themes): array
+    {
+        $ids = array_map(static fn (stdClass $theme): string => (string) $theme->id, $themes);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $in = implode(', ', array_fill(0, count($ids), '?'));
+        /** @var list<stdClass> $parts */
+        $parts = $this->db->select("SELECT theme_id, part, text_ar, text_en, link, extras FROM content.theme_parts WHERE theme_id IN ({$in})", $ids);
+        /** @var list<stdClass> $images */
+        $images = $this->db->select("SELECT theme_id, part, slot, locale, media_id FROM content.theme_part_images WHERE theme_id IN ({$in})", $ids);
+        $urls = $this->urls(array_map(static fn (stdClass $image): string => (string) $image->media_id, $images));
+        $kept = [];
+
+        foreach ($parts as $part) {
+            $kept[(string) $part->theme_id][(string) $part->part] = [
+                'text_ar' => Rows::text($part->text_ar),
+                'text_en' => Rows::text($part->text_en),
+                'link' => Rows::text($part->link),
+                'extras' => Rows::decode($part->extras),
+                'images' => [],
+            ];
+        }
+
+        foreach ($images as $image) {
+            $sizes = $urls[(string) $image->media_id] ?? [];
+
+            // One whose sizes are not ready, or failed, draws as if left empty (§1.8).
+            if ($sizes !== [] && isset($kept[(string) $image->theme_id][(string) $image->part])) {
+                $kept[(string) $image->theme_id][(string) $image->part]['images']["{$image->slot}:{$image->locale}"] = $sizes;
+            }
+        }
+
+        return array_map(static fn (stdClass $theme): array => [
+            'id' => (string) $theme->id,
+            'slug' => (string) $theme->slug,
+            'parts' => $kept[(string) $theme->id] ?? [],
+            'starts' => self::iso($theme->starts_at),
+            'ends' => self::iso($theme->ends_at),
+        ], $themes);
     }
 
     public function home(string $storeId): array
