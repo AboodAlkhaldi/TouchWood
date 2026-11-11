@@ -45,7 +45,8 @@ use function Pest\Laravel\seed;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
-    config(['session.driver' => 'database']);
+    // No session sweep: its 2-in-100 DELETE would add a query at random to the counts below.
+    config(['session.driver' => 'database', 'session.lottery' => [0, 100]]);
     seed(PlatformSeeder::class);
     FakeBreachList::install();
     RecordingSecurityMessages::install();
