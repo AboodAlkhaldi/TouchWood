@@ -12,11 +12,13 @@ use Modules\Content\Application\ContentCache;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\EditCheck;
 use Modules\Content\Application\Moments;
+use Modules\Content\Application\TranslationMarks;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Domain\Exception\InvalidContentInput;
 use Modules\Content\Domain\Model\Banner;
 use Modules\Content\Domain\Repository\Banners;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Modules\Content\Domain\ValueObject\Schedule;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Unauthorized;
@@ -38,6 +40,7 @@ final readonly class ScheduleBannerHandler
         private ConnectionInterface $db,
         private PlatformApi $platform,
         private ContentCache $cache,
+        private TranslationMarks $marks,
     ) {}
 
     /**
@@ -61,6 +64,7 @@ final readonly class ScheduleBannerHandler
             $now = Moments::now();
             $banner = new Banner($was->id, $was->storeId, $was->placement, $was->categoryId, $was->name, $was->link, $was->hasWords, $was->altAr, $was->altEn, new Schedule(true, $was->schedule->startsAt ?? $now, $was->schedule->endsAt), $was->position, $was->images, $was->version + 1, $staffId, $now);
             $this->rules->requireSchedulable($banner, $now);
+            $this->marks->showing(UnreadTranslations::BANNER, $was->id, $command->read);
             $this->banners->update($banner);
             $this->platform->recordAudit(ContentAudit::entry('content.banner.scheduled', 'content.banner', $was->id, $store->id, ContentAudit::diff($was->fields(), $banner->fields())));
             $this->cache->invalidate();

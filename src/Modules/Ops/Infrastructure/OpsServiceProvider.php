@@ -52,6 +52,7 @@ use Modules\Ops\Application\Messages\NewsletterList;
 use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Application\Messages\SmsSender;
 use Modules\Ops\Application\Messages\SmsSenders;
+use Modules\Ops\Application\Newsletter\CustomerSubscriptions;
 use Modules\Ops\Application\Newsletter\NewsletterQueue;
 use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Application\Query\ListStaffMessages\StaffMessageQueries;
@@ -79,6 +80,7 @@ use Modules\Ops\Infrastructure\Excel\OpenSpoutReportWriter;
 use Modules\Ops\Infrastructure\External\BrevoAnswers;
 use Modules\Ops\Infrastructure\External\BrevoEmailSender;
 use Modules\Ops\Infrastructure\External\BrevoNewsletterList;
+use Modules\Ops\Infrastructure\External\BrevoUnsubscribeRead;
 use Modules\Ops\Infrastructure\External\BuiltSmsSenders;
 use Modules\Ops\Infrastructure\External\DailyReportEmailMailer;
 use Modules\Ops\Infrastructure\External\LogEmailSender;
@@ -105,6 +107,7 @@ use Modules\Ops\Infrastructure\Queue\PruneOpsLogJob;
 use Modules\Ops\Infrastructure\Queue\PruneWrittenMessagesJob;
 use Modules\Ops\Infrastructure\Queue\QueuedDailyReportEmails;
 use Modules\Ops\Infrastructure\Queue\QueuedEventDeliveries;
+use Modules\Ops\Infrastructure\Queue\ReadBrevoUnsubscribesJob;
 use Modules\Ops\Infrastructure\Queue\RemindExpiringPointsJob;
 use Modules\Ops\Infrastructure\Queue\StartDueNoticesJob;
 use Modules\Ops\Presentation\Bell\PanelBellPart;
@@ -222,6 +225,14 @@ final class OpsServiceProvider extends ServiceProvider
                 : $app->make(LogNewsletterList::class),
             default => throw new InvalidArgumentException('OPS_NEWSLETTER_DRIVER names no newsletter driver Ops has: "brevo" or "log".'),
         });
+        // The nightly read of Brevo's unsubscribes (§9.6 #1), with the same key: called only while BREVO_NIGHTLY_READ is on.
+        $this->app->bind(BrevoUnsubscribeRead::class, fn (Application $app): BrevoUnsubscribeRead => new BrevoUnsubscribeRead(
+            $app->make(Factory::class),
+            $app->make(ConnectionInterface::class),
+            $app->make(CustomerSubscriptions::class),
+            $app->make(LoggerInterface::class),
+            (string) $app->make('config')->get('services.brevo.key'),
+        ));
     }
 
     public function boot(): void
@@ -317,6 +328,8 @@ final class OpsServiceProvider extends ServiceProvider
             $schedule->job(PruneDailyReportsJob::class)->timezone('Asia/Riyadh')->dailyAt('04:50')->onOneServer();
             // C14: the customers whose points expire a week from today, each store's own day (§1.5).
             $schedule->job(RemindExpiringPointsJob::class)->timezone('Asia/Riyadh')->dailyAt('10:00')->onOneServer();
+            // The unsubscribes Brevo's webhook lost (§9.6 #1), each list read in its own job; nothing while BREVO_NIGHTLY_READ is off.
+            $schedule->job(ReadBrevoUnsubscribesJob::class)->timezone('Asia/Riyadh')->dailyAt('03:20')->onOneServer();
         });
 
         if (! $this->app->routesAreCached()) {

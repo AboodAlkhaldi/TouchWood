@@ -38,6 +38,7 @@ use Modules\Content\Domain\Repository\SlugHistory;
 use Modules\Content\Domain\Repository\SmartBars;
 use Modules\Content\Domain\Repository\StoreSeo;
 use Modules\Content\Domain\Repository\Themes;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Modules\Content\Domain\Repository\WaitingJobs;
 use Modules\Content\Infrastructure\Cache\VersionedContentCache;
 use Modules\Content\Infrastructure\Eloquent\ContentCatalogUsage;
@@ -58,6 +59,7 @@ use Modules\Content\Infrastructure\Eloquent\DatabaseSlugHistory;
 use Modules\Content\Infrastructure\Eloquent\DatabaseSmartBars;
 use Modules\Content\Infrastructure\Eloquent\DatabaseStoreSeo;
 use Modules\Content\Infrastructure\Eloquent\DatabaseThemes;
+use Modules\Content\Infrastructure\Eloquent\DatabaseUnreadTranslations;
 use Modules\Content\Infrastructure\Eloquent\DatabaseWaitingJobs;
 use Modules\Content\Infrastructure\External\ContentApiImpl;
 use Modules\Content\Infrastructure\External\ContentCampaignNames;
@@ -141,6 +143,9 @@ final class ContentServiceProvider extends ServiceProvider
         $this->app->bind(ContentJobs::class, QueuedContentJobs::class);
         $this->app->bind(AddressProbe::class, HttpAddressProbe::class);
         $this->app->bind(SheetReader::class, OpenSpoutSheetReader::class);
+
+        // PR 7b: Translate's mark kept until read (content.md §1.3, P14).
+        $this->app->bind(UnreadTranslations::class, DatabaseUnreadTranslations::class);
     }
 
     public function boot(): void
@@ -176,6 +181,11 @@ final class ContentServiceProvider extends ServiceProvider
             new MenuEntryDto('content', 'bars', 'content', 'content.admin.bars', ContentPermissions::BAR_MANAGE, 20, icon: 'bars'),
             new MenuEntryDto('content', 'banners', 'content', 'content.admin.banners', ContentPermissions::BANNER_MANAGE, 30, icon: 'banners'),
             new MenuEntryDto('content', 'popups', 'content', 'content.admin.popups', ContentPermissions::POPUP_MANAGE, 60, icon: 'popups'),
+            new MenuEntryDto('content', 'pages', 'content', 'content.admin.pages', ContentPermissions::PAGE_MANAGE, 70, icon: 'document_types'),
+            new MenuEntryDto('content', 'blog', 'content', 'content.admin.blog', ContentPermissions::BLOG_MANAGE, 80, icon: 'audit'),
+            new MenuEntryDto('content', 'projects', 'content', 'content.admin.projects', ContentPermissions::PROJECT_MANAGE, 90, icon: 'companies'),
+            new MenuEntryDto('content', 'seo', 'content', 'content.admin.seo', ContentPermissions::SEO_MANAGE, 100, icon: 'stores'),
+            new MenuEntryDto('content', 'redirects', 'content', 'content.admin.redirects', ContentPermissions::REDIRECT_MANAGE, 110, icon: 'returns'),
         );
 
         // An old site's address on a line of the redirects answers 301 where nothing else answers (§1.15, row L2).

@@ -39,6 +39,9 @@ return [
         'key' => env('BREVO_API_KEY', ''),
         'newsletter_folder' => env('BREVO_NEWSLETTER_FOLDER_ID', ''),
         'webhook_secret' => env('BREVO_WEBHOOK_SECRET', ''),
+        // The nightly read of the lists' unsubscribes (ops.md §9.6 #1): off until one real run on the owner's
+        // Brevo account has shown the right people (docs/HANDOFF.md). Off, the scheduled job does nothing.
+        'nightly_read' => (bool) env('BREVO_NIGHTLY_READ', false),
     ],
 
     // Platform's machine translation (content.md §2.2): "deepl" sends staff text to DeepL with DEEPL_API_KEY,

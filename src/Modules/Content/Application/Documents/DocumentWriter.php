@@ -15,6 +15,7 @@ use Modules\Content\Application\ContentImages;
 use Modules\Content\Application\EditCheck;
 use Modules\Content\Application\Moments;
 use Modules\Content\Application\Text\MarkText;
+use Modules\Content\Application\TranslationMarks;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Domain\Exception\InvalidContentInput;
@@ -64,6 +65,7 @@ final readonly class DocumentWriter
         private ConnectionInterface $db,
         private PlatformApi $platform,
         private ContentCache $cache,
+        private TranslationMarks $marks,
     ) {}
 
     /**
@@ -90,6 +92,7 @@ final readonly class DocumentWriter
                 $document = $this->document(strtolower((string) Str::ulid()), $kind, $store, Publication::Draft, null, $read, 1, $staffId, $now);
                 $this->check->addresses($store->id, $kind->value, $document->id, self::slugs($document));
                 $this->documents->add($document, $staffId);
+                $this->marks->saved($kind->value, $document->id, $store->id, $input->translated, $input->read, false);
                 $this->platform->recordAudit(ContentAudit::entry("content.{$kind->key()}.created", "content.{$kind->key()}", $document->id, $store->id, self::changes(null, $document)));
                 $this->cache->invalidate();
 
@@ -106,6 +109,8 @@ final readonly class DocumentWriter
 
             $this->check->addresses($store->id, $kind->value, $document->id, self::slugs($document));
             $this->documents->update($document);
+            // A published item shows what is saved at once: its unread English is refused, as its Publish would be.
+            $this->marks->saved($kind->value, $document->id, $store->id, $input->translated, $input->read, $was->status === Publication::Published);
             $this->platform->recordAudit(ContentAudit::entry("content.{$kind->key()}.changed", "content.{$kind->key()}", $document->id, $store->id, self::changes($was, $document)));
             $this->cache->invalidate();
 
@@ -116,9 +121,9 @@ final readonly class DocumentWriter
     /**
      * @throws ContentError
      */
-    public function publish(DocumentKind $kind, string $id, int $version, StoreDto $store, ?string $staffId): void
+    public function publish(DocumentKind $kind, string $id, int $version, StoreDto $store, ?string $staffId, bool $read = false): void
     {
-        $this->db->transaction(function () use ($kind, $id, $version, $store, $staffId): void {
+        $this->db->transaction(function () use ($kind, $id, $version, $store, $staffId, $read): void {
             $was = $this->documents->lock($kind, $id) ?? throw new ContentNotFound;
             $this->check->version($version, $was->version, $was->updatedBy, $was->updatedAt, $store);
 
@@ -129,6 +134,7 @@ final readonly class DocumentWriter
             $now = Moments::now();
             $document = $this->with($was, Publication::Published, $now, $staffId, $now);
             $this->requirePublishable($document);
+            $this->marks->showing($kind->value, $id, $read);
             // Only the state changes: its words, images and photos are left as they are.
             $this->documents->updateRow($document);
             $this->platform->recordAudit(ContentAudit::entry("content.{$kind->key()}.published", "content.{$kind->key()}", $id, $store->id, AuditChanges::none()->changed('status', $was->status->value, Publication::Published->value)));
@@ -172,6 +178,7 @@ final readonly class DocumentWriter
             $this->documents->delete($kind, $was->id);
             // A deleted item's addresses are free again (§1.1 rule 11).
             $this->history->forget($kind->value, $was->id);
+            $this->marks->forget($kind->value, $was->id);
             $this->platform->recordAudit(ContentAudit::entry("content.{$kind->key()}.deleted", "content.{$kind->key()}", $was->id, $store->id, self::changes($was, null)));
             $this->cache->invalidate();
         }, 3);

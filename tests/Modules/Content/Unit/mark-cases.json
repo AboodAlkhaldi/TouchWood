@@ -1,0 +1,406 @@
+{
+    "about": "Bodies as staff type them (content.md §1.2), each with the blocks the server keeps (MarkText::blocks). Read by MarkTextCasesTest and by tests/Frontend/marks-content.test.ts (components/content/marks.ts), so the editor's preview draws what is saved. Written by the server's own reading; a change to either side must keep both.",
+    "cases": [
+        {
+            "typed": "One line.",
+            "blocks": [
+                {
+                    "type": "paragraph",
+                    "runs": [
+                        {
+                            "text": "One line."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "typed": "Two lines\nof one paragraph.\n\nA second paragraph.",
+            "blocks": [
+                {
+                    "type": "paragraph",
+                    "runs": [
+                        {
+                            "text": "Two lines of one paragraph."
+                        }
+                    ]
+                },
+                {
+                    "type": "paragraph",
+                    "runs": [
+                        {
+                            "text": "A second paragraph."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "typed": "# A heading\n\n## A smaller one",
+            "blocks": [
+                {
+                    "type": "heading",
+                    "level": 2,
+                    "runs": [
+                        {
+                            "text": "A heading"
+                        }
+                    ]
+                },
+                {
+                    "type": "heading",
+                    "level": 3,
+                    "runs": [
+                        {
+                            "text": "A smaller one"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "typed": "- one\n- **two**\n- three",
+            "blocks": [
+                {
+                    "type": "list",
+                    "items": [
+                        [
+                            {
+                                "text": "one"
+                            }
+                        ],
+                        [
+                            {
+                                "text": "two",
+                                "bold": true
+                            }
+                        ],
+                        [
+                            {
+                                "text": "three"
+                            }
+                        ]
+                    ]
+                }
+            ]
+        },
+        {
+            "typed": "1. measure\n2. fit\n\n- then\n- tidy",
+            "blocks": [
+                {
+                    "type": "list",
+                    "ordered": true,
+                    "items": [
+                        [
+                            {
+                                "text": "measure"
+                            }
+                        ],
+                        [
+                            {
+                                "text": "fit"
+                            }
+                        ]
+                    ]
+                },
+                {
+                    "type": "list",
+                    "items": [
+                        [
+                            {
+                                "text": "then"
+                            }
+                        ],
+                        [
+                            {
+                                "text": "tidy"
+                            }
+                        ]
+                    ]
+                }
+            ]
+        },
+        {
+            "typed": "See [our guide](/pages/guide) and [the shop](https://example.com/a?b=c).",
+            "blocks": [
+                {
+                    "type": "paragraph",
+                    "runs": [
+                        {
+                            "text": "See "
+                        },
+                        {
+                            "text": "our guide",
+                            "link": "/pages/guide"
+                        },
+                        {
+                            "text": " and "
+                        },
+                        {
+                            "text": "the shop",
+                            "link": "https://example.com/a?b=c"
+                        },
+                        {
+                            "text": "."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "typed": "**Bold [and linked](/x)** after",
+            "blocks": [
+                {
+                    "type": "paragraph",
+                    "runs": [
+                        {
+                            "text": "Bold ",
+                            "bold": true
+                        },
+                        {
+                            "text": "and linked",
+                            "bold": true,
+                            "link": "/x"
+                        },
+                        {
+                            "text": " after"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "typed": "An unclosed ** stays as it is",
+            "blocks": [
+                {
+                    "type": "paragraph",
+                    "runs": [
+                        {
+                            "text": "An unclosed ** stays as it is"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "typed": "![The cabinet open](image:3)",
+            "blocks": [
+                {
+                    "type": "image",
+                    "ref": 3,
+                    "alt": "The cabinet open"
+                }
+            ]
+        },
+        {
+            "typed": "![  Spaced  ](image:12)",
+            "blocks": [
+                {
+                    "type": "image",
+                    "ref": 12,
+                    "alt": "Spaced"
+                }
+            ]
+        },
+        {
+            "typed": "| Size | Price |\n| 60 | 1,200 |\n| 90 |  |",
+            "blocks": [
+                {
+                    "type": "table",
+                    "head": [
+                        [
+                            {
+                                "text": "Size"
+                            }
+                        ],
+                        [
+                            {
+                                "text": "Price"
+                            }
+                        ]
+                    ],
+                    "rows": [
+                        [
+                            [
+                                {
+                                    "text": "60"
+                                }
+                            ],
+                            [
+                                {
+                                    "text": "1,200"
+                                }
+                            ]
+                        ],
+                        [
+                            [
+                                {
+                                    "text": "90"
+                                }
+                            ],
+                            []
+                        ]
+                    ]
+                }
+            ]
+        },
+        {
+            "typed": "Text\n| a | b |\n| c | d |\nafter",
+            "blocks": [
+                {
+                    "type": "paragraph",
+                    "runs": [
+                        {
+                            "text": "Text"
+                        }
+                    ]
+                },
+                {
+                    "type": "table",
+                    "head": [
+                        [
+                            {
+                                "text": "a"
+                            }
+                        ],
+                        [
+                            {
+                                "text": "b"
+                            }
+                        ]
+                    ],
+                    "rows": [
+                        [
+                            [
+                                {
+                                    "text": "c"
+                                }
+                            ],
+                            [
+                                {
+                                    "text": "d"
+                                }
+                            ]
+                        ]
+                    ]
+                },
+                {
+                    "type": "paragraph",
+                    "runs": [
+                        {
+                            "text": "after"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "typed": "\\# not a heading, \\- not an item, 2024\\. a year",
+            "blocks": [
+                {
+                    "type": "paragraph",
+                    "runs": [
+                        {
+                            "text": "# not a heading, - not an item, 2024. a year"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "typed": "Arabic digits ١٢٣ become 123",
+            "blocks": [
+                {
+                    "type": "paragraph",
+                    "runs": [
+                        {
+                            "text": "Arabic digits 123 become 123"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "typed": "Escaped \\*stars\\* and \\[brackets\\] and a \\| bar",
+            "blocks": [
+                {
+                    "type": "paragraph",
+                    "runs": [
+                        {
+                            "text": "Escaped *stars* and [brackets] and a | bar"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "typed": "خزانة **خشب الزان** مع [ضمان](/pages/warranty).",
+            "blocks": [
+                {
+                    "type": "paragraph",
+                    "runs": [
+                        {
+                            "text": "خزانة "
+                        },
+                        {
+                            "text": "خشب الزان",
+                            "bold": true
+                        },
+                        {
+                            "text": " مع "
+                        },
+                        {
+                            "text": "ضمان",
+                            "link": "/pages/warranty"
+                        },
+                        {
+                            "text": "."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "typed": "a\r\nb\r\n\r\nc",
+            "blocks": [
+                {
+                    "type": "paragraph",
+                    "runs": [
+                        {
+                            "text": "a b"
+                        }
+                    ]
+                },
+                {
+                    "type": "paragraph",
+                    "runs": [
+                        {
+                            "text": "c"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "typed": "  indented line  \n\n\n\nfar below",
+            "blocks": [
+                {
+                    "type": "paragraph",
+                    "runs": [
+                        {
+                            "text": "indented line"
+                        }
+                    ]
+                },
+                {
+                    "type": "paragraph",
+                    "runs": [
+                        {
+                            "text": "far below"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

@@ -23,6 +23,8 @@ final class HomeSectionData extends Data
         public bool $isVisible,
         public int $version,
         public array $settings,
+        /** Translate filled its English and nobody has ticked that they read it: Show asks first (content.md §1.3, P14). */
+        public bool $translationUnread = false,
     ) {}
 
     /**
@@ -33,6 +35,6 @@ final class HomeSectionData extends Data
         $settings = is_array($section['settings'] ?? null) ? $section['settings'] : [];
 
         /** @var array<string, mixed> $settings */
-        return new self((string) ($section['id'] ?? ''), (string) ($section['type'] ?? ''), (bool) ($section['isVisible'] ?? false), (int) ($section['version'] ?? 0), $settings);
+        return new self((string) ($section['id'] ?? ''), (string) ($section['type'] ?? ''), (bool) ($section['isVisible'] ?? false), (int) ($section['version'] ?? 0), $settings, ($section['translationUnread'] ?? false) === true);
     }
 }

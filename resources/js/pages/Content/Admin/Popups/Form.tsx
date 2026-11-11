@@ -6,7 +6,7 @@ import { ImageBox } from '@/components/content/image-box';
 import { sentMoment } from '@/components/content/moments';
 import { StateBadge } from '@/components/content/list';
 import { PairFields } from '@/components/content/parts';
-import { TranslateAllButton, useReadTick, useTranslation } from '@/components/content/translate';
+import { markFields, TranslateAllButton, useReadTick, useTranslation } from '@/components/content/translate';
 import { DateTimeField } from '@/components/DateTimeField';
 import { TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
@@ -48,7 +48,7 @@ export default function Form({ store, storeTimezone, popup, image: savedImage, t
     const [starts, setStarts] = useState<MomentInput>(() => momentFrom(popup?.startsAt ?? null, zone));
     const [ends, setEnds] = useState<MomentInput>(() => momentFrom(popup?.endsAt ?? null, zone));
     const [touched, setTouched] = useState(false);
-    const translation = useTranslation('popup', store.id, translationReady);
+    const translation = useTranslation('popup', store.id, translationReady, popup?.translationUnread === true);
     const tick = useReadTick(translation);
     const state = popup?.state ?? 'DRAFT';
     const scheduled = state === 'SCHEDULED' || state === 'LIVE';
@@ -75,8 +75,8 @@ export default function Form({ store, storeTimezone, popup, image: savedImage, t
         fill: (value: string) => form.setData(`${name}_en`, value),
     }));
 
-    const send = (intent: 'draft' | 'schedule') => {
-        form.transform((data) => ({ ...data, store: store.id, version: popup?.version ?? 0, media_id: image?.id ?? '', starts_at: sentMoment(starts), ends_at: sentMoment(ends), intent }));
+    const send = (intent: 'draft' | 'schedule', read = false) => {
+        form.transform((data) => ({ ...data, ...markFields(translation, read), store: store.id, version: popup?.version ?? 0, media_id: image?.id ?? '', starts_at: sentMoment(starts), ends_at: sentMoment(ends), intent }));
         form.post(popup === null ? LIST : `${LIST}/${popup.id}`, { preserveScroll: 'errors' });
     };
     const set = (name: 'title' | 'text' | 'button') => (language: 'ar' | 'en', value: string) => form.setData(`${name}_${language}`, value);
@@ -91,7 +91,7 @@ export default function Form({ store, storeTimezone, popup, image: savedImage, t
                         event.preventDefault();
 
                         if (!ended) {
-                            checks.submit(() => tick.ask(() => send('schedule'), scheduleLabel));
+                            checks.submit(() => tick.ask((read) => send('schedule', read), scheduleLabel));
                         }
                     }}
                     data-test="popup-form"

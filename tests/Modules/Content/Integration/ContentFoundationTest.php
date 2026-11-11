@@ -164,7 +164,7 @@ describe('the schema', function () {
             'campaign_run_targets', 'campaign_runs', 'campaigns',
             'footers', 'home_section_media', 'home_sections', 'job_runs', 'page_images', 'page_translations', 'pages', 'popups', 'post_images',
             'project_images', 'project_photos', 'project_products', 'project_translations', 'projects', 'redirect_uploads', 'redirects',
-            'seo_defaults', 'sitemaps', 'slug_history', 'smart_bars', 'theme_part_images', 'theme_parts', 'theme_stores', 'themes', 'waiting_jobs',
+            'seo_defaults', 'sitemaps', 'slug_history', 'smart_bars', 'theme_part_images', 'theme_parts', 'theme_stores', 'themes', 'unread_translations', 'waiting_jobs',
         ]);
     });
 });
@@ -252,8 +252,9 @@ describe('the errors', function () {
             $named++;
         }
 
-        // §7 lists eighteen, and PR 6's review adds a schedule stopped part way; a moved folder must not pass over nothing.
-        expect($named)->toBe(19);
+        // §7 lists nineteen, TranslationUnread (P14) among them, and PR 6's review adds a schedule stopped part way; a moved
+        // folder must not pass over nothing.
+        expect($named)->toBe(20);
     });
 });
 

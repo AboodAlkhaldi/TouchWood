@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Link, router } from '@inertiajs/react';
 import { ChevronDown } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
@@ -25,6 +25,9 @@ import { HomeTabs } from './tabs';
 */
 
 const HOME = '/admin/content/home';
+
+// Asked only when Show is pressed on a section whose translated English nobody has read (§1.3, P14): never on first paint.
+const ReadTickDialog = lazy(() => import('@/components/content/translate-dialogs').then((module) => ({ default: module.ReadTickDialog })));
 
 type Pair = { ar?: string | null; en?: string | null } | undefined;
 
@@ -202,6 +205,8 @@ function SectionItem({ section, name, first, last, onTop, onBottom, onRemove }: 
     const summary = useSummary();
     const sortable = useSortableRow(section.id);
     const [flipping, setFlipping] = useState(false);
+    const [asking, setAsking] = useState(false);
+    const flip = (visible: boolean, read = false) => router.post(`${HOME}/sections/${section.id}/show`, { visible, read }, { preserveScroll: true, onStart: () => setFlipping(true), onFinish: () => setFlipping(false) });
 
     return (
         <Item
@@ -234,7 +239,7 @@ function SectionItem({ section, name, first, last, onTop, onBottom, onRemove }: 
                     checked={section.isVisible}
                     disabled={flipping}
                     aria-label={`${t('content::admin_home.sections.show')}: ${name}`}
-                    onCheckedChange={(visible) => router.post(`${HOME}/sections/${section.id}/show`, { visible }, { preserveScroll: true, onStart: () => setFlipping(true), onFinish: () => setFlipping(false) })}
+                    onCheckedChange={(visible) => (visible && section.translationUnread ? setAsking(true) : flip(visible))}
                     data-test="show"
                 />
                 <DropdownMenu>
@@ -262,6 +267,18 @@ function SectionItem({ section, name, first, last, onTop, onBottom, onRemove }: 
                     </DropdownMenuContent>
                 </DropdownMenu>
             </ItemActions>
+            {asking ? (
+                <Suspense fallback={null}>
+                    <ReadTickDialog
+                        label={t('content::admin_home.sections.show')}
+                        onClose={() => setAsking(false)}
+                        onSend={() => {
+                            setAsking(false);
+                            flip(true, true);
+                        }}
+                    />
+                </Suspense>
+            ) : null}
         </Item>
     );
 }

@@ -12,6 +12,10 @@ import type { SharedProps } from '@/types/page';
 | fills every English box that is empty. A save that shows the words to shoppers asks, while a box is still marked, for
 | the one tick "I read the translated English." (`useReadTick`).
 |
+| The mark outlives the session (§1.3, the owner's P14): a form says on save whether a box still carries it
+| (`translated`) and whether the tick was given (`read`); an item saved with it opens marked (`unread`), and only the
+| tick clears it - typing over the words does not.
+|
 | The server does the work (`POST /admin/content/translate`, by the kind of item and its store); a refusal comes back in
 | its own words and the box keeps what it held. The two questions load when asked (translate-dialogs.tsx): never on
 | first paint, so React.lazy is safe under SSR (lesson 180).
@@ -34,6 +38,7 @@ type Answer = { texts: string[]; lostMarks: number[] };
 
 export type Translation = {
     ready: boolean;
+    /** The pairs carrying the mark; `*` the item's own mark from an earlier save, which only the tick clears. */
     marked: ReadonlySet<string>;
     busy: string | null;
     /** What is said under a pair's English box after Translate: a failure, or the marks it lost. */
@@ -46,10 +51,13 @@ export type Translation = {
     dialog: ReactNode;
 };
 
-export function useTranslation(kind: string, store: string, ready: boolean): Translation {
+/** The mark an item saved earlier still carries: none of its boxes is named, and typing never takes it away. */
+const SAVED_MARK = '*';
+
+export function useTranslation(kind: string, store: string, ready: boolean, unread = false): Translation {
     const t = useTranslator();
     const { csrfToken } = usePage<SharedProps>().props;
-    const [marked, setMarked] = useState<ReadonlySet<string>>(() => new Set());
+    const [marked, setMarked] = useState<ReadonlySet<string>>(() => new Set(unread ? [SAVED_MARK] : []));
     const [notes, setNotes] = useState<Record<string, string>>({});
     const [busy, setBusy] = useState<string | null>(null);
     const [replacing, setReplacing] = useState<Pair | null>(null);
@@ -171,20 +179,21 @@ export function TranslateAllButton({ translation, pairs }: { translation: Transl
 
 /**
  * The one question before marked English reaches shoppers (§1.3 #3): a required tick, then the form's own button.
- * Nothing is asked while no box is marked: `ask` sends at once.
+ * Nothing is asked while no box is marked: `ask` sends at once, saying no tick was given. The send is told whether it
+ * was (`read`), for the server to clear the item's mark (P14).
  */
 export function useReadTick(translation: Translation) {
     const [pending, setPending] = useState<{ send: () => void; label: string } | null>(null);
 
     return {
-        ask: (send: () => void, label: string) => {
+        ask: (send: (read: boolean) => void, label: string) => {
             if (translation.marked.size === 0) {
-                send();
+                send(false);
 
                 return;
             }
 
-            setPending({ send, label });
+            setPending({ send: () => send(true), label });
         },
         dialog:
             pending === null ? null : (
@@ -201,4 +210,9 @@ export function useReadTick(translation: Translation) {
                 </Suspense>
             ),
     };
+}
+
+/** What a save tells the server of Translate's mark (P14): whether a box still carries it, and whether the tick was given. */
+export function markFields(translation: Translation, read: boolean): { translated: boolean; read: boolean } {
+    return { translated: translation.marked.size > 0, read };
 }
