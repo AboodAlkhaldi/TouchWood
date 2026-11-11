@@ -541,7 +541,9 @@ describe('the head (§1.14)', function () {
 
         expect(contentShopPage('/sa/en/pages/about-us', 'Content/Storefront/Document')['head']['title'])->toBe('About Us');
 
-        $save = static fn (string $site): mixed => app(SaveSeoDefaultsHandler::class)->handle(new SaveSeoDefaults(Fx::storeId('sa'), 'تاتش وود', $site, ':title | :site', ':title - :site', 'وصف', 'A description', null, null));
+        $save = static function (string $site): void {
+            app(SaveSeoDefaultsHandler::class)->handle(new SaveSeoDefaults(Fx::storeId('sa'), 'تاتش وود', $site, ':title | :site', ':title - :site', 'وصف', 'A description', null, null));
+        };
         Cx::editor([ContentPermissions::SEO_MANAGE]);
         $save('TouchWood');
         $page = contentShopPage('/sa/en/pages/about-us', 'Content/Storefront/Document');
