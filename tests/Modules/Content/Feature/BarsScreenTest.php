@@ -142,5 +142,6 @@ it('costs few queries of its own', function () {
 
     // Measured 2026-11-10: 14, the panel's frame's 10 (AdminFrameQueryBudgetTest) and 4 of its own - the bar, the smart
     // bars, the categories on offer (two). Content's target is 15 of its own (§4.2).
-    expect(Screen::queries($browser, BARS_SCREEN.'?store=sa'))->toBe(14);
+    // 2026-11-11 (PR 7b, P14): one more on a form and on the sections' list - Translate's unread mark (content.unread_translations).
+    expect(Screen::queries($browser, BARS_SCREEN.'?store=sa'))->toBe(15);
 });

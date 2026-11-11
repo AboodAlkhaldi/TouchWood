@@ -79,6 +79,8 @@ final readonly class BarsController
                 Inputs::flag($request, 'is_on'),
                 Inputs::text($request, 'starts_at'),
                 Inputs::text($request, 'ends_at'),
+                Inputs::flag($request, 'translated'),
+                Inputs::flag($request, 'read'),
             ));
         } catch (DomainError $error) {
             return Refusals::back($request, $error, self::BAR_BOXES);

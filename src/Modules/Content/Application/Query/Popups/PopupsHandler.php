@@ -9,6 +9,7 @@ use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\Query\ScreenReads;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Repository\Popups;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Shared\Application\Unauthorized;
 
 /**
@@ -23,6 +24,7 @@ final readonly class PopupsHandler
         private ContentAccess $access,
         private Popups $popups,
         private ScreenReads $reads,
+        private UnreadTranslations $marks,
     ) {}
 
     /**
@@ -48,6 +50,6 @@ final readonly class PopupsHandler
         $popup = $this->popups->find($popupId);
         $this->access->authorize(self::PERMISSION, $popup?->storeId, item: true);
 
-        return $popup === null ? [] : ['id' => $popup->id, 'store_id' => $popup->storeId, ...$popup->fields(), 'version' => $popup->version];
+        return $popup === null ? [] : ['id' => $popup->id, 'store_id' => $popup->storeId, ...$popup->fields(), 'version' => $popup->version, 'translation_unread' => $this->marks->has(UnreadTranslations::POPUP, $popup->id)];
     }
 }

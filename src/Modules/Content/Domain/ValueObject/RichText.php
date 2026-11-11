@@ -64,6 +64,14 @@ final readonly class RichText
     /** An address's longest. Not in the spec: the build's pick. */
     public const int MAX_LINK = 2_000;
 
+    /**
+     * An https address's authority, up to the first "/", "?" or "#": a host - a name, or an address in brackets -
+     * with a port of digits at most. No user part, which can make one address read as another
+     * (`https://shop@evil.example`; PR 7a review), and no empty host (`https:///x`, `https://@x`). The editors
+     * check the same pattern as it is typed (resources/js/components/content/links.ts; link-cases.json).
+     */
+    private const string HTTPS_AUTHORITY = '~\A(?:\[[^\]/?#@]+\]|[^\[\]/?#@:]+)(?::[0-9]*)?(?:[/?#]|\z)~u';
+
     /** A line break, a control character, or a line or paragraph separator. */
     private const string LINE_BREAK = '/[\p{Cc}\p{Zl}\p{Zp}]/u';
 
@@ -198,9 +206,7 @@ final readonly class RichText
         }
 
         if (str_starts_with(strtolower($address), 'https://')) {
-            $host = parse_url($address, PHP_URL_HOST);
-
-            return is_string($host) && $host !== '' ? $address : null;
+            return preg_match(self::HTTPS_AUTHORITY, substr($address, 8)) === 1 ? $address : null;
         }
 
         // A page of the shop: no scheme, never "//" (another site), the store and language added when drawn.

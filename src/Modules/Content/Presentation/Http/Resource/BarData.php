@@ -19,6 +19,8 @@ final class BarData extends Data
         public ?string $startsAt,
         public ?string $endsAt,
         public int $version,
+        /** Translate filled its English and nobody has ticked that they read it (content.md §1.3, P14). */
+        public bool $translationUnread = false,
     ) {}
 
     /**
@@ -34,6 +36,7 @@ final class BarData extends Data
             self::text($fields['starts_at'] ?? null),
             self::text($fields['ends_at'] ?? null),
             (int) ($fields['version'] ?? 0),
+            ($fields['translation_unread'] ?? false) === true,
         );
     }
 

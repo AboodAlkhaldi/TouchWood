@@ -12,11 +12,13 @@ use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\EditCheck;
 use Modules\Content\Application\Moments;
 use Modules\Content\Application\PopupRules;
+use Modules\Content\Application\TranslationMarks;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Domain\Exception\InvalidContentInput;
 use Modules\Content\Domain\Model\Popup;
 use Modules\Content\Domain\Repository\Popups;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Modules\Content\Domain\ValueObject\Schedule;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Unauthorized;
@@ -38,6 +40,7 @@ final readonly class SchedulePopupHandler
         private ConnectionInterface $db,
         private PlatformApi $platform,
         private ContentCache $cache,
+        private TranslationMarks $marks,
     ) {}
 
     /**
@@ -62,6 +65,7 @@ final readonly class SchedulePopupHandler
             $now = Moments::now();
             $popup = new Popup($was->id, $was->storeId, $was->name, $was->titleAr, $was->titleEn, $was->textAr, $was->textEn, $was->buttonAr, $was->buttonEn, $was->link, $was->delaySeconds, $was->mediaId, new Schedule(true, $was->schedule->startsAt ?? $now, $was->schedule->endsAt), $was->version + 1, $staffId, $now);
             $this->rules->requireSchedulable($popup, $store, $now);
+            $this->marks->showing(UnreadTranslations::POPUP, $was->id, $command->read);
             $this->popups->update($popup);
             $this->platform->recordAudit(ContentAudit::entry('content.popup.scheduled', 'content.popup', $was->id, $store->id, ContentAudit::diff($was->fields(), $popup->fields())));
             $this->cache->invalidate();

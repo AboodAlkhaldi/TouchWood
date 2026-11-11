@@ -38,11 +38,12 @@ interface ScreenReads
     public function smartBars(string $storeId): array;
 
     /**
-     * W7-W9's rows of one tab, last changed first, and each tab's count.
+     * W7-W9's rows of one tab - both states for the blog's posts, which show the state as a column - last changed
+     * first, and each tab's count.
      *
      * @return array{rows: list<array<string, mixed>>, counts: array<string, int>}
      */
-    public function documents(DocumentKind $kind, string $storeId, Publication $tab, ?string $after, ?string $categoryId): array;
+    public function documents(DocumentKind $kind, string $storeId, ?Publication $tab, ?string $after, ?string $categoryId): array;
 
     /**
      * W8's categories in order, each with how many posts it holds.

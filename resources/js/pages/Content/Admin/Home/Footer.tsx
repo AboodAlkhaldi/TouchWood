@@ -1,25 +1,26 @@
 import { useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
-import { MoreHorizontal, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
 import { isShopLink, linkRule, PairFields } from '@/components/content/parts';
+import { MoveItems, SortableList } from '@/components/content/sortable';
 import { TranslateAllButton, useReadTick, useTranslation, type Pair } from '@/components/content/translate';
 import { TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { Note } from '@/components/Note';
+import { MoreButton } from '@/components/RowMenu';
 import { useLeaveGuard } from '@/components/SaveBar';
 import { StoreFilter } from '@/components/StoreFilter';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { FieldDescription, FieldLegend, FieldSet } from '@/components/ui/field';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { useChecks } from '@/lib/use-checks';
 import type { FooterData, HomePageData } from '@/types/generated/Modules/Content/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
-import { MoveItems, SortableList } from '../../../Catalog/Admin/SortableList';
+import { HomeTabs } from './tabs';
 
 /*
 | W1's Footer tab (content.md §1.5, §4.4), its own page beside the sections' (`?tab=footer`): a line about the store,
@@ -28,8 +29,8 @@ import { MoveItems, SortableList } from '../../../Catalog/Admin/SortableList';
 | shown at once, so every box takes both languages; each is checked as it is typed, and a refusal from the server lands
 | under the row it is about. The one tick is asked while Translate's mark stays on any English box (§1.3).
 |
-| The form is in the page's own file, not a helper beside it: one chunk fewer keeps the page within its 60 KB with the
-| dragging code (JavaScriptBudgetTest).
+| The dragging loads once the page is drawn (components/content/sortable.tsx): the first paint and the server's render
+| show the lists plain, and the page pays for no @dnd-kit in its 60 KB (JavaScriptBudgetTest).
 */
 
 type Words = { ar: string; en: string };
@@ -58,19 +59,12 @@ function moved<T>(items: T[], at: number, top: boolean): T[] {
     return at >= items.length ? items : top ? [items[at] as T, ...rest] : [...rest, items[at] as T];
 }
 
-/**
- * A row's ⋯ menu: Move to Top, Move to Bottom, then its removal. Its button is RowMenu's MoreButton as drawn there - named
- * for its row - written here, as that file's other parts would take this page over its 60 KB (JavaScriptBudgetTest).
- */
+/** A row's ⋯ menu: Move to Top, Move to Bottom, then its removal. */
 function RowMenu({ name, at, count, onMove, onRemove, remove, test }: { name: string; at: number; count: number; onMove: (top: boolean) => void; onRemove: () => void; remove: string; test: string }) {
-    const t = useTranslator();
-
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button type="button" variant="ghost" size="icon-sm" aria-label={`${t('ui.more_actions')}: ${name}`} title={t('ui.more_actions')} data-test={`${test}-more`}>
-                    <MoreHorizontal aria-hidden="true" />
-                </Button>
+                <MoreButton name={name} data-test={`${test}-more`} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-48">
                 <MoveItems first={at === 0} last={at === count - 1} onTop={() => onMove(true)} onBottom={() => onMove(false)} testPrefix={`${test}-move`} />
@@ -92,20 +86,7 @@ export default function Footer({ stores, storeCode, sections, footer, translatio
             <div className="grid min-w-0 grid-cols-1 gap-4">
                 <FormError />
                 <StoreFilter stores={stores.map((each) => ({ code: each.code, name: each.name, isActive: each.isOn }))} value={storeCode} className="max-w-xs" />
-                {/* tabs.tsx's HomeTabs, written here for the 60 KB as the menu's button is: the same two tabs, Footer chosen. */}
-                <div className="min-w-0 max-w-full overflow-x-auto" data-test="tabs-row">
-                    <Tabs value="footer" onValueChange={(tab) => router.get('/admin/content/home', { store: storeCode, tab }, { preserveScroll: true })}>
-                        <TabsList variant="line" className="max-w-full overflow-x-auto">
-                            <TabsTrigger value="sections" data-test="tab-sections">
-                                {t('content::admin_home.tabs.sections')}
-                                <span className="tw-figure text-ink-muted">{sections.length}</span>
-                            </TabsTrigger>
-                            <TabsTrigger value="footer" data-test="tab-footer">
-                                {t('content::admin_home.tabs.footer')}
-                            </TabsTrigger>
-                        </TabsList>
-                    </Tabs>
-                </div>
+                <HomeTabs tab="footer" storeCode={storeCode} sections={sections.length} />
                 <FooterForm key={`${storeCode}-${footer.version}`} storeId={store?.id ?? ''} footer={footer} translationReady={translationReady} />
             </div>
         </AdminLayout>

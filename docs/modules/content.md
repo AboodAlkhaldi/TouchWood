@@ -83,6 +83,7 @@ On **every box or text that has an Arabic and an English side**, for whoever may
 1. Staff type the Arabic. Then they type the English, or press **Translate** (ترجمة) beside the English box.
 2. The English box fills. The box is marked **Translated, read it before publishing** (مترجم آليًا، راجعه قبل النشر), in the save-state place fields already use. Staff read it and fix it.
 3. Nothing is saved or published by the button itself. **Publish or Schedule asks once, with a required tick:** "I read the translated English." (قرأت النص الإنجليزي المترجم.) when any box still carries the mark `[ACCEPTED 2026-11-10]`: the owner's "nothing goes live unseen" made into one tick. Typing in a box removes its mark.
+4. **The mark outlives the session** (P14, owner 2026-11-11: "yes mark it"; §9.5 row 1). An item saved while a box carries Translate's mark and nobody ticked keeps a per-item mark, "machine-translated, not read yet" (`content.unread_translations`): a page, post or project, a banner, a pop-up, a home section, a store's announcement bar. Its form opens marked, in any later session, by anyone; **Publish, Schedule, Show and switching the bar on ask for the tick again**, and are refused without it (`TranslationUnread`); **the tick clears the mark**, and only the tick: typing over the words in a later session does not. Something shoppers see now or are due to see (published, scheduled, live, shown, switched on) never keeps a mark: its save with unread English asks for the tick, as its Publish would. Items without a Publish step (the footer, smart bars, SEO defaults, blog categories) ask at their save, as before, so no mark is left on them. A deleted item's mark goes with it. Campaigns and themes (PR 8) follow the same rule at Schedule.
 
 **Rules.**
 
@@ -560,6 +561,7 @@ Schema `content` (added to `search_path` in `config/database.php`, or `migrate:f
 | `content.sitemaps` | (`store_id`, `part`) PK · `file_key` · `urls` · `built_at`. File in private storage, served by the routes |
 | `content.redirects` | `old_path` PK, trimmed and decoded (`COLLATE "C"`) · `new_path` · `visits` bigint default 0 · `last_visit_at` NULL · `source` CHECK (`HAND`, `SHEET`) · `check_result` NULL · `check_final_path` NULL · `checked_at` NULL · `created_by` · timestamps |
 | `content.redirect_uploads` | `id` · `lines` jsonb (result per line) · `state` · `created_by` · `created_at` · `applied_at` NULL (set with `APPLIED`; as built, PR 4). Dropped after 24 hours, by the hourly `PruneRedirectUploadsJob` |
+| `content.unread_translations` | *P14, as built (PR 7b):* (`kind` CHECK (`PAGE`, `POST`, `PROJECT`, `BANNER`, `POPUP`, `HOME_SECTION`, `BAR`), `item_id`) PK · `store_id` FK RESTRICT · `marked_by` NULL · `marked_at`. A row is Translate's unread mark on that item (§1.3 #4); a bar's item is its store |
 | `content.job_runs` | *As built (PR 4 review, the build's pick):* `uuid` PK (the queued job's) · `finished_at`. A sitemap build or a page of Check Addresses that finished: a copy of it a second worker takes, should the queue hand one out (both run on the long connection, whose `retry_after` is above them; owner, 2026-11-10), deletes itself. Rows older than 2 days are removed as each job ends |
 | `content.waiting_jobs` | *As built (PR 4, the build's pick):* `job` PK CHECK (`BUILD_SITEMAPS`, `CHECK_REDIRECTS`) · `queued_at` NULL (one is queued: W10's and W11's buttons disabled, a second ask queues nothing; older than 6 hours, taken as lost) · `wanted_at` NULL, `wanted_now` (a change wants a sitemap build; a store switched on or off: at the next tick) · `extra_on` date NULL (the UTC day of the one extra build for Catalog's changes, §9.3 #35). A row missing is made again by the first ask |
 
@@ -607,6 +609,7 @@ Every error extends `ContentError` → `DomainError`, type `content.*`, both lan
 | `CampaignPricesNotAllowed` | FORBIDDEN | Scheduling a run with price choices, without `pricing.price.edit` in its store, naming the store |
 | `RedirectInvalid` | INVALID | §1.15: a store's or reserved old address, a new address of no store |
 | `SheetRefused` | INVALID | Wrong type, no headings, over 5,000 lines or 2 MB |
+| `TranslationUnread` | CONFLICT | Publish, Schedule, Show, the bar switched on, or a save of something shoppers see, while Translate's English on it is unread and the tick was not given (§1.3 #4) |
 | `TranslationUnavailable` | CONFLICT | The token isn't set, or `TranslationFailed` with its reason's words (§1.3) |
 | `StoreOff` | FORBIDDEN | Any use case in an off store, by someone who may not switch stores |
 | `ContentNotFound` | NOT_FOUND | An unknown id, or one of a store the reader holds nothing in: the same answer |
@@ -774,6 +777,19 @@ The build's picks where the text above leaves the detail open, marked so for the
 | C11 | Preview Theme's cookie lasts two hours, names the presser (another staff member's browser reads none), and opens the theme's first store's Arabic home | W5b |
 | C12 | S8's link `/admin/content/campaigns/runs/{run}` answers 302 to `/admin/content/campaigns/{id}`, whose screen is PR 8's | §2.3 O3 |
 
+### 9.3c As built: the admin screens W7 to W11 (PR 7b, 2026-11-11)
+
+The build's picks where the text above leaves the detail open, marked so for the owner to reject; none changes a rule.
+
+| # | As built | Where |
+|---|---|---|
+| S1 | **A link typed by staff** is refused by the editors exactly as by the server: an `https://` address's authority (up to the first `/`, `?` or `#`) is a host with a port of digits at most, **with no user part** (`https://shop@evil.example`, `https://@x`) and never empty (`https:///x`); spaces are trimmed as PHP's `trim()` does, so a no-break space at an end is refused. One case table, read by both sides (`link-cases.json`) | §1.1 rule 16 |
+| S2 | The editor's preview reads the typed marks as `MarkText` does, from one case table read by both sides (`mark-cases.json`); a mark the server would refuse is drawn as best it can, and the save says why | §1.2 |
+| S3 | W7 and W9 list by tab (Published, Draft); W8's posts list both states with a State column under the Posts and Categories tabs, filtered by category. Unpublish and Delete sit in the ⋯ of the item's own page, not on the list's rows | W7-W9 |
+| S4 | Add Product searches the store's ready products with a size switched on there, 20 at a time | W8, W9 |
+| S5 | The blog's categories are added and changed in a dialog with Translate; their order is saved as dropped or moved | W8 |
+| S6 | Content's dragged lists draw plain on the server's render and first paint and load their dragging after mount, Move to Top and Move to Bottom included (lessons 180, 395) | §4.2 |
+
 ### 9.4 Amendments other documents would need
 
 Accepted with this spec (owner, 2026-11-10); each module's builder is still asked before its rows are built (owner, 2026-10-28). **Written into the documents on 2026-11-10**, each in its module's own style: handoff §0.1, §4.1, §4.4, §13.2, §14; platform.md §9.4; access.md amendment 97; catalog.md amendment 41; pricing.md §9.6; sync.md amendment 2; ops.md §9.6's answers and §9.7; sales.md §9.10; frontend.md §1.8, §2.3; `themes.css`'s header; promotions.md §9.2 #4. **A1's `deptrac.yaml` and A2's `config/database.php` change with the backend's first PR.**
@@ -792,3 +808,9 @@ Accepted with this spec (owner, 2026-11-10); each module's builder is still aske
 | A10 | promotions.md §9.2 #4, reminder 34 | Closed: no pop-up targeting at launch, no new arrow |
 | A11 | handoff §14's tree, frontend.md §2.3 | One Content section in the menu (Q12 (a)); the storefront frame of §1.5 |
 | A12 | sync.md | A new report kind **`CAMPAIGN_SKIPPED`** (§1.4, §1.6's table, the list that sends `SyncNeedsAttention`, §5's CHECK, §6): the provider's price made a campaign skip a size; it is meant to close when the size rejoins or the campaign ends, by a signal from Pricing still to be settled by the Pricing and Sync builders. **The campaign's page reads its skipped sizes from Pricing**, not Sync (`CampaignPrices::skippedSizes`, §2.3), so there is no Content → Sync arrow (the build coordinator's pick, 2026-11-10) |
+
+### 9.5 Amendments after acceptance
+
+| # | Date | What | Where |
+|---|---|---|---|
+| 1 | 2026-11-11 | **P14, owner "yes mark it"**: Translate's mark is stored per item when nobody ticked "I read", and Publish, Schedule, Show and switching the bar on ask for the tick again in a later session; the tick clears the mark. Pages, posts, projects, banners, pop-ups, home sections and the announcement bar; campaigns and themes with PR 8. Built in PR 7b | §1.3 #4, §5, §7 |

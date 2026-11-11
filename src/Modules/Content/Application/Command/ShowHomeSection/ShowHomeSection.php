@@ -10,5 +10,7 @@ final readonly class ShowHomeSection
     public function __construct(
         public string $sectionId,
         public bool $visible,
+        /** "I read the translated English." ticked (content.md §1.3, P14). */
+        public bool $read = false,
     ) {}
 }

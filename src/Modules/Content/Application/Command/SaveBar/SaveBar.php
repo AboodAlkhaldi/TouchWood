@@ -19,5 +19,7 @@ final readonly class SaveBar
         public bool $isOn,
         public ?string $startsAt = null,
         public ?string $endsAt = null,
+        public bool $translated = false,
+        public bool $read = false,
     ) {}
 }
