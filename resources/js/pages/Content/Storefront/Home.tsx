@@ -1,7 +1,7 @@
-import type { ComponentType, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Link, usePage } from '@inertiajs/react';
-import { Award, BadgeCheck, Clock, CreditCard, Headset, Leaf, Package, RotateCcw, ShieldCheck, Store, Truck, Wrench } from 'lucide-react';
 import { ContentLink } from '@/components/content/ContentLink';
+import { promiseIcon } from '@/components/content/promise-icons';
 import { ProductCards, useCardFacts } from '@/components/shop/ProductCards';
 import { ShopPhoto, type PhotoSizes } from '@/components/shop/ShopPhoto';
 import { Button } from '@/components/ui/button';
@@ -25,7 +25,7 @@ import type { SharedProps } from '@/types/page';
 */
 
 type Words = Record<string, unknown>;
-type Button = { text: string | null; link: string | null } | null;
+type ButtonWords = { text: string | null; link: string | null } | null;
 type Section = { type: string; words: Words; project?: Document; guides?: Document[]; logos?: Logo[] };
 type Document = { title: string; slug: string; line: string | null; image: PhotoSizes | [] };
 type Logo = { name: string | null; link: string | null; image: PhotoSizes };
@@ -34,21 +34,6 @@ type Tile = { name: string; slug: string; photo: PhotoSizes | null };
 
 /** An image no width asks for: the `<source>` that keeps a picture's file from the other width. */
 const NOTHING = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
-
-const ICONS: Record<string, ComponentType<{ className?: string; 'aria-hidden'?: boolean }>> = {
-    truck: Truck,
-    'shield-check': ShieldCheck,
-    'badge-check': BadgeCheck,
-    headset: Headset,
-    wrench: Wrench,
-    package: Package,
-    'credit-card': CreditCard,
-    'rotate-ccw': RotateCcw,
-    store: Store,
-    clock: Clock,
-    award: Award,
-    leaf: Leaf,
-};
 
 const text = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
 
@@ -131,8 +116,8 @@ function WidthPicture({ photo, alt, wide, first, className }: { photo: PhotoSize
 
 function Hero({ words, banner, phone, store, locale }: { words: Words; banner: Banner | null; phone: Banner[]; store: string; locale: string }) {
     const t = useTranslator();
-    const main = words.main as Button;
-    const second = words.second as Button;
+    const main = words.main as ButtonWords;
+    const second = words.second as ButtonWords;
     const facts = Array.isArray(words.facts) ? (words.facts as unknown[]).map(text).filter((fact): fact is string => fact !== null) : [];
     const title = text(words.title);
 
@@ -213,7 +198,7 @@ function Promises({ words, theme }: { words: Words; theme: ShopHomePageData['the
         <section className={`-mx-4 overflow-x-auto px-4 sm:mx-0 sm:rounded-xl sm:border sm:border-line ${theme.promisesArt ? 'bg-cover bg-center [background-image:var(--tw-theme-promises)]' : ''}`} data-test="home-promises">
             <ul className="flex gap-3 py-1 sm:grid sm:grid-cols-4 sm:gap-0 sm:py-0">
                 {promises.map((promise, index) => {
-                    const Icon = ICONS[promise.icon] ?? BadgeCheck;
+                    const Icon = promiseIcon(promise.icon);
                     // A theme may give each promise its own words (§1.8 part 3).
                     const title = theme.promises[`promise_${index + 1}`] ?? promise.title;
 
@@ -294,7 +279,7 @@ function Projects({ heading, project, guides }: { heading: string | null; projec
 }
 
 function Audience({ words, store, locale }: { words: Words; store: string; locale: string }) {
-    const blocks = [words.individuals, words.companies] as ({ title: string | null; line: string | null; button: Button } | undefined)[];
+    const blocks = [words.individuals, words.companies] as ({ title: string | null; line: string | null; button: ButtonWords } | undefined)[];
 
     return (
         <section className="grid gap-4 sm:grid-cols-2" data-test="home-audience">
