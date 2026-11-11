@@ -269,3 +269,12 @@ it('still takes a notice for a store switched off: its open attempts finish', fu
 
     expect(noticesPost($store, 'test', $notice['body'], $notice['signature'])->status())->toBe(200);
 });
+
+it('keeps its top-level path from ever being a store code: the shop\'s {store} pattern leaves "payments" out', function () {
+    // "payments" is 8 lowercase letters, a valid store code; Payments reserves it (PaymentsServiceProvider), so
+    // Platform's live pattern refuses it while a code that only starts like it stays reachable.
+    $pattern = '#\A(?:'.(app('router')->getPatterns()['store'] ?? '').')\z#';
+
+    expect(preg_match($pattern, 'payments'))->toBe(0)
+        ->and(preg_match($pattern, 'paymentx'))->toBe(1);
+});

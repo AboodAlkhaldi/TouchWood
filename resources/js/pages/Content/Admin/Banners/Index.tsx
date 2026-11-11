@@ -185,7 +185,7 @@ export default function Index({ stores, storeCode, placement, counts, banners, c
                                 badge: <StateBadge state={row.state} />,
                                 lines: [shownOn(row)],
                                 menu: menu(row, index),
-                                onOpen: () => router.visit(`${LIST}/${row.id}`),
+                                href: `${LIST}/${row.id}`,
                             }))}
                         />
                     </>

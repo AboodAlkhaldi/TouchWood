@@ -58,7 +58,7 @@ function translateRouteAs(string $staffId): AdminBrowser
 /** @var array<string, string> */
 const TRANSLATE_ROUTE_JSON = ['HTTP_ACCEPT' => 'application/json'];
 
-it('answers each box\'s English, and how many blocks lost their marks', function () {
+it('answers each box\'s English with its marks, and how many blocks lost theirs', function () {
     $browser = translateRouteAs(Fx::staffWith([ContentPermissions::PAGE_MANAGE], ['sa']));
 
     $browser->post('/admin/content/translate', [
@@ -67,8 +67,9 @@ it('answers each box\'s English, and how many blocks lost their marks', function
         'boxes' => [['text' => 'عنوان', 'rich' => '0'], ['text' => 'فقرة **عريضة**', 'rich' => '1']],
     ], TRANSLATE_ROUTE_JSON)
         ->assertOk()
-        // A rich box's English in the editor's marks: the fake's "[en]" escaped there, as any bracket is.
-        ->assertExactJson(['texts' => ['[en] عنوان', '\[en\] فقرة عريضة'], 'lostMarks' => [0, 1]]);
+        // A rich box's English in the editor's marks, its bold kept (§1.3 (a)): the fake's "[en]" escaped
+        // there, as any bracket is. None lost: `lostMarks` counts only a box whose answer lost its tags.
+        ->assertExactJson(['texts' => ['[en] عنوان', '\[en\] فقرة **عريضة**'], 'lostMarks' => [0, 0]]);
 });
 
 it('says a failure in its own words, as a problem document', function () {

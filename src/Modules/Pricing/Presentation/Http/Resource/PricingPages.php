@@ -39,6 +39,7 @@ use Modules\Pricing\Application\Query\ListWholesale\ListWholesaleHandler;
 use Modules\Pricing\Application\Query\ListWholesale\WholesaleRow;
 use Modules\Pricing\Application\Query\NeedsAPrice\NeedsAPrice;
 use Modules\Pricing\Application\Query\NeedsAPrice\NeedsAPriceHandler;
+use Modules\Pricing\Application\Query\OverlapsFor\OverlappingCampaign;
 use Modules\Pricing\Application\Query\OverlapsFor\OverlappingDiscount;
 use Modules\Pricing\Application\Query\OverlapsFor\OverlappingSale;
 use Modules\Pricing\Application\Query\OverlapsFor\OverlapsFor;
@@ -202,6 +203,7 @@ final readonly class PricingPages
             $view->wholesaleMinimum,
             $view->wholesaleMaximum,
             $view->minimumChanged,
+            array_map(static fn (object $view): ReachingCampaignData => self::same(ReachingCampaignData::class, $view), $view->campaigns),
         );
     }
 
@@ -267,6 +269,7 @@ final readonly class PricingPages
             array_map(static fn (object $view): OverlapSizeData => self::same(OverlapSizeData::class, $view), $note->sizes),
             $note->atStart,
             $note->ceilingPercent,
+            array_map(self::overlapCampaign(...), $note->campaigns),
         );
     }
 
@@ -504,6 +507,7 @@ final readonly class PricingPages
             array_map(self::previewProduct(...), $preview->leftOut),
             array_map(self::overlapSale(...), $preview->overlappingSales),
             array_map(self::overlapDiscount(...), $preview->overlappingDiscounts),
+            array_map(self::overlapCampaign(...), $preview->overlappingCampaigns),
         );
     }
 
@@ -515,6 +519,11 @@ final readonly class PricingPages
     private static function overlapDiscount(OverlappingDiscount $discount): OverlapOfferData
     {
         return new OverlapOfferData($discount->id, $discount->description ?? '', $discount->startsAt, $discount->endsAt, $discount->alwaysWins);
+    }
+
+    private static function overlapCampaign(OverlappingCampaign $campaign): OverlapOfferData
+    {
+        return new OverlapOfferData($campaign->id, $campaign->description ?? '', $campaign->startsAt, $campaign->endsAt, false);
     }
 
     /**

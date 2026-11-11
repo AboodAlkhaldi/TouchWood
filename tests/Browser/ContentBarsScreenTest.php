@@ -83,6 +83,13 @@ it('adds a smart bar on a category and deletes it', function () {
     $id = (string) DB::table('content.smart_bars')->where('store_id', Fx::storeId('ae'))->value('id');
 
     expect(browserSoon($page, "document.querySelector('[data-test=\"smart-{$id}\"]') !== null"))->toBeTrue();
+
+    // The whole row opens it; closed, the focus goes back to that row's own control, its ⋯ button.
+    $page->click("[data-test=\"smart-{$id}\"]");
+    expect(browserSoon($page, "document.querySelector('[data-test=\"smart-bar-form\"]') !== null"))->toBeTrue();
+    $page->keys('#message_ar', 'Escape');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"smart-bar-form\"]') === null && document.activeElement?.dataset.test === 'more-{$id}'"))->toBeTrue((string) $page->script('document.activeElement?.outerHTML.slice(0, 200)'));
+
     $page->click("[data-test=\"smart-{$id}\"] [data-test=\"more-{$id}\"]")->click('[data-test="delete-smart-bar"]');
     expect(browserSoon($page, "document.querySelector('[data-test=\"confirm-delete-smart-bar\"]') !== null"))->toBeTrue();
     $page->click('[data-test="confirm-delete-smart-bar"]');
@@ -106,8 +113,24 @@ it('draws right to left in Arabic, in Latin digits, and fits a phone with its ro
         ->and(Cb::latinDigits($page))->toBeTrue()
         ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
 
+    // A card opens from the keyboard (its title is a button), and the focus comes back to it when the dialog closes.
+    $page->keys('[data-test="smart-card-open"]', 'Enter');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"smart-bar-form\"]') !== null"))->toBeTrue();
+    $page->keys('#message_ar', 'Escape');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"smart-bar-form\"]') === null && document.activeElement?.dataset.test === 'smart-card-open'"))->toBeTrue((string) $page->script('document.activeElement?.outerHTML.slice(0, 200)'));
+
     $page->navigate('/admin/content/bars?store=ae', BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"bar-form\"]') !== null"))->toBeTrue()
         ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
+    $page->assertNoJavaScriptErrors();
+});
+
+it('opens another store on the same tab', function () {
+    $page = Cb::signIn([ContentPermissions::BAR_MANAGE], 'en', ['ae', 'sa']);
+
+    $page->navigate('/admin/content/bars?store=ae&tab=smart', BROWSER_SLOW_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"store-filter\"]') !== null && document.querySelector('[data-test=\"tab-smart\"]')?.getAttribute('data-state') === 'active'"))->toBeTrue();
+    $page->select('[data-test="store-filter"]', 'sa');
+    expect(browserSoon($page, "new URLSearchParams(window.location.search).get('store') === 'sa' && new URLSearchParams(window.location.search).get('tab') === 'smart' && document.querySelector('[data-test=\"tab-smart\"]')?.getAttribute('data-state') === 'active'"))->toBeTrue((string) $page->script('window.location.search'));
     $page->assertNoJavaScriptErrors();
 });

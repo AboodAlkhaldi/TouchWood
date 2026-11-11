@@ -116,11 +116,16 @@ it('refuses the page without content.bar.manage, and a store the person holds no
     Screen::as(barsScreenEditor(['sa']))->get(BARS_SCREEN.'?store=ae')->assertForbidden();
 });
 
-it('offers an off store only to whoever may switch stores, marked Off', function () {
+it('offers an off store only to whoever may switch stores, marked Off, and says so to anyone else', function () {
     $editor = barsScreenEditor(['sa', 'ae']);
     Cx::switchOff('ae');
 
-    Screen::as($editor)->get(BARS_SCREEN.'?store=ae')->assertForbidden();
+    // Its own words (§1.1 rule 7), not a page they may not open; a store they hold nothing in stays the plain refusal.
+    Screen::as($editor)->get(BARS_SCREEN.'?store=ae')->assertForbidden()->assertInertia(fn (AssertableInertia $page) => $page
+        ->component('Admin/Error')
+        ->where('title', __('content::errors.store_off.title')));
+    Screen::as(barsScreenEditor(['sa']))->get(BARS_SCREEN.'?store=ae')->assertForbidden()->assertInertia(fn (AssertableInertia $page) => $page
+        ->where('title', fn (string $title): bool => $title !== __('content::errors.store_off.title')));
     Screen::as(Fx::staff(superAdmin: true))->get(BARS_SCREEN.'?store=ae')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         ->where('storeCode', 'ae')
         ->where('stores', fn (Collection $stores): bool => $stores->firstWhere('code', 'ae')['isOn'] === false));

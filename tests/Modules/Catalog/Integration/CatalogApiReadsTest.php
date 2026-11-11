@@ -279,6 +279,28 @@ describe('a brand, for Promotions (amendment 20)', function () {
             ->and(catalogReads()->brands([]))->toBe([])
             ->and(catalogReads()->brands(['not-an-id']))->toBe([]);
     });
+
+    it('answers each brand\'s products, any stage, in one query keyed in the order asked (amendment 41(g))', function () {
+        $hafele = Px::brand('Hafele');
+        $blum = Px::brand('Blum');
+        $empty = Px::brand('Grass');
+        $drafts = [Px::product('Hinge', $hafele), Px::product('Runner', $hafele)];
+        sort($drafts);
+        $ready = Px::ready(['60 cm'])['product'];
+        DB::table('catalog.products')->where('id', $ready)->update(['brand_id' => $blum]);
+
+        $queries = Cx::recordQueries();
+        // Typed in capitals and with spaces: read as the lower-case id it is; an unknown or broken id holds nothing.
+        $found = catalogReads()->productIdsOfBrands([strtoupper($blum), ' '.$hafele.' ', $empty, '01k6abcdefghjkmnpqrstvwxyz', 'not-an-id']);
+
+        expect(count($queries))->toBe(1)
+            ->and(array_keys($found))->toBe([$blum, $hafele, $empty, '01k6abcdefghjkmnpqrstvwxyz'])
+            ->and($found[$blum])->toBe([$ready])
+            ->and($found[$hafele])->toBe($drafts)
+            ->and($found[$empty])->toBe([])
+            ->and(catalogReads()->productIdsOfBrands([]))->toBe([])
+            ->and(catalogReads()->productIdsOfBrands(['not-an-id']))->toBe([]);
+    });
 });
 
 describe('a cart\'s line facts, for Promotions (amendment 18)', function () {

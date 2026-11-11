@@ -46,13 +46,19 @@ final readonly class RetailPriceWriter
             $over = $this->ceiling->salesOver($storeId, $ceiling, $amounts);
             // A fixed-amount category discount goes deeper as a retail price falls (§1.12).
             $discounts = $this->ceiling->discountsOver($storeId, $ceiling, $amounts);
+            // A campaign's fixed price goes deeper as a retail price falls (§9.6 #4).
+            $campaigns = $this->ceiling->campaignsOver($storeId, $ceiling, $amounts);
 
-            if ($over !== [] || $discounts !== []) {
+            if ($over !== [] || $discounts !== [] || $campaigns !== []) {
+                $sizes = [...$this->ceiling->sizesOver($amounts, $over, $discounts), ...array_merge(...array_values(array_map(static fn (array $run): array => $run['sizes'], $campaigns)))];
+                $sizes = array_values(array_unique($sizes));
+                sort($sizes);
+
                 throw new OverCeiling(
                     $ceiling,
-                    [...array_map(static fn (Sale $sale): string => $sale->id, $over), ...array_keys($discounts)],
-                    $this->ceiling->sizesOver($amounts, $over, $discounts),
-                    $this->ceiling->namesFor($over, $discounts),
+                    [...array_map(static fn (Sale $sale): string => $sale->id, $over), ...array_keys($discounts), ...array_keys($campaigns)],
+                    $sizes,
+                    $this->ceiling->namesFor($over, $discounts, $campaigns),
                 );
             }
 

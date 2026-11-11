@@ -8,24 +8,32 @@ use Carbon\CarbonImmutable;
 use Closure;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Events\CategoryMoved;
+use Modules\Catalog\Public\Events\ProductArchived;
 use Modules\Catalog\Public\Events\ProductChanged;
 use Modules\Catalog\Public\Events\ProductMadeReady;
+use Modules\Catalog\Public\Events\ProductRestored;
+use Modules\Catalog\Public\Events\VariantArchived;
+use Modules\Catalog\Public\Events\VariantRestored;
 use Modules\Platform\Public\Events\SettingChanged;
+use Modules\Pricing\Application\Prices\CampaignCoverage;
 use Modules\Pricing\Application\Prices\CandidateWriter;
 use Modules\Pricing\Application\Prices\CeilingCheck;
 use Modules\Pricing\Application\Prices\DiscountCoverage;
 use Modules\Pricing\Application\Prices\PricingChange;
 use Modules\Pricing\Application\PricingSettings;
+use Modules\Pricing\Domain\Repository\Campaigns;
 use Modules\Pricing\Domain\Repository\CategoryDiscounts;
+use Modules\Pricing\Domain\ValueObject\Campaign;
 use Modules\Pricing\Domain\ValueObject\CategoryDiscount;
 use Shared\Domain\ValueObject\StoreId;
 use Throwable;
 
 /**
  * **A product moving into or out of a category follows at once** (pricing.md §1.5, §6.2): a product
- * changed (it may have moved), a draft made ready (its category change sent nothing before), or a
- * whole category moved under another parent - their priced sizes have their candidates written again
- * in every store with a discount not ended, so a discount covers what is in its category now. Each
+ * changed (it may have moved, or changed brand), a draft made ready (its category change sent nothing
+ * before), or a whole category moved under another parent - their priced sizes have their candidates
+ * written again in every store with a discount or a campaign run not ended, so a discount covers what
+ * is in its category now, and a run what is in its categories and brands now (§9.6 #6; content.md Q18 (a)). Each
  * store in its own transaction under its pricing lock, after Catalog's change committed; a failure is
  * reported, never thrown back at Catalog - the repair (`pricing:candidates:rebuild`) writes them again.
  */
@@ -38,6 +46,8 @@ final readonly class RepriceForDiscounts
         private PricingChange $change,
         private CatalogApi $catalog,
         private CeilingCheck $ceiling,
+        private Campaigns $campaigns,
+        private CampaignCoverage $campaignCoverage,
     ) {}
 
     public function productChanged(ProductChanged $event): void
@@ -71,29 +81,48 @@ final readonly class RepriceForDiscounts
             return;
         }
 
+        $now = CarbonImmutable::now()->toDateTimeImmutable();
         $fixed = array_values(array_filter(
-            $this->discounts->notEnded($store, CarbonImmutable::now()->toDateTimeImmutable()),
+            $this->discounts->notEnded($store, $now),
             static fn (CategoryDiscount $discount): bool => $discount->amount !== null,
         ));
+        // A campaign's fixed prices the same way (pricing.md §9.6 #5).
+        $campaigns = array_values(array_filter($this->campaigns->notEnded($store, $now), static fn (Campaign $campaign): bool => $campaign->hasFixedPrices()));
 
-        if ($fixed === []) {
+        if ($fixed === [] && $campaigns === []) {
             return;
         }
 
-        $this->change->run($store, function () use ($store, $fixed): array {
-            $this->writer->refresh($store, array_keys($this->coverage->pricedSizes($store, $fixed)));
+        $this->change->run($store, function () use ($store, $fixed, $campaigns): array {
+            $sizes = [...($fixed === [] ? [] : array_keys($this->coverage->pricedSizes($store, $fixed))), ...($campaigns === [] ? [] : $this->campaignCoverage->pricedSizes($store, $campaigns))];
+            $sizes = array_values(array_unique(array_map('strval', $sizes)));
+            sort($sizes);
+            $this->writer->refresh($store, $sizes, campaignsChanged: $campaigns !== []);
 
             return [null, []];
         });
     }
 
     /**
-     * @param  Closure(): array<string, true>  $products  read only when a store has a discount: with none,
-     *                                                    Catalog's change costs it nothing
+     * A size or product archived or restored: a campaign never prices an archived one (pricing.md §9.6
+     * #1), so its sizes are written again in every store with a run not ended. Sales and discounts keep
+     * an archived size's candidates as before: it is not on sale anyway (§6.2).
      */
-    private function reprice(Closure $products): void
+    public function archivedOrRestored(VariantArchived|VariantRestored|ProductArchived|ProductRestored $event): void
     {
-        $stores = $this->discounts->storesWithDiscounts(CarbonImmutable::now()->toDateTimeImmutable());
+        $this->reprice(static fn (): array => [$event->productId => true], campaignsOnly: true);
+    }
+
+    /**
+     * @param  Closure(): array<string, true>  $products  read only when a store has a discount or a campaign
+     *                                                    run: with none, Catalog's change costs it nothing
+     */
+    private function reprice(Closure $products, bool $campaignsOnly = false): void
+    {
+        // The stores with a discount and those with a run, in one read (as before campaigns, one query).
+        $offers = $this->campaigns->storesWithOffers(CarbonImmutable::now()->toDateTimeImmutable());
+        $stores = array_values(array_unique([...($campaignsOnly ? [] : $offers['discounts']), ...$offers['campaigns']]));
+        sort($stores);
         $products = $stores === [] ? [] : $products();
 
         if ($products === []) {

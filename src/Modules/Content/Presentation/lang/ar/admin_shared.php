@@ -21,6 +21,7 @@ return [
     'ends' => 'النهاية',
     'link' => 'الرابط',
     'link_helper' => 'صفحة من المتجر بلا رمز المتجر واللغة، مثل /categories/chairs، أو عنوان كامل يبدأ بـ https://.',
+    'link_rule' => 'يذهب :field إلى صفحة من المتجر، مثل /categories/chairs، أو إلى عنوان كامل يبدأ بـ https://.',
     'characters' => ':count من :max حرفًا',
     'translate' => [
         'button' => 'ترجمة',
@@ -47,7 +48,7 @@ return [
         'uploading' => 'جارٍ الرفع :percent%',
         'size' => 'ارفع صورة بمقاس :width × :height.',
         'size_png' => 'ارفع صورة PNG بمقاس :width × :height.',
-        'small' => 'مقاس هذه الصورة :width × :height، وهو أصغر من مقاس عرضها، فقد تبدو غير حادة.',
+        'small' => 'مقاس هذه الصورة :width × :height، وهو أقل من :needWidth × :needHeight، ضعف مقاس عرضها، فقد تبدو غير حادة على الشاشات الدقيقة.',
         'pending' => 'قيد التجهيز',
         'failed' => 'ارفع هذه الصورة مرة أخرى.',
         'upload_failed' => 'تعذر رفع الصورة. حاول مرة أخرى.',

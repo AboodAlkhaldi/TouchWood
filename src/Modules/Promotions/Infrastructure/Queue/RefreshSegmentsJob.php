@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
+use Modules\Platform\Public\LongQueue;
 use Modules\Promotions\Application\Command\RefreshSegments\RefreshSegments;
 use Modules\Promotions\Application\Command\RefreshSegments\RefreshSegmentsHandler;
 
@@ -30,12 +31,17 @@ final class RefreshSegmentsJob implements ShouldBeUnique, ShouldQueue
 
     /**
      * Every store's segments, thousands of customers each, take minutes — never the worker's default
-     * 60 seconds, after which the later segments would never be refreshed (step 4a's review). The
-     * queue's `retry_after` must stay above it where this runs (config/queue.php).
+     * 60 seconds, after which the later segments would never be refreshed (step 4a's review). On the
+     * long connection, whose `retry_after` is above it (config/queue.php).
      */
     public int $timeout = 3600;
 
     public int $uniqueFor = 3600;
+
+    public function __construct()
+    {
+        $this->onConnection(LongQueue::connection());
+    }
 
     public function handle(RefreshSegmentsHandler $handler): void
     {

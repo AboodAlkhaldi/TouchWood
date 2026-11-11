@@ -250,7 +250,7 @@ before, or it opens raw JSON. Before touching `AdminMenu`, `AdminLayout` or `Sto
 - A Pest file's functions are global: name each helper after the file's subject.
 - The panel opens in English in tests. Read a form's refusal with `AdminBrowser::flashed`.
 - `checked()` doesn't wire `onChange`: a hand-built `InputGroup` calls `check.onType()` itself (`SmsCountries.tsx`).
-- Lists differ in order: the subscribers list is oldest first (`ORDER BY id`), the others newest first. Read the list's query before a test counts on a row's place.
+- Every list is newest first; the subscribers list too since 2026-11-10 (`ORDER BY created_at DESC, id DESC`; it was oldest first, `ORDER BY id`). Read the list's query before a test counts on a row's place.
 
 **Seen once and not explained; don't take these as your own failure without checking.**
 

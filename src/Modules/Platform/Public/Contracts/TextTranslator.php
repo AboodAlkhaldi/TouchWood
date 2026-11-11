@@ -28,9 +28,10 @@ interface TextTranslator
      *                               image's description); none empty
      * @param  string  $from  the texts' language, the site's own code: "ar" or "en"
      * @param  string  $to  the language wanted, "ar" or "en"; English is American (Q15 (a), owner 2026-11-10)
-     * @param  bool  $keepMarks  whether the texts hold inline tags the service must keep in place. Whether it
-     *                           keeps them in Arabic is not verified yet (§1.3 (a) or (b)): Content sends
-     *                           plain text until the real account says
+     * @param  bool  $keepMarks  whether the texts are XML whose inline tags the service must keep in place
+     *                           around the words they mark (§1.3 (a)); the answers are then XML too. Seen on
+     *                           the real account, 2026-11-10: Arabic `<b>` came back on the right English
+     *                           words, reordered
      * @return list<string>
      *
      * @throws TranslationFailed with its reason, and nothing of the service's answer

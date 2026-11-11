@@ -18,6 +18,7 @@ use Modules\Catalog\Application\Command\DecideImportCodes\DecideImportCodesHandl
 use Modules\Catalog\Domain\Exception\ImportClosed;
 use Modules\Catalog\Domain\Exception\ImportUndecided;
 use Modules\Catalog\Infrastructure\Queue\BringInImportJob;
+use Modules\Platform\Public\LongQueue;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
@@ -102,7 +103,8 @@ describe('the confirm', function () {
         expect(DB::table('catalog.imports')->where('id', $import)->value('state'))->toBe('BRINGING_IN')
             ->and(Fx::audits('catalog.import.bringing_in', $import))->toBe(1)
             ->and(fn () => app(BringInImportHandler::class)->handle(new BringInImport($import)))->toThrow(ImportClosed::class);
-        Queue::assertPushed(BringInImportJob::class, fn (BringInImportJob $job): bool => $job->importId === $import);
+        // On the long connection, whose limit is above the import's hour (owner, 2026-11-10).
+        Queue::assertPushed(BringInImportJob::class, fn (BringInImportJob $job): bool => $job->importId === $import && $job->connection === LongQueue::connection());
     });
 
     it('asks before updating a product with other attributes, or replacing one without naming every variant it has (P33)', function () {

@@ -594,7 +594,7 @@ and examples. Only when neither has it, show the owner what was searched and ask
     a single screen — for this person, as the menu holds only what they may use — is that screen's
     link**, named for where it goes and with no chevron; it folds once a second screen joins it
     (owner, 2026-10-04);
-  - **[PROVISIONAL] the builder's picks for the sidebar, shown to the owner**: no label above the
+  - **[ACCEPTED as built, owner 2026-11-10; was PROVISIONAL] the builder's picks for the sidebar, shown to the owner**: no label above the
     areas; an area folded while something waits in it carries the count, and one folded around the
     screen being read is lit; on the rail of icons an area's icon opens its screens as a menu
     (`sidebar-06`'s "submenus as dropdowns", here with the area's name above and each screen's
@@ -757,7 +757,7 @@ From the design, with the decided rules applied:
   menu's first item.
 - **Header:** the sidebar toggle, breadcrumbs, and **View Store** at its end (2026-10-05, the staff
   view — access.md §1.11): shadcn's outline Button, small, with a store icon; it opens a store's shop
-  in the same tab, as the staff member, viewing and never ordering **[PROVISIONAL: same tab]**.
+  in the same tab, as the staff member, viewing and never ordering **[ACCEPTED as built, owner 2026-11-10; was PROVISIONAL: same tab]**.
   **[DECIDED by the owner, 2026-10-06] Which store:** with one store the button opens it; with two or
   more it opens a short menu (shadcn's DropdownMenu) of the stores the person may view — their own
   stores that are on, and for a Super Admin every store, an off one marked Off (access.md amendment
@@ -789,8 +789,8 @@ From the design, with the decided rules applied:
   the person's stores by name: a Super Admin every store, an off one marked Off; anyone else their
   own stores that are on. A person with one store and no All Stores sees no switcher. It opens on All
   Stores where offered, else the first store; the address carries the choice (`/admin?store=sa`).
-  **[PROVISIONAL: a Select, as a list of stores grows; off stores not offered to staff — they can
-  see nothing there]**. The first cards: **Company
+  **[ACCEPTED as built, owner 2026-11-10; was PROVISIONAL: a Select, as a list of stores grows; off
+  stores not offered to staff — they can see nothing there]**. The first cards: **Company
   Approvals** (b2b.md amendment 27: how many wait and who, oldest first; companies by status) and
   **Stores and System** (platform.md §9.8: stores on and off, failed jobs, storage used — each
   figure only with its own permission). The sales figures the owner asked for — products sold, money
@@ -817,7 +817,7 @@ no storefront design and still holds for anything those files do not show:
   nothing new is built): "Staff view: you see this store as a visitor does, and can't order." with
   **Back to Admin Panel**. The person menu shows **their name**, opening **Admin Panel** and **Leave
   Staff View** (a post, last); no Sign in, no My Account. For a Super Admin, the store switch lists
-  the off stores too, marked Off (access.md §1.11). **[PROVISIONAL: the words]**
+  the off stores too, marked Off (access.md §1.11). **[ACCEPTED as built, owner 2026-11-10; was PROVISIONAL: the words]**
 - **[DECIDED 2026-09-19] Platform's two Blade pages are rebuilt in React:** the country page at
   `brand.com/` and the placeholder store home (platform.md §3). Their tests move with them.
 - **[REVISED by the owner, 2026-11-10; content.md §1.4, §1.5, §1.14]** **The store's home and the shop's frame are
@@ -1108,8 +1108,8 @@ see admin roles in the list but cannot open them for editing (amendment 9 and th
   2026-11-10, round 3 #10: "keep"]** every screen stays in its area and five areas take the design's
   shorter word, in the menu and here alike: Catalog and variants → Products (المنتجات), Orders and
   fulfilment → Sales (المبيعات), Store settings and tax → Configuration (الإعدادات), Staff and
-  permissions → Staff (طاقم العمل), Media library → Library (its Arabic waits on the owner:
-  docs/handoff/content-rounds.md, P8). Each permission therefore carries a group, named in Arabic and
+  permissions → Staff (طاقم العمل), Media library → Library (المكتبة: owner, 2026-11-10, P8 in
+  docs/handoff/content-rounds.md). Each permission therefore carries a group, named in Arabic and
   English, when its module declares it: a change to the permission catalog and to Platform's own
   list, listed in §4. Modules built later pick a group for each permission they declare.
   **[DECIDED 2026-09-29]** A **System** area joins them, for the running of the system — first the

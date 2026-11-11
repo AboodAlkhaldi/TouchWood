@@ -10,6 +10,7 @@ import { TranslateAllButton, useReadTick, useTranslation } from '@/components/co
 import { DateTimeField } from '@/components/DateTimeField';
 import { TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
+import { Note } from '@/components/Note';
 import { useLeaveGuard } from '@/components/SaveBar';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -51,6 +52,8 @@ export default function Form({ store, storeTimezone, popup, image: savedImage, t
     const tick = useReadTick(translation);
     const state = popup?.state ?? 'DRAFT';
     const scheduled = state === 'SCHEDULED' || state === 'LIVE';
+    // An ended pop-up is history (§1.1 rule 11; SavePopupHandler refuses a change): shown, never edited.
+    const ended = state === 'ENDED';
     const checks = useChecks([
         { id: 'name', label: t('content::admin_popups.fields.name'), value: form.data.name, rules: { required: true, length: { max: 100 } } },
         { id: 'title_ar', label: t('content::admin_popups.fields.title_ar'), value: form.data.title_ar, rules: { required: true, length: { max: 80 } } },
@@ -86,7 +89,10 @@ export default function Form({ store, storeTimezone, popup, image: savedImage, t
                     className="grid min-w-0 content-start gap-6"
                     onSubmit={(event) => {
                         event.preventDefault();
-                        checks.submit(() => tick.ask(() => send('schedule'), scheduleLabel));
+
+                        if (!ended) {
+                            checks.submit(() => tick.ask(() => send('schedule'), scheduleLabel));
+                        }
                     }}
                     data-test="popup-form"
                 >
@@ -95,80 +101,90 @@ export default function Form({ store, storeTimezone, popup, image: savedImage, t
                         <span>{`${t('content::admin_shared.store')}: ${store.name}`}</span>
                         {popup === null ? null : <StateBadge state={state} />}
                     </div>
-                    <TextField
-                        id="name"
-                        label={t('content::admin_popups.fields.name')}
-                        helper={t('content::admin_popups.fields.name_helper')}
-                        check={checks.box('name', errors.name)}
-                        value={form.data.name}
-                        onChange={(event) => form.setData('name', toLatinDigits(event.target.value))}
-                        data-test="name"
-                    />
-                    <TranslateAllButton translation={translation} pairs={pairs} />
-                    <PairFields name="title" labelAr={t('content::admin_popups.fields.title_ar')} labelEn={t('content::admin_popups.fields.title_en')} helper={t('content::admin_popups.fields.title_rule')} ar={form.data.title_ar} en={form.data.title_en} onChange={set('title')} errors={errors} checks={checks} translation={translation} />
-                    <PairFields name="text" rows={4} labelAr={t('content::admin_popups.fields.text_ar')} labelEn={t('content::admin_popups.fields.text_en')} helper={t('content::admin_popups.fields.text_rule')} ar={form.data.text_ar} en={form.data.text_en} onChange={set('text')} errors={errors} checks={checks} translation={translation} />
-                    <PairFields name="button" labelAr={t('content::admin_popups.fields.button_ar')} labelEn={t('content::admin_popups.fields.button_en')} helper={t('content::admin_popups.fields.button_rule')} ar={form.data.button_ar} en={form.data.button_en} onChange={set('button')} errors={errors} checks={checks} translation={translation} />
-                    <TextField id="link" dir="ltr" label={t('content::admin_shared.link')} helper={t('content::admin_shared.link_helper')} error={errors.link} value={form.data.link} onChange={(event) => form.setData('link', toLatinDigits(event.target.value))} data-test="link" />
-                    <TextField
-                        id="delay_seconds"
-                        inputMode="numeric"
-                        dir="ltr"
-                        className="max-w-48"
-                        label={t('content::admin_popups.fields.delay')}
-                        helper={t('content::admin_popups.fields.delay_helper')}
-                        check={checks.box('delay_seconds', errors.delay_seconds)}
-                        value={form.data.delay_seconds}
-                        onChange={(event) => form.setData('delay_seconds', toLatinDigits(event.target.value))}
-                        data-test="delay"
-                    />
-                    <ImageBox
-                        id="image"
-                        label={t('content::admin_popups.fields.image')}
-                        helper={t('content::admin_popups.fields.image_helper')}
-                        kind="popup"
-                        store={store.id}
-                        image={image}
-                        onChange={setImage}
-                        size={{ width: 840, height: 440 }}
-                        error={errors.image}
-                    />
-                    <div className="grid gap-4 sm:grid-cols-2" data-test="dates">
-                        <DateTimeField
-                            id="starts"
-                            label={t('content::admin_shared.starts')}
-                            kind="start"
-                            value={starts}
-                            onChange={(next) => {
-                                setStarts(next);
-                                setTouched(true);
-                            }}
-                            zone={zone}
-                            check={checks.box('starts', errors.starts_at)}
+                    {ended ? (
+                        <Note size="small" data-test="ended-note">
+                            {t('content::admin_popups.ended_note')}
+                        </Note>
+                    ) : null}
+                    {/* `contents`: the fieldset only disables what it holds; its boxes stay in the form's grid. */}
+                    <fieldset disabled={ended} className="contents" data-test="popup-fields">
+                        <TextField
+                            id="name"
+                            label={t('content::admin_popups.fields.name')}
+                            helper={t('content::admin_popups.fields.name_helper')}
+                            check={checks.box('name', errors.name)}
+                            value={form.data.name}
+                            onChange={(event) => form.setData('name', toLatinDigits(event.target.value))}
+                            data-test="name"
                         />
-                        <DateTimeField
-                            id="ends"
-                            label={t('content::admin_shared.ends')}
-                            kind="end"
-                            value={ends}
-                            after={starts}
-                            onChange={(next) => {
-                                setEnds(next);
-                                setTouched(true);
-                            }}
-                            zone={zone}
-                            check={checks.box('ends', errors.ends_at)}
+                        <TranslateAllButton translation={translation} pairs={pairs} />
+                        <PairFields name="title" labelAr={t('content::admin_popups.fields.title_ar')} labelEn={t('content::admin_popups.fields.title_en')} helper={t('content::admin_popups.fields.title_rule')} ar={form.data.title_ar} en={form.data.title_en} onChange={set('title')} errors={errors} checks={checks} translation={translation} />
+                        <PairFields name="text" rows={4} labelAr={t('content::admin_popups.fields.text_ar')} labelEn={t('content::admin_popups.fields.text_en')} helper={t('content::admin_popups.fields.text_rule')} ar={form.data.text_ar} en={form.data.text_en} onChange={set('text')} errors={errors} checks={checks} translation={translation} />
+                        <PairFields name="button" labelAr={t('content::admin_popups.fields.button_ar')} labelEn={t('content::admin_popups.fields.button_en')} helper={t('content::admin_popups.fields.button_rule')} ar={form.data.button_ar} en={form.data.button_en} onChange={set('button')} errors={errors} checks={checks} translation={translation} />
+                        <TextField id="link" dir="ltr" label={t('content::admin_shared.link')} helper={t('content::admin_shared.link_helper')} error={errors.link} value={form.data.link} onChange={(event) => form.setData('link', toLatinDigits(event.target.value))} data-test="link" />
+                        <TextField
+                            id="delay_seconds"
+                            inputMode="numeric"
+                            dir="ltr"
+                            className="max-w-48"
+                            label={t('content::admin_popups.fields.delay')}
+                            helper={t('content::admin_popups.fields.delay_helper')}
+                            check={checks.box('delay_seconds', errors.delay_seconds)}
+                            value={form.data.delay_seconds}
+                            onChange={(event) => form.setData('delay_seconds', toLatinDigits(event.target.value))}
+                            data-test="delay"
                         />
-                    </div>
-                    <div className="flex flex-wrap gap-3">
-                        <ActionButton type="submit" loading={form.processing} disabledReason={checks.reason} data-test="schedule">
-                            {scheduleLabel}
-                        </ActionButton>
-                        {scheduled ? null : (
-                            <ActionButton type="button" variant="outline" loading={form.processing} onClick={() => checks.submit(() => send('draft'))} data-test="save-draft">
-                                {t('content::admin_popups.save_draft')}
+                        <ImageBox
+                            id="image"
+                            label={t('content::admin_popups.fields.image')}
+                            helper={t('content::admin_popups.fields.image_helper')}
+                            kind="popup"
+                            store={store.id}
+                            image={image}
+                            onChange={setImage}
+                            size={{ width: 840, height: 440 }}
+                            error={errors.image}
+                        />
+                        <div className="grid gap-4 sm:grid-cols-2" data-test="dates">
+                            <DateTimeField
+                                id="starts"
+                                label={t('content::admin_shared.starts')}
+                                kind="start"
+                                value={starts}
+                                onChange={(next) => {
+                                    setStarts(next);
+                                    setTouched(true);
+                                }}
+                                zone={zone}
+                                check={checks.box('starts', errors.starts_at)}
+                            />
+                            <DateTimeField
+                                id="ends"
+                                label={t('content::admin_shared.ends')}
+                                kind="end"
+                                value={ends}
+                                after={starts}
+                                onChange={(next) => {
+                                    setEnds(next);
+                                    setTouched(true);
+                                }}
+                                zone={zone}
+                                check={checks.box('ends', errors.ends_at)}
+                            />
+                        </div>
+                    </fieldset>
+                    {ended ? null : (
+                        <div className="flex flex-wrap gap-3">
+                            <ActionButton type="submit" loading={form.processing} disabledReason={checks.reason} data-test="schedule">
+                                {scheduleLabel}
                             </ActionButton>
-                        )}
-                    </div>
+                            {scheduled ? null : (
+                                <ActionButton type="button" variant="outline" loading={form.processing} onClick={() => checks.submit(() => send('draft'))} data-test="save-draft">
+                                    {t('content::admin_popups.save_draft')}
+                                </ActionButton>
+                            )}
+                        </div>
+                    )}
                 </form>
                 <PopupPreview title={{ ar: form.data.title_ar, en: form.data.title_en }} text={{ ar: form.data.text_ar, en: form.data.text_en }} button={{ ar: form.data.button_ar, en: form.data.button_en }} image={image} />
             </div>

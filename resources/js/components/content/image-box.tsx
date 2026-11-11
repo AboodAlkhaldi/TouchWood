@@ -24,8 +24,12 @@ type Props = {
     store: string;
     image: ContentImageData | null;
     onChange: (image: ContentImageData | null) => void;
-    /** The size to upload (§1.6), said under the box; an image under it is warned of. */
-    size?: { width: number; height: number; png?: boolean };
+    /**
+     * The size to upload (§1.6), said under the box, and the largest the image is shown at (`shown`). An image under the
+     * shown size at double density is warned of; where the spec gives no shown size, the upload is twice it (§11 #14), so
+     * the upload's own size is the line.
+     */
+    size?: { width: number; height: number; png?: boolean; shown?: { width: number; height: number } };
     helper?: string;
     error?: string;
 };
@@ -37,7 +41,8 @@ export function ImageBox({ id, label, kind, store, image, onChange, size, helper
     const [percent, setPercent] = useState<number | null>(null);
     const [failed, setFailed] = useState<string | null>(null);
     const note = size === undefined ? helper : [size.png ? t('content::admin_shared.image.size_png', { width: size.width, height: size.height }) : t('content::admin_shared.image.size', { width: size.width, height: size.height }), helper].filter(Boolean).join(' ');
-    const small = image !== null && size !== undefined && image.width !== null && image.height !== null && (image.width < size.width || image.height < size.height);
+    const need = size === undefined ? null : size.shown === undefined ? { width: size.width, height: size.height } : { width: size.shown.width * 2, height: size.shown.height * 2 };
+    const small = image !== null && need !== null && image.width !== null && image.height !== null && (image.width < need.width || image.height < need.height);
     const shown = failed ?? error;
 
     const upload = (file: File) => {
@@ -130,9 +135,9 @@ export function ImageBox({ id, label, kind, store, image, onChange, size, helper
                 </div>
             )}
             {note ? <FieldDescription id={`${id}-note`}>{note}</FieldDescription> : null}
-            {small && image !== null ? (
+            {small && image !== null && need !== null ? (
                 <Note variant="warning" size="small" data-test={`image-${id}-small`}>
-                    {t('content::admin_shared.image.small', { width: image.width ?? 0, height: image.height ?? 0 })}
+                    {t('content::admin_shared.image.small', { width: image.width ?? 0, height: image.height ?? 0, needWidth: need.width, needHeight: need.height })}
                 </Note>
             ) : null}
             {shown ? (

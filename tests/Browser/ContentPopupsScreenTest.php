@@ -60,6 +60,11 @@ it('writes a pop-up with its preview, saves it as a draft, schedules it and ends
     expect(browserSoon($page, "document.querySelector('[data-test=\"confirm-end\"]') !== null"))->toBeTrue();
     $page->click('[data-test="confirm-end"]');
     expect(browserSoon($page, "document.body.textContent.includes('Pop-up ended') && document.querySelector('[data-test=\"popup-{$id}\"] [data-test=\"state\"]')?.textContent === 'Ended'"))->toBeTrue();
+
+    // Ended, it is history: its page shows it, read only, with neither Schedule nor Save Draft.
+    $page->click("[data-test=\"popup-{$id}\"]");
+    expect(browserSoon($page, "window.location.pathname === '/admin/content/popups/{$id}' && document.querySelector('[data-test=\"ended-note\"]') !== null"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=\"schedule\"]') === null && document.querySelector('[data-test=\"save-draft\"]') === null && document.querySelector('#name').matches(':disabled') && document.querySelector('#title_en').matches(':disabled')"))->toBeTrue();
     $page->assertNoJavaScriptErrors();
 });
 
@@ -75,6 +80,8 @@ it('draws right to left in Arabic, in Latin digits, and fits a phone, the list a
     $page->click('[data-test="save-draft"]');
     expect(browserSoon($page, "window.location.pathname === '/admin/content/popups' && document.querySelector('[data-test^=\"popup-card-\"]') !== null"))->toBeTrue()
         ->and(Cb::latinDigits($page))->toBeTrue()
-        ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
+        ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page))
+        // A card opens from the keyboard too: its title is a real link to the pop-up's page.
+        ->and($page->script("document.querySelector('[data-test=\"popup-card-open\"]').tagName"))->toBe('A');
     $page->assertNoJavaScriptErrors();
 });

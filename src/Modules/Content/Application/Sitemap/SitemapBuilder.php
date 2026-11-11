@@ -15,9 +15,10 @@ use Modules\Platform\Public\Dto\StoreDto;
 
 /**
  * A store's sitemap (content.md §1.14): **its home, categories, brands, listed products, pages, posts and projects,
- * in both languages with alternates and the last-changed date, split at 50,000 addresses**. Not-available and
- * noindex pages are never in it: Catalog's entries are what a guest finds listed (`CatalogApi::sitemapEntries`),
- * Content's what is published. The blog's and the projects' lists are in it once they have something to list
+ * in both languages with alternates and the last-changed date, split at 50,000 addresses**. Noindex pages are never
+ * in it: Catalog's entries are what a guest finds listed, and what is only sold out or unpriced, whose pages answer
+ * with no noindex (`CatalogApi::sitemapEntries`; the owner's choice, 2026-11-10, §9.3a B3), Content's what is
+ * published. The blog's and the projects' lists are in it once they have something to list
  * (H3, H5).
  *
  * Each address names its other language as its alternate, and itself; **the home pages name each other across the

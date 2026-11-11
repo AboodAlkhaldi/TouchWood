@@ -14,9 +14,9 @@ return [
     // The panel menu's Reports section (ops.md §4.15, the menu): a menu section, not an area of the role editor.
     'reports' => 'التقارير',
     'store_settings' => 'الإعدادات',
-    // PARKED for the owner (plan P8): the English is now "Library"; its Arabic waits between المكتبة and
-    // مكتبة ملفات النظام, so today's word stays until the owner answers.
-    'media' => 'مكتبة الوسائط',
+    // The owner, 2026-11-10 (P8): "Library" is المكتبة, in the menu and the role editor alike. The media
+    // page keeps its own title (platform::admin_media.title).
+    'media' => 'المكتبة',
     'audit' => 'سجل التدقيق',
     'system' => 'النظام',
     'catalog' => 'المنتجات',

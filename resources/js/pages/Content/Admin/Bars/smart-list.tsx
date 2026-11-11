@@ -105,7 +105,7 @@ export function SmartBarsList({ rows, categories, onOpen, onAdd }: { rows: Smart
                     badge: <StateBadge state={row.state} />,
                     lines: [shownOn(row)],
                     menu: menu(row),
-                    onOpen: () => onOpen(row, null),
+                    onOpen: (from) => onOpen(row, from),
                 }))}
             />
 

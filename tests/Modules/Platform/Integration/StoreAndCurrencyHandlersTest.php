@@ -157,7 +157,8 @@ describe('creating', function () {
 
         expect(fn () => givenStore($code))->toThrow(InvalidStoreAttribute::class, 'reserved')
             ->and(DB::table('platform.stores')->where('code', $code)->exists())->toBeFalse();
-    })->with(['up', 'build', 'storage', 'admin', 'api']);
+        // "payments" is Payments' own, for the gateway's notice (/payments/notice/...): 8 letters, a code's shape.
+    })->with(['up', 'build', 'storage', 'admin', 'api', 'payments']);
 
     it('writes nothing when the actor is not allowed', function () {
         app()->instance(ActorContext::class, new class implements ActorContext

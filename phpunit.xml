@@ -64,6 +64,8 @@
              The fallback when it is down is tested on purpose in AdminPagesTest. -->
         <env name="INERTIA_SSR_ENABLED" value="false" force="true"/>
         <env name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <!-- The long jobs' connection (config/queue.php) runs them in the test too, as the default does. -->
+        <env name="QUEUE_LONG_CONNECTION" value="sync" force="true"/>
         <env name="SESSION_DRIVER" value="array" force="true"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>

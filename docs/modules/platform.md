@@ -121,6 +121,19 @@ An uploaded file in object storage (handoff §5.5). Global, not store-scoped.
 - The original file is immutable. Replacing an image means uploading a new Media.
 - `checksum` is the SHA-256 of the original bytes. **[DECIDED 2026-09-16]** Uploading an
   identical **public** image returns the existing Media instead of creating a duplicate.
+  **[DECIDED 2026-11-10, P10 (a)]** If that Media's variants **failed**, uploading it again is
+  how the person asks for them again ("Upload this image again."): they are queued once more
+  exactly as `RetryMediaVariants` queues them — `FAILED` → `PENDING`, `READY` when the job
+  succeeds — audited as that retry, marked `by_upload`. The upload's own permission is enough: an
+  upload through the library holds `platform.media.upload`, the permission Retry needs; a module's
+  upload proves only that module's own permission, yet may retry an image first uploaded by
+  someone else or another module. **That reach is intentional:** public files are shared by
+  checksum, so the uploader holds the identical bytes and gets the same Media back anyway; the
+  retry only queues variants again; the audit entry records `for_module` and `under_permission`,
+  so the log says who asked and under what; and private files are never reached, because they are
+  never deduplicated. Two uploads of it at once queue it once (each reads the row again under its
+  lock). If the Media is deleted between the check and the lock, the upload stores the file anew,
+  so it never returns a deleted id. An existing `PENDING` or `READY` Media is returned unchanged.
   **Private files are never deduplicated:** two companies uploading the same receipt get two
   separate Media, so neither ever sees the other's file name or shares its document.
 - **[DECIDED 2026-09-16] Every original is kept private**, public images included: a phone photo
@@ -138,7 +151,8 @@ An uploaded file in object storage (handoff §5.5). Global, not store-scoped.
   - **[DECIDED 2026-09-18]** Only **public** images get variants. Private files
     (documents, receipts), including private JPEG and PNG, are served as uploaded: variants exist
     for CDN display, and private files never go through the CDN.
-  - The job tries three times; then the image is `FAILED` and staff can retry it.
+  - The job tries three times; then the image is `FAILED` and staff can retry it, or upload the
+    same image again (above).
     **[DECIDED 2026-09-18]** It waits 10 seconds before the second try and 60 before the third,
     and each try is stopped after 80 seconds.
   - **[DECIDED 2026-09-16] A lost job is recovered.** If the job never runs — the queue was down
@@ -216,7 +230,9 @@ A permanent record of who changed what.
   their module.
 - **[DECIDED 2026-09-18] Not audited:** uploading a public image identical to one already stored
   (nothing is created; the existing image is returned), and the system's own maintenance (the
-  variants job and the stuck-image sweep). Every change a person makes is audited.
+  variants job and the stuck-image sweep). Every change a person makes is audited — so an
+  identical upload that queues a failed image's variants again **is** audited, as
+  `platform.media.variants_retried` marked `by_upload` (§1.4, 2026-11-10).
 - **[DECIDED 2026-09-18] The correlation id is always ours.** Every request gets a new ULID;
   an `X-Correlation-Id` sent by the caller is ignored, so nobody can write an id of their choice
   into the audit log.
@@ -480,7 +496,7 @@ stay reserved: each reaches every store at once. Deleting a currency no store us
 | `DeleteCurrency` — only while no store, on or off, uses it (`CurrencyInUse`); audited (§9.7) | Super Admin | `platform.currency.delete` (reserved) | Global |
 | `ViewSettings` | Staff | `platform.settings.view` | That store; ``GLOBAL` keys need all-stores access |
 | `UpdateSetting` | Staff | **The permission in the setting's definition**, e.g. `loyalty.settings.update`. Platform's own settings (the media upload limits) use `platform.settings.update` **[DECIDED 2026-09-18]** | That store; `GLOBAL` keys need all-stores access |
-| `UploadMedia` | Staff | `platform.media.upload` | Global (media belongs to no store) |
+| `UploadMedia` — the same public image again returns it, and queues its variants again if they failed (§1.4) | Staff | `platform.media.upload` (no other for that retry) | Global (media belongs to no store) |
 | `UpdateMediaAltText` | Staff | `platform.media.update` **[DECIDED 2026-09-18]** — handoff lists only upload and delete | Global |
 | `DeleteMedia` — detaches it from every module that uses it, or refuses if any use blocks (§1.4) | Staff | `platform.media.delete`, plus each module's own permission for the change it makes | Global; each module checks its stores |
 | `RetryMediaVariants` — a `FAILED` image, or one `PENDING` for 15 minutes | Staff | `platform.media.upload` | Global |
@@ -544,7 +560,7 @@ Platform shows them on an admin screen (frontend.md E7):
       │      └─────────┘                     └───────┘
       │        │     ▲
       │        │     │
-      │        │     │ RetryMediaVariants (staff)
+      │        │     │ RetryMediaVariants (staff), or the same image uploaded again
       │        ▼     │
       │      ┌────────┐
       │      │ FAILED │ ◀── entered when 3 attempts fail
@@ -1228,7 +1244,7 @@ in full in that module's specification.
 | 2026-10-30 (stage 7 step 4, built) | Shipping | **Every place of a country in one read** — `PlatformApi::placesOf(countryCode)`: the regions, cities and districts in use, in no order (nothing retired, nor under something retired, as the other lists). Shipping reads it for the country-wide "Select all" and its "Places no carrier serves" (shipping.md §1.4, §1.6); asking a city at a time would be one read per city (Saudi Arabia: 4,354). |
 | 2026-10-30 (stage 7 step 5, built) | Shipping (asked by the screens session) | **A setting may stay off the Settings page** — `SettingDefinitionDto::$onSettingsPage` (default true): `ListSettings` leaves a definition out when it is false; it is still read and changed through Platform (`UpdateSetting`, its permission) as any other. For a setting its module's own screen edits in its own words: Shipping's store-wide free-shipping amount (in the currency, on Carriers) and box padding (on Boxes). |
 | 2026-11-02 | Ops (its panel bell) | **The panel frame's parts** (ops.md §4.15 O1; the owner accepted it with the spec, 2026-11-02): `AdminFrameParts` and `AdminFramePart`, public contracts, the panel's twin of `ShopFrameParts`. A module registers a class in its service provider, and `ShareAdminPage` carries each part's plain data with every panel page for a signed-in staff member as `panelFrame`, by module, never on a partial reload. Platform never knows what one holds. What a part reads is counted in `AdminFrameQueryBudgetTest` | ops.md §4.15 |
-| 2026-11-10 (accepted with content.md, not built) | Content (the Translate button), later Feedback F2 and F5 | **A text translator** — `Public/Contracts/TextTranslator`: `isReady()`, and `translate(list $texts, $from, $to, bool $keepMarks = false)` answering the same count in the same order, or `TranslationFailed` with a reason (`QUOTA`, `BUSY`, `REFUSED`, `UNREACHABLE`) and never the service's text or the token. Adapters chosen by configuration: DeepL over `deeplcom/deepl-php`, its token `DEEPL_API_KEY` in `.env` only, and a fake for development and tests. In Platform so a module below Content may bind to it | content.md §2.2, §2.3 L1 |
+| 2026-11-10 (accepted with content.md; built in Content 2/13, #366; `keepMarks` tested on the real account 2026-11-10) | Content (the Translate button), later Feedback F2 and F5 | **A text translator** — `Public/Contracts/TextTranslator`: `isReady()`, and `translate(list $texts, $from, $to, bool $keepMarks = false)` (with `keepMarks`, the texts are XML whose tags the service keeps: content.md §1.3 (a)) answering the same count in the same order, or `TranslationFailed` with a reason (`QUOTA`, `BUSY`, `REFUSED`, `UNREACHABLE`) and never the service's text or the token. Adapters chosen by configuration: DeepL over `deeplcom/deepl-php`, its token `DEEPL_API_KEY` in `.env` only, and a fake for development and tests. In Platform so a module below Content may bind to it | content.md §2.2, §2.3 L1 |
 | 2026-11-10 (accepted with content.md, not built) | Content (the old site's addresses) | **An address nobody answers** — `UnmatchedAddresses`, a registry a module adds to: for a GET, the first registered class that answers a redirect wins (the writer's pick). Asked from the two places a path fails today: the 404 for a path no route matches (`/flash-deals`; `/product/x`, as `{locale}` is only a language), and `StoreWithoutLanguageController`'s unknown-store branch, since a single word of 2 to 8 small letters matches `{store}` (`InMemoryReservedPaths::routePattern`; `/blog`). A reserved first segment is never asked (the writer's pick). Nobody registered: the same 404 as today. The second place has the shop's session open; the lookup writes nothing to it | content.md §1.15, §2.3 L2 |
 | 2026-11-10 (accepted with content.md, not built) | Content (its menu section) | **`content` joins the admin menu's business areas** (`InMemoryAdminMenu::GROUPS`), after `marketing`, with its icon (`MenuIcon`: Lucide's `LayoutTemplate`); its name in Access's `permission_groups` words | content.md §4.3, §2.3 L3 |
 | 2026-11-10 (accepted with content.md, not built) | Content (the store's home) | **`storefront.home` moves to Content**: `StoreHomeController` and `Platform/Storefront/Home.tsx`, the placeholder of §3, are removed and their tests move; Content registers the route under the same middleware. **`/` with no remembered store answers 302 to the base store's Arabic home** (`ChooseStoreController`; handoff §4.1, owner 2026-11-10, content.md Q20 (a)); with one, as today. **Open for PR 10**: whether the country page stays reachable at an address of its own; content.md says only that a shopper changes store with the header's country switch | content.md §1.14, §2.3 L4, §9.4 A3 |

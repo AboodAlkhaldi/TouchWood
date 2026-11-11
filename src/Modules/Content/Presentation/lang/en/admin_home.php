@@ -30,6 +30,7 @@ return [
         'remove' => 'Remove Section',
         'remove_title' => 'Remove this section?',
         'remove_body' => 'It leaves the home page, with what was typed in it. Add Section brings back an empty one.',
+        'add_english' => 'Add the English first.',
         'added' => 'Section added',
         'shown' => 'Section shown',
         'hidden' => 'Section hidden',

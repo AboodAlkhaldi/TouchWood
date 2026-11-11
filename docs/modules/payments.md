@@ -208,7 +208,10 @@ These hold for every gateway, and every one has its tests in §8.
 - **Each store and mode has its own notice address** — `/payments/notice/{store}/{mode}` — sent with
   every charge (`IntegrationUrls.Webhook`, notes §5.1) and pasted into that mode's MyFatoorah portal,
   so the right secret is known before the signature is checked. Its retries are set in the portal: the
-  most MyFatoorah allows — 5 retries, 180 seconds apart (notes §0 #15).
+  most MyFatoorah allows — 5 retries, 180 seconds apart (notes §0 #15). **Its first segment, `payments`,
+  is reserved** (2026-11-10; Platform's reserved paths): it is 8 lowercase letters, a valid store code's
+  shape, so Payments reserves it while registering, no store may take it, and the shop's `{store}` never
+  matches it. The panel's Payments screens sit under `/admin`, already Platform's.
 - **Apple Pay on our page needs each domain verified** (notes §0 #11): a file MyFatoorah's support
   (tech@myfatoorah.com) sends, served at `/.well-known/apple-developer-merchantid-domain-association`
   on the staging domain and on the real domain, **kept there** ("Apple might need to revalidate the

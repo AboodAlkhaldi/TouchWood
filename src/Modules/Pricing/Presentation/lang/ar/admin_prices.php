@@ -38,6 +38,7 @@ return [
             'BASE' => 'سعر التجزئة',
             'SALE' => 'عرض',
             'CATEGORY' => 'خصم قسم',
+            'CAMPAIGN' => 'حملة',
             'QUANTITY' => 'شريحة جملة',
         ],
         'reaches' => 'ما يشمله',

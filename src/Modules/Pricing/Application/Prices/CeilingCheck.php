@@ -9,18 +9,22 @@ use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Dto\ProductDto;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Pricing\Application\PricingSettings;
+use Modules\Pricing\Domain\Repository\Campaigns;
 use Modules\Pricing\Domain\Repository\CategoryDiscounts;
 use Modules\Pricing\Domain\Repository\RetailPrices;
 use Modules\Pricing\Domain\Repository\Sales;
+use Modules\Pricing\Domain\ValueObject\Campaign;
+use Modules\Pricing\Domain\ValueObject\CampaignTarget;
 use Modules\Pricing\Domain\ValueObject\Sale;
 use Modules\Pricing\Public\Contracts\StoreWiring;
+use Modules\Pricing\Public\Enums\CampaignTargetKind;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * The store's discount ceiling against its sales and category discounts (pricing.md §1.12; owner,
- * 2026-10-11/13): which of them, running or scheduled, would go deeper than a ceiling - at today's
- * retail prices, or at retail prices a change is about to set.
+ * The store's discount ceiling against its sales, category discounts and campaign runs (pricing.md
+ * §1.12, §9.6 #4; owner, 2026-10-11/13): which of them, running or scheduled, would go deeper than a
+ * ceiling - at today's retail prices, or at retail prices a change is about to set.
  */
 final readonly class CeilingCheck
 {
@@ -32,6 +36,7 @@ final readonly class CeilingCheck
         private CategoryDiscounts $discounts,
         private DiscountCoverage $coverage,
         private StoreWiring $wiring,
+        private Campaigns $campaigns,
     ) {}
 
     /**
@@ -134,6 +139,124 @@ final readonly class CeilingCheck
     }
 
     /**
+     * The campaign runs scheduled or live that would go deeper than a ceiling (§9.6 #4; content.md Q2 (a)):
+     * a percentage above it - only a lower ceiling does that; a fixed price on a size more than it below the
+     * size's retail price - today's, or one a change is about to set. In a wired store a fixed price skips
+     * what it would take past the ceiling (§9.6 #5): never over it there; a percentage still is.
+     *
+     * @param  array<string, Money>  $retail  retail prices about to be set, by size, in place of today's
+     * @return array<string, array{sizes: list<string>, targets: list<CampaignTarget>}> run id => the sizes a fixed price takes past it, and the percentages above it
+     */
+    public function campaignsOver(StoreId $store, int $ceilingPercent, array $retail = []): array
+    {
+        $campaigns = $this->campaigns->notEnded($store, CarbonImmutable::now()->toDateTimeImmutable());
+
+        return $campaigns === [] ? [] : $this->over($store, $campaigns, $ceilingPercent, $retail);
+    }
+
+    /**
+     * One run's prices about to be saved, against the ceiling at today's retail prices (§9.6 #4).
+     *
+     * @return array{sizes: list<string>, targets: list<CampaignTarget>}|null
+     */
+    public function campaignsOverOf(StoreId $store, Campaign $campaign, int $ceilingPercent): ?array
+    {
+        return $this->over($store, [$campaign], $ceilingPercent, [])[$campaign->runId] ?? null;
+    }
+
+    /**
+     * @param  non-empty-list<Campaign>  $campaigns
+     * @param  array<string, Money>  $retail
+     * @return array<string, array{sizes: list<string>, targets: list<CampaignTarget>}>
+     */
+    private function over(StoreId $store, array $campaigns, int $ceilingPercent, array $retail): array
+    {
+        $skips = $this->skipsPastCeiling($store);
+        $fixed = [];
+
+        foreach ($campaigns as $campaign) {
+            foreach ($campaign->targets as $target) {
+                if ($target->amount !== null && ($retail === [] || isset($retail[$target->id]))) {
+                    $fixed[] = $target->id;
+                }
+            }
+        }
+
+        $prices = $skips || $fixed === [] ? [] : [...$this->retailPrices->forVariants($store, array_values(array_unique($fixed))), ...$retail];
+        $over = [];
+
+        foreach ($campaigns as $campaign) {
+            $sizes = $targets = [];
+
+            foreach ($campaign->targets as $target) {
+                if ($target->amount === null) {
+                    // A percentage goes as deep on every size: only a lower ceiling takes it past.
+                    if ($retail === [] && ($target->percentBasisPoints ?? 0) > $ceilingPercent * 100) {
+                        $targets[] = $target;
+                    }
+                } elseif (isset($prices[$target->id]) && Campaign::depthOn($target, $prices[$target->id]) > $ceilingPercent * 100) {
+                    $sizes[] = $target->id;
+                }
+            }
+
+            if ($sizes !== [] || $targets !== []) {
+                $over[$campaign->runId] = ['sizes' => $sizes, 'targets' => $targets];
+            }
+        }
+
+        return $over;
+    }
+
+    /**
+     * The note's names for campaign runs past the ceiling: each size's product, and what a percentage too
+     * deep was set on - a product, a size's product, a category or a brand - in the reader's language.
+     *
+     * @param  array<string, array{sizes: list<string>, targets: list<CampaignTarget>}>  $campaigns
+     * @return list<string>
+     */
+    public function campaignNames(array $campaigns): array
+    {
+        $english = app()->getLocale() === 'en';
+        $sizes = $productIds = $categories = $brands = [];
+
+        foreach ($campaigns as $over) {
+            array_push($sizes, ...$over['sizes']);
+
+            foreach ($over['targets'] as $target) {
+                match ($target->kind) {
+                    CampaignTargetKind::Size => $sizes[] = $target->id,
+                    CampaignTargetKind::Product => $productIds[] = $target->id,
+                    CampaignTargetKind::Category => $categories[] = $target->id,
+                    CampaignTargetKind::Brand => $brands[] = $target->id,
+                };
+            }
+        }
+
+        if ($sizes !== []) {
+            array_push($productIds, ...array_values(array_map(static fn ($variant): string => $variant->productId, $this->catalog->variants(array_values(array_unique($sizes))))));
+        }
+
+        $names = $productIds === [] ? [] : array_map(
+            static fn (ProductDto $product): string => $english ? ($product->nameEn ?? $product->nameAr) : $product->nameAr,
+            array_values($this->catalog->products(array_values(array_unique($productIds)))),
+        );
+
+        foreach (array_values(array_unique($categories)) as $categoryId) {
+            $category = $this->catalog->category($categoryId);
+
+            if ($category !== null) {
+                $names[] = $english ? $category->nameEn : $category->nameAr;
+            }
+        }
+
+        foreach ($brands === [] ? [] : $this->catalog->brands(array_values(array_unique($brands))) as $brand) {
+            $names[] = $english ? $brand->nameEn : $brand->nameAr;
+        }
+
+        return $names;
+    }
+
+    /**
      * Of the prices about to be set, the sizes that take these sales or discounts past the ceiling - named
      * on the refusal, so the screen marks their rows (owner Q2). A discount's sizes are those of the
      * products it takes past it.
@@ -186,8 +309,22 @@ final readonly class CeilingCheck
      *
      * @param  list<Sale>  $sales
      * @param  array<string, array{category: string, products: list<string>}>  $discounts
+     * @param  array<string, array{sizes: list<string>, targets: list<CampaignTarget>}>  $campaigns  campaign runs past it (§9.6 #4)
      */
-    public function namesFor(array $sales, array $discounts): string
+    public function namesFor(array $sales, array $discounts, array $campaigns = []): string
+    {
+        $english = app()->getLocale() === 'en';
+        $names = [...$this->offerNames($sales, $discounts), ...($campaigns === [] ? [] : $this->campaignNames($campaigns))];
+
+        return implode($english ? ', ' : '، ', $names);
+    }
+
+    /**
+     * @param  list<Sale>  $sales
+     * @param  array<string, array{category: string, products: list<string>}>  $discounts
+     * @return list<string>
+     */
+    private function offerNames(array $sales, array $discounts): array
     {
         $english = app()->getLocale() === 'en';
         $productIds = array_map(static fn (Sale $sale): string => $sale->productId, $sales);
@@ -214,6 +351,6 @@ final readonly class CeilingCheck
             }
         }
 
-        return implode($english ? ', ' : '، ', $names);
+        return $names;
     }
 }

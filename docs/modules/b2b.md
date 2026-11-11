@@ -1,16 +1,10 @@
 # B2B — Module Specification
 
-> **NOT ACCEPTED — read this first.**
-> Drafted in a planning conversation with the owner on 2026-09-19 and 2026-09-20, ahead of the
-> build and while Access was still being written. **Nothing here is final acceptance.** Every item,
-> including those marked **[DECIDED]**, is the owner's answer *in that conversation* and must be
-> **revisited before it is built**: put it to the owner again, section by section, and check it
-> against `docs/HANDOFF.md`, `docs/modules/access.md` and the code as they stand then. Where this
-> file and another module's approved spec disagree, that module's spec wins. Do not treat this
-> document as an instruction to build.
-
-**Status:** COMPLETE, sections 1–9. Reviewed with the owner section by section on 2026-09-25 and
-2026-09-26 and **accepted**; the header above describes how it was drafted, not where it stands now.
+**Status:** **ACCEPTED and built.** COMPLETE, sections 1–9. Drafted in a planning conversation with the
+owner on 2026-09-19 and 2026-09-20, ahead of the build and while Access was still being written; reviewed
+with the owner section by section on 2026-09-25 and 2026-09-26 and **accepted**; built and merged in seven
+steps from 2026-09-27, with the amendments below. *(The "NOT ACCEPTED — read this first" banner that stood
+here described the draft; removed 2026-11-10.)*
 **Tier:** 2. **Stage:** 3 (handoff §17), after Access and the frontend foundation.
 **Depends on:** Platform, Access; Payments for a store's bank account alone (amendment 33).
 **Source:** `docs/HANDOFF.md` §6, §7.2, §7.4, §8, §14; `docs/modules/access.md`;

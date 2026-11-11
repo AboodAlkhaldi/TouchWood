@@ -65,4 +65,5 @@ return [
     'ended' => 'Pop-up ended',
     'drafted' => 'Pop-up moved back to draft',
     'deleted' => 'Pop-up deleted',
+    'ended_note' => 'This pop-up has ended. It stays as it was, for the record.',
 ];

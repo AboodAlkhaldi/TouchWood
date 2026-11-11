@@ -297,6 +297,16 @@ interface CatalogApi
     public function productIdsInCategories(array $categoryIds): array;
 
     /**
+     * **Each brand's products** (amendment 41(g)), any stage, in one query, keyed by brand in the order
+     * asked, each list in id order; an unknown brand holds none - for Pricing's campaign targets
+     * (pricing.md §9.6 #6).
+     *
+     * @param  list<string>  $brandIds
+     * @return array<string, list<string>>
+     */
+    public function productIdsOfBrands(array $brandIds): array;
+
+    /**
      * **A category's products, and those of every category below it** (amendment 23(c)), any stage, by
      * name in the page's language, found and paged as `searchProducts` - for a discount's "Left Out". An
      * unknown category holds none. A fixed two queries.
@@ -328,8 +338,11 @@ interface CatalogApi
      * search engine - a guest - finds listed there. **Products** listed now (§1.4: orderable, open to individuals
      * or companies), in each language they are listed in; **categories** a guest's menu shows (active, listing
      * something in their pages); **brands** active with a product listed there and shown in the default listings
-     * (amendment 5(k): a secondary brand is reached by its category). Each with its current address per language
-     * and its own last change. A page "Not available now", kept out of search engines, is never one of them.
+     * (amendment 5(k): a secondary brand is reached by its category). **And a product only sold out or unpriced**,
+     * which a guest would see were it in stock and priced, with the categories and brands it emptied: their pages
+     * answer with no noindex (amendment 39(i), (j); the owner's choice, 2026-11-10). Each with its current address
+     * per language and its own last change. Any other "Not available now" page, kept out of search engines, is never
+     * one of them.
      *
      * Keyset-paged: categories, brands, then products, each by id; `limit` 1 to 1000. One query a page; reads
      * only, for a caller that builds a file, never in a shopper's request.

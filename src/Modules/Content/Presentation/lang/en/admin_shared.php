@@ -22,6 +22,7 @@ return [
     'ends' => 'End',
     'link' => 'Link',
     'link_helper' => 'A page of the shop without its store and language, such as /categories/chairs, or a full https:// address.',
+    'link_rule' => 'The :field goes to a page of the shop, such as /categories/chairs, or to a full https:// address.',
     'characters' => ':count of :max characters',
     'translate' => [
         'button' => 'Translate',
@@ -48,7 +49,7 @@ return [
         'uploading' => 'Uploading :percent%',
         'size' => 'Upload :width x :height.',
         'size_png' => 'Upload :width x :height, PNG.',
-        'small' => 'This image is :width x :height, under the size it is shown at: it may look soft.',
+        'small' => 'This image is :width x :height, under :needWidth x :needHeight, twice the size it is shown at: it may look soft on a sharp screen.',
         'pending' => 'Being prepared',
         'failed' => 'Upload this image again.',
         'upload_failed' => 'Failed to upload the image. Try again.',

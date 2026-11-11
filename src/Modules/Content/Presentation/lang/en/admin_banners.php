@@ -80,4 +80,5 @@ return [
     'ended' => 'Banner ended',
     'drafted' => 'Banner moved back to draft',
     'deleted' => 'Banner deleted',
+    'ended_note' => 'This banner has ended. It stays as it was, for the record.',
 ];

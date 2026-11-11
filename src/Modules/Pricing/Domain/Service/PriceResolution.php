@@ -16,8 +16,9 @@ use Modules\Pricing\Public\Enums\PriceKind;
  * is worked out at request time (handoff §10.1).
  *
  * 1. No retail price, no price.
- * 2. The candidates: the retail price, every sale and category discount running, and on a wholesale
- *    line the band with the highest start at or below the quantity.
+ * 2. The candidates: the retail price, every sale, category discount and campaign running (§9.6 #3),
+ *    and on a wholesale line the band with the highest start at or below the quantity. A campaign never
+ *    "always wins": a sale or discount marked so beats a cheaper campaign while both run.
  * 3. An "always wins" one running is the price, every other sale and discount set aside - on a
  *    wholesale line the lower of it and the band (owner, 2026-10-08/09). Above the retail price it has
  *    "simply stopped winning" (§1.3) and pauses nothing: the others count again (owner, 2026-10-10).
@@ -32,8 +33,8 @@ use Modules\Pricing\Public\Enums\PriceKind;
 final class PriceResolution
 {
     /**
-     * Ties between equal prices: the lower comes first. Campaign prices join in stage 8; their place
-     * among the dated ones is decided then.
+     * Ties between equal prices: the lower comes first. A campaign's place, after the sale and the
+     * category discount, was kept when campaigns joined (content.md §2.3, accepted 2026-11-10).
      */
     private const array RANK = [
         'SALE' => 0,

@@ -50,6 +50,7 @@ use Modules\Payments\Infrastructure\Settings\PaymentsSettingsLine;
 use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Platform\Public\Contracts\AdminBanners;
 use Modules\Platform\Public\Contracts\AdminMenu;
+use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Contracts\SettingGuards;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Contracts\SettingsSectionLines;
@@ -64,6 +65,11 @@ final class PaymentsServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        // The gateway's notice lives at /payments/notice/... (notice-routes.php), and "payments" is a valid
+        // 8-letter store code: reserved here, before Platform builds the {store} pattern at boot. The panel's
+        // screens sit under /admin, already Platform's.
+        $this->app->make(ReservedPaths::class)->reserve('payments', 'payments');
+
         $this->app->bind(Gateways::class, DatabaseGateways::class);
         $this->app->bind(KeyTester::class, MyFatoorahKeyTester::class);
         $this->app->bind(GatewayAddresses::class, MyFatoorahAddresses::class);

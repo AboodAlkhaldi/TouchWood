@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useTranslator } from '@/lib/t';
 import type { BarsPageData, SmartBarData } from '@/types/generated/Modules/Content/Presentation/Http/Resource';
@@ -16,6 +16,14 @@ export default function Smart(page: BarsPageData) {
     const t = useTranslator();
     const storeId = page.stores.find((each) => each.code === page.storeCode)?.id ?? '';
     const [editing, setEditing] = useState<SmartBarData | 'new' | null>(null);
+    // Where the focus goes back when the dialog closes: the control it was opened from - a card's title - or else the
+    // row's ⋯ button, as a table row is not a control and the menu's Edit is gone by then.
+    const opener = useRef<HTMLElement | null>(null);
+    const open = (row: SmartBarData, from: HTMLElement | null) => {
+        const more = [...document.querySelectorAll<HTMLElement>(`[data-test="more-${row.id}"]`)].find((each) => each.offsetParent !== null) ?? null;
+        opener.current = from !== null && from.tabIndex >= 0 ? from : more;
+        setEditing(row);
+    };
 
     return (
         <BarsFrame
@@ -26,7 +34,7 @@ export default function Smart(page: BarsPageData) {
                 </Button>
             }
         >
-            <SmartBarsList rows={page.smartBars} categories={page.categories} onOpen={(row) => setEditing(row)} onAdd={() => setEditing('new')} />
+            <SmartBarsList rows={page.smartBars} categories={page.categories} onOpen={open} onAdd={() => setEditing('new')} />
             {editing === null ? null : (
                 <Suspense fallback={null}>
                     <SmartBarDialog
@@ -36,6 +44,7 @@ export default function Smart(page: BarsPageData) {
                         zone={page.storeTimezone}
                         categories={page.categories}
                         translationReady={page.translationReady}
+                        returnFocusTo={opener}
                         onClose={() => setEditing(null)}
                     />
                 </Suspense>

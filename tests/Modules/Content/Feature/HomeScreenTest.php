@@ -14,6 +14,7 @@ use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
+use Tests\Modules\Content\Support\ContentFixtures as Cx;
 use Tests\Modules\Content\Support\ContentScreen as Screen;
 
 use function Pest\Laravel\seed;
@@ -81,7 +82,11 @@ it('fills a section, refuses showing it without English, then shows it', functio
         ->assertRedirect(HOME_SCREEN.'?store=sa');
 
     $refused = $browser->post(HOME_SCREEN."/sections/{$id}/show", ['visible' => true], Screen::fromPage(HOME_SCREEN));
-    expect(Screen::errors($refused))->toHaveKey('form');
+    // The spec's own words (§4.4 W1), in both languages.
+    expect(Screen::errors($refused))->toBe(['form' => 'Add the English first.']);
+    app()->setLocale('ar');
+    expect(__('content::admin_home.sections.add_english'))->toBe('أضف النص الإنجليزي أولًا.');
+    app()->setLocale('en');
 
     $version = (int) DB::table('content.home_sections')->where('id', $id)->value('version');
     $browser->post(HOME_SCREEN."/{$id}", ['store' => Fx::storeId('sa'), 'version' => $version, 'settings' => ['heading' => ['ar' => 'تسوق حسب الفئة', 'en' => 'Shop by category'], 'count' => 13]], Screen::fromPage(HOME_SCREEN."/{$id}"))
@@ -93,6 +98,16 @@ it('fills a section, refuses showing it without English, then shows it', functio
 
     expect(AdminBrowser::flashed($shown, 'status'))->toBe(__('content::admin_home.sections.shown'))
         ->and((bool) DB::table('content.home_sections')->where('id', $id)->value('is_visible'))->toBeTrue();
+});
+
+it('refuses a logo\'s missing Arabic name and its link each under its own box', function () {
+    $browser = Screen::as(homeScreenEditor());
+    $id = homeScreenSection('CLIENT_LOGOS');
+    $version = (int) DB::table('content.home_sections')->where('id', $id)->value('version');
+    $fill = static fn (array $logo): array => ['store' => Fx::storeId('sa'), 'version' => $version, 'settings' => ['heading' => ['ar' => '', 'en' => '']], 'logos' => [['mediaId' => Cx::image(mime: 'image/png'), 'nameAr' => 'أكمي', 'nameEn' => 'Acme', 'link' => '', ...$logo]]];
+
+    expect(Screen::errors($browser->post(HOME_SCREEN."/{$id}", $fill(['nameAr' => '']), Screen::fromPage(HOME_SCREEN."/{$id}"))))->toHaveKey('logo_name_ar')
+        ->and(Screen::errors($browser->post(HOME_SCREEN."/{$id}", $fill(['link' => '/a b']), Screen::fromPage(HOME_SCREEN."/{$id}"))))->toHaveKey('logo_link');
 });
 
 it('orders the sections only whole, removes one and adds it back', function () {
@@ -123,6 +138,13 @@ it('saves the footer with both languages and refuses one alone under its box', f
         ->and(DB::table('content.footers')->where('store_id', Fx::storeId('sa'))->value('about_en'))->toBe('The tools shop');
 
     expect(Screen::errors($browser->post(HOME_SCREEN.'/footer', [...$footer, 'version' => 1, 'about_en' => ''], Screen::fromPage(HOME_SCREEN))))->toHaveKey('about_en');
+
+    // A column's title, a link's text and a link are each refused under their own box, which the form puts under its row.
+    $column = static fn (array $title, array $link): array => [...$footer, 'version' => 1, 'columns' => [[...$title, 'links' => [$link]]]];
+    $link = ['textAr' => 'الكراسي', 'textEn' => 'Chairs', 'link' => '/categories/chairs'];
+    expect(Screen::errors($browser->post(HOME_SCREEN.'/footer', $column(['titleAr' => '', 'titleEn' => 'Shop'], $link), Screen::fromPage(HOME_SCREEN))))->toHaveKey('column_title_ar')
+        ->and(Screen::errors($browser->post(HOME_SCREEN.'/footer', $column(['titleAr' => 'المتجر', 'titleEn' => 'Shop'], [...$link, 'textEn' => '']), Screen::fromPage(HOME_SCREEN))))->toHaveKey('link_text_en')
+        ->and(Screen::errors($browser->post(HOME_SCREEN.'/footer', $column(['titleAr' => 'المتجر', 'titleEn' => 'Shop'], [...$link, 'link' => '/chairs sale']), Screen::fromPage(HOME_SCREEN))))->toHaveKey('link');
 });
 
 it('refuses the page without content.homepage.manage, and another store\'s section is not found', function () {

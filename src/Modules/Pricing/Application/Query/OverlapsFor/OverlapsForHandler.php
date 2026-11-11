@@ -12,6 +12,7 @@ use Modules\Catalog\Public\Dto\VariantDto;
 use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Platform\Public\Dto\StoreDto;
 use Modules\Pricing\Application\Prices\AmountInput;
+use Modules\Pricing\Application\Prices\CampaignCoverage;
 use Modules\Pricing\Application\Prices\CeilingCheck;
 use Modules\Pricing\Application\Prices\OfferNames;
 use Modules\Pricing\Application\Prices\PriceViews;
@@ -110,6 +111,8 @@ final readonly class OverlapsForHandler
             static fn ($discount): bool => $discount->overlaps($startsAt, $endsAt),
         ));
         $discountNames = $this->names->discounts($discounts);
+        // The sizes' candidates, read once: the price each would get, and the campaign runs pricing them.
+        $candidates = $this->candidates->forVariants($storeId, $variantIds);
 
         return new OverlapNote(
             $productId,
@@ -137,9 +140,18 @@ final readonly class OverlapsForHandler
                 $discount->alwaysWins,
                 $discountNames[$discount->id] ?? null,
             ), $discounts),
-            $this->sizesNote($query, $store, $productId, $variantIds, $variants, $startsAt, $endsAt, $itself, $now),
+            $this->sizesNote($query, $store, $productId, $variantIds, $variants, $startsAt, $endsAt, $itself, $now, $candidates),
             $startsAt > $now,
             $query->percent === null && $query->price === null ? null : $this->ceiling->ceiling($storeId),
+            // Every campaign run pricing those sizes in those dates (§9.6 #7): a sale is on both lines.
+            array_map(fn (array $run): OverlappingCampaign => new OverlappingCampaign(
+                $run['runId'],
+                $run['lines'],
+                $run['startsAt']->format(DateTimeInterface::ATOM),
+                $run['endsAt']?->format(DateTimeInterface::ATOM),
+                $run['variantIds'],
+                $this->names->campaign(),
+            ), CampaignCoverage::runsIn($candidates, $startsAt, $endsAt)),
         );
     }
 
@@ -148,9 +160,10 @@ final readonly class OverlapsForHandler
      *
      * @param  list<string>  $variantIds
      * @param  array<string, VariantDto>  $variants
+     * @param  array<string, list<Candidate>>  $candidates  the sizes' candidates in the store
      * @return list<OverlapSize>
      */
-    private function sizesNote(OverlapsFor $query, StoreDto $store, string $productId, array $variantIds, array $variants, DateTimeImmutable $startsAt, ?DateTimeImmutable $endsAt, ?string $itself, DateTimeImmutable $now): array
+    private function sizesNote(OverlapsFor $query, StoreDto $store, string $productId, array $variantIds, array $variants, DateTimeImmutable $startsAt, ?DateTimeImmutable $endsAt, ?string $itself, DateTimeImmutable $now, array $candidates): array
     {
         if (($query->percent === null) === ($query->price === null)) {
             return [];
@@ -170,7 +183,6 @@ final readonly class OverlapsForHandler
         );
         $ceiling = $this->ceiling->ceiling($storeId) * 100;
         $retail = $this->retailPrices->forVariants($storeId, $variantIds);
-        $candidates = $this->candidates->forVariants($storeId, $variantIds);
         // Judged when it starts: today for one starting now, its start for one scheduled.
         $at = max($startsAt, $now);
         $sizes = [];

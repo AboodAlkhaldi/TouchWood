@@ -18,6 +18,8 @@ use Modules\Platform\Application\Command\RemoveStoreCountry\RemoveStoreCountryHa
 use Modules\Platform\Application\Command\RetirePlace\RetirePlace;
 use Modules\Platform\Application\Command\RetirePlace\RetirePlaceHandler;
 use Modules\Platform\Public\Enums\PlaceKind;
+use Modules\Sales\Application\Command\SetShippingFee\SetShippingFee;
+use Modules\Sales\Application\Command\SetShippingFee\SetShippingFeeHandler;
 use Modules\Sales\Application\SalesPermissions as P;
 use Modules\Shipping\Application\Command\CreateCarrier\CreateCarrier;
 use Modules\Shipping\Application\Command\CreateCarrier\CreateCarrierHandler;
@@ -257,6 +259,36 @@ it('edits an order to another place: the carriers serving it with today\'s fee, 
     $page->type('#edit-reason', 'Moved house')->click('[data-test="confirm-edit"]');
     expect(browserUntil($page, "document.body.innerText.includes('Order edited.')"))->toBeTrue()
         ->and((string) DB::table('sales.orders')->where('id', $order)->value('ordered_carrier_id'))->toBe($dear);
+});
+
+it('keeps a fee staff typed through a move with no carrier to pick, at a phone\'s width (§9.7)', function () {
+    ['customer' => $customer] = salesShippingAside(static fn (): array => Cx::ready());
+    $address = salesShippingAddress($customer, salesShippingRegion());
+    $order = salesShippingAside(static function () use ($customer, $address): string {
+        Fx::actAsCustomer($customer);
+
+        return Cx::place(Cx::start($address)->id)->id;
+    });
+    salesShippingAside(static fn () => Cx::asSuperAdmin(static fn () => app(SetShippingFeeHandler::class)->handle(new SetShippingFee($order, 40_00, 'Courier quoted 40'))));
+    $region = salesShippingRegion();
+    salesShippingCarrier('Fast', 1_000, [$region]);
+    $moved = salesShippingAddress($customer, $region);
+
+    $page = salesShippingPanel();
+    $page->resize(375, 812);
+    $page->navigate("/admin/orders/{$order}/edit", BROWSER_PAGE_LOAD)->select('#edit-address', $moved)->click('[data-test="preview-edit"]');
+    expect(browserUntil($page, "!!document.querySelector('[data-test=\"new-place\"]')"))->toBeTrue();
+
+    $page->click('[data-test="fee-KEEP"]')->assertMissing('#keep-carrier');
+    expect((string) $page->script("document.querySelector('[data-test=\"keep-later\"]')?.textContent ?? ''"))->toContain('Picked when it ships');
+    $page->click('[data-test="preview-edit"]');
+    expect(browserUntil($page, "document.querySelector('[data-test=\"preview-shipping\"]').textContent.includes('40.00')"))->toBeTrue()
+        ->and(salesShippingWide($page))->toBe('', 'the edit page scrolls sideways');
+
+    $page->type('#edit-reason', 'Moved house')->click('[data-test="confirm-edit"]');
+    expect(browserUntil($page, "document.body.innerText.includes('Order edited.')"))->toBeTrue()
+        ->and(DB::table('sales.orders')->where('id', $order)->value('ordered_carrier_id'))->toBeNull()
+        ->and((int) DB::table('sales.orders')->where('id', $order)->value('shipping_fee_minor'))->toBe(40_00);
 });
 
 it('shows a reader with only the shipping job Ship… out of reach while the fee is to be set', function () {

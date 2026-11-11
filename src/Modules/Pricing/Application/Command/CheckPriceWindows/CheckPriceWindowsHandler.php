@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Modules\Pricing\Application\Command\CheckPriceWindows;
 
 use Carbon\CarbonImmutable;
+use Modules\Pricing\Application\Prices\CampaignCoverage;
 use Modules\Pricing\Application\Prices\CandidateWriter;
 use Modules\Pricing\Application\Prices\DiscountCoverage;
 use Modules\Pricing\Application\Prices\PricingChange;
 use Modules\Pricing\Application\PricingPermissions;
+use Modules\Pricing\Domain\Repository\Campaigns;
 use Modules\Pricing\Domain\Repository\CategoryDiscounts;
 use Modules\Pricing\Domain\Repository\Sales;
 use Shared\Application\Authorizer;
@@ -35,6 +37,8 @@ final readonly class CheckPriceWindowsHandler
         private CategoryDiscounts $discounts,
         private DiscountCoverage $coverage,
         private CandidateWriter $writer,
+        private Campaigns $campaigns,
+        private CampaignCoverage $campaignCoverage,
     ) {}
 
     /**
@@ -59,6 +63,12 @@ final readonly class CheckPriceWindowsHandler
             $sizes[$discount->storeId] = [...$sizes[$discount->storeId] ?? [], ...$reached];
         }
 
+        // A campaign run's start or end too (§9.6 #7).
+        foreach ($this->campaigns->windowsBetween($from, $to) as $campaign) {
+            $reached = $this->campaignCoverage->pricedSizes(StoreId::fromString($campaign->storeId), [$campaign]);
+            $sizes[$campaign->storeId] = [...$sizes[$campaign->storeId] ?? [], ...$reached];
+        }
+
         $pushed = 0;
         $failed = null;
 
@@ -71,8 +81,8 @@ final readonly class CheckPriceWindowsHandler
             // every store was tried, so the run still shows as failed.
             try {
                 $this->change->run($store, function () use ($store, $variantIds): array {
-                    // A discount's end its task missed is the store's last, maybe: a wired store is told.
-                    $this->writer->refresh($store, $variantIds, discountsChanged: true);
+                    // A discount's or a run's end its task missed is the store's last, maybe: a wired store is told.
+                    $this->writer->refresh($store, $variantIds, discountsChanged: true, campaignsChanged: true);
 
                     return [null, []];
                 });

@@ -102,7 +102,7 @@ it('names the taken code in the message, in both languages', function () {
     expect(FormErrors::message(new CodeTaken('SUMMER10')))->toBe('Another coupon in this store already has the code SUMMER10. Choose another code.');
 
     App::setLocale('ar');
-    expect(FormErrors::message(new CodeTaken('SUMMER10')))->toBe('الرمز SUMMER10 مستخدم لكوبون آخر في هذا المتجر. اختر رمزًا آخر.')
+    expect(FormErrors::message(new CodeTaken('SUMMER10')))->toBe('الرمز SUMMER10 مستخدم لقسيمة أخرى في هذا المتجر. اختر رمزًا آخر.')
         ->and((new CodeTaken('SUMMER10'))->context())->toBe(['code' => 'SUMMER10']);
 });
 

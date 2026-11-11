@@ -12,6 +12,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '
 import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item';
 import { Switch } from '@/components/ui/switch';
 import { AdminLayout } from '@/layouts/AdminLayout';
+import { useInLanguage } from '@/lib/in-language';
 import { useTranslator } from '@/lib/t';
 import type { HomePageData, HomeSectionData } from '@/types/generated/Modules/Content/Presentation/Http/Resource';
 import { DragHandle, SortableGroup, SortableGroups, useSaveQueue, useSortableRow } from '../../../Catalog/Admin/SortableList';
@@ -77,7 +78,19 @@ export default function Index({ stores, storeCode, sections, addable }: HomePage
         );
 
     return (
-        <AdminLayout title={t('content::admin_home.title')} subtitle={t('content::admin_home.subtitle')} action={addButton}>
+        <AdminLayout
+            title={t('content::admin_home.title')}
+            subtitle={t('content::admin_home.subtitle')}
+            action={
+                <div className="flex flex-wrap items-center gap-2">
+                    {/* Preview (§4.4 W1): the shop's home in View Store's staff view. */}
+                    <Button type="button" variant="outline" onClick={() => router.post('/admin/staff-view', { store: storeCode })} data-test="preview-home">
+                        {t('content::admin_home.sections.preview')}
+                    </Button>
+                    {addButton}
+                </div>
+            }
+        >
             <div className="grid min-w-0 grid-cols-1 gap-4">
                 <FormError />
                 <StoreFilter stores={stores.map((each) => ({ code: each.code, name: each.name, isActive: each.isOn }))} value={storeCode} drop={['tab']} className="max-w-xs" />
@@ -155,10 +168,12 @@ export default function Index({ stores, storeCode, sections, addable }: HomePage
 /** What a section holds, in one line (§4.4 W1): its own heading or title, or what it counts. */
 function useSummary(): (section: HomeSectionData) => string {
     const t = useTranslator();
+    const inLanguage = useInLanguage();
 
     return (section) => {
         const settings = section.settings as Record<string, unknown>;
-        const words = (pair: Pair) => pair?.ar ?? '';
+        // In the panel's language, the Arabic when no English is typed yet.
+        const words = (pair: Pair) => inLanguage(pair?.ar ?? null, pair?.en ?? null);
         const count = typeof settings.count === 'number' ? settings.count : 8;
 
         switch (section.type) {
@@ -210,6 +225,11 @@ function SectionItem({ section, name, first, last, onTop, onBottom, onRemove }: 
                 </ItemDescription>
             </ItemContent>
             <ItemActions className="shrink-0">
+                <Button asChild variant="ghost" size="sm">
+                    <Link href={`${HOME}/${section.id}`} aria-label={`${t('content::admin_home.sections.edit')}: ${name}`} data-test="edit-section">
+                        {t('content::admin_home.sections.edit')}
+                    </Link>
+                </Button>
                 <Switch
                     checked={section.isVisible}
                     disabled={flipping}

@@ -18,6 +18,7 @@ final class SizePricesData extends Data
      * @param  list<ReachingSaleData>  $sales
      * @param  list<ReachingDiscountData>  $discounts
      * @param  list<BandData>  $bands
+     * @param  list<ReachingCampaignData>  $campaigns
      */
     public function __construct(
         public SizeData $size,
@@ -33,5 +34,6 @@ final class SizePricesData extends Data
         public ?int $wholesaleMinimum,
         public ?int $wholesaleMaximum,
         public bool $minimumChanged,
+        public array $campaigns = [],
     ) {}
 }

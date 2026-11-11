@@ -3,7 +3,7 @@ import { router, usePage } from '@inertiajs/react';
 import { Trash2 } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
 import { ImageBox } from '@/components/content/image-box';
-import { PairFields } from '@/components/content/parts';
+import { isShopLink, linkRule, PairFields } from '@/components/content/parts';
 import { TranslateAllButton, useReadTick, useTranslation, type Pair } from '@/components/content/translate';
 import { TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
@@ -44,7 +44,22 @@ export default function Logos({ store, section, logos: saved, translationReady }
     const checks = useChecks([
         { id: 'heading_ar', label: t('content::admin_home.fields.arabic', { field: t('content::admin_home.fields.heading') }), value: heading.ar, rules: { length: { max: 80 } } },
         { id: 'heading_en', label: t('content::admin_home.fields.english', { field: t('content::admin_home.fields.heading') }), value: heading.en, rules: { required: section.isVisible && heading.ar !== '', length: { max: 80 } } },
+        // Each logo's name, as FillHomeSectionHandler reads it: Arabic to save, English beside it to show, 100 at most.
+        ...logos.flatMap((logo, index) => [
+            { id: `logo${index}_ar`, label: t('content::admin_home.fields.arabic', { field: t('content::admin_home.fields.logo_name') }), value: logo.name.ar, rules: { required: true, length: { max: 100 } } },
+            { id: `logo${index}_en`, label: t('content::admin_home.fields.english', { field: t('content::admin_home.fields.logo_name') }), value: logo.name.en, rules: { required: section.isVisible, length: { max: 100 } } },
+            { id: `logo${index}link`, label: t('content::admin_shared.link'), value: logo.link, rules: { own: linkRule } },
+        ]),
     ]);
+    // The server names the box, not its row (`logo_name_*`, `logo_link`): its refusal goes under the first logo that breaks
+    // the rule, the first logo when none does.
+    const first = (wrong: (logo: Logo) => boolean) => Math.max(0, logos.findIndex(wrong));
+    const refusedAt = (language: 'ar' | 'en') => first((logo) => logo.name[language].trim() === '' || logo.name[language].length > 100);
+    const linkAt = first((logo) => logo.link.trim() !== '' && !isShopLink(logo.link));
+    const logoErrors = (index: number) => ({
+        [`logo${index}_ar`]: refusedAt('ar') === index ? errors.logo_name_ar : undefined,
+        [`logo${index}_en`]: refusedAt('en') === index ? errors.logo_name_en : undefined,
+    });
     const leave = useLeaveGuard(dirty, { description: t('content::admin_shared.leave') });
     const change = (apply: () => void) => {
         apply();
@@ -94,7 +109,7 @@ export default function Logos({ store, section, logos: saved, translationReady }
                         {t('content::admin_home.fields.logos')}
                     </FieldLegend>
                     <FieldDescription>{t('content::admin_home.fields.logos_helper')}</FieldDescription>
-                    {errors.logos || errors.logo || errors.logo_name_en ? <p className="text-copy-14 text-bad">{errors.logos ?? errors.logo ?? errors.logo_name_en}</p> : null}
+                    {errors.logos || errors.logo ? <p className="text-copy-14 text-bad">{errors.logos ?? errors.logo}</p> : null}
                     <SortableList
                         testPrefix="logo"
                         items={logos.map((logo, index) => ({
@@ -111,8 +126,8 @@ export default function Logos({ store, section, logos: saved, translationReady }
                                         size={{ width: 360, height: 156, png: true }}
                                         onChange={(image) => (image === null ? undefined : setLogo(index, { ...logo, image, mediaId: image.id }))}
                                     />
-                                    <PairFields name={`logo${index}`} labelAr={name.ar} labelEn={name.en} ar={logo.name.ar} en={logo.name.en} onChange={(language, typed) => setLogo(index, { ...logo, name: { ...logo.name, [language]: typed } })} errors={{}} checks={checks} translation={translation} />
-                                    <TextField id={`logo${index}link`} dir="ltr" label={t('content::admin_shared.link')} value={logo.link} onChange={(event) => setLogo(index, { ...logo, link: toLatinDigits(event.target.value) })} />
+                                    <PairFields name={`logo${index}`} labelAr={name.ar} labelEn={name.en} ar={logo.name.ar} en={logo.name.en} onChange={(language, typed) => setLogo(index, { ...logo, name: { ...logo.name, [language]: typed } })} errors={logoErrors(index)} checks={checks} translation={translation} />
+                                    <TextField id={`logo${index}link`} dir="ltr" label={t('content::admin_shared.link')} helper={t('content::admin_shared.link_helper')} check={checks.box(`logo${index}link`, linkAt === index ? errors.logo_link : undefined)} value={logo.link} onChange={(event) => setLogo(index, { ...logo, link: toLatinDigits(event.target.value) })} />
                                 </div>
                             ),
                             extra: (

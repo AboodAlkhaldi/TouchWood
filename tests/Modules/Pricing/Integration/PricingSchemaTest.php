@@ -11,6 +11,8 @@ use Illuminate\Support\Str;
 use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Pricing\Domain\ValueObject\PriceSource;
 use Modules\Pricing\Infrastructure\Persistence\PricingSchema;
+use Modules\Pricing\Public\Enums\CampaignLines;
+use Modules\Pricing\Public\Enums\CampaignTargetKind;
 use Modules\Pricing\Public\Enums\PriceKind;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
@@ -53,6 +55,7 @@ it('stores its kinds as strings, never integers (§5)', function () {
         ->get(['table_name', 'column_name', 'data_type']);
 
     expect($kinds->map(static fn (stdClass $column): string => "{$column->table_name}.{$column->column_name} {$column->data_type}")->all())->toBe([
+        'campaign_targets.kind character varying',
         'price_candidates.kind character varying',
         'price_candidates.mode character varying',
         'retail_prices.source character varying',
@@ -70,6 +73,8 @@ it('allows in each kind\'s column exactly the values the code has', function (st
     'modes' => ['price_candidates_mode', array_map(static fn (SaleMode $mode): string => $mode->value, SaleMode::cases())],
     'kinds' => ['price_candidates_kind', array_map(static fn (PriceKind $kind): string => $kind->value, PriceKind::cases())],
     'sources' => ['retail_prices_source', array_map(static fn (PriceSource $source): string => $source->value, PriceSource::cases())],
+    'campaign targets' => ['campaign_targets_kind', array_map(static fn (CampaignTargetKind $kind): string => $kind->value, CampaignTargetKind::cases())],
+    'campaign lines' => ['campaign_sets_lines', array_map(static fn (CampaignLines $lines): string => $lines->value, CampaignLines::cases())],
 ]);
 
 describe('what the database refuses behind the code (§8 #15)', function () {
@@ -109,9 +114,10 @@ describe('what the database refuses behind the code (§8 #15)', function () {
             ->and($insert(['kind' => 'BASE', 'starts_at' => '2026-10-11 10:00:00+00']))->toThrow(QueryException::class, 'price_candidates_undated')
             ->and($insert(['kind' => 'QUANTITY', 'ends_at' => '2026-10-11 10:00:00+00']))->toThrow(QueryException::class, 'price_candidates_undated')
             ->and($insert(['kind' => 'BASE', 'always_wins' => true]))->toThrow(QueryException::class, 'price_candidates_undated')
-            // A sale's or a discount's candidate names it.
+            // A sale's, a discount's or a campaign's candidate names it.
             ->and($insert(['source_id' => null]))->toThrow(QueryException::class, 'price_candidates_source')
-            ->and($insert(['kind' => 'CATEGORY', 'source_id' => null]))->toThrow(QueryException::class, 'price_candidates_source');
+            ->and($insert(['kind' => 'CATEGORY', 'source_id' => null]))->toThrow(QueryException::class, 'price_candidates_source')
+            ->and($insert(['kind' => 'CAMPAIGN', 'source_id' => null]))->toThrow(QueryException::class, 'price_candidates_source');
 
         // A sale may start with no end, end with no start known here, or have both; the retail price none.
         $insert(['starts_at' => '2026-10-11 10:00:00+00'])();
@@ -133,6 +139,13 @@ describe('what the database refuses behind the code (§8 #15)', function () {
         ))->mapWithKeys(static fn (stdClass $key): array => [(string) $key->conname => (string) $key->confdeltype])->all();
 
         expect($rules)->toBe([
+            'campaign_left_out_product' => 'c',
+            'campaign_left_out_run' => 'c',
+            'campaign_sets_store' => 'r',
+            'campaign_skips_run' => 'c',
+            'campaign_skips_store' => 'r',
+            'campaign_skips_variant' => 'c',
+            'campaign_targets_run' => 'c',
             'category_discount_exclusions_discount' => 'c',
             'category_discount_exclusions_product' => 'c',
             'category_discounts_category' => 'c',
@@ -159,5 +172,52 @@ describe('what the database refuses behind the code (§8 #15)', function () {
 
         expect(DB::table('pricing.retail_prices')->count())->toBe(0)
             ->and(DB::table('pricing.price_candidates')->count())->toBe(0);
+    });
+
+    it('keeps a campaign run\'s prices whole: its lines and window, each target one kind of price, a fixed price a size\'s (§9.6)', function () {
+        $run = strtolower((string) Str::ulid());
+        $set = ['run_id' => $run, 'store_id' => Fx::storeId('sa'), 'lines' => 'BOTH', 'starts_at' => '2026-11-10 10:00:00+00', 'ends_at' => '2026-11-12 10:00:00+00', 'created_at' => now(), 'updated_at' => now()];
+        $insertSet = static fn (array $changed): Closure => fn () => DB::transaction(fn () => DB::table('pricing.campaign_sets')->insert([...$set, ...$changed]));
+
+        expect($insertSet(['lines' => 'ALL']))->toThrow(QueryException::class, 'campaign_sets_lines')
+            ->and($insertSet(['ends_at' => '2026-11-10 10:00:00+00']))->toThrow(QueryException::class, 'campaign_sets_window')
+            // A campaign always has an end (content.md §1.7 #1).
+            ->and($insertSet(['ends_at' => null]))->toThrow(QueryException::class, 'not-null');
+
+        $insertSet([])();
+        $target = ['run_id' => $run, 'kind' => 'SIZE', 'target_id' => Px::ready()['variants'][0], 'percent_bp' => null, 'amount_minor' => 9000, 'currency_code' => 'SAR'];
+        $insert = static fn (array $changed): Closure => fn () => DB::transaction(fn () => DB::table('pricing.campaign_targets')->insert([...$target, ...$changed]));
+
+        // PostgreSQL tests the CHECKs in their names' order: each row breaks the one it names alone.
+        expect($insert(['kind' => 'STORE', 'percent_bp' => 1000, 'amount_minor' => null, 'currency_code' => null]))->toThrow(QueryException::class, 'campaign_targets_kind')
+            // Exactly one of a percentage and a price: both, or neither (each NULL-able column left NULL).
+            ->and($insert(['percent_bp' => 1000]))->toThrow(QueryException::class, 'campaign_targets_one_kind')
+            ->and($insert(['amount_minor' => null, 'currency_code' => null]))->toThrow(QueryException::class, 'campaign_targets_one_kind')
+            ->and($insert(['percent_bp' => 10000, 'amount_minor' => null, 'currency_code' => null]))->toThrow(QueryException::class, 'campaign_targets_percent')
+            ->and($insert(['percent_bp' => 0, 'amount_minor' => null, 'currency_code' => null]))->toThrow(QueryException::class, 'campaign_targets_percent')
+            ->and($insert(['amount_minor' => 0]))->toThrow(QueryException::class, 'campaign_targets_amount')
+            // A fixed price is a size's alone.
+            ->and($insert(['kind' => 'PRODUCT']))->toThrow(QueryException::class, 'campaign_targets_amount')
+            ->and($insert(['currency_code' => null]))->toThrow(QueryException::class, 'campaign_targets_currency')
+            ->and($insert(['currency_code' => 'sar']))->toThrow(QueryException::class, 'campaign_targets_currency')
+            ->and($insert(['percent_bp' => 1000, 'amount_minor' => null]))->toThrow(QueryException::class, 'campaign_targets_currency');
+
+        $insert([])();
+        $insert(['kind' => 'CATEGORY', 'percent_bp' => 1000, 'amount_minor' => null, 'currency_code' => null])();
+
+        // A skip is of its run's own store, never another's.
+        $skip = static fn (string $store): Closure => fn () => DB::transaction(fn () => DB::table('pricing.campaign_skips')->insert(['run_id' => $run, 'variant_id' => $target['target_id'], 'store_id' => $store]));
+
+        expect($skip(Fx::storeId('ae')))->toThrow(QueryException::class, 'campaign_skips_run');
+
+        $skip(Fx::storeId('sa'))();
+
+        // Each target named once in a run; the run's rows go with it.
+        expect($insert(['amount_minor' => 8000]))->toThrow(QueryException::class, 'campaign_targets_pkey');
+
+        DB::table('pricing.campaign_sets')->where('run_id', $run)->delete();
+
+        expect(DB::table('pricing.campaign_targets')->count())->toBe(0)
+            ->and(DB::table('pricing.campaign_skips')->count())->toBe(0);
     });
 });
