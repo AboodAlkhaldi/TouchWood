@@ -115,8 +115,7 @@ Under **Manage Stock** in that store (owner, 2026-10-09):
 ### 1.6 The ledger
 
 `inventory.stock_movements` is **append-only**: every change of in stock — a stocktake, an addition or
-removal with its reason, a shipment, a return, the store's file (until catalog.md amendment 43), the
-provider's number — with its before and
+removal with its reason, a shipment, a return, the store's file, the provider's number — with its before and
 after, who or what made it, and a unique reference, so a repeated message is never counted twice
 (handoff §12.1). Holds and their ends are kept on the holds themselves (§5).
 
@@ -186,13 +185,10 @@ recount keeps the store's **low set** — the list's sizes, each **out** or **lo
 - The change log keeps **12 months** (as Ops keeps its daily reports' files), pruned each night by
   `PruneLowStockChanges` (§3).
 
-### 1.8 The store's file (catalog.md §2.3) — removed (catalog.md amendment 43)
+### 1.8 The store's file (catalog.md §2.3)
 
-**Since 2026-11-10 a store's file holds codes only** (owner: the stock comes from Odoo): Inventory's
-`ImportSection`, `SetStockFromFile`, its job and its audit action (`inventory.stock.filed`) are
-removed. The reason **File**, its label and the history's "A Store File" stay, for lines written
-before. What it did — Inventory's `ImportSection`: the file's page says, per item, the stock that will
-be set — or that it
+**A store not wired to Odoo's**: since 2026-11-11 a wired store's file gives codes only, a stock in it
+refused when the file is read (catalog.md amendment 43(b)). Inventory's `ImportSection`: the file's page says, per item, the stock that will be set — or that it
 is ignored in a wired store, the provider being its source. **When an item is switched on**, the stock
 **sets** the size's in stock (a "set to" movement, reason **File**), audited as the file's. **One code is
 one size** (owner, 2026-10-09; Catalog's amendment 16). *(Step 4b:)* the stock is set by a job queued
@@ -285,7 +281,7 @@ provider by the size. A refusal reaches the caller as `Shared\Domain\Error\Domai
   sizes **this viewer can buy and order now** is (owner, 2026-10-10), and on the ending-soon size
   among a product page's options. **Catalog's amendment 16(h)** (PR #103), with the owner's rules of
   2026-10-09 and 2026-10-10.
-- ~~An `ImportSection` for the store's file — §1.8.~~ Removed (catalog.md amendment 43).
+- An `ImportSection` for the store's file — §1.8.
 
 ### 2.4 What Inventory needs from other modules
 
@@ -335,7 +331,7 @@ is (group, kind, reserved) is still declared by `Application\InventoryPermission
 | The store's default threshold | Platform's settings screen, the setting's own permission | That store |
 | The screens' reads: a size's stock and history (`ViewStock`, `StockHistory`), the Low Stock list and its count (`LowStock`); with stage 5's screens step 4 the Stock list (`ListStock`), the holds before saving (`HoldsOnSizes`), Add Size's picker (`AddSizeChoices`) | `inventory.stock.manage` | That store |
 | A product's stock in every store (`ViewProductStock`), what the screens may offer (`InventoryActionsForReader`) | `inventory.stock.manage` | Each store the reader holds it in |
-| ~~The store's file — Inventory's section (§1.8)~~ — removed (catalog.md amendment 43) | ~~Catalog's `catalog.listing.fill` (admin roles), checked by Catalog's handler~~ | — |
+| The store's file — Inventory's section (§1.8) | Catalog's `catalog.listing.fill` (admin roles), checked by Catalog's handler | That store |
 | `ReleaseExpiredHolds` — scheduled · `RebuildOrderable` — a repair job, every size's orderability pushed again and compared · `CountLowStock` — a store's Low Stock count kept, or every store's (step 5), and its low set and changes (amendment 1) · `PruneLowStockChanges` — each night, the change log's entries older than 12 months (amendment 1) | System (reserved): `inventory.holds.expire`, `inventory.low_stock.count`, `inventory.orderable.rebuild`, `inventory.low_changes.prune` | — |
 
 **A store that is off**: every change refused to anyone who may not switch stores
@@ -475,8 +471,7 @@ page (`ListStock` with `InventoryActionsForReader`) 9, the drawer 5, the Low Sto
 - **Add Size** (Q24) needs no new command: `SetStock` counts a size switched on whatever its product's
   stage, and a size the store does not sell **only when its product is ready** (2026-10-19) - a draft's size
   not switched on is refused, `invalid_inventory_input` naming its row; the stocktake makes its row, and the
-  Stock list lists it from then on. (The store's file, once not held to it, sets no stock since catalog.md
-  amendment 43.)
+  Stock list lists it from then on. The store's file (§1.8) is not held to it.
 - **A batch refusal marks every bad row**: `SetStock` and `SetLowStockThreshold` name every count or
   threshold out of bounds, and both rows of a size written twice with two values, in one refusal. A count
   that finds the number right on a size already short names it in `StockSaved` too, with no event.
@@ -686,8 +681,8 @@ their one detail stands.
    `makeStockDependent`: on only, audited and told as the switch; nothing in a store with no
    provider or for a size already on (every size not switched off); inside the caller's
    transaction and alone, its audit entry always in a transaction.
-10. ~~**The store's file**: sets the stock when switched on (a File movement); ignored in a wired store,
-    the page saying so.~~ Removed with the file's stock (catalog.md amendment 43).
+10. **The store's file**: sets the stock when switched on (a File movement); ignored in a wired store,
+    the page saying so.
 11. **The ledger**: append-only (an update or delete refused by the database); a repeated reference
     counted once.
 12. **Permissions and audit**: Manage Stock in that store only; every change by value, both languages.

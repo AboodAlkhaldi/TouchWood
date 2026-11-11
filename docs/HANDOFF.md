@@ -963,8 +963,8 @@ products one at a time in the panel:
 
 - **new products** with their details, images and codes, the stores each is chosen in, and each of
   those stores' price and stock — in one file, so a product and its stores arrive together;
-- **a store's choice** of products that already exist — codes only since catalog.md amendment 43: a
-  store's prices and stock come from Odoo.
+- **a store's choice** of products that already exist, with its prices and stock — codes only in a
+  store wired to Odoo (catalog.md amendment 43).
 
 **The format and the flow were agreed with the owner on 2026-10-05** (`docs/modules/catalog.md`
 §1.12, §1.3, amendment 6). **The exact format — a guide to filling it and a complete example of each
@@ -973,9 +973,11 @@ files from it, with another AI agent's help. In short: the products file goes in
 with its photos, and **gets its own page** where the Super Admin decides each name the catalog lacks
 (a typo for an existing one, create it, or refuse it) and each code it already has (update, replace
 whole, skip, or another code), then brings the products in as drafts and accepts, archives or deletes
-them — replacing "a preview, then all-or-nothing". The admins' **store file** (codes only since
-catalog.md amendment 43: a store's prices and stock come from Odoo) never creates or edits a product:
-its page switches existing products on in that store, an unknown code corrected or removed.
+them — replacing "a preview, then all-or-nothing". The admins' **store file** (codes and prices,
+stock optional; codes only in a store wired to Odoo, catalog.md amendment 43) never creates or edits a
+product: its page switches existing products on in that store, an unknown code corrected or removed. A
+store wired after its file was kept has the file's prices and stock ignored with a warning: the
+provider is their source there (§12.2).
 
 **The import lives in Catalog** (owner, 2026-10-02). Until Pricing and Inventory exist (stage 5), the
 file's prices and stock are shown and not kept; those modules then add their parts of the file to the

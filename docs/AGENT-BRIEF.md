@@ -120,7 +120,7 @@ scope; the README names the classes.
 | **The products import** (Super Admin, `catalog.import.run`) | `UploadImport`, `DecideImportNames`, `DecideImportCodes` (with keep on sale / take off sale), the changes before bringing in (`SetImported…`), `BringInImport` (the confirm, queued), `Accept…`, `Archive…`, `DeleteImportedProducts`, `DiscardImport`; reads `ViewImport`, `ListImports`. |
 | **The store file** (admin roles, `catalog.listing.fill`) | `UploadStoreFill`, `CorrectStoreFillCode`, `RemoveStoreFillItems`, `SwitchOnStoreFillItems`; reads `ViewStoreFill`, `ListStoreFills`. |
 | **The storefront** | `ShopCatalog` — `menu`, `category`, `brand`, `product`, `relations` — and `ShopSearch` — `suggest`, `results`; built on the listing's own rows (`catalog.listing`). |
-| **The other modules' contract** | `Public/Contracts/CatalogApi`; `ListingFacts` is declared for stage 5 (`ImportSections` removed, amendment 43). |
+| **The other modules' contract** | `Public/Contracts/CatalogApi`; `ListingFacts` and `ImportSections` are declared for stage 5; `StoreWiring` (amendment 43) for Sync to bind. |
 
 ### 5.2 What is not built — the screens bring it
 
@@ -162,8 +162,8 @@ From the specs and the owner — each one cited where it is written:
 - **Roles nest**: Super Admin ⊃ admin ⊃ staff. The store file's job is **admin roles only**
   (amendment 6(h); access.md amendment 62); **the import is the Super Admin's only** (a reserved
   permission).
-- **A store file holds codes only** (catalog.md amendment 43): no prices, no stock, no note about
-  them - a store's come from Odoo.
+- **Prices and stock are shown, not kept, until stage 5**: a store file's page says so, once
+  (catalog.md §2.3, §9.3 #15). **A store wired to Odoo gives codes only** in its file (amendment 43).
 - **The import's page** shows, part by part, what catalog.md §1.12 lists: the names to decide (with
   how many catalog items a name matches), the codes to decide (update, replace, skip, new codes; keep
   on sale or take off sale for a product on sale), the changes to all or the selected, the addresses
@@ -173,8 +173,9 @@ From the specs and the owner — each one cited where it is written:
   discarding a file not brought in. `ImportUndecided` carries how many of each still wait: `names`,
   `codes`, `addresses`, `sales`, `code_changes`.
 - **The limits** the pages state: a products file of 2,000 products, a JSON of 20 MB, a zip of
-  500 MB and 100,000 entries; a store file of 1,000 items, each code once, 2 MB, codes only (catalog.md
-  §1.3, §1.12, amendment 43).
+  500 MB and 100,000 entries; a store file of 1,000 items, each code once, 2 MB; a price with at most
+  6 decimal places; a stock up to 2,147,483,647 - none in a wired store's file (catalog.md §1.3, §1.12,
+  amendment 43).
 - **Out of stock never shows**: never listed, searched or suggested; a direct link opens a "Not
   available now" page with no Add to Cart (HANDOFF §9.2).
 - **Every error** has its type (`catalog.{name}`) and both languages' text in
