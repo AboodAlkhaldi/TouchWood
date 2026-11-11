@@ -10,7 +10,7 @@ use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
 
 /**
- * **The files' guide** (docs/modules/catalog-import/): both formats, read by whoever fills a file -
+ * **The files' guide** (Presentation/import-format/): both formats, read by whoever fills a file -
  * a store's admins (`catalog.listing.fill` in some store, S10) or the Super Admin
  * (`catalog.import.run`, S11). Anyone else is refused, as each file's screen refuses them.
  */

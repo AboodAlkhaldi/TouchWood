@@ -67,6 +67,7 @@ use Modules\Catalog\Infrastructure\Eloquent\DatabaseStoreListingRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseVariantRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseWarrantyRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseWordPairRepository;
+use Modules\Catalog\Infrastructure\External\NoStoreWired;
 use Modules\Catalog\Infrastructure\Import\DiskImportArchives;
 use Modules\Catalog\Infrastructure\Listener\RefreshCardPhotos;
 use Modules\Catalog\Infrastructure\Media\CatalogImagesUsage;
@@ -87,6 +88,7 @@ use Modules\Catalog\Public\Contracts\ShopBestSellers;
 use Modules\Catalog\Public\Contracts\ShopCardFacts;
 use Modules\Catalog\Public\Contracts\ShopListingSlots;
 use Modules\Catalog\Public\Contracts\ShopProductSections;
+use Modules\Catalog\Public\Contracts\StoreWiring;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\ShopFrameParts;
@@ -137,6 +139,9 @@ final class CatalogServiceProvider extends ServiceProvider
         // Stage 5's store-wide screens: sizes and products paged in Catalog's order (amendment 23).
         $this->app->bind(ApiSearches::class, DatabaseApiSearches::class);
         $this->app->bind(ListingFacts::class, DatabaseListingFacts::class);
+        // Whether a store is wired to Odoo, for its store file (amendment 43): none until Sync, registered
+        // after Catalog, binds its own answer.
+        $this->app->bind(StoreWiring::class, NoStoreWired::class);
         // One registry for the whole application: the modules above register from their providers.
         $this->app->singleton(InMemoryImportSections::class);
         $this->app->alias(InMemoryImportSections::class, ImportSections::class);

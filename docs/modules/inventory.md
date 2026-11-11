@@ -187,7 +187,8 @@ recount keeps the store's **low set** — the list's sizes, each **out** or **lo
 
 ### 1.8 The store's file (catalog.md §2.3)
 
-Inventory's `ImportSection`: the file's page says, per item, the stock that will be set — or that it
+**A store not wired to Odoo's**: since 2026-11-11 a wired store's file gives codes only, a stock in it
+refused when the file is read (catalog.md amendment 43(b)). Inventory's `ImportSection`: the file's page says, per item, the stock that will be set — or that it
 is ignored in a wired store, the provider being its source. **When an item is switched on**, the stock
 **sets** the size's in stock (a "set to" movement, reason **File**), audited as the file's. **One code is
 one size** (owner, 2026-10-09; Catalog's amendment 16). *(Step 4b:)* the stock is set by a job queued

@@ -13,6 +13,7 @@ use Modules\Catalog\Application\Import\Imports;
 use Modules\Catalog\Domain\Exception\ImportRefused;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseImports;
 use Modules\Catalog\Infrastructure\Import\DiskImportArchives;
+use Modules\Catalog\Presentation\Http\Controller\ImportGuideController;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogImports as Ix;
@@ -21,7 +22,7 @@ use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use function Pest\Laravel\seed;
 
 /*
-| Uploading a products file (catalog.md §1.12, amendment 6; the guide in docs/modules/catalog-import/):
+| Uploading a products file (catalog.md §1.12, amendment 6; the guide in Presentation/import-format/):
 | a Super Admin's; read and checked whole, against the catalog too, and refused with every problem
 | listed — or kept as an import whose page lists each name the catalog lacks once, and each product
 | whose code the catalog already has, for the Super Admin to decide. Nothing in the catalog changes.
@@ -57,7 +58,7 @@ function catalogUploadProblems(string $path): array
 
 function catalogUploadExample(): string
 {
-    return (string) file_get_contents(dirname(__DIR__, 4).'/docs/modules/catalog-import/products.example.json');
+    return (string) file_get_contents(ImportGuideController::FOLDER.'products.example.json');
 }
 
 /**
