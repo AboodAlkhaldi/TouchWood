@@ -1590,10 +1590,9 @@ refusing anything but one void.
    bought piece; a refusal's reason required; up to 3 transfer documents; the
    ways recorded (`BANK_TRANSFER`, `ONLINE`, `OTHER`); what counts as an unfinished order; the
    settings' defaults and admin-only permission; best-selling as pieces sold in 90 days.
-7. **Handoff §12.4's "hold stock while verifying" setting** (bank transfers, stage 7): stock is now
-   held for every order from placement until it ships or is cancelled (handoff §12.1, owner
-   2026-10-07), so the setting has nothing left to switch — for the owner to confirm it goes, with
-   Payments.
+7. ~~**Handoff §12.4's "hold stock while verifying" setting**~~ — **settled: dropped** (owner, 2026-10-19,
+   payments.md P9, §1.9): stock is held for every order from placement until it ships or is cancelled
+   (handoff §12.1, owner 2026-10-07), so the setting had nothing left to switch; no such setting exists.
 8. **An off store's unfinished orders in the other modules** — whether Inventory's, Promotions' and
    Loyalty's calls accept an order of a store that is off (Sales's edits, returns, cancellations):
    checked at build and tested (`OrderDecisionsTest`, `ReturnRequestsTest`: an off store's staff decide,

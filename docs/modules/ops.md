@@ -1,8 +1,9 @@
 # Ops — Module Specification
 
-**Status:** **DRAFT, 2026-10-28** — written from the owner's answers of 2026-10-28 (rounds 1–4, §9.1)
-and the answers of the sessions that built the modules Ops listens to (§9.2). Not accepted. The picks
-marked "my assumption" are for the owner to reject.
+**Status:** **ACCEPTED by the owner, 2026-11-10, and built** — the backend in the ten steps of its plan and
+every page of §4.15 (the Home card, Q5, goes with the Home dashboard job). Written 2026-10-28 from the owner's
+answers of 2026-10-28 (rounds 1–4, §9.1) and the answers of the sessions that built the modules Ops listens to
+(§9.2).
 **Stage:** 8 (handoff §17), the first of the stage's two modules (owner, 2026-10-28: Ops
 before Content — Content waits for the owner's real content and the old site's SEO).
 **Depends on:** every module's `Public` surface; **nothing depends on Ops** (handoff §4.4; `deptrac.yaml`
@@ -541,7 +542,7 @@ fields in `Presentation/Http/Resource`. What a screen needs and the code does no
 
 ### 4.1 What holds for every route
 
-- **A built page's address answers a page; the other GETs answer JSON.** O1 to O8, O10 and O13 are built (§4.15; owner, 2026-11-02;
+- **A built page's address answers a page; the other GETs answer JSON.** Every page of §4.15, O1 to O13, is built (§4.15; owner, 2026-11-02;
   brought up to date 2026-11-05): a list of theirs, and the confirm, leave and unsubscribe links, give the page to a plain visit
   and the JSON to whoever asks with `Accept: application/json`; a form's address gives only the page. A report's address
   (`ops.admin.reports.show`) gives the Reports page to a plain visit, which names the store by its **code** (owner, 2026-11-05),
@@ -620,7 +621,7 @@ over 64 characters and show the first page).
 |---|---|---|---|
 | A bell | 20 | Newest first | An empty page |
 | Notices | 20 | Newest first, by when written | An empty page |
-| Subscribers | 50 | By id | Carries on after that id |
+| Subscribers | 50 | Newest first, by when they joined (owner, 2026-11-10; was by id) | An empty page |
 | Daily reports | 20 | Newest made first | An empty page |
 | Staff messages | 20 | Newest first | An empty page |
 | A form's segments | 20 | Newest first, by id | Carries on after that id |
@@ -1190,11 +1191,11 @@ Columns: Title · Audience ("Every customer", the segment, "Deleted segment") ·
 
 #### O7 · Subscribers
 
-`/admin/newsletter/subscribers`. "Who gets the newsletter. Newsletters are written and sent in Brevo.", `StoreFilter`, the table, Show More at 50.
+`/admin/newsletter/subscribers`. "Who gets the newsletter. Newsletters are written and sent in Brevo.", `StoreFilter`, the table, **newest first** (by Joined, as the other Ops lists; owner, 2026-11-10), Show More at 50.
 
 Columns: Email · Language · Kind (Guest, Customer) · State (Confirmed, Waiting for Confirmation) · Joined · Confirmed.
 
-- **A customer's hidden email** (null) reads "Hidden" with a tooltip: "You may not view this store's customers."
+- **A customer's hidden email** (null) reads "Hidden"; pressing it opens shadcn's **Popover**: "You may not view this store's customers." — a tap on a phone, Enter or Space from the keyboard, Escape closes it (owner, 2026-11-10; was a tooltip, which a tap never opened).
 - **Row menu, guests only:** **Remove…**, "Remove :email from the newsletter?", Keep and Remove. A customer's row has no menu: the customer's own switch decides (§1.3).
 - **Empty.** "No subscribers yet."
 

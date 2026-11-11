@@ -62,7 +62,7 @@ beforeEach(function () {
 function couponFields(array $with = []): CouponFields
 {
     return new CouponFields(...[
-        'nameAr' => 'كوبون الصيف', 'nameEn' => 'Summer', 'eligibility' => 'PUBLIC', 'discountKind' => 'PERCENT',
+        'nameAr' => 'قسيمة الصيف', 'nameEn' => 'Summer', 'eligibility' => 'PUBLIC', 'discountKind' => 'PERCENT',
         'percent' => 15, 'capMinor' => null, 'amountMinor' => null, 'minimumMinor' => null,
         'startsAt' => CarbonImmutable::now()->subMinute(), 'endsAt' => null, 'maxUsesPerCustomer' => null, 'maxUsesTotal' => null,
         'allowWithPoints' => true, 'onReducedLines' => false, 'forRetail' => true, 'forWholesale' => true,

@@ -10,7 +10,7 @@ import { Time } from '@/components/Time';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { isolate } from '@/lib/bidi';
 import { useKeptDepth } from '@/lib/kept-depth';
@@ -71,14 +71,17 @@ export default function Subscribers({ subscribers, next, stores, storeCode }: Su
                                         <TableRow key={subscriber.id} data-test={`subscriber-${subscriber.id}`}>
                                             <TableCell className="text-ink" data-test="email">
                                                 {subscriber.email === null ? (
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <span tabIndex={0} className="text-ink-muted underline decoration-dotted" data-test="hidden-email">
+                                                    // A Popover, not a tooltip: a tap opens it on a phone, Enter or Space by keyboard, Escape closes it.
+                                                    <Popover>
+                                                        <PopoverTrigger asChild>
+                                                            <button type="button" className="rounded-sm text-ink-muted underline decoration-dotted" data-test="hidden-email">
                                                                 {t('ops::admin_subscribers.hidden')}
-                                                            </span>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>{t('ops::admin_subscribers.hidden_why')}</TooltipContent>
-                                                    </Tooltip>
+                                                            </button>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="w-auto max-w-64 p-2 text-copy-13" align="start" data-test="hidden-why">
+                                                            {t('ops::admin_subscribers.hidden_why')}
+                                                        </PopoverContent>
+                                                    </Popover>
                                                 ) : (
                                                     <bdi dir="ltr">{subscriber.email}</bdi>
                                                 )}

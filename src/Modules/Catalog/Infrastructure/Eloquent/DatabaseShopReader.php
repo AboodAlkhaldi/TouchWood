@@ -203,7 +203,7 @@ final readonly class DatabaseShopReader implements ShopReader
         ] : null;
     }
 
-    public function categoryTrail(string $locale, string $categoryId): array
+    public function categoryTrail(string $locale, string $categoryId, bool $andItself = false): array
     {
         $rows = $this->db->select(
             'WITH RECURSIVE up (id, parent_id, depth) AS ('
@@ -211,8 +211,8 @@ final readonly class DatabaseShopReader implements ShopReader
             .' UNION ALL SELECT c.id, c.parent_id, up.depth + 1 FROM catalog.categories c JOIN up ON c.id = up.parent_id)'
             .' SELECT c.'.self::column('name', $locale).' AS name, s.slug FROM up JOIN catalog.categories c ON c.id = up.id'
             .' JOIN catalog.category_slugs s ON s.category_id = c.id AND s.locale = ? AND s.is_current'
-            .' WHERE up.depth > 0 ORDER BY up.depth DESC',
-            [$categoryId, $locale],
+            .' WHERE up.depth >= ? ORDER BY up.depth DESC',
+            [$categoryId, $locale, $andItself ? 0 : 1],
         );
 
         return array_values(array_map(static fn (stdClass $row): ShopLink => new ShopLink((string) $row->name, (string) $row->slug), $rows));

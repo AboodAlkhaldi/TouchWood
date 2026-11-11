@@ -140,6 +140,25 @@ final readonly class ShopCatalog
     }
 
     /**
+     * The way to a product's category that has left this viewer's menu (amendment 42): the categories above it and
+     * the category itself, where its own page still answers them - emptied only by stock or prices, as the category's
+     * page asks (`onlySoldOut`, amendment 39(j)). Null where it does not answer: inactive, off for this viewer, or with
+     * nothing of theirs. Two queries, asked only when such a page is filled.
+     *
+     * @return list<ShopLink>|null
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function wayToEmptied(StoreId $store, string $locale, ShopperKind $viewer, string $categoryId): ?array
+    {
+        $locale = ShopLocale::of($locale);
+
+        return $this->reader->onlySoldOut($store->value, $locale, $viewer, 'category', $categoryId)
+            ? $this->reader->categoryTrail($locale, $categoryId, true)
+            : null;
+    }
+
+    /**
      * A brand's page (§1.4, §1.6, §4.5): everything of it a shopper can order here. An inactive brand
      * has none; an active one always has its page, a secondary one too (amendment 5(m)).
      *

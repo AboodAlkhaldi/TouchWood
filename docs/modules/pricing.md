@@ -342,14 +342,14 @@ no error classes.
 | Access | **Declaring Pricing's permissions** (§3), in the `Pricing` group ("Pricing and Campaigns") | Allowed for that only (owner, 2026-10-07; `deptrac.yaml` since #97) |
 | Platform | The store (`StoreDto`: currency, its decimals, VAT rate, on or off), the audit log, `MenuCount` for Needs a Price, the scheduler | Exists |
 | Catalog | `storeVariant()` (selling modes, wholesale minimum), `variant()`, `product()` (its category) | Exists |
-| Catalog | **The products in a category and below it** — for a category discount and its preview | **`productIdsInCategory(string $categoryId): list<string>`** — products in any stage; accepted by the owner, 2026-10-09; Catalog's amendment 16(e) (PR #103), not built yet |
+| Catalog | **The products in a category and below it** — for a category discount and its preview | **`productIdsInCategory(string $categoryId): list<string>`** — products in any stage; accepted by the owner, 2026-10-09; Catalog's amendment 16(e) (PR #103), **built** (`CatalogApi::productIdsInCategory`) |
 | Catalog | **A product's sizes** (variant ids, in its order) — a sale for every size of a product | **`variantIdsOf(string $productId, bool $includeArchived = false): list<string>`** — Pricing leaves archived sizes out; same |
 | Catalog | **The sizes a store has switched on** — Needs a Price | **`switchedOnVariantIds(StoreId $store): list<string>`** — same |
 | Catalog | **One code is one size** — the store's file (§1.8); a code's one size, `variantByCode(string $code): ?VariantDto` | Accepted by the owner, 2026-10-09; Catalog's amendment 16(a) (PR #103) |
-| Catalog | **Many sizes and products in one read** — names on the discount's preview and the Needs a Price list, within an admin page's 15 queries (frontend.md §5) | **`variants(list<string> $variantIds): array<string, VariantDto>`**, **`products(list<string> $productIds): array<string, ProductDto>`** — keyed by id, an unknown id left out; Catalog's amendment 16(i) (PR #103, after stage 5's review), not built yet |
+| Catalog | **Many sizes and products in one read** — names on the discount's preview and the Needs a Price list, within an admin page's 15 queries (frontend.md §5) | **`variants(list<string> $variantIds): array<string, VariantDto>`**, **`products(list<string> $productIds): array<string, ProductDto>`** — keyed by id, an unknown id left out; Catalog's amendment 16(i) (PR #103, after stage 5's review), **built** (`CatalogApi::variants`, `CatalogApi::products`) |
 | Catalog | `ProductChanged` (a product moved category) | Exists (§6.2) |
-| Catalog | **`CategoryMoved(categoryId)`** — a category put under another parent; **`ProductMadeReady`** — a draft made ready (a draft's own category change sends nothing before) | `ProductMadeReady` exists; `CategoryMoved` is amendment 16 (PR #103), not built yet (§6.2) |
-| Catalog | `ListingFacts` bound; **`prices(StoreId, map variantId → ListingPrice\|null)`** — `ListingPrice{now, ?before}` | Catalog builds it with the shop's pages (amendment 15); the code contract's signature changes with amendment 16's backend (16(i)) |
+| Catalog | **`CategoryMoved(categoryId)`** — a category put under another parent; **`ProductMadeReady`** — a draft made ready (a draft's own category change sends nothing before) | `ProductMadeReady` exists; `CategoryMoved` is amendment 16 (PR #103), **built** (`Catalog/Public/Events/CategoryMoved`, §6.2) |
+| Catalog | `ListingFacts` bound; **`prices(StoreId, map variantId → ListingPrice\|null)`** — `ListingPrice{now, ?before}` | **Built** (`DatabaseListingFacts::prices`), with the shop's pages (amendment 15) and amendment 16's signature (16(i)) |
 
 ### 2.5 Later
 
@@ -1003,7 +1003,7 @@ Every refusal's **words** say **Offer** where this spec says sale (in Arabic ع�
 | 2 | Does the provider call us when something changes (a webhook), besides our reading every few minutes? | Same |
 | 3 | What a company's card shows when its first size sells wholesale only (catalog.md amendment 15) — Pricing would push the same one-piece price | The owner, with Catalog's amendment |
 | 4 | ~~Campaign prices~~ **Settled: §9.6** (content.md, 2026-11-10) | Stage 8 (owner, 2026-10-08) |
-| 5 | Pricing's screens: prices, sales, wholesale bands, category discounts and their preview, the note before saving, Needs a Price | The frontend session, after this spec |
+| 5 | ~~Pricing's screens: prices, sales, wholesale bands, category discounts and their preview, the note before saving, Needs a Price~~ **Built** by the stage 5 screens session (`resources/js/pages/Pricing/Admin`; §9.3, §9.4) | — |
 | 6 | `pricesForEdit` and `KeptPartDto` — the shapes for an edited order (§1.11, §2.1) | The owner's review of this amendment |
 
 ~~A code shared by a product's sizes~~ — closed: one code is one size (owner, 2026-10-09).
