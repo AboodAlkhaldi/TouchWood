@@ -272,9 +272,16 @@ function ProductPrice({ variant, wholesale, wholesaleMinimum }: { variant: ShopV
 
     const only: ShopWholesaleSizeData | null = wholesale?.sizes[variant.id] ?? null;
 
-    return only === null ? null : (
+    if (only === null) {
+        return null;
+    }
+
+    // On a sale, the old price struck through beside it, as a retail size's (amendment 45): the band's own, or the size's.
+    const band = only.bands.filter((each) => each.minQuantity <= Math.max(1, wholesaleMinimum ?? 1)).pop() ?? null;
+
+    return (
         <span className="flex flex-wrap items-center gap-x-2 text-heading-20" data-test="wholesale-price">
-            <ShopPrice now={only.bands.filter((band) => band.minQuantity <= Math.max(1, wholesaleMinimum ?? 1)).pop()?.unit ?? only.price} />
+            <ShopPrice now={band?.unit ?? only.price} before={band === null ? only.priceBefore : band.unitBefore} />
             <span className="text-copy-14 text-ink-muted">{t('catalog::shop.product.wholesale')}</span>
         </span>
     );

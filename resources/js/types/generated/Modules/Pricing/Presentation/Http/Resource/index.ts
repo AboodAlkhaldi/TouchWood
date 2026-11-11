@@ -248,12 +248,14 @@ sizes: SaleSizeData[],
 export type ShopBandData = {
 minQuantity: number,
 unit: MoneyData,
+unitBefore: MoneyData | null,
 };
 export type ShopWholesaleData = {
 sizes: Record<string, ShopWholesaleSizeData>,
 };
 export type ShopWholesaleSizeData = {
 price: MoneyData,
+priceBefore: MoneyData | null,
 bands: ShopBandData[],
 };
 export type SizeData = {

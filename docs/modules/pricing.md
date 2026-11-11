@@ -167,7 +167,9 @@ For a line — a size, its sale mode, a quantity — in a store, at a moment:
    wholesale price is that line's normal price, not a discount** (owner, 2026-10-10): only a sale or a
    category discount below it reduces a line, so coupons and points reach a band-priced line and the
    discount ceiling (handoff §11.3) measures real reductions only. A card crosses out the retail price
-   (it shows retail-line prices, §1.10).
+   (it shows retail-line prices, §1.10), and its "Wholesale from" crosses out this normal price while a
+   sale, discount or campaign takes the wholesale line below it — never a band alone (catalog.md
+   amendment 45, owner 2026-11-11).
 6. **When it stops applying**: the end of the winning sale or discount — or the start of an "always
    wins" one scheduled on the size, which would replace it — or null.
 
@@ -240,6 +242,14 @@ start, the cheapest kept (a sale or discount under a band counts) — the card's
 the size sells wholesale. On the product page, Pricing's section `pricing.wholesale`
 (`Presentation/Storefront/WholesaleBandsSection`) shows a company or a guest each wholesale size's
 bands: from each band's start, what a piece costs there now, without VAT; never an individual.
+
+**And the wholesale price before an offer** (catalog.md amendment 45, owner 2026-11-11): with
+`wholesaleFrom`, `ListingPrice.wholesaleFromBefore` — the least the line's normal price (§1.6 step 5:
+its band, else the retail price) comes to at the same quantities, **only while `wholesaleFrom` is
+lower**, so a sale, category discount or campaign shows the old price struck through and a band alone
+never does. On the product page `pricing.wholesale` gives the same per size (`priceBefore`, at one
+piece) and per band (`unitBefore`, at its start), each only while the price there is lower. After
+deploying, the repair (`pricing:candidates:rebuild`) pushes every price once, which fills it.
 
 ### 1.11 An order edited before it ships
 
