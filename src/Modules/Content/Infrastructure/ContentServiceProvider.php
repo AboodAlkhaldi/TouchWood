@@ -156,6 +156,9 @@ final class ContentServiceProvider extends ServiceProvider
             new MenuEntryDto('content', 'bars', 'content', 'content.admin.bars', ContentPermissions::BAR_MANAGE, 20, icon: 'bars'),
             new MenuEntryDto('content', 'banners', 'content', 'content.admin.banners', ContentPermissions::BANNER_MANAGE, 30, icon: 'banners'),
             new MenuEntryDto('content', 'popups', 'content', 'content.admin.popups', ContentPermissions::POPUP_MANAGE, 60, icon: 'popups'),
+            new MenuEntryDto('content', 'pages', 'content', 'content.admin.pages', ContentPermissions::PAGE_MANAGE, 70, icon: 'pages'),
+            new MenuEntryDto('content', 'blog', 'content', 'content.admin.blog', ContentPermissions::BLOG_MANAGE, 80, icon: 'blog'),
+            new MenuEntryDto('content', 'projects', 'content', 'content.admin.projects', ContentPermissions::PROJECT_MANAGE, 90, icon: 'projects'),
             new MenuEntryDto('content', 'seo', 'content', 'content.admin.seo', ContentPermissions::SEO_MANAGE, 100, icon: 'seo'),
             new MenuEntryDto('content', 'redirects', 'content', 'content.admin.redirects', ContentPermissions::REDIRECT_MANAGE, 110, icon: 'redirects'),
         );

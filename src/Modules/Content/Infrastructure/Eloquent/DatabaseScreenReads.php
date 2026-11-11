@@ -107,12 +107,17 @@ final readonly class DatabaseScreenReads implements ScreenReads
         ], $rows);
     }
 
-    public function documents(DocumentKind $kind, string $storeId, Publication $tab, ?string $after, ?string $categoryId): array
+    public function documents(DocumentKind $kind, string $storeId, ?Publication $tab, ?string $after, ?string $categoryId): array
     {
         $tables = DocumentTables::of($kind);
         $storeId = strtolower($storeId);
-        $where = 'd.store_id = ? AND d.status = ?';
-        $bindings = [$storeId, $tab->value];
+        $where = 'd.store_id = ?';
+        $bindings = [$storeId];
+
+        if ($tab !== null) {
+            $where .= ' AND d.status = ?';
+            $bindings[] = $tab->value;
+        }
 
         if ($kind === DocumentKind::Post && $categoryId !== null) {
             $where .= ' AND d.category_id = ?';

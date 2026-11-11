@@ -134,6 +134,9 @@ it('uploads a sheet over HTTP, shows it line by line, applies it, and refuses on
     $browser->get("/admin/content/redirects/sheets/{$upload}?tab=REFUSED")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         ->component('Content/Admin/Redirects/Sheet')
         ->where('tab', 'REFUSED')
+        // Only the tab's lines travel with the page.
+        ->has('lines', 1)
+        ->where('lines.0.result', 'REFUSED')
         ->where('counts.NEW', 1)
         ->where('counts.REFUSED', 1)
         ->where('applied', false));
@@ -157,9 +160,13 @@ it('offers the menu entries only to whoever may use them', function () {
 });
 
 it('costs few queries of its own', function () {
-    $seo = Screen::as(Fx::staffWith([ContentPermissions::SEO_MANAGE], ['sa'], RoleLevel::Admin));
+    $seo = Screen::queries(Screen::as(Fx::staffWith([ContentPermissions::SEO_MANAGE], ['sa'], RoleLevel::Admin)), '/admin/content/seo?store=sa');
     $redirects = Screen::as(Fx::staff(superAdmin: true));
+    $redirects->post('/admin/content/redirects', ['old_path' => '/flash-deals', 'new_path' => '/sa/ar'], Screen::fromPage('/admin/content/redirects'));
 
-    // Measured 2026-11-11, the panel's frame included (AdminFrameQueryBudgetTest). Content's target is 15 of its own.
-    expect([Screen::queries($seo, '/admin/content/seo?store=sa'), Screen::queries($redirects, '/admin/content/redirects')])->toBe([0, 0]);
+    // Measured 2026-11-11, the panel's frame included (AdminFrameQueryBudgetTest): W10 13, the frame's 10 and 3 of its own
+    // (the defaults, the sitemaps, the waiting rebuild); W11 39, a Super Admin's frame and 2 of its own (the lines,
+    // the waiting check). Of the frame's, 22 are its Pricing and Inventory badges counted again in the request, as the
+    // queue faked here never runs their recounts: 17 in all with the recounts run (measured 2026-11-11 without the fake). Content's target is 15 of its own.
+    expect([$seo, Screen::queries($redirects, '/admin/content/redirects')])->toBe([13, 39]);
 });

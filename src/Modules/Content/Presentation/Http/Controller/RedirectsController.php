@@ -122,13 +122,16 @@ final readonly class RedirectsController
     {
         $read = $redirects->sheet($upload);
         $tab = Inputs::text($request, 'tab');
+        $tab = in_array($tab, ['NEW', 'SAME', 'CHANGE', 'REFUSED'], true) ? $tab : 'NEW';
+        // Only the tab's lines travel with the page: a sheet holds up to 5,000 (the build's pick).
+        $lines = array_values(array_filter($read['lines'], static fn (array $line): bool => $line['result'] === $tab));
 
         return $this->screens->render('Content/Admin/Redirects/Sheet', (new RedirectSheetPageData(
             strtolower($upload),
-            array_map(SheetLineData::fromLine(...), $read['lines']),
+            array_map(SheetLineData::fromLine(...), $lines),
             $read['counts'],
             $read['applied'],
-            in_array($tab, ['NEW', 'SAME', 'CHANGE', 'REFUSED'], true) ? $tab : 'NEW',
+            $tab,
         ))->toArray(), self::WORDS);
     }
 

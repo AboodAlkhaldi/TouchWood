@@ -6,6 +6,8 @@ use App\Http\AdminArea;
 use Illuminate\Support\Facades\Route;
 use Modules\Content\Presentation\Http\Controller\BannersController;
 use Modules\Content\Presentation\Http\Controller\BarsController;
+use Modules\Content\Presentation\Http\Controller\BlogCategoriesController;
+use Modules\Content\Presentation\Http\Controller\DocumentsController;
 use Modules\Content\Presentation\Http\Controller\HomePageController;
 use Modules\Content\Presentation\Http\Controller\PopupsController;
 use Modules\Content\Presentation\Http\Controller\RedirectsController;
@@ -55,6 +57,27 @@ Route::prefix(AdminArea::PREFIX)
         Route::post('content/banners/{banner}/end', [BannersController::class, 'end'])->name('content.admin.banners.end');
         Route::post('content/banners/{banner}/draft', [BannersController::class, 'draft'])->name('content.admin.banners.draft');
         Route::post('content/banners/{banner}/delete', [BannersController::class, 'delete'])->name('content.admin.banners.delete');
+
+        // W7 · Pages, W8 · Blog (posts and categories), W9 · Projects: one controller, each route naming its kind. The
+        // product searches come first: `products` is no item's id.
+        Route::get('content/blog/products', [DocumentsController::class, 'products'])->name('content.admin.posts.products')->defaults('kind', 'post');
+        Route::get('content/projects/products', [DocumentsController::class, 'products'])->name('content.admin.projects.products')->defaults('kind', 'project');
+        Route::get('content/blog/categories', [BlogCategoriesController::class, 'index'])->name('content.admin.blog.categories');
+        Route::post('content/blog/categories', [BlogCategoriesController::class, 'save'])->name('content.admin.blog.categories.add');
+        Route::post('content/blog/categories/order', [BlogCategoriesController::class, 'order'])->name('content.admin.blog.categories.order');
+        Route::post('content/blog/categories/{category}', [BlogCategoriesController::class, 'save'])->name('content.admin.blog.categories.save');
+        Route::post('content/blog/categories/{category}/delete', [BlogCategoriesController::class, 'delete'])->name('content.admin.blog.categories.delete');
+
+        foreach (['page' => 'content/pages', 'post' => 'content/blog/posts', 'project' => 'content/projects'] as $kind => $path) {
+            $name = "content.admin.{$kind}s";
+            Route::get($kind === 'post' ? 'content/blog' : $path, [DocumentsController::class, 'index'])->name($kind === 'post' ? 'content.admin.blog' : $name)->defaults('kind', $kind);
+            Route::get("{$path}/new", [DocumentsController::class, 'create'])->name("{$name}.create")->defaults('kind', $kind);
+            Route::post($path, [DocumentsController::class, 'store'])->name("{$name}.store")->defaults('kind', $kind);
+            Route::get("{$path}/{document}", [DocumentsController::class, 'edit'])->name("{$name}.edit")->defaults('kind', $kind);
+            Route::post("{$path}/{document}", [DocumentsController::class, 'update'])->name("{$name}.update")->defaults('kind', $kind);
+            Route::post("{$path}/{document}/unpublish", [DocumentsController::class, 'unpublish'])->name("{$name}.unpublish")->defaults('kind', $kind);
+            Route::post("{$path}/{document}/delete", [DocumentsController::class, 'delete'])->name("{$name}.delete")->defaults('kind', $kind);
+        }
 
         // W10 · SEO.
         Route::get('content/seo', [SeoController::class, 'index'])->name('content.admin.seo');

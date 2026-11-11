@@ -113,6 +113,9 @@ const ICONS = {
     bars: Megaphone,
     banners: Image,
     popups: MessageCircleQuestion,
+    pages: FileText,
+    blog: ScrollText,
+    projects: Building2,
     seo: Store,
     redirects: RefreshCw,
 } as const;

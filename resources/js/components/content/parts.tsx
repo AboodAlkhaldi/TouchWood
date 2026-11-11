@@ -25,6 +25,10 @@ type PairProps = {
     rows?: number;
     /** Typed marks (§1.2), sent to Translate block by block. */
     rich?: boolean;
+    /** Each box's own line under it, in place of the shared `helper`: a count of its characters. */
+    helpers?: { ar: string; en: string };
+    /** What each box falls back to when left blank, shown inside it. */
+    placeholders?: { ar: string; en: string };
 };
 
 export { isShopLink };
@@ -33,7 +37,7 @@ export { isShopLink };
 export const linkRule = (text: string): string | null => (isShopLink(text) ? null : 'content::admin_shared.link_rule');
 
 /** Arabic and English side by side, stacked on a phone, each in its own direction, Translate under the English. */
-export function PairFields({ name, labelAr, labelEn, helper, ar, en, onChange, errors, checks, translation, rows, rich = false }: PairProps) {
+export function PairFields({ name, labelAr, labelEn, helper, ar, en, onChange, errors, checks, translation, rows, rich = false, helpers, placeholders }: PairProps) {
     const t = useTranslator();
     const marked = translation.marked.has(name);
     const note = translation.note(name);
@@ -48,7 +52,8 @@ export function PairFields({ name, labelAr, labelEn, helper, ar, en, onChange, e
                 dir="rtl"
                 lang="ar"
                 label={labelAr}
-                helper={helper}
+                helper={helpers?.ar ?? helper}
+                placeholder={placeholders?.ar}
                 rows={rows}
                 check={checks.box(`${name}_ar`, errors[`${name}_ar`])}
                 value={ar}
@@ -61,7 +66,8 @@ export function PairFields({ name, labelAr, labelEn, helper, ar, en, onChange, e
                     dir="ltr"
                     lang="en"
                     label={labelEn}
-                    helper={marked ? t('content::admin_shared.translate.marked') : helper}
+                    helper={marked ? t('content::admin_shared.translate.marked') : (helpers?.en ?? helper)}
+                    placeholder={placeholders?.en}
                     rows={rows}
                     check={checks.box(english, errors[english])}
                     value={en}

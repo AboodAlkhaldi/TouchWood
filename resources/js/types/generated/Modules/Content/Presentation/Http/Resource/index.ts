@@ -62,6 +62,21 @@ smartBars: SmartBarData[],
 categories: CategoryChoiceData[],
 translationReady: boolean,
 };
+export type BlogCategoriesPageData = {
+stores: ContentStoreData[],
+storeCode: string,
+categories: BlogCategoryData[],
+postsCount: number,
+translationReady: boolean,
+};
+export type BlogCategoryData = {
+id: string,
+nameAr: string,
+nameEn: string,
+slugAr: string,
+slugEn: string,
+posts: number,
+};
 export type CategoryChoiceData = {
 id: string,
 pathAr: string,
@@ -81,6 +96,70 @@ code: string,
 name: string,
 isOn: boolean,
 timezone: string,
+};
+export type DocumentData = {
+id: string,
+status: string,
+publishedAt: string | null,
+version: number,
+ar: DocumentTextData,
+en: DocumentTextData | null,
+shareAr: string | null,
+shareEn: string | null,
+categoryId: string | null,
+coverMediaId: string | null,
+products: string[],
+photos: string[],
+translationUnread: boolean,
+};
+export type DocumentFormPageData = {
+store: ContentStoreData,
+kind: string,
+document: DocumentData | null,
+images: Record<string, ContentImageData>,
+products: ProductChoiceData[],
+categories: BlogCategoryData[],
+shopAddress: string,
+pathPrefix: string,
+translationReady: boolean,
+linkedFrom: Record<string, number>,
+};
+export type DocumentRowData = {
+id: string,
+status: string,
+titleAr: string,
+titleEn: string | null,
+addressAr: string,
+addressEn: string | null,
+categoryId: string | null,
+publishedAt: string | null,
+changedAt: string | null,
+changedBy: string | null,
+version: number,
+};
+export type DocumentTextData = {
+title: string,
+slug: string,
+body: string,
+images: string[],
+seoTitle: string | null,
+seoDescription: string | null,
+summary: string | null,
+coverAlt: string | null,
+city: string | null,
+};
+export type DocumentsPageData = {
+stores: ContentStoreData[],
+storeCode: string,
+storeTimezone: string,
+kind: string,
+tab: string,
+counts: Record<string, number>,
+rows: DocumentRowData[],
+next: string | null,
+categories: BlogCategoryData[],
+category: string | null,
+postsCount: number,
 };
 export type FooterData = {
 aboutAr: string | null,
@@ -164,6 +243,12 @@ storeCode: string,
 storeTimezone: string,
 popups: PopupRowData[],
 next: string | null,
+};
+export type ProductChoiceData = {
+id: string,
+nameAr: string,
+nameEn: string | null,
+archived: boolean,
 };
 export type RedirectRowData = {
 oldPath: string,
