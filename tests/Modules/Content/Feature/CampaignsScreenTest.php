@@ -344,6 +344,11 @@ it('cancels one store\'s scheduled run and ends another\'s live run, each naming
         ->and(DB::table('content.campaign_runs')->where('id', campaignsScreenRun($campaign, 'ae'))->value('state'))->toBe('CANCELLED')
         ->and(DB::table('content.campaign_runs')->where('id', campaignsScreenRun($campaign, 'sa'))->value('state'))->toBe('SCHEDULED');
 
+    // The list's Ended tab holds a cancelled run too (§9.3e E1).
+    $browser->get(CAMPAIGNS_SCREEN.'?store=ae&tab=ended')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+        ->where('counts.ended', 1)
+        ->where('campaigns.0.state', 'CANCELLED'));
+
     // End refuses a run that is not live, at the top.
     expect(Screen::errors($browser->post(CAMPAIGNS_SCREEN."/{$campaign}/end", ['store' => Fx::storeId('sa')], Screen::fromPage(CAMPAIGNS_SCREEN."/{$campaign}"))))->toHaveKey('form');
 

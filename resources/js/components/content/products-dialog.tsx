@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { useInLanguage } from '@/lib/in-language';
+import { latestReads } from '@/lib/latest-read';
 import { readJson } from '@/lib/live-read';
 import { useTranslator } from '@/lib/t';
 import type { ProductChoiceData } from '@/types/generated/Modules/Content/Presentation/Http/Resource';
@@ -26,15 +27,15 @@ export function ProductDialog({ search, store, chosen, max, onAdd, onClose }: { 
     const [next, setNext] = useState<string | null>(null);
     const [failed, setFailed] = useState(false);
     const [loading, setLoading] = useState(false);
-    const latest = useRef(0);
+    const latest = useRef(latestReads()).current;
     const full = chosen.length >= max;
 
     const read = (typed: string, after: string | null, signal?: AbortSignal) => {
-        const mine = ++latest.current;
+        const mine = latest.start();
         setLoading(true);
 
         return readJson<Answer>(search, { store, q: typed, after }, signal).then((answer) => {
-            if (signal?.aborted || mine !== latest.current) {
+            if (signal?.aborted || !mine()) {
                 return;
             }
 
@@ -53,7 +54,7 @@ export function ProductDialog({ search, store, chosen, max, onAdd, onClose }: { 
 
         if (typed === '') {
             // A read still on its way is no longer wanted.
-            latest.current++;
+            latest.drop();
             setFound(null);
             setNext(null);
             setLoading(false);

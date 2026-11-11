@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { useInLanguage } from '@/lib/in-language';
+import { latestReads } from '@/lib/latest-read';
 import { readJson } from '@/lib/live-read';
 import { useTranslator } from '@/lib/t';
 import type { Picked } from './campaign-prices';
@@ -28,14 +29,14 @@ export function TargetPicker({ run, kind, title, chosen, onPick, onClose }: { ru
     const [failed, setFailed] = useState(false);
     const [loading, setLoading] = useState(false);
     // Each read numbered: only the latest one's answer is taken, whatever order the answers arrive in.
-    const latest = useRef(0);
+    const latest = useRef(latestReads()).current;
 
     const read = (typed: string, after: string | null, signal?: AbortSignal) => {
-        const mine = ++latest.current;
+        const mine = latest.start();
         setLoading(true);
 
         return readJson<Answer>('/admin/content/campaigns/targets', { run, kind, q: whole ? null : typed, after }, signal).then((answer) => {
-            if (signal?.aborted || mine !== latest.current) {
+            if (signal?.aborted || !mine()) {
                 return;
             }
 
@@ -54,7 +55,7 @@ export function TargetPicker({ run, kind, title, chosen, onPick, onClose }: { ru
 
         // Categories and brands come whole, once; products and sizes are asked for what is typed.
         if (!whole && typed === '') {
-            latest.current++;
+            latest.drop();
             setFound(null);
             setNext(null);
             setLoading(false);
