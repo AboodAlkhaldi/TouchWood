@@ -84,7 +84,12 @@ final readonly class CampaignsHandler
     public function list(?string $storeId, ?string $tab, ?string $after = null): array
     {
         $store = $this->access->authorize(self::PERMISSION, $storeId);
-        $read = $this->reads->campaigns($store->id, $tab, $after);
+        // Only the campaigns the reader may open: every one of whose stores they hold the job in (§1.7 #5).
+        $read = $this->reads->campaigns($store->id, $tab, $after, $this->access->storesHeld(self::PERMISSION));
+        // How many sizes each run prices, for every run listed in one read of Pricing's (W4's Offers).
+        $runIds = array_merge([], ...array_map(static fn (array $row): array => array_map(static fn (array $run): string => (string) $run['runId'], (array) $row['runs']), $read['rows']));
+        $offers = $runIds === [] ? [] : $this->prices->reachedSizes($runIds);
+        $read['rows'] = array_map(static fn (array $row): array => [...$row, 'runs' => array_map(static fn (array $run): array => [...$run, 'offers' => $offers[(string) $run['runId']] ?? null], (array) $row['runs'])], $read['rows']);
         $notices = array_values(array_unique(array_filter(array_map(static fn (array $row): ?string => is_string($row['noticeId'] ?? null) ? $row['noticeId'] : null, $read['rows']))));
         $named = [];
 
@@ -146,6 +151,28 @@ final readonly class CampaignsHandler
     }
 
     /**
+     * The store a refusal's sizes are of, for the page to mark them in that store's tab alone: a run's store; or, for a
+     * Schedule refused before any store was scheduled, its first draft run's in store-id order (one store named, that
+     * one). Asked only once a refusal has named sizes, which only Pricing does, past every permission check.
+     */
+    public function refusedStore(?string $runId, ?string $campaignId = null, ?string $storeId = null): ?string
+    {
+        if ($runId !== null) {
+            return $this->campaigns->findRun($runId)?->storeId;
+        }
+
+        $campaign = $campaignId === null ? null : $this->campaigns->find($campaignId);
+
+        foreach ($campaign === null ? [] : $this->campaigns->runsOf($campaign->id) as $run) {
+            if ($run->state === RunState::Draft && ($storeId === null || $run->storeId === strtolower($storeId))) {
+                return $run->storeId;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * The themes a new campaign may link to.
      *
      * @return list<array{id: string, nameAr: string, nameEn: string|null}>
@@ -160,8 +187,8 @@ final readonly class CampaignsHandler
     }
 
     /**
-     * What a price may name in the run's store, by a name or a code (`PRODUCT`, `SIZE`), or every one switched on
-     * (`CATEGORY`, `BRAND`: their lists are short, filtered as typed), 20 a page after the cursor.
+     * What a price may name in the run's store, found by a name or a code: products and sizes the store sells, and
+     * categories and brands switched on, 20 a page after the cursor.
      *
      * @return array{targets: list<array{id: string, nameAr: string, nameEn: string|null, detail: string|null}>, next: string|null}
      *
@@ -186,15 +213,32 @@ final readonly class CampaignsHandler
 
                 return ['targets' => array_map(static fn (FoundVariantDto $size): array => ['id' => strtolower($size->variantId), 'nameAr' => $size->productNameAr, 'nameEn' => $size->productNameEn, 'detail' => $size->code], $found->rows), 'next' => $found->next];
             })(),
-            'CATEGORY' => ['targets' => array_map(static fn ($category): array => [
+            'CATEGORY' => self::listPage(array_map(static fn ($category): array => [
                 'id' => strtolower($category->id),
                 'nameAr' => implode(' › ', array_map(static fn ($name): string => $name->ar, $category->path)),
                 'nameEn' => implode(' › ', array_map(static fn ($name): string => $name->en, $category->path)),
                 'detail' => null,
-            ], $this->catalog->activeCategories()), 'next' => null],
-            'BRAND' => ['targets' => array_map(static fn ($brand): array => ['id' => strtolower($brand->id), 'nameAr' => $brand->nameAr, 'nameEn' => $brand->nameEn, 'detail' => null], $this->catalog->activeBrands()), 'next' => null],
+            ], $this->catalog->activeCategories()), $text, $after),
+            'BRAND' => self::listPage(array_map(static fn ($brand): array => ['id' => strtolower($brand->id), 'nameAr' => $brand->nameAr, 'nameEn' => $brand->nameEn, 'detail' => null], $this->catalog->activeBrands()), $text, $after),
             default => throw new InvalidContentInput('kind', InvalidContentInput::CHOICE),
         };
+    }
+
+    /**
+     * Categories or brands switched on - Catalog reads them whole - as the other targets come: found by a name in either
+     * language, 20 a page after the cursor (the position of the page's last, as text).
+     *
+     * @param  list<array{id: string, nameAr: string, nameEn: string|null, detail: string|null}>  $all
+     * @return array{targets: list<array{id: string, nameAr: string, nameEn: string|null, detail: string|null}>, next: string|null}
+     */
+    private static function listPage(array $all, ?string $text, ?string $after): array
+    {
+        $typed = mb_strtolower(trim((string) $text));
+        $found = array_values(array_filter($all, static fn (array $each): bool => $typed === '' || str_contains(mb_strtolower($each['nameAr'].' '.($each['nameEn'] ?? '')), $typed)));
+        $from = $after !== null && preg_match('/\A\d{1,6}\z/', $after) === 1 ? (int) $after : 0;
+        $page = array_slice($found, $from, self::TARGETS);
+
+        return ['targets' => $page, 'next' => $from + self::TARGETS < count($found) ? (string) ($from + self::TARGETS) : null];
     }
 
     /**

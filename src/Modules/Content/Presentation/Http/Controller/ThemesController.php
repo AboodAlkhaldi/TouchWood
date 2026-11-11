@@ -214,7 +214,8 @@ final readonly class ThemesController
             try {
                 $schedule->handle(new ScheduleTheme($saved, $id === null ? 1 : $version + 1, Inputs::flag($request, 'read')));
             } catch (DomainError $error) {
-                return $id === null ? Refusals::to(self::LIST."/{$saved}", $error, self::boxes()) : Refusals::back($request, $error, self::boxes());
+                // Two steps, so the save stands: the page says so beside the refusal, and the form takes what was saved.
+                return ($id === null ? Refusals::to(self::LIST."/{$saved}", $error, self::boxes()) : Refusals::back($request, $error, self::boxes()))->with('status', __('content::admin_themes.saved_not_scheduled'));
             }
 
             return redirect(self::LIST."/{$saved}")->with('status', __('content::admin_themes.scheduled'));

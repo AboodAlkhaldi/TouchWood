@@ -9,7 +9,6 @@ use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Dto\FoundProductDto;
-use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Content\Application\ContentAudit;
 use Modules\Content\Application\ContentCache;
 use Modules\Content\Application\ContentImages;
@@ -335,9 +334,11 @@ final readonly class DocumentWriter
     /**
      * Linked products: at most the kind's number, each once. **A product newly linked is one the store's search offers**
      * (§1.12, §1.13: the store's ready products with a size switched on there - Catalog's `readySwitchedOn`, the read Add
-     * Product searches with; the #386 review): never another store's, nor one switched off here, by its id typed in. A
-     * product linked before stays while it is ready, or archived since, marked in the panel (§1.1 rule 17), whatever the
-     * store sells of it now: a save of the item's other fields is never refused for it.
+     * Product searches with; PR 7b's review): never another store's, nor one switched off here, by its id typed in. **A
+     * product linked before is kept whatever it is now** - archived, back to a draft, switched off here: the shop shows
+     * only what it may (§1.1 rule 17: it "vanishes from the shop and stays listed in the panel"), so a save of the
+     * item's other fields is never refused for it. One deleted since is no longer listed in the panel, so the next save
+     * lets it go.
      *
      * @param  list<string>  $sent
      * @param  list<string>  $before
@@ -357,24 +358,12 @@ final readonly class DocumentWriter
             throw new InvalidContentInput('products', InvalidContentInput::DUPLICATE);
         }
 
-        $before = array_map(strtolower(...), $before);
-        $added = array_values(array_diff($ids, $before));
-        $kept = array_values(array_intersect($ids, $before));
+        $added = array_values(array_diff($ids, array_map(strtolower(...), $before)));
 
         if ($added !== []) {
             $offered = array_map(static fn (FoundProductDto $product): string => strtolower($product->productId), $this->catalog->searchProducts(StoreId::fromString($store->id), null, true, $added, null, $kind->maxProducts())->rows);
 
             if (array_diff($added, $offered) !== []) {
-                throw new InvalidContentInput('products', InvalidContentInput::PRODUCT);
-            }
-        }
-
-        $found = $kept === [] ? [] : $this->catalog->products($kept);
-
-        foreach ($kept as $id) {
-            $stage = ($found[$id] ?? null)?->stage;
-
-            if ($stage !== ProductStage::Ready && $stage !== ProductStage::Archived) {
                 throw new InvalidContentInput('products', InvalidContentInput::PRODUCT);
             }
         }

@@ -305,7 +305,7 @@ store's currency. **On `main` since #97.**
 | `salesNamed(list<string> $saleIds, array<string, VariantDto> $knownVariants = []): list<OfferNameDto>` · `discountsNamed(list<string> $discountIds): list<OfferNameDto>` | Sync's report (stage 5's screens step 2) | Each id in the order asked: whether the sale or discount still exists and, while it does, its short description in the reader's language - "−10% · 60 cm, 80 cm" (a percentage or its price, then its sizes by their values, "One Size" for a product with one), "Kitchens: 50.00 off" with the currency's sign. A fixed few queries however many. The sizes a caller read already (`$knownVariants`, Catalog's, by id) are not read again - Sync's report names its sizes first (Sync's screens step 6, its budget). |
 
 **`Public/Contracts/CampaignPrices`** (Content, stage 8): `preview`, `save`, `changeEnd`, `endNow`, `remove`,
-`read`, `productIds`, `skippedSizes` - §9.6 #8, as built.
+`read`, `productIds`, `skippedSizes`, `reachedSizes` - §9.6 #8, as built.
 
 `totals` may be called more than once while Sales builds a quote: with the coupon and points first
 (for `goods_total`, which free shipping and points earning bind to), then with the shipping, which only
@@ -1219,6 +1219,7 @@ scheduled**. Applied in place with the build: §1.6 step 2, §2.1's contract lis
    | `read(StoreId, string $runId): ?CampaignPriceSetDto` · `productIds(StoreId, string $runId, ?string $after, int $limit)` | The campaign's form, and the shop's campaign page |
    | `skippedSizes(StoreId, string $runId): list<string>` | The sizes the run skips now in a wired store (#5), for the campaign's page; one query. Pricing decides the skip, so it answers, and Content needs no arrow to Sync (the build coordinator's pick, 2026-11-10) |
    | `skippingRuns(StoreId, list<string> $variantIds): array<string, list<string>>` (added with the second review) | Of these sizes, the runs skipping each now; one query. For Sync's read, which reports after Pricing's batch has committed: it names only the runs still skipping |
+   | `reachedSizes(list<string> $runIds): array<string, int>` (added with Content's PR 8, owner 2026-11-11: option (a)) | How many sizes each run prices now, for Content's list of campaigns (content.md W4's Offers, per store): the sizes its `CAMPAIGN` candidates name, counted once whatever its lines. `CandidateWriter` writes them by the preview's own rules (`CampaignCoverage::priceOn`, not below retail, wired past the ceiling skipped), so the list and the preview's reached sizes agree. One query for every run named, whatever its store; a run Pricing holds nothing of (a draft, one ended) left out. Tested in `CampaignPricesTest` ("counts the sizes each run prices in one query, as its preview counts them") and Content's `CampaignsScreenTest` (the list's count is the preview's) |
 
    `CampaignPriceSetDto`: `lines` (`RETAIL`, `WHOLESALE`, `BOTH`), `targets` (each `{kind: PRODUCT, SIZE, CATEGORY or
    BRAND, id, percentBp}` or `{kind: SIZE, id, amount: Money}`), `leftOut` product ids. The tables are written with the

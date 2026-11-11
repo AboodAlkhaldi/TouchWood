@@ -79,6 +79,19 @@ interface CampaignPrices
     public function skippedSizes(StoreId $store, string $runId): array;
 
     /**
+     * How many sizes each of these runs prices now, for Content's list of campaigns (content.md W4's Offers
+     * column; pricing.md §9.6 amendment row): the sizes its `CAMPAIGN` candidates name - written by
+     * `CandidateWriter` with the preview's own rules (`CampaignCoverage::priceOn`: archived, unpriced, 0 or
+     * below, not below retail and, wired, past the ceiling all left out), so the count is the preview's
+     * reached sizes. One query for every run named, whatever its store. A run Pricing holds no prices for -
+     * a draft, one ended - is left out.
+     *
+     * @param  list<string>  $runIds
+     * @return array<string, int> run id => sizes it prices
+     */
+    public function reachedSizes(array $runIds): array;
+
+    /**
      * Of these sizes, the runs skipping each now in the store (§9.6 #5), in id order - a size none skips left
      * out; one query. For Sync's read, which writes its report after Pricing's batch has committed and so
      * outside the store's lock: it keeps only the runs still skipping, never one ended meanwhile.

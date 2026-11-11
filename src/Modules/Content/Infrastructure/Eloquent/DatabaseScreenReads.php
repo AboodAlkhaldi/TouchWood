@@ -208,12 +208,22 @@ final readonly class DatabaseScreenReads implements ScreenReads
         return array_map(static fn (stdClass $row): array => ['place' => (string) $row->place, 'id' => (string) $row->id, 'link' => (string) $row->link], $rows);
     }
 
-    public function campaigns(string $storeId, ?string $tab, ?string $after): array
+    public function campaigns(string $storeId, ?string $tab, ?string $after, ?array $heldStores = null): array
     {
         $storeId = strtolower($storeId);
         $counts = ['all' => 0, 'scheduled' => 0, 'live' => 0, 'ended' => 0];
+        $held = $heldStores === null ? null : array_values(array_map(strtolower(...), $heldStores));
+        // A campaign with a run in a store the reader holds no job in is not theirs to open (§1.7 #5): left out
+        // of the rows and the counts alike, in the query, so a page is never short (lesson 69).
+        $onlyHeld = static function (Builder $query, string $runs) use ($held): void {
+            if ($held !== null) {
+                $query->whereNotExists(static fn (Builder $other) => $other->from('content.campaign_runs as o')->whereColumn('o.campaign_id', "{$runs}.campaign_id")->whereNotIn('o.store_id', $held === [] ? [''] : $held));
+            }
+        };
+        $countQuery = $this->db->table('content.campaign_runs as r')->where('r.store_id', $storeId)->groupBy('r.state');
+        $onlyHeld($countQuery, 'r');
 
-        foreach ($this->db->table('content.campaign_runs')->where('store_id', $storeId)->groupBy('state')->get(['state', $this->db->raw('count(*) AS n')]) as $count) {
+        foreach ($countQuery->get(['r.state', $this->db->raw('count(*) AS n')]) as $count) {
             /** @var stdClass $count */
             $key = match ((string) $count->state) {
                 'SCHEDULED' => 'scheduled',
@@ -231,6 +241,7 @@ final readonly class DatabaseScreenReads implements ScreenReads
         $query = $this->db->table('content.campaigns as c')
             ->join('content.campaign_runs as r', static fn ($join) => $join->on('r.campaign_id', '=', 'c.id')->where('r.store_id', '=', $storeId))
             ->select(['c.id', 'c.name_ar', 'c.name_en', 'c.theme_id', 'c.version', 'r.id as run_id', 'r.state', 'r.starts_at', 'r.ends_at', 'r.notice_id']);
+        $onlyHeld($query, 'r');
         $states = match ($tab) {
             'scheduled' => ['SCHEDULED'],
             'live' => ['LIVE'],
@@ -251,9 +262,9 @@ final readonly class DatabaseScreenReads implements ScreenReads
         $ids = array_map(static fn (stdClass $row): string => (string) $row->id, $rows);
         $runs = [];
 
-        foreach ($ids === [] ? [] : $this->db->table('content.campaign_runs')->whereIn('campaign_id', $ids)->orderBy('store_id')->get(['campaign_id', 'store_id', 'state']) as $run) {
+        foreach ($ids === [] ? [] : $this->db->table('content.campaign_runs')->whereIn('campaign_id', $ids)->orderBy('store_id')->get(['id', 'campaign_id', 'store_id', 'state']) as $run) {
             /** @var stdClass $run */
-            $runs[(string) $run->campaign_id][] = ['storeId' => (string) $run->store_id, 'state' => (string) $run->state];
+            $runs[(string) $run->campaign_id][] = ['runId' => (string) $run->id, 'storeId' => (string) $run->store_id, 'state' => (string) $run->state];
         }
 
         $themeIds = array_values(array_unique(array_filter(array_map(static fn (stdClass $row): ?string => Rows::text($row->theme_id), $rows))));

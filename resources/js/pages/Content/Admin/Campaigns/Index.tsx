@@ -1,4 +1,4 @@
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { PhoneCards, StateBadge } from '@/components/content/list';
 import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
@@ -10,11 +10,13 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AdminLayout } from '@/layouts/AdminLayout';
+import { figure } from '@/lib/digits';
 import { useInLanguage } from '@/lib/in-language';
 import { useKeptDepth } from '@/lib/kept-depth';
 import { useTranslator } from '@/lib/t';
 import { useLoadMore } from '@/lib/use-load-more';
 import type { CampaignRowData, CampaignsPageData } from '@/types/generated/Modules/Content/Presentation/Http/Resource';
+import type { SharedProps } from '@/types/page';
 
 /*
 | W4 · Campaigns (content.md §4.4): the store's campaigns by its run's state - All, Scheduled, Live, Ended (a cancelled run
@@ -22,8 +24,8 @@ import type { CampaignRowData, CampaignsPageData } from '@/types/generated/Modul
 | state (§4.1: a campaign's badge is one state when its stores agree, Mixed otherwise), the theme, the notice. The whole row
 | opens the campaign's page, where everything it does is.
 |
-| Not drawn: the spec's "Offers (count of sizes reached)" column - parked for the owner (PR 8's report): Pricing has no
-| read that counts a run's sizes without a preview per row.
+| The Offers column: per store how many sizes its run prices now ("SA 412 · AE 380"), read from Pricing for every row at
+| once (`CampaignPrices::reachedSizes`); a draft's, which Pricing holds nothing of yet, a dash.
 */
 
 const LIST = '/admin/content/campaigns';
@@ -31,6 +33,7 @@ const TABS = ['all', 'scheduled', 'live', 'ended'] as const;
 
 export default function Index({ stores, storeCode, tab, counts, campaigns, next }: CampaignsPageData) {
     const t = useTranslator();
+    const { locale } = usePage<SharedProps>().props;
     const name = useInLanguage();
     const list = useLoadMore<CampaignRowData>(campaigns, (campaign) => campaign.id);
     const more = (cursor: string) => list.more(LIST, { store: storeCode, tab, after: cursor }, ['campaigns', 'next']);
@@ -49,6 +52,12 @@ export default function Index({ stores, storeCode, tab, counts, campaigns, next 
                 </span>
             ))}
         </span>
+    );
+    // Per store, the sizes its run prices now: "SA 412 · AE 380", a dash for a run Pricing holds nothing of.
+    const offers = (row: CampaignRowData) => (
+        <bdi dir="ltr" className="tw-figure" data-test="run-offers">
+            {row.stores.map((store) => `${store.code.toUpperCase()} ${store.offers === null ? '—' : figure(locale, store.offers)}`).join(' · ')}
+        </bdi>
     );
     const dates = (row: CampaignRowData) => (
         <>
@@ -108,6 +117,7 @@ export default function Index({ stores, storeCode, tab, counts, campaigns, next 
                                         <TableHead>{t('content::admin_campaigns.columns.starts')}</TableHead>
                                         <TableHead>{t('content::admin_campaigns.columns.ends')}</TableHead>
                                         <TableHead>{t('content::admin_campaigns.columns.theme')}</TableHead>
+                                        <TableHead>{t('content::admin_campaigns.columns.offers')}</TableHead>
                                         <TableHead>{t('content::admin_campaigns.columns.notice')}</TableHead>
                                         <TableHead>{t('content::admin_campaigns.columns.state')}</TableHead>
                                     </TableRow>
@@ -124,6 +134,7 @@ export default function Index({ stores, storeCode, tab, counts, campaigns, next 
                                             <TableCell className="whitespace-nowrap text-ink-muted">{row.startsAt === null ? '—' : <Time value={row.startsAt} mode="absolute" focusable={false} />}</TableCell>
                                             <TableCell className="whitespace-nowrap text-ink-muted">{row.endsAt === null ? '—' : <Time value={row.endsAt} mode="absolute" focusable={false} />}</TableCell>
                                             <TableCell className="max-w-48 truncate text-ink-muted">{row.themeAr === null ? '—' : name(row.themeAr, row.themeEn ?? row.themeAr)}</TableCell>
+                                            <TableCell className="whitespace-nowrap text-ink-muted">{offers(row)}</TableCell>
                                             <TableCell className="max-w-48 truncate text-ink-muted">{row.notice === null ? '—' : name(row.notice.titleAr, row.notice.titleEn)}</TableCell>
                                             <TableCell>{badge(row)}</TableCell>
                                         </TableRow>
@@ -137,7 +148,7 @@ export default function Index({ stores, storeCode, tab, counts, campaigns, next 
                                 id: row.id,
                                 title: title(row),
                                 badge: badge(row),
-                                lines: [<span key="dates">{dates(row)}</span>, <span key="stores">{storeStates(row)}</span>],
+                                lines: [<span key="dates">{dates(row)}</span>, <span key="stores">{storeStates(row)}</span>, <span key="offers">{offers(row)}</span>],
                                 href: `${LIST}/${row.id}`,
                             }))}
                         />

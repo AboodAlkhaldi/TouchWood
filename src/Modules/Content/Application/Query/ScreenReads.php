@@ -64,11 +64,13 @@ interface ScreenReads
     /**
      * W4's rows in a store: the campaigns with a run there, newest first; a tab (`scheduled`, `live`, `ended` - a
      * cancelled run with the ended - or all) names that store's run's state. Each with that run's id, state, moments
-     * and notice, every run's store and state, and its theme's name; and each tab's count.
+     * and notice, every run's id, store and state, and its theme's name; and each tab's count. With `$heldStores`, only
+     * the campaigns all of whose runs are in those stores (§1.7 #5: the reader may open them); null for every store.
      *
+     * @param  list<string>|null  $heldStores
      * @return array{rows: list<array<string, mixed>>, counts: array<string, int>}
      */
-    public function campaigns(string $storeId, ?string $tab, ?string $after): array;
+    public function campaigns(string $storeId, ?string $tab, ?string $after, ?array $heldStores = null): array;
 
     /**
      * W5's rows, newest first: each theme with its stores' moments, as stored, and how many of its parts are filled.

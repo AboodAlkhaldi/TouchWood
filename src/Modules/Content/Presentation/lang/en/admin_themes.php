@@ -120,6 +120,7 @@ return [
         'delete_body' => 'This can\'t be undone.',
     ],
     'saved' => 'Theme saved',
+    'saved_not_scheduled' => 'Theme saved, not scheduled: the page says why',
     'scheduled' => 'Theme scheduled',
     'ended' => 'Theme ended',
     'drafted' => 'Theme back to draft',

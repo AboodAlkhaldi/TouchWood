@@ -375,16 +375,132 @@ it('offers the menu entry to whoever may run campaigns, and Themes to a Super Ad
         ->and(Screen::menu(Screen::as(Fx::staff(superAdmin: true))))->toContain('campaigns', 'themes');
 });
 
+it('shows per store on the list how many sizes each run prices, the count its preview gives (W4\'s Offers)', function () {
+    $product = Px::ready(['60 cm', '80 cm', '100 cm']);
+    Rx::set('sa', array_fill_keys($product['variants'], '100'));
+    Rx::switchOn('sa', $product['variants']);
+    $browser = Screen::as(campaignsScreenEditor(['sa', 'ae']));
+    $campaign = campaignsScreenCreate($browser, ['sa', 'ae']);
+    $run = campaignsScreenRun($campaign);
+    $prices = ['lines' => 'BOTH', 'targets' => [['kind' => 'PRODUCT', 'id' => $product['product'], 'percentBp' => 1000]], 'leftOut' => []];
+    $browser->post(CAMPAIGNS_SCREEN."/runs/{$run}/prices", ['version' => campaignsScreenVersion($campaign), 'prices' => $prices], Screen::fromPage(CAMPAIGNS_SCREEN."/{$campaign}"))->assertRedirect();
+    $browser->post(CAMPAIGNS_SCREEN."/{$campaign}/schedule", ['version' => campaignsScreenVersion($campaign), 'store' => Fx::storeId('sa')], Screen::fromPage(CAMPAIGNS_SCREEN."/{$campaign}"))->assertRedirect();
+    $preview = $browser->get(CAMPAIGNS_SCREEN.'/preview?'.http_build_query(['run' => $run, 'prices' => json_encode($prices)]), Screen::JSON)->assertOk();
+
+    $browser->get(CAMPAIGNS_SCREEN.'?store=sa')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+        ->where('campaigns.0.stores', fn (Collection $stores): bool => $stores->firstWhere('code', 'sa')['offers'] === $preview->json('reachedSizes')
+            && $preview->json('reachedSizes') === 3
+            // The other store's run is a draft: Pricing holds nothing of it yet.
+            && $stores->firstWhere('code', 'ae')['offers'] === null));
+});
+
+it('lists only the campaigns the reader may open: one with a store they hold no job in is left out', function () {
+    $both = Screen::as(campaignsScreenEditor(['sa', 'ae']));
+    campaignsScreenCreate($both, ['sa', 'ae']);
+    $mine = campaignsScreenCreate($both, ['sa']);
+
+    Screen::as(campaignsScreenEditor(['sa']))->get(CAMPAIGNS_SCREEN.'?store=sa')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+        ->has('campaigns', 1)
+        ->where('campaigns.0.id', $mine)
+        ->where('counts.all', 1));
+});
+
+it('says a save stands when the Schedule of the same press is refused, with the tick owed (P14)', function () {
+    $browser = Screen::as(campaignsScreenEditor());
+    $campaign = campaignsScreenCreate($browser, ['sa'], ['translated' => true]);
+
+    $refused = $browser->post(CAMPAIGNS_SCREEN."/{$campaign}", campaignsScreenFields(['sa'], [
+        'version' => campaignsScreenVersion($campaign), 'name_en' => 'Spring Offers Again', 'intent' => 'schedule',
+        'starts_at' => substr((string) DB::table('content.campaigns')->where('id', $campaign)->value('starts_at_local'), 0, 16),
+        'ends_at' => substr((string) DB::table('content.campaigns')->where('id', $campaign)->value('ends_at_local'), 0, 16),
+    ]), Screen::fromPage(CAMPAIGNS_SCREEN."/{$campaign}"));
+
+    expect(Screen::errors($refused))->toHaveKey('form')
+        ->and(AdminBrowser::flashed($refused, 'status'))->toBe(__('content::admin_campaigns.saved_not_scheduled'))
+        ->and(DB::table('content.campaigns')->where('id', $campaign)->value('name_en'))->toBe('Spring Offers Again')
+        ->and(DB::table('content.campaign_runs')->where('campaign_id', $campaign)->value('state'))->toBe('DRAFT');
+});
+
+it('says a save stands when Pricing refuses the Schedule of the same press, marking the sizes in that store alone', function () {
+    $product = Px::ready(['60 cm']);
+    $variant = $product['variants'][0];
+    Rx::set('sa', [$variant => '100']);
+    $browser = Screen::as(campaignsScreenEditor());
+    $campaign = campaignsScreenCreate($browser);
+    $run = campaignsScreenRun($campaign);
+    // A fixed 10.00 on a size priced 100.00: past the ceiling of 30%, which Pricing refuses naming the size.
+    $browser->post(CAMPAIGNS_SCREEN."/runs/{$run}/prices", ['version' => campaignsScreenVersion($campaign), 'prices' => ['lines' => 'BOTH', 'targets' => [['kind' => 'SIZE', 'id' => $variant, 'amountMinor' => 1000]], 'leftOut' => []]], Screen::fromPage(CAMPAIGNS_SCREEN."/{$campaign}"))->assertRedirect();
+
+    $refused = $browser->post(CAMPAIGNS_SCREEN."/{$campaign}", campaignsScreenFields(['sa'], [
+        'version' => campaignsScreenVersion($campaign), 'name_en' => 'Ceiling Offers', 'intent' => 'schedule',
+        'starts_at' => substr((string) DB::table('content.campaigns')->where('id', $campaign)->value('starts_at_local'), 0, 16),
+        'ends_at' => substr((string) DB::table('content.campaigns')->where('id', $campaign)->value('ends_at_local'), 0, 16),
+    ]), Screen::fromPage(CAMPAIGNS_SCREEN."/{$campaign}"));
+    $errors = Screen::errors($refused);
+
+    expect($errors)->toHaveKeys(['form', "rows.{$variant}", 'rows_store'])
+        ->and($errors['rows_store'])->toBe(Fx::storeId('sa'))
+        ->and(AdminBrowser::flashed($refused, 'status'))->toBe(__('content::admin_campaigns.saved_not_scheduled'))
+        ->and(DB::table('content.campaigns')->where('id', $campaign)->value('name_en'))->toBe('Ceiling Offers')
+        ->and(DB::table('content.campaign_runs')->where('id', $run)->value('state'))->toBe('DRAFT');
+});
+
+it('refuses every change of another store\'s campaign to staff of one store, and changes nothing', function () {
+    $owner = Screen::as(campaignsScreenEditor(['sa']));
+    $campaign = campaignsScreenCreate($owner);
+    $run = campaignsScreenRun($campaign);
+    $before = DB::table('content.campaigns')->where('id', $campaign)->first();
+    $runBefore = DB::table('content.campaign_runs')->where('id', $run)->first();
+    $other = Screen::as(campaignsScreenEditor(['ae']));
+    $page = Screen::fromPage(CAMPAIGNS_SCREEN."/{$campaign}");
+    $version = campaignsScreenVersion($campaign);
+
+    $answers = [
+        'prices' => $other->post(CAMPAIGNS_SCREEN."/runs/{$run}/prices", ['version' => $version, 'prices' => ['lines' => 'BOTH', 'targets' => [], 'leftOut' => []]], $page),
+        'notice' => $other->post(CAMPAIGNS_SCREEN."/runs/{$run}/notice", ['version' => $version, 'notice' => ''], $page),
+        'cancel' => $other->post(CAMPAIGNS_SCREEN."/{$campaign}/cancel", ['store' => Fx::storeId('sa')], $page),
+        'end' => $other->post(CAMPAIGNS_SCREEN."/{$campaign}/end", ['store' => Fx::storeId('sa')], $page),
+        'schedule' => $other->post(CAMPAIGNS_SCREEN."/{$campaign}/schedule", ['version' => $version], $page),
+        'delete' => $other->post(CAMPAIGNS_SCREEN."/{$campaign}/delete", ['version' => $version], $page),
+        'theme-dates' => $other->post(CAMPAIGNS_SCREEN."/{$campaign}/theme-dates", ['version' => $version], $page),
+        'update' => $other->post(CAMPAIGNS_SCREEN."/{$campaign}", campaignsScreenFields(['ae'], ['version' => $version, 'name_ar' => 'ليست لك']), $page),
+    ];
+
+    foreach ($answers as $route => $answer) {
+        expect(array_key_exists('form', Screen::errors($answer)))->toBeTrue("{$route} was not refused");
+    }
+
+    expect(DB::table('content.campaigns')->where('id', $campaign)->first())->toEqual($before)
+        ->and(DB::table('content.campaign_runs')->where('id', $run)->first())->toEqual($runBefore);
+});
+
+it('searches categories and brands as the other targets, 20 a page', function () {
+    foreach (range(1, 21) as $n) {
+        Px::category("Kitchens {$n}");
+    }
+
+    $browser = Screen::as(campaignsScreenEditor());
+    $run = campaignsScreenRun(campaignsScreenCreate($browser));
+    $first = $browser->get(CAMPAIGNS_SCREEN.'/targets?'.http_build_query(['run' => $run, 'kind' => 'CATEGORY', 'q' => 'Kitchens']), Screen::JSON)->assertOk();
+    $more = $browser->get(CAMPAIGNS_SCREEN.'/targets?'.http_build_query(['run' => $run, 'kind' => 'CATEGORY', 'q' => 'Kitchens', 'after' => $first->json('next')]), Screen::JSON)->assertOk();
+
+    expect($first->json('targets'))->toHaveCount(20)
+        ->and($first->json('next'))->toBe('20')
+        ->and(count($more->json('targets')))->toBeGreaterThanOrEqual(1)
+        ->and($browser->get(CAMPAIGNS_SCREEN.'/targets?'.http_build_query(['run' => $run, 'kind' => 'CATEGORY', 'q' => 'Kitchens 21']), Screen::JSON)->json('targets'))->toHaveCount(1);
+});
+
 it('costs few queries of its own', function () {
     $browser = Screen::as(campaignsScreenEditor(['sa', 'ae']));
     $campaign = campaignsScreenCreate($browser, ['sa', 'ae']);
 
     // Measured 2026-11-11 (PR 8), on a reader who also holds Pricing's right: its frame is 19 - the panel's 10
     // (AdminFrameQueryBudgetTest), the bell's, and Pricing's Needs a Price count in the menu (8, Pricing's own). The list
-    // 22, 3 of its own: the tabs' counts, the page, its runs' stores (no theme or notice to name here). A campaign's page
+    // 23, 4 of its own: the tabs' counts, the page, its runs' stores, and Pricing's count of each run's sizes - every row's
+    // at once (W4's Offers; no theme or notice to name here). A campaign's page
     // of two stores 23, 4 of its own and 2 cache reads (the ceiling setting): the campaign and its runs, the themes on
     // offer, Translate's mark - and with Ops' own port one more a store for its draft notices (25, measured by a probe;
     // stood in here). Content's target is 15 of its own (§4.2). Pricing's preview is not among them: the page asks it as
     // the prices are typed, a store at a time.
-    expect([Screen::queries($browser, CAMPAIGNS_SCREEN.'?store=sa'), Screen::queries($browser, CAMPAIGNS_SCREEN."/{$campaign}")])->toBe([22, 23]);
+    expect([Screen::queries($browser, CAMPAIGNS_SCREEN.'?store=sa'), Screen::queries($browser, CAMPAIGNS_SCREEN."/{$campaign}")])->toBe([23, 23]);
 });

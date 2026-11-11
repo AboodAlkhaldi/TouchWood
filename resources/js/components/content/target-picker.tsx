@@ -11,8 +11,8 @@ import type { Picked } from './campaign-prices';
 
 /*
 | A campaign price's picker (content.md §1.7 #4, W4b's Prices tab), loaded when it is asked: what the run's store sells -
-| products and sizes found by a name or a code, 20 a page with Show More; its categories and brands switched on, all at
-| once and filtered as typed. Read 300 ms after the last key; **an older answer is dropped** - aborted, and never taking a
+| products and sizes found by a name or a code, its categories and brands switched on - listed before anything is
+| typed - each kind 20 a page with Show More. Read 300 ms after the last key; **an older answer is dropped** - aborted, and never taking a
 | newer one's place - so "dra" answering after "drawer" shows nothing of "dra". Each added once. A named export: a
 | default one would count as a page.
 */
@@ -35,7 +35,7 @@ export function TargetPicker({ run, kind, title, chosen, onPick, onClose }: { ru
         const mine = latest.start();
         setLoading(true);
 
-        return readJson<Answer>('/admin/content/campaigns/targets', { run, kind, q: whole ? null : typed, after }, signal).then((answer) => {
+        return readJson<Answer>('/admin/content/campaigns/targets', { run, kind, q: typed, after }, signal).then((answer) => {
             if (signal?.aborted || !mine()) {
                 return;
             }
@@ -53,7 +53,7 @@ export function TargetPicker({ run, kind, title, chosen, onPick, onClose }: { ru
     useEffect(() => {
         const typed = query.trim();
 
-        // Categories and brands come whole, once; products and sizes are asked for what is typed.
+        // Categories and brands are listed before anything is typed; products and sizes are asked for what is typed.
         if (!whole && typed === '') {
             latest.drop();
             setFound(null);
@@ -63,22 +63,17 @@ export function TargetPicker({ run, kind, title, chosen, onPick, onClose }: { ru
             return;
         }
 
-        if (whole && found !== null) {
-            return;
-        }
-
         const controller = new AbortController();
-        const wait = setTimeout(() => void read(typed, null, controller.signal), whole ? 0 : 300);
+        const wait = setTimeout(() => void read(typed, null, controller.signal), whole && typed === '' ? 0 : 300);
 
         return () => {
             clearTimeout(wait);
             controller.abort();
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- `read` and `found` are this effect's own state
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- `read` is this effect's own
     }, [query, run, kind, whole]);
 
-    const typed = query.trim().toLocaleLowerCase();
-    const shown = whole && found !== null ? found.filter((each) => typed === '' || `${each.nameAr} ${each.nameEn ?? ''}`.toLocaleLowerCase().includes(typed)) : (found ?? []);
+    const shown = found ?? [];
 
     return (
         <PanelDialog open onOpenChange={(open) => (open ? undefined : onClose())} title={title} description={t('content::admin_campaigns.prices.searching', { kind: t(`content::admin_campaigns.prices.kind.${kind}`) })} busy={false} cancelLabel={t('content::admin_campaigns.prices.done')} confirm={null}>
@@ -108,7 +103,7 @@ export function TargetPicker({ run, kind, title, chosen, onPick, onClose }: { ru
                         );
                     })}
                 </ul>
-                {next !== null && !whole ? (
+                {next !== null ? (
                     <Button type="button" variant="outline" size="sm" disabled={loading} onClick={() => void read(query.trim(), next)} data-test="target-more">
                         {t('content::admin_campaigns.prices.more')}
                     </Button>

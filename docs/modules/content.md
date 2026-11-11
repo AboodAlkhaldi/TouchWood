@@ -461,7 +461,7 @@ Tabs by placement with counts. Columns: thumbnail · Name · Shown On · State �
 
 #### W4 · Campaigns, `/admin/content/campaigns?store=&tab=all|scheduled|live|ended`
 
-Columns: Name · Stores (codes with each state) · Start · End · Theme ("—") · Offers (count of sizes reached) · Notice · State. **New Campaign**.
+Columns: Name · Stores (codes with each state) · Start · End · Theme ("—") · Offers (count of sizes reached, per store: "SA 412 · AE 380"; owner 2026-11-11, option (a), Pricing's `reachedSizes`) · Notice · State. **New Campaign**.
 
 **W4b, a campaign's page** (`/admin/content/campaigns/{id}`, `/runs/{run}` lands here): four cards on one page, one column on a phone.
 
@@ -796,7 +796,7 @@ The build's picks where the text above leaves the detail open, marked so for the
 
 | # | As built | Where |
 |---|---|---|
-| E1 | W4's tabs are **All, Scheduled, Live, Ended**, a cancelled run counted with the ended; tab and count read the chosen store's run; newest first, 50 with Show More. **The Offers column is not built** (parked: Pricing has no read counting a run's sizes without a preview per row) | W4 |
+| E1 | W4's tabs are **All, Scheduled, Live, Ended**, a cancelled run counted with the ended; tab and count read the chosen store's run; newest first, 50 with Show More. **Offers** per store is Pricing's `reachedSizes` for every row in one query (owner, 2026-11-11, option (a)); a draft's run, which Pricing holds nothing of, shows a dash. The list and its counts hold only campaigns all of whose stores the reader holds the job in (§1.7 #5), so no row leads to a page refused | W4 |
 | E2 | A campaign's and a theme's start and end are typed once, with no Now and no No End (§9.3b C1); the fields name the first chosen store's zone, and a line under them says each store reads them on its own clock (Q1 (a)) | W4b, W5b |
 | E3 | **Schedule Campaign** from a form with unsaved changes saves them and schedules every draft run in one press; from a saved form its question offers All Stores or one store. End Campaign… and Cancel Campaign… ask the same, naming the stores reached as they are chosen | W4b |
 | E4 | Each store's Prices tab and the theme's search are drawn once the page is mounted (never on the server's render), so the page stays under 60 KB; every tab stays drawn, so prices typed in one survive opening another. **Save Prices** is per store; a refused save keeps what was typed, the sizes it names marked in the preview and on their rows | W4b |
@@ -813,6 +813,11 @@ The build's picks where the text above leaves the detail open, marked so for the
 | E15 | Preview Theme opens the shop in a new tab; while this browser's cookie names the theme, its page says "Previewing … in this browser" with Stop Preview | W5b |
 | E16 | A theme part's artwork uploads as kind `theme`, under `content.theme.manage` in the form's first store | W5b |
 | E17 | Menu icons the panel already draws: Campaigns `pricing`, Themes `gifts` | §4.3 |
+| E18 | **Schedule waits for typed prices**: while a store's Prices tab holds prices typed and not saved, Schedule Campaign is out of reach with "Save the prices typed in … first.", and leaving asks first (PR 8's review) | W4b |
+| E19 | Save and Schedule in one press are two steps (Schedule writes each store in its own transaction, §1.7 #15): a Schedule refused after the save says "Campaign saved, not scheduled", the save standing, and the form takes what was saved as its own; the same for a theme | W4b, W5b |
+| E20 | A refusal naming sizes says whose store's they are (`errors.rows_store`), so only that store's Prices tab marks them | W4b |
+| E21 | Categories and brands as targets are searched and paged 20 at a time as products and sizes are | W4b |
+| E22 | A product linked to a post or project before is kept whatever it became - archived, a draft again, switched off - the shop showing only what it may (§1.1 rule 17) | W8, W9 |
 
 ### 9.4 Amendments other documents would need
 

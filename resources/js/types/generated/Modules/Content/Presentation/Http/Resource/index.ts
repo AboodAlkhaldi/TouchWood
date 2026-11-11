@@ -405,6 +405,7 @@ export type RunStateData = {
 storeId: string,
 code: string,
 state: string,
+offers: number | null,
 };
 export type SeoPageData = {
 stores: ContentStoreData[],

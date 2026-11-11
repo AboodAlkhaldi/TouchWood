@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Content\Presentation\Http\Controller;
 
+use App\Http\FormErrors;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,6 +31,7 @@ use Modules\Content\Application\Query\Campaigns\CampaignsHandler;
 use Modules\Content\Application\Query\ContentActions\ContentActionsForReader;
 use Modules\Content\Application\Query\PreviewRunPrices\PreviewRunPricesHandler;
 use Modules\Content\Application\Query\ScreenReads;
+use Modules\Content\Domain\Exception\CampaignPartlyScheduled;
 use Modules\Content\Domain\Exception\InvalidContentInput;
 use Modules\Content\Presentation\Http\Resource\CampaignData;
 use Modules\Content\Presentation\Http\Resource\CampaignFormPageData;
@@ -188,31 +190,60 @@ final readonly class CampaignsController
         return new JsonResponse($campaigns->targets((string) Inputs::text($request, 'run'), (string) Inputs::text($request, 'kind'), Inputs::text($request, 'q'), Inputs::text($request, 'after')));
     }
 
-    public function store(Request $request, SaveCampaignHandler $save, ScheduleCampaignHandler $schedule): RedirectResponse
+    public function store(Request $request, SaveCampaignHandler $save, ScheduleCampaignHandler $schedule, CampaignsHandler $campaigns): RedirectResponse
     {
-        return $this->save($request, null, $save, $schedule);
+        return $this->save($request, null, $save, $schedule, $campaigns);
     }
 
-    public function update(Request $request, string $campaign, SaveCampaignHandler $save, ScheduleCampaignHandler $schedule): RedirectResponse
+    public function update(Request $request, string $campaign, SaveCampaignHandler $save, ScheduleCampaignHandler $schedule, CampaignsHandler $campaigns): RedirectResponse
     {
-        return $this->save($request, $campaign, $save, $schedule);
+        return $this->save($request, $campaign, $save, $schedule, $campaigns);
     }
 
     /** Schedule Campaign (§1.7 #14, #15): every draft run, or one store's; a partial schedule says which stores. */
-    public function schedule(Request $request, string $campaign, ScheduleCampaignHandler $schedule): RedirectResponse
+    public function schedule(Request $request, string $campaign, ScheduleCampaignHandler $schedule, CampaignsHandler $campaigns): RedirectResponse
     {
         try {
             $schedule->handle(new ScheduleCampaign($campaign, Inputs::version($request), Inputs::text($request, 'store'), Inputs::flag($request, 'read')));
         } catch (DomainError $error) {
-            return Refusals::back($request, $error, self::BOXES);
+            return self::refused($request, $error, $campaigns, null, $campaign, Inputs::text($request, 'store'));
         }
 
         return back()->with('status', __('content::admin_campaigns.scheduled'));
     }
 
-    public function prices(Request $request, string $run, SetRunPricesHandler $prices): RedirectResponse
+    public function prices(Request $request, string $run, SetRunPricesHandler $prices, CampaignsHandler $campaigns): RedirectResponse
     {
-        return self::act($request, fn () => $prices->handle(new SetRunPrices($run, Inputs::version($request), $request->input('prices') === null ? null : self::priceInput($request))), 'content::admin_campaigns.prices_saved');
+        try {
+            $prices->handle(new SetRunPrices($run, Inputs::version($request), $request->input('prices') === null ? null : self::priceInput($request)));
+        } catch (DomainError $error) {
+            return self::refused($request, $error, $campaigns, $run);
+        }
+
+        return back()->with('status', __('content::admin_campaigns.prices_saved'));
+    }
+
+    /**
+     * A refusal on W4b: under its box, or at the top (Refusals). One that names sizes - Pricing's, as a schedule's or a
+     * prices' save - says too **which store's** they are (`errors.rows_store`), so only that store's Prices tab marks
+     * them: the same size in two stores is two rows (PR 8's review).
+     */
+    private static function refused(Request $request, DomainError $error, CampaignsHandler $campaigns, ?string $runId, ?string $campaignId = null, ?string $storeId = null): RedirectResponse
+    {
+        $rows = FormErrors::rows($error);
+
+        if ($rows === [] || $request->expectsJson()) {
+            return Refusals::back($request, $error, self::BOXES);
+        }
+
+        $store = $error instanceof CampaignPartlyScheduled ? $error->storeId : $campaigns->refusedStore($runId, $campaignId, $storeId);
+        $errors = ['form' => FormErrors::message($error), 'rows_store' => (string) $store];
+
+        foreach ($rows as $row => $message) {
+            $errors["rows.{$row}"] = $message;
+        }
+
+        return back()->withErrors($errors);
     }
 
     public function notice(Request $request, string $run, ChooseRunNoticeHandler $notice): RedirectResponse
@@ -248,9 +279,11 @@ final readonly class CampaignsController
 
     /**
      * Save Draft, or Schedule Campaign from the form: saved, then every draft run scheduled at the version the save made.
-     * A new one whose Schedule is refused stays a draft, and its own page says why.
+     * **Two steps, not one transaction**: Schedule writes each store's run in its own (§1.7 #15), so it cannot share the
+     * save's. A Schedule refused after the save leaves the save standing, and says so in words beside the refusal (a new
+     * campaign's on its own page, which now exists); the form then takes what was saved as its own.
      */
-    private function save(Request $request, ?string $id, SaveCampaignHandler $save, ScheduleCampaignHandler $schedule): RedirectResponse
+    private function save(Request $request, ?string $id, SaveCampaignHandler $save, ScheduleCampaignHandler $schedule, CampaignsHandler $campaigns): RedirectResponse
     {
         $version = Inputs::version($request);
 
@@ -276,7 +309,9 @@ final readonly class CampaignsController
                 // The save raised the version by one: a new campaign's is 1, a changed one's the form's plus one.
                 $schedule->handle(new ScheduleCampaign($saved, $id === null ? 1 : $version + 1, null, Inputs::flag($request, 'read')));
             } catch (DomainError $error) {
-                return $id === null ? Refusals::to(self::LIST."/{$saved}", $error, self::BOXES) : Refusals::back($request, $error, self::BOXES);
+                $refused = $id === null ? Refusals::to(self::LIST."/{$saved}", $error, self::BOXES) : self::refused($request, $error, $campaigns, null, $saved);
+
+                return $refused->with('status', __('content::admin_campaigns.saved_not_scheduled'));
             }
 
             return redirect(self::LIST."/{$saved}")->with('status', __('content::admin_campaigns.scheduled'));
@@ -317,7 +352,7 @@ final readonly class CampaignsController
      */
     private static function row(array $row, array $codes): CampaignRowData
     {
-        /** @var list<array{storeId: string, state: string}> $runs */
+        /** @var list<array{runId: string, storeId: string, state: string, offers: int|null}> $runs */
         $runs = $row['runs'];
         $states = array_values(array_unique(array_map(static fn (array $run): string => $run['state'], $runs)));
         /** @var array{nameAr: string, nameEn: string|null}|null $theme */
@@ -334,7 +369,7 @@ final readonly class CampaignsController
             count($states) === 1 ? $states[0] : 'MIXED',
             is_string($row['startsAt']) ? $row['startsAt'] : null,
             is_string($row['endsAt']) ? $row['endsAt'] : null,
-            array_map(static fn (array $run): RunStateData => new RunStateData($run['storeId'], $codes[$run['storeId']] ?? '', $run['state']), $runs),
+            array_map(static fn (array $run): RunStateData => new RunStateData($run['storeId'], $codes[$run['storeId']] ?? '', $run['state'], $run['offers']), $runs),
             $theme['nameAr'] ?? null,
             $theme['nameEn'] ?? null,
             $notice === null || ! is_string($row['noticeId']) ? null : new CampaignNoticeData($row['noticeId'], $notice['titleAr'], $notice['titleEn'], $notice['status']),

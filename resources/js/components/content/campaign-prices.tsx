@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import { X } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
@@ -94,11 +94,12 @@ function typedOf(target: CampaignTargetData, decimals: number): Typed {
     };
 }
 
-export function CampaignPrices({ run, version }: { run: CampaignRunData; version: number }) {
+export function CampaignPrices({ run, version, onChanged }: { run: CampaignRunData; version: number; onChanged?: (changed: boolean) => void }) {
     const t = useTranslator();
     const name = useInLanguage();
     const { errors, locale } = usePage<SharedProps>().props;
-    const marked = rowErrors(errors);
+    // The sizes a refusal names are this store's only when it says so: the same size in another store is another row.
+    const marked = (errors as Partial<Record<string, string>>).rows_store === run.store.id ? rowErrors(errors) : {};
     const editable = run.mayPrice && run.pricesOpen;
     const [lines, setLines] = useState(run.prices?.lines ?? 'BOTH');
     const [targets, setTargets] = useState<Typed[]>(() => (run.prices?.targets ?? []).map((target) => typedOf(target, run.decimals)));
@@ -107,6 +108,10 @@ export function CampaignPrices({ run, version }: { run: CampaignRunData; version
     const [busy, setBusy] = useState(false);
     const [tried, setTried] = useState(false);
     const [changed, setChanged] = useState(false);
+
+    // The page knows a store's prices are typed and not saved: Schedule waits for them (PR 8's review).
+    useEffect(() => onChanged?.(changed), [changed, onChanged]);
+
     const problem = (target: Typed): string | undefined =>
         target.mode === 'fixed'
             ? minorUnits(target.value, run.decimals) === null

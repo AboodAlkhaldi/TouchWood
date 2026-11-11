@@ -225,6 +225,11 @@ final readonly class CampaignPricesImpl implements CampaignPrices
         return $this->campaigns->skippedSizes($store, strtolower(trim($runId)));
     }
 
+    public function reachedSizes(array $runIds): array
+    {
+        return $this->campaigns->reachedSizes($runIds);
+    }
+
     public function skippingRuns(StoreId $store, array $variantIds): array
     {
         return $this->campaigns->skipsOf($store, $variantIds);

@@ -163,6 +163,13 @@ describe('§1.12 the blog', function () {
         app(SavePostHandler::class)->handle(new SavePost(documentInput(['id' => $post, 'version' => 1, 'products' => [$ready]])));
 
         expect(DB::table('content.blog_post_products')->where('post_id', $post)->pluck('product_id')->all())->toBe([$ready]);
+
+        // Back to a draft since: still kept, the post's other fields saved (PR 8's review; §1.1 rule 17).
+        DB::table('catalog.products')->where('id', $ready)->update(['stage' => 'DRAFT', 'archived_from' => null]);
+        app(SavePostHandler::class)->handle(new SavePost(documentInput(['id' => $post, 'version' => 2, 'products' => [$ready]])));
+
+        expect(DB::table('content.blog_post_products')->where('post_id', $post)->pluck('product_id')->all())->toBe([$ready])
+            ->and((int) DB::table('content.blog_posts')->where('id', $post)->value('version'))->toBe(3);
     });
 
     it('keeps a post to a category of its own store', function () {

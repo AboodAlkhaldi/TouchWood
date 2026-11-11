@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, router, useForm } from '@inertiajs/react';
 import { Check, Minus } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
@@ -109,7 +109,39 @@ export default function Form({ stores, campaign, runs, linkedTheme, themes, mayO
         momentBox(ends, { id: 'ends', label: t('content::admin_shared.ends'), kind: 'end', zone, after: starts }),
     ]);
     const dirty = form.isDirty || touched;
-    const leave = useLeaveGuard(dirty, { description: t('content::admin_shared.leave') });
+    // The stores whose Prices tab holds prices typed and not saved (PR 8's review): Schedule would hand Pricing what
+    // was saved, not what is on the screen, and a run past its start can't be changed - so Schedule waits for them.
+    const [unsaved, setUnsaved] = useState<ReadonlySet<string>>(() => new Set());
+    const pricesChanged = useCallback(
+        (runId: string, changed: boolean) =>
+            setUnsaved((was) => {
+                if (was.has(runId) === changed) {
+                    return was;
+                }
+
+                const next = new Set(was);
+
+                if (changed) {
+                    next.add(runId);
+                } else {
+                    next.delete(runId);
+                }
+
+                return next;
+            }),
+        [],
+    );
+    const leave = useLeaveGuard(dirty || unsaved.size > 0, { description: t('content::admin_shared.leave') });
+    const scheduleReason = unsaved.size > 0 && (campaign === null || drafts.length > 0) ? t('content::admin_campaigns.prices.save_first', { stores: runs.filter((run) => unsaved.has(run.id)).map((run) => run.store.name).join(' · ') }) : undefined;
+
+    // A save the server took - its version moved - is what the form holds now, a Schedule refused after it included: the
+    // boxes no longer read as changed.
+    const savedVersion = campaign?.version;
+    useEffect(() => {
+        form.setDefaults();
+        setTouched(false);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new version resets the defaults
+    }, [savedVersion]);
     const storeName = (id: string) => stores.find((store) => store.id === id)?.name ?? runs.find((run) => run.store.id === id)?.store.name ?? id;
 
     const fields = (intent: 'draft' | 'schedule', read: boolean) => ({ ...form.data, ...markFields(translation, read), version: campaign?.version ?? 0, starts_at: sentMoment(starts), ends_at: sentMoment(ends), intent });
@@ -172,7 +204,7 @@ export default function Form({ stores, campaign, runs, linkedTheme, themes, mayO
                 onSubmit={(event) => {
                     event.preventDefault();
 
-                    if (!over) {
+                    if (!over && scheduleReason === undefined) {
                         checks.submit(() => (campaign === null || drafts.length > 0 ? setAsking('schedule') : tick.ask((read) => save('draft', read), primary)));
                     }
                 }}
@@ -295,7 +327,7 @@ export default function Form({ stores, campaign, runs, linkedTheme, themes, mayO
 
                 {over ? null : (
                     <div className="flex flex-wrap gap-3">
-                        <ActionButton type="submit" loading={form.processing} disabledReason={checks.reason} data-test="schedule">
+                        <ActionButton type="submit" loading={form.processing} disabledReason={checks.reason ?? scheduleReason} data-test="schedule">
                             {primary}
                         </ActionButton>
                         {campaign === null || drafts.length > 0 ? (
@@ -329,7 +361,7 @@ export default function Form({ stores, campaign, runs, linkedTheme, themes, mayO
                                         <TabsContent key={run.id} value={run.id} forceMount className="pt-4 data-[state=inactive]:hidden">
                                             {mounted ? (
                                                 <Suspense fallback={<Spinner />}>
-                                                    <CampaignPrices run={run} version={campaign.version} />
+                                                    <CampaignPrices run={run} version={campaign.version} onChanged={(changed) => pricesChanged(run.id, changed)} />
                                                 </Suspense>
                                             ) : (
                                                 <Spinner />

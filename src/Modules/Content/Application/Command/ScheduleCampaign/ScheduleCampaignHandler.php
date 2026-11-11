@@ -156,6 +156,7 @@ final readonly class ScheduleCampaignHandler
             $refusal === null ? $this->words->unexpected() : $this->words->sentence($refusal),
             $refusal,
             $failure,
+            $refused->storeId,
         );
     }
 

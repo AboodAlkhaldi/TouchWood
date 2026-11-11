@@ -22,6 +22,7 @@ return [
         'starts' => 'Start',
         'ends' => 'End',
         'theme' => 'Theme',
+        'offers' => 'Offers',
         'notice' => 'Notice',
         'state' => 'State',
     ],
@@ -97,6 +98,7 @@ return [
         'over_ceiling' => 'Deeper than the ceiling of :ceiling% on some sizes. Schedule refuses it.',
         'skipped_now' => 'Skipped now: the provider\'s price takes these sizes past the ceiling.',
         'unsaved' => 'Prices not saved yet.',
+        'save_first' => 'Save the prices typed in :stores first.',
     ],
     'preview' => [
         'title' => 'Preview',
@@ -171,6 +173,7 @@ return [
         'delete_body' => 'This can\'t be undone.',
     ],
     'saved' => 'Campaign saved',
+    'saved_not_scheduled' => 'Campaign saved, not scheduled: the page says why',
     'scheduled' => 'Campaign scheduled',
     'prices_saved' => 'Prices saved',
     'notice_saved' => 'Notice saved',

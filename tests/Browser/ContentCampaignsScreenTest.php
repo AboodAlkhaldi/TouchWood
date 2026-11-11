@@ -71,6 +71,34 @@ it('schedules a two-store campaign from its page, the question naming both store
     $page->assertNoJavaScriptErrors();
 });
 
+it('waits to schedule while a store\'s prices are typed and not saved, then schedules once they are', function () {
+    $run = Cb::run();
+    $page = Cb::signIn([ContentPermissions::CAMPAIGN_MANAGE, ContentPermissions::PRICING_PRICE_EDIT], 'en', ['sa', 'ae']);
+    $page->resize(375, 812);
+    $campaign = contentCampaignsScreenDraft($run, ['sa', 'ae']);
+
+    $page->navigate("/admin/content/campaigns/{$campaign}", BROWSER_SLOW_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"prices-sa\"] [data-test=\"line-RETAIL\"]') !== null"))->toBeTrue();
+
+    // A change in a store's Prices tab, not saved: Schedule would hand Pricing what was saved instead (PR 8's review).
+    $page->click('[data-test="prices-sa"] [data-test="line-RETAIL"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"schedule\"]')?.getAttribute('aria-disabled') === 'true' && document.body.textContent.includes('Save the prices typed in')"))->toBeTrue();
+    // Pressed all the same (Playwright clicks nothing out of reach, lesson 199): no question, nothing scheduled.
+    $page->script("document.querySelector('[data-test=\"schedule\"]').click()");
+    expect(browserSoon($page, "document.querySelector('[data-test=\"schedule-dialog-confirm\"]') === null"))->toBeTrue()
+        ->and(DB::table('content.campaign_runs')->where('campaign_id', $campaign)->pluck('state')->unique()->values()->all())->toBe(['DRAFT']);
+
+    $page->click('[data-test="prices-sa"] [data-test="save-prices"]');
+    expect(browserSoon($page, "document.body.textContent.includes('Prices saved') && document.querySelector('[data-test=\"schedule\"]')?.getAttribute('aria-disabled') !== 'true'"))->toBeTrue();
+    $page->click('[data-test="schedule"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"schedule-dialog-confirm\"]') !== null"))->toBeTrue();
+    $page->click('[data-test="schedule-dialog-confirm"]');
+    expect(browserSoon($page, "document.body.textContent.includes('Campaign scheduled')"))->toBeTrue()
+        ->and(DB::table('content.campaign_runs')->where('campaign_id', $campaign)->where('store_id', Fx::storeId('sa'))->value('state'))->toBe('SCHEDULED')
+        ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
+    $page->assertNoJavaScriptErrors();
+});
+
 it('schedules one store\'s run in Arabic, leaving the campaign Mixed with each store\'s state', function () {
     $run = Cb::run();
     $page = Cb::signIn([ContentPermissions::CAMPAIGN_MANAGE, ContentPermissions::PRICING_PRICE_EDIT], 'ar', ['sa', 'ae']);

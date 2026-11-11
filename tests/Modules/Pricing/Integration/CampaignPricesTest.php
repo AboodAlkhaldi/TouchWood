@@ -237,6 +237,31 @@ describe('what a run prices (§9.6 #1, #2)', function () {
         expect(campaignUnit($shop['inTop']['variants'][0]))->toBe(11000);
     });
 
+    it('counts the sizes each run prices in one query, as its preview counts them (content.md W4\'s Offers)', function () {
+        $shop = campaignShop();
+        $run = campaignRun();
+        $other = campaignRun();
+        $set = campaignSet([
+            campaignPercent(CampaignTargetKind::Category, $shop['top'], 1000),
+            campaignFixed($shop['inChild']['variants'][1], 7500),
+        ], leftOut: [$shop['inTop']['product']]);
+        campaignPrices()->save(campaignSa(), $run, $set, campaignAt('2026-11-10 09:00:00+00'), campaignAt('2026-11-20 00:00:00+00'));
+        campaignSave($other, [campaignPercent(CampaignTargetKind::Product, $shop['outside']['product'], 1000)], CampaignLines::Retail);
+        $preview = campaignPrices()->preview(campaignSa(), $set, campaignAt('2026-11-10 09:00:00+00'), campaignAt('2026-11-20 00:00:00+00'), null, $run);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $reached = campaignPrices()->reachedSizes([strtoupper($run), $other, campaignRun()]);
+        DB::disableQueryLog();
+
+        expect($reached[$run] ?? null)->toBe($preview->reachedSizes)
+            ->and($preview->reachedSizes)->toBeGreaterThan(0)
+            // On one line only, a size counts once all the same; a run Pricing holds nothing of is left out.
+            ->and($reached[$other] ?? null)->toBe(count($shop['outside']['variants']))
+            ->and($reached)->toHaveCount(2)
+            ->and(DB::getQueryLog())->toHaveCount(1);
+    });
+
     it('takes the lowest of a size\'s categories and brand, and a left-out product keeps a target picked by name', function () {
         $shop = campaignShop();
         $size = $shop['inChild']['variants'][0];
