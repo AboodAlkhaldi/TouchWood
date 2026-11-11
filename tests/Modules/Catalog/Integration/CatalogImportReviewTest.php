@@ -490,7 +490,7 @@ describe('accepting', function () {
 
 describe('the store file', function () {
     it("is reached only by those who fill its own store: another store's answers as a file that does not exist", function () {
-        $file = catalogReviewFill([['code' => '1']]);
+        $file = catalogReviewFill([['code' => '1', 'price' => 1]]);
         $item = catalogReviewFillItem($file, 1);
         $calls = static fn (string $id): array => [
             fn () => app(ViewStoreFillHandler::class)->handle(new ViewStoreFill($id)),
@@ -514,7 +514,7 @@ describe('the store file', function () {
 
     it('is no products file, nor a products file one', function () {
         $products = Ix::uploadProducts([Ix::product('1', ['brand' => 'Blumm'])]);
-        $file = catalogReviewFill([['code' => '1']]);
+        $file = catalogReviewFill([['code' => '1', 'price' => 1]]);
 
         expect(fn () => app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($products, null)))->toThrow(ListItemNotFound::class)
             ->and(fn () => app(ViewStoreFillHandler::class)->handle(new ViewStoreFill($products)))->toThrow(ListItemNotFound::class)
@@ -524,13 +524,13 @@ describe('the store file', function () {
 
     it('lists every problem of a file not in its format', function () {
         try {
-            catalogReviewFill([['code' => '1304'], ['code' => '1304', 'price' => 2]]);
+            catalogReviewFill([['code' => '1304', 'price' => 1], ['code' => '1304', 'price' => -2]]);
         } catch (ImportRefused $refused) {
         }
 
         expect($refused->problems ?? null)->toBe([
-            ['at' => 'item 2 › price', 'problem' => "not in a store file: a store's prices come from Odoo"],
             ['at' => 'item 2 › code', 'problem' => '1304 again: item 1 names it already'],
+            ['at' => 'item 2 › price', 'problem' => 'a number of at least 0, with at most 6 decimal places'],
         ]);
     });
 
@@ -539,7 +539,7 @@ describe('the store file', function () {
         $ready = Px::ready(['60 cm']);
         $code = (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
         Fx::asSystem(fn (): string => app(AddVariantHandler::class)->handle(new AddVariant($ready['product'], '7701', [$ready['width'] => Px::value($ready['width'], '80 cm')])));
-        $file = catalogReviewFill([['code' => $code]]);
+        $file = catalogReviewFill([['code' => $code, 'price' => 10]]);
 
         app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($file, null));
 
@@ -558,7 +558,7 @@ describe('the store file', function () {
             app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($archived['variants'][1]));
             app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode($corrected['variants'][0], '8800'));
         });
-        $file = catalogReviewFill([['code' => $archivedCode], ['code' => $oldCode]]);
+        $file = catalogReviewFill([['code' => $archivedCode, 'price' => 1], ['code' => $oldCode, 'price' => 2]]);
         Fx::actAsAdmin(['sa'], [CatalogPermissions::LISTING_FILL]);
 
         expect(array_map(static fn (StoreFillItemView $item): ?string => $item->standing, app(ViewStoreFillHandler::class)->handle(new ViewStoreFill($file))->items))->toBe(['ARCHIVED', 'UNKNOWN'])

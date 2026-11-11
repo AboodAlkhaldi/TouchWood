@@ -61,7 +61,7 @@ import · 5 the shop's audiences (amendment 14) · 6 the shop's pages. **Screens
 | `Presentation/admin-routes.php`, `Presentation/Http` | The panel's Catalog screens (`catalog.admin.*`): the controllers, `CatalogFormRequest` (shape only), `CatalogRefusals` (where a refusal is said) and the pages' data (`Resource`: `ListPages` and one `#[TypeScript]` class per page and row) |
 | `Presentation/lang/{ar,en}` | The permissions' names, the errors, the audit log's name for every action, and the queued work's names (`jobs.php`); the panel's menu entries (`menu.php`) and the screens' words (`admin.php`, shared, and one file a screen: `admin_brands.php`, `admin_categories.php`, `admin_attributes.php`, `admin_labels.php`, `admin_warranties.php`, `admin_search_words.php`) |
 | `resources/js/pages/Catalog/Admin` (outside the module) | The screens themselves: one folder a screen, and what they share — `parts.tsx`, `FatesDialog.tsx`, `ImageField.tsx` (a module of its own, so only the two dialogs that take a photo load its file input and checkbox), `SortableList.tsx`, `marks.ts` |
-| `Public/Contracts`, `Public/Dto`, `Public/Events` | `CatalogApi` and its DTOs (`VariantDto`, `VariantValueDto`, `ProductDto`, `StoreVariantDto`, `ListingPrice`, `LineFactsDto` — amendment 18; `ProductCardDto` — amendment 26(a), Feedback's cards by `productCards()`; `ShopProductSections` / `ShopProductSection` / `ShopProductVisitDto` — amendment 26(b), other modules' parts of the shop's product page, carried as `sections` (each section's filter, `filters` — amendment 31); `ShopCardFacts` / `ShopCardFact` — amendment 32, what other modules add to the shop's cards, carried as `cardFacts` beside a page's cards, read per request; `BrandDto` — amendment 20, many at once by `brands()` — amendment 27; `productsSoldIn()` — amendment 24; `ListingFacts::ratings` / `ratingsShown`, the stars and the rating sort — amendment 25; `CatalogUseDto` and the `CatalogItem` enum — amendment 19); `CatalogUsage` and `CatalogUsages`, the usage check before deletes (amendment 19); `ListingFacts`, bound for stage 5 (amendment 16(i)); `ImportSections` and `ImportSection` removed with the store file's prices and stock (amendment 43); the events, `CategoryMoved` among them |
+| `Public/Contracts`, `Public/Dto`, `Public/Events` | `CatalogApi` and its DTOs (`VariantDto`, `VariantValueDto`, `ProductDto`, `StoreVariantDto`, `ListingPrice`, `LineFactsDto` — amendment 18; `ProductCardDto` — amendment 26(a), Feedback's cards by `productCards()`; `ShopProductSections` / `ShopProductSection` / `ShopProductVisitDto` — amendment 26(b), other modules' parts of the shop's product page, carried as `sections` (each section's filter, `filters` — amendment 31); `ShopCardFacts` / `ShopCardFact` — amendment 32, what other modules add to the shop's cards, carried as `cardFacts` beside a page's cards, read per request; `BrandDto` — amendment 20, many at once by `brands()` — amendment 27; `productsSoldIn()` — amendment 24; `ListingFacts::ratings` / `ratingsShown`, the stars and the rating sort — amendment 25; `CatalogUseDto` and the `CatalogItem` enum — amendment 19); `CatalogUsage` and `CatalogUsages`, the usage check before deletes (amendment 19); `ListingFacts` and `ImportSections` with `ImportSection`, bound for stage 5 (amendment 16(i)); the events, `CategoryMoved` among them |
 | `Public/Enums` | `AttributeKind`, `AgencyType`, `ProductStage`, `ProductFate`, `SaleMode` — and so their TypeScript types |
 | `Public/Events` | `ProductMadeReady`, `ProductArchived`, `ProductRestored`, `ProductChanged`, `VariantAdded`, `VariantArchived`, `VariantRestored`, `VariantCodeCorrected`, `StoreListingChanged`: ids only |
 
@@ -345,9 +345,10 @@ each size's on its page, written as Platform's `MoneyData`; a product-page secti
 the page's `wholesaleSizes`. **The shop's cart reads** (amendment 36): `ShopBestSellers` (bound to
 `Presentation/Storefront/PageBestSellers`, the shop's own cards and `cardFacts`, `ShopReader::bestSelling`);
 a product-page section told every size the page shows (`sizes`). **The search log for Ops** (amendment 37):
-`CatalogApi::searchSummary`, by phrase, store and language over a range, keyset-paged, in `DatabaseSearchLog::summary`. **The import's sections are gone** (amendment 43): a store file holds codes only, so
-`ImportSections`, `ImportSection` and `InMemoryImportSections` were removed, with Pricing's and
-Inventory's sections that kept a file's prices and stock.
+`CatalogApi::searchSummary`, by phrase, store and language over a range, keyset-paged, in `DatabaseSearchLog::summary`. **`ImportSections` is bound** (`InMemoryImportSections`, a singleton the modules above
+register into, as Platform's `MediaUsages`): a store file's page shows each section's lines and
+says prices are kept once one is registered; switching an item on gives each section the variant,
+its price and stock, inside the same change.
 
 **The schema.** `catalog`, on `config/database.php`'s search path so `migrate:fresh` wipes it; the
 first migration also creates `pg_trgm`, which the search's nearness ranking needs (catalog.md
@@ -446,10 +447,16 @@ through `StoreListingChange` and the store's listing, as the store's own choice 
 file's job. Each open item's standing (ready, not ready, archived, already on, unknown) is read on its
 page, never stored.
 
-**No file brings prices or stock** (amendment 43): a products file that names a store is refused
-(amendment 9(a)), and a store file's items are codes alone - one still carrying `price` or `stock` is
-refused, the field named (`StoreFillFile::DROPPED`), since a store's prices and stock come from Odoo.
-The items' `price` and `stock` columns were dropped (`2026_11_10_100000_drop_prices_from_catalog_store_fill_items`).
+**Prices and stock come only with a store's file** — a products file that names a store is refused
+(amendment 9(a)) — and are shown and not kept until stage 5, when Pricing and Inventory register their
+`ImportSection`s (declared in `Public/Contracts`). **A store file follows its store's wiring**
+(amendment 43(b), owner 2026-11-11): `UploadStoreFill` asks Catalog's own port,
+`Public/Contracts/StoreWiring::isWired`, inside its change, and `StoreFillFile::read($json, $wired)`
+reads by it - a store wired to Odoo gives codes only (`price` or `stock` refused by name, "a store's
+prices come from Odoo"), one not wired its price, stock optional. Catalog binds `NoStoreWired`; Sync,
+above Catalog, binds its `ConnectionWiring` in its place, as for Pricing and Inventory. A wired store's
+items keep no price (`store_fill_items.price` may be empty, `2026_11_11_100000_…`). A top-level `note`
+(the example's own explanation) is read and ignored.
 
 ### The screens: the shared lists (screens step 1)
 
@@ -597,7 +604,7 @@ A store's files, newest first, 25 a page with Show More - name, when, items, ite
 fills stores. **Upload Store File** takes the `.json`; a refused file's problems come back once,
 flashed with the list's next view (at most 500), in the format's own words - English, as the format is
 - and are listed under the upload in its dialog. A file's page shows each item: number, code, its
-product (named, linked to its page), and where it stands (no price, no stock: amendment 43) - Ready, Not Ready and what it
+product (named, linked to its page), price, stock, and where it stands - Ready, Not Ready and what it
 lacks, Archived, Already On, Unknown Code - or what was done (Switched On, Removed), still naming its
 product; ticked open items are switched on (ready ones only, said before the press) or removed, every
 ready one switched on at once, an unknown code corrected.
@@ -875,20 +882,20 @@ individual's filter can offer a value only a wholesale-only size has (the produc
 | `Integration/CatalogApiTest` | `CatalogApi`: variants, codes (one corrected away), products, a variant in a store (switched off, hidden), resolving the variant (a product with no set) |
 | `Integration/CatalogUsagesTest` | The usage check before deletes (amendment 19): a category, brand, draft product (and its variants) and draft variant another module uses refused, nothing deleted; what nobody uses deleted after asking |
 | `Integration/CatalogApiReadsTest` | Stage 5's reads: a product's variants in order (archived when asked), a category's products and those below it, a store's switched-on variants, many variants and products in a fixed number of queries; a cart's line facts in one query (amendment 18); a brand and whether it is on (amendment 20), many brands in one read (amendment 27); which products a store sells now, in one read (amendment 24); `CategoryMoved` |
-| `Integration/CatalogListingFactsTest` | `ListingFacts` kept, each fact apart, a price cleared, `ListingPrice`'s rule |
+| `Integration/CatalogListingFactsTest` | `ListingFacts` kept, each fact apart, a price cleared, `ListingPrice`'s rule; `ImportSections`: once each, lines on a store file's page, each item switched on given to the sections |
 | `Integration/CatalogSalesRanksTest` | Amendment 30: a store's ranking on its listing rows, the other stores untouched, a product left out losing its rank, a rewritten row taking it back from `sales_ranks`, unknown ids and ranks below 1 left out |
 | `Integration/ShopCardFactsTest` | Amendment 32: one registry; each fact asked once a page with its products, only the page's own cards kept, a page with no cards asking none; keys and classes checked |
 | `Unit/CatalogListLocksTest` | A list's lock is refused outside a transaction |
 | `Unit/CatalogListingRowsTest` | The listing is never written outside a transaction |
 | `Unit/CatalogSearchTermsTest` | What was typed, as search reads it; word pairs, a run of words before one |
 | `Unit/CatalogProductTest` | A product archived remembers the stage it left — archived twice or not — and restoring goes back there |
-| `Unit/CatalogImportFilesTest` | Step 6's two files read and checked: the guide's own examples, every rule refused with where, every problem collected, descriptions' markers; Arabic digits in either file read as 0-9; a store file of codes only, its old `price` and `stock` refused by name; the guide stating each limit the code holds (amendment 43) |
+| `Unit/CatalogImportFilesTest` | Step 6's two files read and checked: the guide's own examples, every rule refused with where, every problem collected, descriptions' markers; Arabic digits in either file read as 0-9; a store file read by the store's wiring and its ignored `note`; the guide stating each limit the code holds (amendment 43) |
 | `Integration/CatalogImportUploadTest` | Uploading: who may; names listed once with their counts, matched as search compares words, a brand by number; what refuses a file; a zip kept, its products.json at the top, photos unpacked into the archives' own files |
 | `Integration/CatalogImportDecisionsTest` | Deciding names and codes: targets in their list, active, of the right job; what may be created; values under their attribute; new codes free; all or none; closed while bringing in |
 | `Integration/CatalogImportChangesTest` | The changes before bringing in: each field, replace and fill-empty (and add), the selected or all, the file's own kept, the names list following |
 | `Integration/CatalogImportBringInTest` | The confirm asking again; bringing in: lists made, products created with photos, skipped, held, recoded, updated, replaced; all or nothing with the reason; the locks' order |
 | `Integration/CatalogImportAcceptTest` | Accepting (ready, on sale nowhere new, relations), archiving and deleting only what the import created |
-| `Integration/CatalogStoreFillTest` | The store file: an admin role's job in that store; switching on the variant carrying each code of a ready product; mending and removing items |
+| `Integration/CatalogStoreFillTest` | The store file: an admin role's job in that store; switching on the variant carrying each code of a ready product; mending and removing items; by the store's wiring (amendment 43): not wired, a price required and the price and stock set when switched on; wired, a price or stock refused by name and codes kept alone; wired after it was kept, the file's ignored |
 | `Integration/CatalogImportPagesTest` | The pages' reads: a products file's page and list, a store file's page with each item's standing, and its store's list |
 | `Integration/CatalogImportSaleTest` | Amendment 9: no store in a products file; keep on sale or take off sale, every time, in every store, cleared with its decision, asked again when put on sale after the confirm; codes two catalog products hold; words added to an updated product kept apart; a new category's taken address counted; a job given up on taking the products' lock first |
 | `Integration/CatalogImportConstraintsTest` | The database's named CHECKs of the import's and the listing's tables (steps 5 and 6), each refused by name — those on a nullable column with it left NULL (lesson 35) |

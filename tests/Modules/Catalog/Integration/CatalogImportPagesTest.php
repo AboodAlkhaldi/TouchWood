@@ -41,7 +41,7 @@ use function Pest\Laravel\seed;
 | The pages' reads (catalog.md §1.12, §1.3; amendment 6): a products file's page and the list of them,
 | a Super Admin's; a store file's page and its store's list, `catalog.listing.fill` there. Each open
 | store item stands as the catalog is now: ready, not ready (and what it lacks), archived, already on,
-| or unknown. No price and no stock: a store's come from Odoo (amendment 43).
+| or unknown. Prices and stock are shown, and not kept until stage 5.
 */
 
 uses(RefreshDatabase::class);
@@ -99,7 +99,7 @@ describe('a products file\'s page', function () {
         $older = Ix::uploadProducts([Ix::product('1'), Ix::product('2')]);
         DB::table('catalog.imports')->where('id', $older)->update(['created_at' => now()->subDay()]);
         $newer = Ix::uploadProducts([Ix::product('3')]);
-        catalogPagesFill([['code' => '1']]);
+        catalogPagesFill([['code' => '1', 'price' => 1]]);
 
         $list = app(ListImportsHandler::class)->handle(new ListImports);
         expect(array_map(static fn (ImportSummary $import): array => [$import->id, $import->count], $list->imports))->toBe([[$newer, 1], [$older, 2]])
@@ -125,8 +125,8 @@ describe('a store file\'s page', function () {
             app(ArchiveProductHandler::class)->handle(new ArchiveProduct($archived['product']));
         });
         $file = catalogPagesFill([
-            ['code' => $code($ready)], ['code' => '7700'], ['code' => $code($archived)],
-            ['code' => $code($on)], ['code' => '999999'], ['code' => '1'],
+            ['code' => $code($ready), 'price' => 1], ['code' => '7700', 'price' => 2], ['code' => $code($archived), 'price' => 3],
+            ['code' => $code($on), 'price' => 4], ['code' => '999999', 'price' => 5], ['code' => '1', 'price' => 6],
         ]);
         app(RemoveStoreFillItemsHandler::class)->handle(new RemoveStoreFillItems($file, [(string) DB::table('catalog.store_fill_items')->where('import_id', $file)->where('number', 6)->value('id')]));
 
@@ -137,7 +137,8 @@ describe('a store file\'s page', function () {
         ])
             ->and($view->items[1]->missing)->toBe(['description_ar', 'description_en', 'category', 'photos'])
             ->and($view->items[0]->productId)->toBe($ready['product'])
-            ->and($view->storeId)->toBe(Fx::storeId('sa'));
+            // Kept since stage 5 registered its sections (Inventory's stock; Pricing's prices with it).
+            ->and([$view->storeId, $view->pricesKept])->toBe([Fx::storeId('sa'), true]);
     });
 
     it('reads a file of any size in the same queries, names the product each code finds, and counts what is still open (P13)', function () {
@@ -145,11 +146,11 @@ describe('a store file\'s page', function () {
         $readies = [Px::ready(), Px::ready(), Px::ready()];
         $draft = Px::product();
         Px::variant($draft, '7700');
-        $small = catalogPagesFill([['code' => $codeOf($readies[0])], ['code' => '7700'], ['code' => '999000']]);
+        $small = catalogPagesFill([['code' => $codeOf($readies[0]), 'price' => 1], ['code' => '7700', 'price' => 2], ['code' => '999000', 'price' => 3]]);
         $large = catalogPagesFill([
-            ...array_map(static fn (array $ready): array => ['code' => $codeOf($ready)], $readies),
-            ['code' => '7700'],
-            ...array_map(static fn (int $n): array => ['code' => (string) (999000 + $n)], range(1, 46)),
+            ...array_map(static fn (array $ready): array => ['code' => $codeOf($ready), 'price' => 1], $readies),
+            ['code' => '7700', 'price' => 2],
+            ...array_map(static fn (int $n): array => ['code' => (string) (999000 + $n), 'price' => 3], range(1, 46)),
         ]);
         $queries = function (string $file): int {
             app()->forgetScopedInstances();
@@ -181,8 +182,8 @@ describe('a store file\'s page', function () {
     });
 
     it('is the job of whoever fills that store, and its list holds only that store\'s files', function () {
-        $sa = catalogPagesFill([['code' => '1']]);
-        catalogPagesFill([['code' => '2']], 'eg');
+        $sa = catalogPagesFill([['code' => '1', 'price' => 1]]);
+        catalogPagesFill([['code' => '2', 'price' => 1]], 'eg');
 
         Fx::actAsAdmin(['sa'], [CatalogPermissions::LISTING_FILL]);
         expect(app(ViewStoreFillHandler::class)->handle(new ViewStoreFill($sa))->id)->toBe($sa)

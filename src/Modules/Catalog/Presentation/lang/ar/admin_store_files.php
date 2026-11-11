@@ -26,6 +26,8 @@ return [
         'number' => 'الرقم',
         'code' => 'الرمز',
         'product' => 'المنتج',
+        'price' => 'السعر',
+        'stock' => 'المخزون',
         'standing' => 'الحالة',
     ],
     'standing' => [
@@ -39,6 +41,7 @@ return [
         'ON' => 'فُعّل',
         'REMOVED' => 'أُزيل',
     ],
+    'prices_note' => 'تظهر الأسعار والمخزون هنا ولا تُحفظ حتى توجد وحدتا التسعير والمخزون.',
     'switch_on_selected' => 'تفعيل المحدد',
     'switch_on_ready' => 'تفعيل كل الجاهز',
     'remove_selected' => 'إزالة المحدد…',

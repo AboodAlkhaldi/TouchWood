@@ -49,7 +49,7 @@ afterEach(function () {
 function catalogImportConstraintsRows(): array
 {
     $products = Ix::uploadProducts([Ix::product('1', ['brand' => 'Blumm', 'category' => 'Kitchens'])]);
-    $fill = app(UploadStoreFillHandler::class)->handle(new UploadStoreFill(Fx::storeId('sa'), Ix::temp(json_encode(['format' => 'touchwood-store-fill/1', 'items' => [['code' => '1']]], JSON_THROW_ON_ERROR)), 'prices.json'));
+    $fill = app(UploadStoreFillHandler::class)->handle(new UploadStoreFill(Fx::storeId('sa'), Ix::temp(json_encode(['format' => 'touchwood-store-fill/1', 'items' => [['code' => '1', 'price' => 1]]], JSON_THROW_ON_ERROR)), 'prices.json'));
     $ready = Px::ready();
     Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $ready['product'], true)));
     DB::table('catalog.search_log')->insert(['store_id' => Fx::storeId('sa'), 'locale' => 'en', 'query' => 'hinge', 'results' => 0]);
@@ -105,6 +105,7 @@ it('refuses what the code would never write', function (Closure $write, string $
     // A store file's items.
     'letters in an item\'s code' => [fn (array $r) => DB::table('catalog.store_fill_items')->where('id', $r['item'])->update(['code' => 'A1']), 'store_fill_items_code'],
     'an item\'s state we do not have' => [fn (array $r) => DB::table('catalog.store_fill_items')->where('id', $r['item'])->update(['state' => 'GONE']), 'store_fill_items_state'],
+    'a stock below none' => [fn (array $r) => DB::table('catalog.store_fill_items')->where('id', $r['item'])->update(['stock' => -1]), 'store_fill_items_stock'],
     'an item before the first' => [fn (array $r) => DB::table('catalog.store_fill_items')->where('id', $r['item'])->update(['number' => 0]), 'store_fill_items_number'],
     // The listing's rows and the searches.
     'a listing row in no language of ours' => [fn (array $r) => DB::table('catalog.listing')->where('product_id', $r['listed'])->where('locale', 'en')->update(['locale' => 'fr']), 'listing_locale'],

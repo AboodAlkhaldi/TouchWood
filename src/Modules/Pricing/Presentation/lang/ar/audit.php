@@ -6,6 +6,7 @@ declare(strict_types=1);
 // سطر له هنا يُعرض كما سُجّل تمامًا.
 return [
     'retail_price.set' => 'حُدّد سعر التجزئة',
+    'retail_price.filed' => 'حُدّد سعر التجزئة من ملف المتجر',
     'retail_price.provided' => 'حُدّد سعر التجزئة من المزوّد',
     'wholesale_prices.set' => 'حُدّدت أسعار الجملة',
     'category_discount.added' => 'أُضيف خصم على قسم',

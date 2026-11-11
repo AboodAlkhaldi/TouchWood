@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Modules\Catalog\Public\Contracts;
 
 /**
- * **The product page's store sections** (catalog.md amendment 23(e)): a registry, as Platform's `MediaUsages` is,
+ * **The product page's store sections** (catalog.md amendment 23(e)): a registry, as `ImportSections` is,
  * where a module above Catalog registers the class that reads its part of a product's Stores tab -
  * Pricing its prices, Inventory its stock (stage 5's screens). Each registered section is drawn in every
  * store card on the tab, in the order registered, replacing the card's line "Prices and stock come with

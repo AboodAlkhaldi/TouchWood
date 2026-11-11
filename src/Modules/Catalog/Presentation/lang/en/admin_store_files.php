@@ -26,6 +26,8 @@ return [
         'number' => 'Number',
         'code' => 'Code',
         'product' => 'Product',
+        'price' => 'Price',
+        'stock' => 'Stock',
         'standing' => 'Standing',
     ],
     'standing' => [
@@ -39,6 +41,7 @@ return [
         'ON' => 'Switched On',
         'REMOVED' => 'Removed',
     ],
+    'prices_note' => 'The prices and stock are shown here and not kept until Pricing and Inventory exist.',
     'switch_on_selected' => 'Switch On Selected',
     'switch_on_ready' => 'Switch On Every Ready One',
     'remove_selected' => 'Remove Selected…',

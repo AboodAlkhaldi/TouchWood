@@ -25,7 +25,7 @@ use Shared\Application\Unauthorized;
 /**
  * **A products file's page** (catalog.md §1.12): `catalog.import.run`. Its products as they will come
  * in — the page's changes included —; for one brought in and still a draft, what it lacks to be
- * accepted (§1.1). No file brings prices or stock (amendment 43).
+ * accepted (§1.1). Prices and stock are not kept until stage 5.
  *
  * **Read in batches** (P13): the products brought in through the product page's own core read, many
  * at once, what the drafts lack with their photos in one Platform read (`ProductMissing`), and which

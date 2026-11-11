@@ -27,6 +27,7 @@ use Modules\Pricing\Application\Query\NeedsAPrice\NeedsAPriceHandler;
 use Modules\Pricing\Application\Query\PriceViews\SizeView;
 use Modules\Pricing\Domain\Repository\UnpricedCounts;
 use Modules\Pricing\Infrastructure\External\NoStoreWired;
+use Modules\Pricing\Infrastructure\Import\PriceImportSection;
 use Modules\Pricing\Infrastructure\Queue\CountUnpricedSizesJob;
 use Modules\Pricing\Infrastructure\Queue\QueuedUnpricedRecounts;
 use Modules\Pricing\Public\Contracts\ProviderPrices;
@@ -109,7 +110,7 @@ it('keeps the count in step with the list after each change - priced, removed, s
         ->and(unpricedListed())->toBe([$a]);
 });
 
-it('follows a price from the provider, a price set here, and a size restored', function () {
+it('follows a price from the provider, a price from a store file, and a size restored', function () {
     [$a, $b, $c] = unpricedSizes()['variants'];
     app()->instance(StoreWiring::class, new class implements StoreWiring
     {
@@ -128,10 +129,10 @@ it('follows a price from the provider, a price set here, and a size restored', f
 
     expect(unpricedKept())->toBe(2);
 
-    // A price set here, in a store not wired (the store file set one until Catalog's amendment 43).
+    // The store's file, in a store not wired: the price is the file's.
     app()->forgetInstance(StoreWiring::class);
     app()->bind(StoreWiring::class, NoStoreWired::class);
-    Rx::set('sa', [$b => '100']);
+    Fx::asSystem(fn () => app(PriceImportSection::class)->accepted(StoreId::fromString(Rx::storeId('sa')), [$b], '100', null));
 
     expect(unpricedKept())->toBe(1);
 

@@ -100,16 +100,32 @@ describe('the guide\'s examples', function () {
             ->and(FileProduct::fromArray($hinge->toArray()))->toEqual($hinge);
     });
 
-    it('reads the example store file', function () {
-        $items = StoreFillFile::read(catalogImportExample('store-fill.example.json'))->items;
+    it('reads the example store file of a store not wired to Odoo: codes, prices and stock', function () {
+        $items = StoreFillFile::read(catalogImportExample('store-fill.example.json'), false)->items;
 
-        // Codes only (amendment 43): a store's prices and stock come from Odoo.
-        expect(array_map(static fn ($item): array => [$item->number, $item->code], $items))->toBe([
-            [1, '1304'],
-            [2, '1314'],
-            [3, '1305'],
-            [4, '2001'],
+        expect(array_map(static fn ($item): array => [$item->number, $item->code, $item->price, $item->stock], $items))->toBe([
+            [1, '1304', '120.5', 40],
+            [2, '1314', '129.5', 25],
+            [3, '1305', '125', null],
+            [4, '2001', '18', 300],
         ]);
+    });
+
+    it('refuses the example store file in a store wired to Odoo, naming each price and stock (amendment 43)', function () {
+        $problems = storeFillProblems(catalogImportExample('store-fill.example.json'), true);
+
+        expect(array_column($problems, 'at'))->toBe(['item 1 › price', 'item 1 › stock', 'item 2 › price', 'item 2 › stock', 'item 3 › price', 'item 4 › price', 'item 4 › stock'])
+            ->and(array_unique(array_column($problems, 'problem')))->toBe(["not in a store file: a store's prices come from Odoo", "not in a store file: a store's stock comes from Odoo"]);
+    });
+
+    it('takes the example\'s top-level note and ignores it, in either kind of store', function () {
+        $codesOnly = '{"format": "touchwood-store-fill/1", "note": "codes only here", "items": [{"code": "1304"}]}';
+        $priced = '{"format": "touchwood-store-fill/1", "note": "prices here", "items": [{"code": "1304", "price": 10}]}';
+
+        expect(StoreFillFile::read($codesOnly, true)->items[0]->code)->toBe('1304')
+            ->and(StoreFillFile::read($priced, false)->items[0]->price)->toBe('10')
+            // Only "note": any other field beside the items is still refused.
+            ->and(array_column(storeFillProblems('{"format": "touchwood-store-fill/1", "notes": "x", "items": [{"code": "1304"}]}', true), 'at'))->toBe(['file › notes']);
     });
 
     it('refuses the example product file uploaded alone: its photos come in the zip', function () {
@@ -159,7 +175,7 @@ describe('what refuses a product file', function () {
         'filters not lists of values' => [fn (array $p) => [...$p, 'filters' => ['Use' => 'Kitchen']], 'product 1 › filters › Use', 'list of value names'],
         'more than 20 related products' => [fn (array $p) => [...$p, 'related' => array_map(static fn (int $n): string => (string) (2000 + $n), range(1, 21))], 'product 1 › related', 'at most 20'],
         'a related code not digits' => [fn (array $p) => [...$p, 'goes_with' => ['20x1']], 'product 1 › goes_with', 'digits'],
-        'a store named in a products file' => [fn (array $p) => [...$p, 'stores' => ['sa' => ['price' => 1]]], 'product 1 › stores', "not in a products file: a store's admins switch products on with their store file; prices and stock come from Odoo"],
+        'a store named in a products file' => [fn (array $p) => [...$p, 'stores' => ['sa' => ['price' => 1]]], 'product 1 › stores', "not in a products file: each store's own file switches its products on, with their prices and stock where the store is not wired to Odoo"],
         // The limits the guide states (amendment 43).
         'more than 10 attributes making the variants' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => catalogImportValues(11)]]], 'product 1 › variants 1 › values', 'at most 10 attributes'],
         'a brand name over 100 characters' => [fn (array $p) => [...$p, 'brand' => str_repeat('b', 101)], 'product 1 › brand', 'at most 100 characters'],
@@ -214,35 +230,71 @@ describe('what refuses a product file', function () {
     });
 });
 
+/**
+ * @return list<array{at: string, problem: string}>
+ */
+function storeFillProblems(string $json, bool $wired): array
+{
+    try {
+        StoreFillFile::read($json, $wired);
+    } catch (ImportRefused $refused) {
+        return $refused->problems;
+    }
+
+    return [];
+}
+
 describe('what refuses a store file', function () {
-    it('refuses it for each rule broken, naming where', function (string $json, string $at, string $problem) {
-        try {
-            StoreFillFile::read($json);
-            $problems = [];
-        } catch (ImportRefused $refused) {
-            $problems = $refused->problems;
-        }
+    it('refuses a store not wired to Odoo its file for each rule broken, naming where', function (string $json, string $at, string $problem) {
+        $problems = storeFillProblems($json, false);
 
         expect(array_column($problems, 'at'))->toContain($at)
             ->and(implode(' | ', array_column(array_filter($problems, static fn (array $item): bool => $item['at'] === $at), 'problem')))->toContain($problem);
     })->with([
-        'another format' => ['{"format": "touchwood-products/1", "items": [{"code": "1"}]}', 'format', 'touchwood-store-fill/1'],
+        'another format' => ['{"format": "touchwood-products/1", "items": [{"code": "1", "price": 1}]}', 'format', 'touchwood-store-fill/1'],
         'no items' => ['{"format": "touchwood-store-fill/1", "items": []}', 'items', '1 to 1,000'],
+        'no price' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304"}]}', 'item 1 › price', 'at least 0'],
+        'a code written as a number' => ['{"format": "touchwood-store-fill/1", "items": [{"code": 1304, "price": 1}]}', 'item 1 › code', 'in quotes'],
+        'a code twice' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 1}, {"code": "1304", "price": 2}]}', 'item 2 › code', 'item 1 names it'],
+        'a field the format does not have' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 1, "store": "sa"}]}', 'item 1 › store', 'not a field'],
+        'a stock below 0' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 1, "stock": -1}]}', 'item 1 › stock', 'from 0 to 2,147,483,647'],
+        // Amendment 11(d): what its column holds, and a price never rounded.
+        'a stock past the column' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 1, "stock": 2147483648}]}', 'item 1 › stock', 'from 0 to 2,147,483,647'],
+        'a price of seven decimal places' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 19.9999999}]}', 'item 1 › price', 'at most 6 decimal places'],
+        'a price past 25 digits' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 1e26}]}', 'item 1 › price', 'at most 6 decimal places'],
+    ]);
+
+    it('keeps a price as the file wrote it, up to 6 decimal places, and the largest stock its column holds', function () {
+        $items = StoreFillFile::read('{"format": "touchwood-store-fill/1", "items": ['
+            .'{"code": "1", "price": 120.5, "stock": 2147483647}, {"code": "2", "price": 0.000001}, {"code": "3", "price": -0.0}, {"code": "4", "price": 19.99}, {"code": "5", "price": 7}]}', false)->items;
+
+        expect(array_map(static fn ($item): array => [$item->price, $item->stock], $items))->toBe([['120.5', 2147483647], ['0.000001', null], ['0', null], ['19.99', null], ['7', null]]);
+    });
+
+    it('refuses a store wired to Odoo its file for each rule broken, naming where (amendment 43)', function (string $json, string $at, string $problem) {
+        $problems = storeFillProblems($json, true);
+
+        expect(array_column($problems, 'at'))->toContain($at)
+            ->and(implode(' | ', array_column(array_filter($problems, static fn (array $item): bool => $item['at'] === $at), 'problem')))->toContain($problem);
+    })->with([
         'an item with no code' => ['{"format": "touchwood-store-fill/1", "items": [{}]}', 'item 1 › code', 'in quotes'],
         'a code written as a number' => ['{"format": "touchwood-store-fill/1", "items": [{"code": 1304}]}', 'item 1 › code', 'in quotes'],
         'a code of 11 digits' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "12345678901"}]}', 'item 1 › code', '1 to 10'],
         'a code twice' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304"}, {"code": "1304"}]}', 'item 2 › code', 'item 1 names it'],
         'a field the format does not have' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "store": "sa"}]}', 'item 1 › store', 'not a field'],
-        // Amendment 42: the columns the format dropped, refused with why.
+        // Odoo gives a wired store's prices and stock: refused with why.
         'a price' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 120.5}]}', 'item 1 › price', "a store's prices come from Odoo"],
         'a stock' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "stock": 40}]}', 'item 1 › stock', "a store's stock comes from Odoo"],
         'an empty price' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": null}]}', 'item 1 › price', "a store's prices come from Odoo"],
     ]);
 
-    it('reads an item as its code alone', function () {
-        $items = StoreFillFile::read('{"format": "touchwood-store-fill/1", "items": [{"code": "1"}, {"code": "0012"}]}')->items;
+    it('reads a wired store\'s item as its code alone', function () {
+        $items = StoreFillFile::read('{"format": "touchwood-store-fill/1", "items": [{"code": "1"}, {"code": "0012"}]}', true)->items;
 
-        expect(array_map(static fn ($item): array => (array) $item, $items))->toBe([['number' => 1, 'code' => '1'], ['number' => 2, 'code' => '0012']]);
+        expect(array_map(static fn ($item): array => (array) $item, $items))->toBe([
+            ['number' => 1, 'code' => '1', 'price' => null, 'stock' => null],
+            ['number' => 2, 'code' => '0012', 'price' => null, 'stock' => null],
+        ]);
     });
 });
 
@@ -289,10 +341,10 @@ describe('every number in Latin digits (amendment 12)', function () {
     });
 
     it('reads a store file\'s code typed in Arabic digits as the 0-9 code, the same code as 1304', function () {
-        expect(StoreFillFile::read('{"format": "touchwood-store-fill/1", "items": [{"code": "١٣٠٤"}]}')->items[0]->code)->toBe('1304');
+        expect(StoreFillFile::read('{"format": "touchwood-store-fill/1", "items": [{"code": "١٣٠٤"}]}', true)->items[0]->code)->toBe('1304');
 
         try {
-            StoreFillFile::read('{"format": "touchwood-store-fill/1", "items": [{"code": "1304"}, {"code": "١٣٠٤"}]}');
+            StoreFillFile::read('{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 1}, {"code": "١٣٠٤", "price": 2}]}', false);
             $problems = [];
         } catch (ImportRefused $refused) {
             $problems = $refused->problems;
@@ -316,8 +368,13 @@ describe('the guide', function () {
             ->toContain('paths inside the zip**, at most '.ProductsFile::GALLERY_MAX.', each once')
             ->toContain('paths inside the zip, at most '.ProductsFile::VARIANT_PHOTOS_MAX.', each once')
             ->toContain('`items` holds **1 to '.number_format(StoreFillFile::MAX_ITEMS).'** items, **each code once**. The file is at most **'.(StoreFillFile::MAX_BYTES / 1024 / 1024).' MB**')
-            ->toContain('**No `price` and no `stock`**')
-            // Nothing left of the store file's old columns, or of the time before Pricing and Inventory.
-            ->and([str_contains($guide, '"price":'), str_contains($guide, '"stock":'), str_contains($guide, 'stage 5')])->toBe([false, false, false]);
+            // The store file by the store's wiring, and its note (amendment 43).
+            ->toContain('**A store connected to Odoo** gives **codes only**')
+            ->toContain('A file that gives a `price` or a `stock` there is refused, the field named')
+            ->toContain('**ignored by the import**')
+            ->toContain('a whole number from 0 to '.number_format(ProductsFile::MAX_STOCK))
+            ->toContain('(at most '.ProductsFile::PRICE_DECIMALS.')')
+            // Nothing left of the time before Pricing and Inventory.
+            ->and(str_contains($guide, 'stage 5'))->toBeFalse();
     });
 });

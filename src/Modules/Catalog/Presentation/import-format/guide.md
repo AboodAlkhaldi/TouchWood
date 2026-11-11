@@ -1,22 +1,21 @@
 # TouchWood product files — how to fill them
 
 > **What this folder is.** The agreed format of the two files that bring products into TouchWood's
-> catalog: this guide, and a complete example of each file. It lives **inside the app**, in the
-> Catalog module (`src/Modules/Catalog/Presentation/import-format/`), and the panel shows it ("How to
-> fill the files", linked from both upload pages) with both examples to download (owner, 2026-11-10,
-> catalog.md amendment 43).
-> The owner fills real files from it, often with another AI agent's help. The Catalog import reads
-> **exactly** this format. **Change it only with the owner's agreement**, and change the guide, both
-> examples and `catalog.md` §1.12 together.
+> catalog: this guide, and a complete example of each file. It lives **inside the app**, in the Catalog
+> module (`src/Modules/Catalog/Presentation/import-format/`), and the panel shows it ("How to fill the
+> files", linked from both upload pages) with both examples to download (owner, 2026-11-10 and
+> 2026-11-11, catalog.md amendment 43). The owner fills real files from it, often with another AI
+> agent's help. The Catalog import reads **exactly** this format. **Change it only with the owner's
+> agreement**, and change the guide, both examples and `catalog.md` §1.12 together.
 
 Two kinds of file go into the catalog (catalog.md §1.12 and §1.3, amendment 6, agreed with the owner
-on 2026-10-05; amendment 43, 2026-11-10). This guide is written so a person, or another AI agent, can
-fill them exactly.
+on 2026-10-05; amendment 43, 2026-11-10 and 2026-11-11). This guide is written so a person, or another
+AI agent, can fill them exactly.
 
 | File | Who uploads it | What it does |
 |---|---|---|
 | **Products file** — [`products.example.json`](products.example.json) | A Super Admin | Brings new products into the catalog, or updates existing ones — **never on sale by itself**: it names no store, price or stock. Uploaded **alone** (no photos) or **inside a zip with its photos** |
-| **Store file** — [`store-fill.example.json`](store-fill.example.json) | An admin of one store | Switches existing, ready products on in that store (publishes them) — **codes only**: a store's prices and stock come from Odoo |
+| **Store file** — [`store-fill.example.json`](store-fill.example.json) | An admin of one store | Switches existing, ready products on in that store (publishes them) — with their prices and stock where the store is **not** connected to Odoo; **codes only** where it is, Odoo giving them |
 
 Both files are **UTF-8 JSON**. Write Arabic as Arabic letters, not escapes. Every text is one line
 unless this guide says otherwise.
@@ -150,10 +149,10 @@ variant with no values; a name is over 100 characters; a photo named in the JSON
 (or photos are named in a JSON uploaded alone); a number is out of range; a list is too long; the file
 is over its limits. Nothing is kept from a refused file.
 
-A product that still has a `stores` field is refused too: a store's admins switch products on with
-their store file (§2), and a store's prices and stock come from Odoo. So is one with an
-`attribute_set`: there are no attribute sets — each variant's `values` name the attributes that make
-the product's variants (owner, 2026-10-09).
+A product that still has a `stores` field is refused too: each store's admins switch products on with
+their store file (§2) - with their prices and stock where the store is not connected to Odoo. So is one
+with an `attribute_set`: there are no attribute sets — each variant's `values` name the attributes
+that make the product's variants (owner, 2026-10-09).
 
 Once the file is in its format, it is read against the catalog, and also refused — every problem of
 this second reading listed — if:
@@ -198,20 +197,38 @@ them.
 ```json
 {
   "format": "touchwood-store-fill/1",
+  "note": "price and stock are only for a store NOT connected to Odoo; a connected store's file lists codes only - its prices and stock come from Odoo.",
   "items": [
-    { "code": "1304" },
-    { "code": "1305" }
+    { "code": "1304", "price": 120.5, "stock": 40 },
+    { "code": "1305", "price": 125 }
   ]
 }
 ```
 
+**What an item holds depends on the store** (owner, 2026-11-11):
+
+- **A store not connected to Odoo** gives each code **its price, and its stock if known** — as above.
+- **A store connected to Odoo** gives **codes only** — `{ "code": "1304" }` — its prices and stock come
+  from Odoo. A file that gives a `price` or a `stock` there is refused, the field named.
+
+Which one applies is decided **when the file is uploaded**, by whether the store is connected then. A
+store connected to Odoo after its file was uploaded keeps Odoo's prices and stock: the file's are then
+ignored, and its page says so.
+
 - `format` must be exactly `"touchwood-store-fill/1"`.
+- `note` — optional: read by people, **ignored by the import** (the example uses it to say
+  the rule above). No other field may sit beside `format`, `note` and `items`.
 - `items` holds **1 to 1,000** items, **each code once**. The file is at most **2 MB**. The store is
   the one whose page it is uploaded from — the file does not name it.
-- `code` — **required**, the only field of an item: 1 to 10 digits **as text, in quotes** ("Codes"
-  at the top); Arabic digits are read as 0-9.
-- **No `price` and no `stock`**: a store's prices and stock come from Odoo (owner, 2026-11-10). A file
-  that still has either is refused, the field named.
+- `code` — **required**: 1 to 10 digits **as text, in quotes** ("Codes" at the top); Arabic digits are
+  read as 0-9.
+- `price` — a store not connected to Odoo only, and **required** there: a number above 0 with no more
+  decimal places than the store's currency has (at most 6), in the store's currency. The file is read
+  with at least 0 and at most 6 decimal places; its page then says, for each item, the price that
+  will be set or why not (0, or too many decimals for the currency).
+- `stock` — a store not connected to Odoo only, optional: a whole number from 0 to 2,147,483,647.
+- Switching an item on in a store not connected to Odoo sets the size's retail price and, if given, its
+  stock.
 
 **It never creates or changes a product.** Every code must belong to a product already in the
 catalog. Its page shows each item: ready (switching it on chooses the variant carrying that code),

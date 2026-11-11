@@ -337,8 +337,8 @@ function catalogStoreScreensCode(string $variantId): string
 describe('store files (S10)', function () {
     it('lists a store\'s files to its admins, newest first with what is still open, and opens for no one else', function () {
         $admin = catalogStoreScreensFiller();
-        $first = catalogStoreScreensUpload($admin, [['code' => '880001'], ['code' => '880002']]);
-        $second = catalogStoreScreensUpload($admin, [['code' => '880003']]);
+        $first = catalogStoreScreensUpload($admin, [['code' => '880001', 'price' => 1], ['code' => '880002', 'price' => 2]]);
+        $second = catalogStoreScreensUpload($admin, [['code' => '880003', 'price' => 3]]);
         $firstId = basename((string) $first->headers->get('Location'));
         $secondId = basename((string) $second->headers->get('Location'));
 
@@ -361,8 +361,7 @@ describe('store files (S10)', function () {
 
     it('lists every problem of a refused file under the upload, and keeps nothing of it', function () {
         $admin = catalogStoreScreensFiller();
-        // A bad code, a price the format dropped (amendment 43), a code written as a number.
-        $refused = catalogStoreScreensUpload($admin, [['code' => 'abc'], ['code' => '880001', 'price' => 1], ['code' => 880002]]);
+        $refused = catalogStoreScreensUpload($admin, [['code' => 'abc'], ['code' => '880001', 'price' => -1]]);
 
         expect(catalogStoreScreensErrors($refused))->toHaveKey('file')
             ->and(DB::table('catalog.imports')->where('kind', 'STORE_FILL')->count())->toBe(0);
@@ -383,8 +382,8 @@ describe('store files (S10)', function () {
         Px::variant($draft, '7700');
         $admin = catalogStoreScreensFiller();
         $uploaded = catalogStoreScreensUpload($admin, [
-            ['code' => catalogStoreScreensCode($sixty)], ['code' => catalogStoreScreensCode($eighty)],
-            ['code' => '7700'], ['code' => '999111'], ['code' => '999222'],
+            ['code' => catalogStoreScreensCode($sixty), 'price' => 10], ['code' => catalogStoreScreensCode($eighty), 'price' => 12, 'stock' => 4],
+            ['code' => '7700', 'price' => 5], ['code' => '999111', 'price' => 6], ['code' => '999222', 'price' => 7],
         ]);
         $file = basename((string) $uploaded->headers->get('Location'));
         $item = fn (int $number): string => (string) DB::table('catalog.store_fill_items')->where('import_id', $file)->where('number', $number)->value('id');
@@ -394,14 +393,12 @@ describe('store files (S10)', function () {
         $admin->get("/admin/store-files/{$file}")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
             ->component('Catalog/Admin/StoreFiles/Show')
             ->where('storeCode', 'sa')
-            // No price and no stock (amendment 43): a store's come from Odoo.
-            ->missing('pricesKept')
-            ->missing('items.0.price')
-            ->missing('items.0.stock')
+            // Kept since stage 5 registered its sections (Inventory's stock; Pricing's prices with it).
+            ->where('pricesKept', true)
             ->where('items.0.standing', 'READY')
             ->where('items.0.productId', $ready)
             ->where('items.0.productNameEn', DB::table('catalog.products')->where('id', $ready)->value('name_en'))
-            ->where('items.1.standing', 'READY')
+            ->where('items.1.stock', 4)
             ->where('items.2.standing', 'NOT_READY')
             ->where('items.2.missing', fn ($missing): bool => in_array('photos', is_array($missing) ? $missing : $missing->all(), true))
             ->where('items.3.standing', 'UNKNOWN'));
@@ -441,7 +438,7 @@ describe('store files (S10)', function () {
         expect(catalogStoreScreensToast($super->post("/admin/products/{$product}/stores/ae/choose", ['active' => true])))->toBe('Switched on in the store')
             ->and(DB::table('catalog.store_variants')->where('store_id', $ae)->where('variant_id', $sixty)->value('is_active'))->toBeTrue();
 
-        $uploaded = catalogStoreScreensUpload($super, [['code' => catalogStoreScreensCode($sixty)]], 'ae');
+        $uploaded = catalogStoreScreensUpload($super, [['code' => catalogStoreScreensCode($sixty), 'price' => 1]], 'ae');
 
         expect(catalogStoreScreensToast($uploaded))->toBe('File uploaded')
             ->and(DB::table('catalog.imports')->where('store_id', $ae)->count())->toBe(1);
@@ -476,17 +473,17 @@ describe('store files (S10)', function () {
             app(SetProductGalleryHandler::class)->handle(new SetProductGallery($draft, [Cx::media()]));
         });
         // A ready product's code, a draft's with a photo, an archived product's, and unknown ones.
-        $kinds = [['code' => catalogStoreScreensCode($ready)], ['code' => '7700'], ['code' => catalogStoreScreensCode($archivedVariant)]];
-        $unknown = static fn (int $count): array => array_map(static fn (int $n): array => ['code' => (string) (770000 + $n)], range(1, $count));
+        $kinds = [['code' => catalogStoreScreensCode($ready), 'price' => 1], ['code' => '7700', 'price' => 2], ['code' => catalogStoreScreensCode($archivedVariant), 'price' => 3]];
+        $unknown = static fn (int $count): array => array_map(static fn (int $n): array => ['code' => (string) (770000 + $n), 'price' => 1], range(1, $count));
         $admin = catalogStoreScreensFiller();
         $few = basename((string) catalogStoreScreensUpload($admin, [...$kinds, ...$unknown(1)])->headers->get('Location'));
         $many = basename((string) catalogStoreScreensUpload($admin, [...$kinds, ...$unknown(57)])->headers->get('Location'));
         $own = catalogStoreScreensOwnQueries($admin, "/admin/store-files/{$few}");
 
-        // 8 of its own and the list 4, however many items: none is read one item at a time (P13). It
-        // was 9 while the import's sections asked whether the store is wired; they went with the
-        // file's prices and stock (amendment 43).
-        expect($own)->toBe(8)
+        // 9 of its own and the list 4, however many items: none is read one item at a time (P13). The
+        // ninth: whether the store is wired, which Sync answers from its connections since Sync step 3
+        // - asked once for the page (sync.md §2.2).
+        expect($own)->toBe(9)
             ->and(catalogStoreScreensOwnQueries($admin, "/admin/store-files/{$many}"))->toBe($own)
             ->and(catalogStoreScreensOwnQueries($admin, '/admin/store-files'))->toBe(4);
     });

@@ -78,9 +78,10 @@ final readonly class StoreFilePages
             $store->code,
             $store->name->in($this->locale()),
             $store->timezone,
+            $view->pricesKept,
             array_map(static fn (StoreFillItemView $item): StoreFileItemData => new StoreFileItemData(
-                $item->id, $item->number, $item->code, $item->state, $item->standing,
-                $item->productId, $item->productNameAr, $item->productNameEn, $item->missing,
+                $item->id, $item->number, $item->code, $item->price, $item->stock, $item->state, $item->standing,
+                $item->productId, $item->productNameAr, $item->productNameEn, $item->missing, $item->lines,
             ), $view->items),
         );
     }

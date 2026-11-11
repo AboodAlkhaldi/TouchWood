@@ -161,10 +161,10 @@ final readonly class ProductsFile
 
         self::onlyFields($raw, self::PRODUCT_FIELDS, $at, $problems);
 
-        // A products file names no store (amendment 9(a)): a store's admins switch its products on
-        // with their own file, and its prices and stock come from Odoo (amendment 43).
+        // A products file names no store (amendment 9(a)): each store's own file switches its products
+        // on - with their prices and stock where the store is not wired to Odoo (amendment 43).
         if (array_key_exists('stores', $raw)) {
-            $problems->add("{$at} › stores", "not in a products file: a store's admins switch products on with their store file; prices and stock come from Odoo");
+            $problems->add("{$at} › stores", "not in a products file: each store's own file switches its products on, with their prices and stock where the store is not wired to Odoo");
         }
 
         [$nameAr, $nameEn] = self::name($raw['name'] ?? null, "{$at} › name", $problems);
@@ -749,5 +749,54 @@ final readonly class ProductsFile
         }
 
         return array_values(array_unique($codes));
+    }
+
+    /** Decimal places a price may have (amendment 11(d)): one with more is refused, never rounded. */
+    public const int PRICE_DECIMALS = 6;
+
+    /** Digits before a price's point: it is kept as text of at most 32 characters. */
+    public const int PRICE_DIGITS = 25;
+
+    /** The largest stock: the column's integer (amendment 11(d)). */
+    public const int MAX_STOCK = 2_147_483_647;
+
+    /**
+     * A price as the file wrote it — a number of at least 0, at most 6 decimal places — kept as text,
+     * so nothing is lost before Pricing reads it (stage 5). A number JSON gives with more places than
+     * that is refused rather than rounded.
+     */
+    public static function price(mixed $raw, string $at, bool $required, FileProblems $problems): ?string
+    {
+        if ($raw === null && ! $required) {
+            return null;
+        }
+
+        if ((is_int($raw) || is_float($raw)) && $raw >= 0 && is_finite((float) $raw)) {
+            $text = is_int($raw) ? (string) $raw : rtrim(rtrim(sprintf('%.'.self::PRICE_DECIMALS.'F', $raw), '0'), '.');
+            $whole = strstr($text, '.', true);
+
+            if ((is_int($raw) || (float) $text === $raw) && strlen($whole === false ? $text : $whole) <= self::PRICE_DIGITS) {
+                return $text;
+            }
+        }
+
+        $problems->add($at, 'a number of at least 0, with at most '.self::PRICE_DECIMALS.' decimal places');
+
+        return null;
+    }
+
+    public static function stock(mixed $raw, string $at, FileProblems $problems): ?int
+    {
+        if ($raw === null) {
+            return null;
+        }
+
+        if (is_int($raw) && $raw >= 0 && $raw <= self::MAX_STOCK) {
+            return $raw;
+        }
+
+        $problems->add($at, 'a whole number from 0 to '.number_format(self::MAX_STOCK));
+
+        return null;
     }
 }

@@ -24,6 +24,8 @@ final class StoreFilePage extends Data
         public string $storeCode,
         public string $storeName,
         public string $storeTimezone,
+        /** Whether a module keeps the prices and stock yet (§2.3); until then the page says so, once. */
+        public bool $pricesKept,
         public array $items,
     ) {}
 }

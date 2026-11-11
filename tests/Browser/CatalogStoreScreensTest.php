@@ -147,7 +147,7 @@ it('switches on a store file\'s ticked item from its page', function () {
     $n = catalogStoreBrowserFresh();
     ['variant' => $variant, 'code' => $code] = catalogStoreBrowserReady($n);
     $path = tempnam(sys_get_temp_dir(), 'fill');
-    file_put_contents((string) $path, json_encode(['format' => 'touchwood-store-fill/1', 'items' => [['code' => $code], ['code' => '0'.substr($n, -9)]]], JSON_THROW_ON_ERROR));
+    file_put_contents((string) $path, json_encode(['format' => 'touchwood-store-fill/1', 'items' => [['code' => $code, 'price' => 10], ['code' => '0'.substr($n, -9), 'price' => 5]]], JSON_THROW_ON_ERROR));
     $file = Fx::asSystem(fn (): string => app(UploadStoreFillHandler::class)->handle(new UploadStoreFill(Fx::storeId('sa'), (string) $path, "prices {$n}.json")));
     @unlink((string) $path);
     $page = catalogStoreBrowser([P::LISTING_FILL, P::PRODUCT_VIEW], level: RoleLevel::Admin);
@@ -169,7 +169,7 @@ it('reads right to left in Arabic, at a phone\'s width, with nothing wider than 
     $n = catalogStoreBrowserFresh();
     ['product' => $product, 'code' => $code] = catalogStoreBrowserReady($n);
     $path = tempnam(sys_get_temp_dir(), 'fill');
-    file_put_contents((string) $path, json_encode(['format' => 'touchwood-store-fill/1', 'items' => [['code' => $code]]], JSON_THROW_ON_ERROR));
+    file_put_contents((string) $path, json_encode(['format' => 'touchwood-store-fill/1', 'items' => [['code' => $code, 'price' => 10]]], JSON_THROW_ON_ERROR));
     $file = Fx::asSystem(fn (): string => app(UploadStoreFillHandler::class)->handle(new UploadStoreFill(Fx::storeId('sa'), (string) $path, "prices {$n}.json")));
     @unlink((string) $path);
     $page = catalogStoreBrowser([P::PRODUCT_VIEW, P::LISTING_CHOOSE, P::LISTING_FILL], 'ar', RoleLevel::Admin);

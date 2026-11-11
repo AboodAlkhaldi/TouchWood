@@ -6,7 +6,6 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariant;
 use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariantHandler;
@@ -20,7 +19,14 @@ use Modules\Catalog\Application\Command\UploadStoreFill\UploadStoreFill;
 use Modules\Catalog\Application\Command\UploadStoreFill\UploadStoreFillHandler;
 use Modules\Catalog\Domain\Exception\ImportRefused;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
+use Modules\Catalog\Infrastructure\External\NoStoreWired;
+use Modules\Catalog\Public\Contracts\StoreWiring as CatalogWiring;
+use Modules\Inventory\Public\Contracts\StoreWiring as InventoryWiring;
+use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Pricing\Public\Contracts\StoreWiring as PricingWiring;
+use Modules\Sync\Infrastructure\External\ConnectionWiring;
 use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogImports as Ix;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
@@ -29,10 +35,9 @@ use function Pest\Laravel\seed;
 
 /*
 | The admins' store file (catalog.md §1.3; amendment 6(g), (h)): `catalog.listing.fill` in that store,
-| an admin role's job. Codes only - a store's prices and stock come from Odoo (amendment 43); it never
-| creates or changes a product. Its items are switched on in the store — the variant carrying each
-| code of a ready product — chosen or every one ready; an unknown code is corrected or removed.
-| Everything audited in the store.
+| an admin role's job. Codes and prices, stock optional; it never creates or changes a product. Its
+| items are switched on in the store — the variant carrying each code of a ready product — chosen or
+| every one ready; an unknown code is corrected or removed. Everything audited in the store.
 */
 
 uses(RefreshDatabase::class);
@@ -80,39 +85,36 @@ describe('the file', function () {
     it('is kept with its items open, as the file gave them, audited in the store, changing no product', function () {
         $products = DB::table('catalog.products')->count();
 
-        $id = catalogFill([['code' => '1304'], ['code' => '1305']]);
+        $id = catalogFill([['code' => '1304', 'price' => 120.5, 'stock' => 40], ['code' => '1305', 'price' => 125]]);
 
         $import = DB::table('catalog.imports')->where('id', $id)->first() ?? throw new LogicException('No file.');
         expect([$import->kind, $import->state, $import->store_id, $import->file_name])->toBe(['STORE_FILL', 'OPEN', Fx::storeId('sa'), 'sa-prices.json'])
-            ->and(DB::table('catalog.store_fill_items')->where('import_id', $id)->orderBy('number')->get(['number', 'code', 'state'])->map(fn ($row): array => (array) $row)->all())
+            ->and(DB::table('catalog.store_fill_items')->where('import_id', $id)->orderBy('number')->get(['number', 'code', 'price', 'stock', 'state'])->map(fn ($row): array => (array) $row)->all())
             ->toBe([
-                ['number' => 1, 'code' => '1304', 'state' => 'OPEN'],
-                ['number' => 2, 'code' => '1305', 'state' => 'OPEN'],
+                ['number' => 1, 'code' => '1304', 'price' => '120.5', 'stock' => 40, 'state' => 'OPEN'],
+                ['number' => 2, 'code' => '1305', 'price' => '125', 'stock' => null, 'state' => 'OPEN'],
             ])
-            // Nothing keeps a price or a stock any more (amendment 43).
-            ->and(Schema::hasColumn('catalog.store_fill_items', 'price') || Schema::hasColumn('catalog.store_fill_items', 'stock'))->toBeFalse()
             ->and(DB::table('platform.audit_entries')->where('action', 'catalog.store_fill.added')->where('subject_id', $id)->value('store_id'))->toBe(Fx::storeId('sa'))
             ->and(DB::table('catalog.products')->count())->toBe($products);
     });
 
     it('is refused when not in its format, every problem listed', function () {
         try {
-            catalogFill([['code' => '1304'], ['code' => '1304', 'price' => 2, 'stock' => 5]]);
+            catalogFill([['code' => '1304', 'price' => 1], ['code' => '1304', 'price' => -2]]);
         } catch (ImportRefused $refused) {
         }
 
         expect($refused->problems ?? null)->toBe([
-            ['at' => 'item 2 › price', 'problem' => "not in a store file: a store's prices come from Odoo"],
-            ['at' => 'item 2 › stock', 'problem' => "not in a store file: a store's stock comes from Odoo"],
             ['at' => 'item 2 › code', 'problem' => '1304 again: item 1 names it already'],
+            ['at' => 'item 2 › price', 'problem' => 'a number of at least 0, with at most 6 decimal places'],
         ])->and(DB::table('catalog.imports')->count())->toBe(0);
     });
 
     it('is an admin role\'s job in that store only', function () {
-        expect(fn () => catalogFill([['code' => '1']], 'eg'))->toThrow(Unauthorized::class);
+        expect(fn () => catalogFill([['code' => '1', 'price' => 1]], 'eg'))->toThrow(Unauthorized::class);
 
         Fx::actAsStaff(Fx::staff(superAdmin: true));
-        expect(catalogFill([['code' => '1']], 'eg'))->toBeString();
+        expect(catalogFill([['code' => '1', 'price' => 1]], 'eg'))->toBeString();
     });
 });
 
@@ -123,7 +125,7 @@ describe('switching on', function () {
         $code = (string) DB::table('catalog.variants')->where('id', $sixty)->value('code');
         $draft = Px::product();
         Px::variant($draft, '7700');
-        $import = catalogFill([['code' => $code], ['code' => '999999'], ['code' => '7700']]);
+        $import = catalogFill([['code' => $code, 'price' => 10], ['code' => '999999', 'price' => 1], ['code' => '7700', 'price' => 2]]);
 
         expect(app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($import, null)))->toBe(1)
             ->and(catalogFillStates($import))->toBe(['ON', 'OPEN', 'OPEN'])
@@ -138,7 +140,7 @@ describe('switching on', function () {
         $eighty = $ready['variants'][1];
         $code = (string) DB::table('catalog.variants')->where('id', $eighty)->value('code');
         Fx::asSystem(fn () => app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($eighty)));
-        $import = catalogFill([['code' => $code]]);
+        $import = catalogFill([['code' => $code, 'price' => 10]]);
 
         expect(app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($import, null)))->toBe(0)
             ->and(catalogFillStates($import))->toBe(['OPEN'])
@@ -150,7 +152,7 @@ describe('switching on', function () {
     it('names a chosen item that cannot be switched on, and switches on none', function () {
         $ready = Px::ready();
         $code = (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
-        $import = catalogFill([['code' => $code], ['code' => '999999']]);
+        $import = catalogFill([['code' => $code, 'price' => 10], ['code' => '999999', 'price' => 1]]);
 
         expect(fn () => app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($import, [catalogFillItem($import, 1), catalogFillItem($import, 2)])))
             ->toThrow(InvalidCatalogAttribute::class, 'Invalid item 2: an open item whose code a ready product holds');
@@ -163,7 +165,7 @@ describe('mending the file', function () {
     it('corrects an open item\'s code, to one no other item has', function () {
         $ready = Px::ready();
         $code = (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
-        $import = catalogFill([['code' => '999999'], ['code' => '5']]);
+        $import = catalogFill([['code' => '999999', 'price' => 10], ['code' => '5', 'price' => 1]]);
         $item = catalogFillItem($import, 1);
 
         expect(fn () => app(CorrectStoreFillCodeHandler::class)->handle(new CorrectStoreFillCode($import, $item, '5')))->toThrow(InvalidCatalogAttribute::class, 'a code no other item of the file has')
@@ -177,10 +179,95 @@ describe('mending the file', function () {
     });
 
     it('removes open items, kept on the page as removed', function () {
-        $import = catalogFill([['code' => '999999'], ['code' => '5']]);
+        $import = catalogFill([['code' => '999999', 'price' => 10], ['code' => '5', 'price' => 1]]);
 
         expect(app(RemoveStoreFillItemsHandler::class)->handle(new RemoveStoreFillItems($import, [catalogFillItem($import, 1)])))->toBe(1)
             ->and(catalogFillStates($import))->toBe(['REMOVED', 'OPEN'])
             ->and(fn () => app(RemoveStoreFillItemsHandler::class)->handle(new RemoveStoreFillItems($import, [catalogFillItem($import, 1)])))->toThrow(InvalidCatalogAttribute::class, 'Invalid item 1: an item still open');
+    });
+});
+
+/** Every store wired to Odoo, for Catalog's store file and for Pricing's and Inventory's parts of it. */
+function catalogFillWired(): void
+{
+    $wired = new readonly class implements CatalogWiring, InventoryWiring, PricingWiring
+    {
+        public function isWired(StoreId $store): bool
+        {
+            return true;
+        }
+
+        public function wiredStores(): array
+        {
+            return array_map(static fn ($store): string => $store->id, app(PlatformApi::class)->allStores());
+        }
+    };
+
+    app()->instance(CatalogWiring::class, $wired);
+    app()->instance(PricingWiring::class, $wired);
+    app()->instance(InventoryWiring::class, $wired);
+}
+
+describe('by the store\'s wiring (amendment 43)', function () {
+    it('asks Sync whether a store is wired, none being wired without a connection; alone, Catalog wires none', function () {
+        expect(app(CatalogWiring::class))->toBeInstanceOf(ConnectionWiring::class)
+            ->and(app(CatalogWiring::class)->isWired(StoreId::fromString(Fx::storeId('sa'))))->toBeFalse()
+            ->and((new NoStoreWired)->isWired(StoreId::fromString(Fx::storeId('sa'))))->toBeFalse();
+    });
+
+    it('in a store not wired, needs each item\'s price and sets the price and stock of each item switched on', function () {
+        $ready = Fx::asSystem(fn (): array => Px::ready(['60 cm']));
+        [$sixty] = $ready['variants'];
+        $code = (string) DB::table('catalog.variants')->where('id', $sixty)->value('code');
+
+        try {
+            catalogFill([['code' => $code, 'stock' => 4]]);
+        } catch (ImportRefused $refused) {
+        }
+
+        expect($refused->problems ?? null)->toBe([['at' => 'item 1 › price', 'problem' => 'a number of at least 0, with at most 6 decimal places']]);
+
+        $import = catalogFill([['code' => $code, 'price' => 120.5, 'stock' => 40]]);
+        app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($import, null));
+
+        expect(DB::table('pricing.retail_prices')->where('store_id', Fx::storeId('sa'))->where('variant_id', $sixty)->first(['amount_minor', 'source']))->toEqual((object) ['amount_minor' => 12050, 'source' => 'FILE'])
+            ->and((int) DB::table('inventory.stock')->where('store_id', Fx::storeId('sa'))->where('variant_id', $sixty)->value('in_stock'))->toBe(40);
+    });
+
+    it('in a store wired to Odoo, refuses a price or a stock by name and keeps codes alone', function () {
+        $ready = Fx::asSystem(fn (): array => Px::ready(['60 cm']));
+        [$sixty] = $ready['variants'];
+        $code = (string) DB::table('catalog.variants')->where('id', $sixty)->value('code');
+        catalogFillWired();
+
+        try {
+            catalogFill([['code' => $code, 'price' => 120.5, 'stock' => 40]]);
+        } catch (ImportRefused $refused) {
+        }
+
+        expect($refused->problems ?? null)->toBe([
+            ['at' => 'item 1 › price', 'problem' => "not in a store file: a store's prices come from Odoo"],
+            ['at' => 'item 1 › stock', 'problem' => "not in a store file: a store's stock comes from Odoo"],
+        ])->and(DB::table('catalog.imports')->count())->toBe(0);
+
+        $import = catalogFill([['code' => $code]]);
+
+        expect(DB::table('catalog.store_fill_items')->where('import_id', $import)->first(['price', 'stock']))->toEqual((object) ['price' => null, 'stock' => null])
+            ->and(app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($import, null)))->toBe(1)
+            ->and(catalogFillOn())->toBe([$sixty])
+            ->and(DB::table('pricing.retail_prices')->where('variant_id', $sixty)->exists())->toBeFalse();
+    });
+
+    it('reads the file by the wiring when it is kept: a store wired after keeps its own prices, the file\'s ignored', function () {
+        $ready = Fx::asSystem(fn (): array => Px::ready(['60 cm']));
+        [$sixty] = $ready['variants'];
+        $code = (string) DB::table('catalog.variants')->where('id', $sixty)->value('code');
+        $import = catalogFill([['code' => $code, 'price' => 120.5, 'stock' => 40]]);
+        catalogFillWired();
+
+        expect(app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($import, null)))->toBe(1)
+            ->and(catalogFillOn())->toBe([$sixty])
+            ->and(DB::table('pricing.retail_prices')->where('variant_id', $sixty)->exists())->toBeFalse()
+            ->and(DB::table('inventory.stock')->where('variant_id', $sixty)->value('in_stock'))->toBeNull();
     });
 });

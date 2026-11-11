@@ -7,8 +7,7 @@ namespace Modules\Catalog\Application\Query\ViewImport;
 /**
  * A products file's page (catalog.md §1.12): where it stands — and why it failed —, the names the
  * catalog lacks, and its products with their codes, decisions, states and what each still lacks. A
- * products file names no store, price or stock (amendment 9(a)): a store's admins switch its products
- * on with their own file, and its prices and stock come from Odoo (amendment 43).
+ * products file names no store, price or stock (amendment 9(a)): a store's own file does.
  */
 final readonly class ImportView
 {

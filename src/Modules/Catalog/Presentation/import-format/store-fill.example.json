@@ -1,9 +1,10 @@
 {
   "format": "touchwood-store-fill/1",
+  "note": "price and stock are only for a store NOT connected to Odoo; a connected store's file lists codes only - its prices and stock come from Odoo. | السعر والمخزون لمتجر غير مربوط بـ Odoo فقط؛ ملف المتجر المربوط يذكر الرموز فقط، وتأتي أسعاره ومخزونه من Odoo.",
   "items": [
-    { "code": "1304" },
-    { "code": "1314" },
-    { "code": "1305" },
-    { "code": "2001" }
+    { "code": "1304", "price": 120.5, "stock": 40 },
+    { "code": "1314", "price": 129.5, "stock": 25 },
+    { "code": "1305", "price": 125 },
+    { "code": "2001", "price": 18, "stock": 300 }
   ]
 }

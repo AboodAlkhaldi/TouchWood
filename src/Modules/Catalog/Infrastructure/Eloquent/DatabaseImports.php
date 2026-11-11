@@ -104,6 +104,8 @@ final readonly class DatabaseImports implements Imports
                 'import_id' => $id,
                 'number' => $item->number,
                 'code' => $item->code,
+                'price' => $item->price,
+                'stock' => $item->stock,
                 'state' => StoreFillItem::OPEN,
             ], $chunk));
         }
@@ -115,6 +117,8 @@ final readonly class DatabaseImports implements Imports
             (string) $row->id,
             (int) $row->number,
             (string) $row->code,
+            $row->price === null ? null : (string) $row->price,
+            $row->stock === null ? null : (int) $row->stock,
             (string) $row->state,
         ))->all());
     }

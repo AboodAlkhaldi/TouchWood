@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Catalog\Application\Query\ViewStoreFill;
 
 use Modules\Catalog\Application\Import\Imports;
+use Modules\Catalog\Application\Import\InMemoryImportSections;
 use Modules\Catalog\Application\Import\StoreFillCode;
 use Modules\Catalog\Application\Import\StoreFillCodes;
 use Modules\Catalog\Application\Import\StoreFillItem;
@@ -14,9 +15,11 @@ use Modules\Catalog\Application\Query\Products\ProductCore;
 use Modules\Catalog\Application\Query\Products\ProductMissing;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
+use Modules\Catalog\Public\Contracts\ImportSection;
 use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\StoreId;
 
 /**
  * **A store file's page** (catalog.md §1.3; amendment 6(g)): `catalog.listing.fill` in the file's
@@ -39,6 +42,7 @@ final readonly class ViewStoreFillHandler
         private StoreFillCodes $codes,
         private CatalogProductReads $products,
         private PlatformApi $platform,
+        private InMemoryImportSections $sections,
     ) {}
 
     /**
@@ -48,6 +52,9 @@ final readonly class ViewStoreFillHandler
     {
         $store = $this->fills->authorize($query->importId);
         $import = $this->imports->header($query->importId) ?? throw new ListItemNotFound($query->importId);
+        // The prices and stock are kept only once a module registers its part (§2.3): until then the
+        // page says so, once.
+        $sections = $this->sections->all();
         $items = $this->imports->items($import->id);
         // Every item's code: one switched on or removed still names its product (the review of step 3).
         $codes = $this->codes->in($store, array_values(array_unique(array_map(static fn (StoreFillItem $item): string => $item->code, $items))));
@@ -59,22 +66,30 @@ final readonly class ViewStoreFillHandler
             $store,
             $import->fileName,
             (string) $import->uploadedAt,
-            array_map(static fn (StoreFillItem $item): StoreFillItemView => self::item($item, $codes, $products, $missing), $items),
+            array_map(fn (StoreFillItem $item): StoreFillItemView => $this->item($item, $store, $sections, $codes, $products, $missing), $items),
+            $sections !== [],
         );
     }
 
     /**
+     * @param  list<ImportSection>  $sections
      * @param  array<string, StoreFillCode>  $codes
      * @param  array<string, ProductCore>  $products
      * @param  array<string, list<string>>  $missing  what each draft lacks
      */
-    private static function item(StoreFillItem $item, array $codes, array $products, array $missing): StoreFillItemView
+    private function item(StoreFillItem $item, string $store, array $sections, array $codes, array $products, array $missing): StoreFillItemView
     {
         $code = $codes[$item->code] ?? null;
         $product = $code === null ? null : ($products[$code->productId] ?? null);
 
         if ($item->state !== StoreFillItem::OPEN) {
-            return new StoreFillItemView($item->id, $item->number, $item->code, $item->state, null, $product?->id, [], $product?->nameAr, $product?->nameEn);
+            return new StoreFillItemView($item->id, $item->number, $item->code, $item->price, $item->stock, $item->state, null, $product?->id, [], [], $product?->nameAr, $product?->nameEn);
+        }
+
+        $lines = [];
+
+        foreach ($sections as $section) {
+            array_push($lines, ...$section->lines(StoreId::fromString($store), $item->price, $item->stock));
         }
 
         [$standing, $missing] = match (true) {
@@ -84,7 +99,7 @@ final readonly class ViewStoreFillHandler
             default => [self::standing($code), []],
         };
 
-        return new StoreFillItemView($item->id, $item->number, $item->code, $item->state, $standing, $product?->id, $missing, $product?->nameAr, $product?->nameEn);
+        return new StoreFillItemView($item->id, $item->number, $item->code, $item->price, $item->stock, $item->state, $standing, $product?->id, $missing, $lines, $product?->nameAr, $product?->nameEn);
     }
 
     /**

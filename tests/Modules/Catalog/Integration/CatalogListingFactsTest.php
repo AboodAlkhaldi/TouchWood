@@ -6,19 +6,31 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Modules\Catalog\Application\CatalogPermissions;
+use Modules\Catalog\Application\Command\SwitchOnStoreFillItems\SwitchOnStoreFillItems;
+use Modules\Catalog\Application\Command\SwitchOnStoreFillItems\SwitchOnStoreFillItemsHandler;
+use Modules\Catalog\Application\Command\UploadStoreFill\UploadStoreFill;
+use Modules\Catalog\Application\Command\UploadStoreFill\UploadStoreFillHandler;
+use Modules\Catalog\Application\Import\InMemoryImportSections;
+use Modules\Catalog\Application\Query\ViewStoreFill\ViewStoreFill;
+use Modules\Catalog\Application\Query\ViewStoreFill\ViewStoreFillHandler;
+use Modules\Catalog\Public\Contracts\ImportSection;
+use Modules\Catalog\Public\Contracts\ImportSections;
 use Modules\Catalog\Public\Contracts\ListingFacts;
 use Modules\Catalog\Public\Dto\ListingPrice;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
+use Tests\Modules\Catalog\Support\CatalogImports as Ix;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 
 use function Pest\Laravel\seed;
 
 /*
-| What the modules above push into Catalog (catalog.md §2.2; amendments 15, 16(h), 16(i)): `ListingFacts`
-| keeps each fact in Catalog's own table, only the facts given. (The import's sections, which carried a
-| store file's prices and stock, went with them - amendment 43.)
+| What the modules above push into Catalog and add to its store files (catalog.md §2.2, §2.3;
+| amendments 15, 16(h), 16(i)): `ListingFacts` keeps each fact in Catalog's own table, only the facts
+| given; `ImportSections` collects each module's part of a store file, whose page shows their lines
+| and whose switching on gives them the item's price and stock.
 */
 
 uses(RefreshDatabase::class);
@@ -34,6 +46,23 @@ function catalogFacts(string $store, string $variantId): ?array
     $row = DB::table('catalog.store_variant_facts')->where('store_id', Fx::storeId($store))->where('variant_id', $variantId)->first(['orderable', 'ending_soon', 'price_minor', 'price_before_minor', 'currency']);
 
     return $row === null ? null : (array) $row;
+}
+
+/** A section that writes down what it is given, as Pricing's or Inventory's would keep it. */
+final class CatalogFactsRecordingSection implements ImportSection
+{
+    /** @var list<array{string, list<string>, string|null, int|null}> */
+    public static array $accepted = [];
+
+    public function lines(StoreId $store, ?string $price, ?int $stock): array
+    {
+        return ["Price {$price}", 'Stock '.($stock ?? 'none')];
+    }
+
+    public function accepted(StoreId $store, array $variantIds, ?string $price, ?int $stock): void
+    {
+        self::$accepted[] = [$store->value, $variantIds, $price, $stock];
+    }
 }
 
 describe('the listing\'s facts', function () {
@@ -74,5 +103,43 @@ describe('the listing\'s facts', function () {
     it('takes a price before only above the price now, in its currency (sales ranks: CatalogSalesRanksTest)', function () {
         expect(fn () => new ListingPrice(Money::of(100, 'SAR'), Money::of(100, 'SAR')))->toThrow(InvalidArgumentException::class)
             ->and(fn () => new ListingPrice(Money::of(100, 'SAR'), Money::of(200, 'EGP')))->toThrow(InvalidArgumentException::class);
+    });
+});
+
+describe('the import\'s sections', function () {
+    beforeEach(function () {
+        CatalogFactsRecordingSection::$accepted = [];
+    });
+
+    it('takes a section once', function () {
+        $sections = app(ImportSections::class);
+        $sections->register('pricing', CatalogFactsRecordingSection::class);
+
+        expect(fn () => $sections->register('inventory', CatalogFactsRecordingSection::class))->toThrow(LogicException::class, 'already registered by module "pricing"');
+    });
+
+    it('shows each section\'s lines on a store file\'s page, and gives it the price and stock of each item switched on', function () {
+        $ready = Px::ready(['60 cm', '80 cm']);
+        [$sixty] = $ready['variants'];
+        $code = (string) DB::table('catalog.variants')->where('id', $sixty)->value('code');
+        Fx::actAsAdmin(['sa'], [CatalogPermissions::LISTING_FILL]);
+        $import = app(UploadStoreFillHandler::class)->handle(new UploadStoreFill(Fx::storeId('sa'), Ix::temp((string) json_encode(['format' => 'touchwood-store-fill/1', 'items' => [['code' => $code, 'price' => 120.5, 'stock' => 40]]])), 'prices.json'));
+        $page = fn () => app(ViewStoreFillHandler::class)->handle(new ViewStoreFill($import));
+        // The registry as Catalog alone leaves it: stage 5's modules register their sections at boot.
+        $empty = new InMemoryImportSections(app());
+        app()->instance(InMemoryImportSections::class, $empty);
+        app()->instance(ImportSections::class, $empty);
+
+        expect($page()->pricesKept)->toBeFalse()
+            ->and($page()->items[0]->lines)->toBe([]);
+
+        app(ImportSections::class)->register('pricing', CatalogFactsRecordingSection::class);
+
+        expect($page()->pricesKept)->toBeTrue()
+            ->and($page()->items[0]->lines)->toBe(['Price 120.5', 'Stock 40']);
+
+        app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($import, null));
+
+        expect(CatalogFactsRecordingSection::$accepted)->toBe([[Fx::storeId('sa'), [$sixty], '120.5', 40]]);
     });
 });

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Access\Public\Enums\PermissionGroup;
+use Modules\Catalog\Public\Contracts\ImportSections;
 use Modules\Catalog\Public\Contracts\ProductStoreSections;
 use Modules\Catalog\Public\Events\ProductArchived;
 use Modules\Catalog\Public\Events\ProductRestored;
@@ -39,6 +40,7 @@ use Modules\Inventory\Infrastructure\Eloquent\DatabaseStockMovements;
 use Modules\Inventory\Infrastructure\Eloquent\DatabaseStockRows;
 use Modules\Inventory\Infrastructure\Eloquent\DatabaseStoreProducts;
 use Modules\Inventory\Infrastructure\External\NoStoreWired;
+use Modules\Inventory\Infrastructure\Import\StockImportSection;
 use Modules\Inventory\Infrastructure\Listener\RecountLowStock;
 use Modules\Inventory\Infrastructure\Listener\TellCatalogOfStock;
 use Modules\Inventory\Infrastructure\Queue\CountLowStockJob;
@@ -97,6 +99,9 @@ final class InventoryServiceProvider extends ServiceProvider
 
         // The store's default low-stock threshold (§1.2), on Platform's settings screen.
         $this->app->make(SettingsRegistry::class)->define('inventory', ...InventorySettings::definitions());
+
+        // Its part of a store file (§1.8): the stock each item sets, kept when the item is switched on.
+        $this->app->make(ImportSections::class)->register('inventory', StockImportSection::class);
 
         // Its part of a product's Stores tab (§4.3.3; Catalog's amendment 23(e)): one read for every card.
         $this->app->make(ProductStoreSections::class)->register('inventory', ProductStockSection::class);

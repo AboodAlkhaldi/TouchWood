@@ -18,6 +18,7 @@ use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Import\ImportArchives;
 use Modules\Catalog\Application\Import\ImportQueue;
 use Modules\Catalog\Application\Import\Imports;
+use Modules\Catalog\Application\Import\InMemoryImportSections;
 use Modules\Catalog\Application\Import\StoreFillCodes;
 use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Products\InMemoryProductStoreSections;
@@ -65,6 +66,7 @@ use Modules\Catalog\Infrastructure\Eloquent\DatabaseStoreListingRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseVariantRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseWarrantyRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseWordPairRepository;
+use Modules\Catalog\Infrastructure\External\NoStoreWired;
 use Modules\Catalog\Infrastructure\Import\DiskImportArchives;
 use Modules\Catalog\Infrastructure\Listener\RefreshCardPhotos;
 use Modules\Catalog\Infrastructure\Media\CatalogImagesUsage;
@@ -78,11 +80,13 @@ use Modules\Catalog\Presentation\Storefront\PageBestSellers;
 use Modules\Catalog\Presentation\Storefront\ShopVisit;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Contracts\CatalogUsages;
+use Modules\Catalog\Public\Contracts\ImportSections;
 use Modules\Catalog\Public\Contracts\ListingFacts;
 use Modules\Catalog\Public\Contracts\ProductStoreSections;
 use Modules\Catalog\Public\Contracts\ShopBestSellers;
 use Modules\Catalog\Public\Contracts\ShopCardFacts;
 use Modules\Catalog\Public\Contracts\ShopProductSections;
+use Modules\Catalog\Public\Contracts\StoreWiring;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\ShopFrameParts;
@@ -126,13 +130,19 @@ final class CatalogServiceProvider extends ServiceProvider
         $this->app->bind(ImportQueue::class, LaravelImportQueue::class);
         // A products file's zip waits on the disk config/catalog.php names (amendment 6).
         $this->app->bind(ImportArchives::class, static fn ($app): DiskImportArchives => new DiskImportArchives($app->make(Factory::class), (string) config('catalog.imports.disk'), sys_get_temp_dir()));
-        // What the modules above Catalog may ask it (§2.1), and what they push into it (§2.2): bound
-        // for stage 5, the first to call them (amendment 16(i)).
+        // What the modules above Catalog may ask it (§2.1), and what they push into it and add to
+        // its store files (§2.2, §2.3): bound for stage 5, the first to call them (amendment 16(i)).
         $this->app->bind(CatalogApi::class, CatalogApiImpl::class);
         $this->app->bind(ApiReads::class, DatabaseApiReads::class);
         // Stage 5's store-wide screens: sizes and products paged in Catalog's order (amendment 23).
         $this->app->bind(ApiSearches::class, DatabaseApiSearches::class);
         $this->app->bind(ListingFacts::class, DatabaseListingFacts::class);
+        // Whether a store is wired to Odoo, for its store file (amendment 43): none until Sync, registered
+        // after Catalog, binds its own answer.
+        $this->app->bind(StoreWiring::class, NoStoreWired::class);
+        // One registry for the whole application: the modules above register from their providers.
+        $this->app->singleton(InMemoryImportSections::class);
+        $this->app->alias(InMemoryImportSections::class, ImportSections::class);
         // The product page's store sections (amendment 23(e)): one registry, the modules above register.
         $this->app->singleton(InMemoryProductStoreSections::class);
         $this->app->alias(InMemoryProductStoreSections::class, ProductStoreSections::class);
