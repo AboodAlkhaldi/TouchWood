@@ -163,5 +163,6 @@ it('costs few queries of its own', function () {
 
     // Measured 2026-11-10: 12 and 13, the panel's frame's 10 (AdminFrameQueryBudgetTest) and the page's own - the sections
     // and the footer; the logos band's section, its logos and their files. Content's target is 15 of its own (§4.2).
-    expect([Screen::queries($browser, HOME_SCREEN.'?store=sa'), Screen::queries($browser, HOME_SCREEN.'/'.homeScreenSection('CLIENT_LOGOS'))])->toBe([12, 13]);
+    // 2026-11-11 (PR 7b, P14): one more on a form and on the sections' list - Translate's unread mark (content.unread_translations).
+    expect([Screen::queries($browser, HOME_SCREEN.'?store=sa'), Screen::queries($browser, HOME_SCREEN.'/'.homeScreenSection('CLIENT_LOGOS'))])->toBe([13, 14]);
 });

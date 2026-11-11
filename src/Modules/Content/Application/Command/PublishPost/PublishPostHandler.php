@@ -30,6 +30,6 @@ final readonly class PublishPostHandler
     {
         $this->access->holds(self::PERMISSION);
         $store = $this->access->authorize(self::PERMISSION, $this->documents->find(DocumentKind::Post, $command->id)?->storeId, item: true);
-        $this->writer->publish(DocumentKind::Post, $command->id, $command->version, $store, $this->access->staffId());
+        $this->writer->publish(DocumentKind::Post, $command->id, $command->version, $store, $this->access->staffId(), $command->read);
     }
 }

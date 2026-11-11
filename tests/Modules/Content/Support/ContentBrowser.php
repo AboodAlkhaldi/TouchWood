@@ -24,6 +24,12 @@ final class ContentBrowser
         $staffId = Fx::staffWith($permissions, $stores, RoleLevel::Admin);
         DB::table('access.staff_users')->where('id', $staffId)->update(['locale' => $locale]);
 
+        return self::signInAs($staffId);
+    }
+
+    /** A staff member made by the test - a Super Admin, say - signed in through the panel's door, in their own language. */
+    public static function signInAs(string $staffId): mixed
+    {
         $page = visit('/admin/sign-in')
             ->type('#email', (string) DB::table('access.staff_users')->where('id', $staffId)->value('email'))
             ->type('#password', Fx::STAFF_PASSWORD)

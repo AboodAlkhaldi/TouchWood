@@ -3,7 +3,7 @@ import { useForm } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { sentMoment } from '@/components/content/moments';
 import { PairFields } from '@/components/content/parts';
-import { useReadTick, useTranslation } from '@/components/content/translate';
+import { markFields, useReadTick, useTranslation } from '@/components/content/translate';
 import { DateTimeField } from '@/components/DateTimeField';
 import { TextField } from '@/components/Fields';
 import { useLeaveGuard } from '@/components/SaveBar';
@@ -25,7 +25,7 @@ export function AnnouncementForm({ storeId, zone, bar, translationReady }: { sto
     const [starts, setStarts] = useState<MomentInput>(() => momentFrom(bar.startsAt, zone));
     const [ends, setEnds] = useState<MomentInput>(() => momentFrom(bar.endsAt, zone));
     const [datesTouched, setDatesTouched] = useState(false);
-    const translation = useTranslation('bar', storeId, translationReady);
+    const translation = useTranslation('bar', storeId, translationReady, bar.translationUnread);
     const tick = useReadTick(translation);
     const checks = useChecks([
         { id: 'text_ar', label: t('content::admin_bars.bar.text_ar'), value: form.data.text_ar, rules: { required: form.data.is_on, length: { max: 120 } } },
@@ -36,8 +36,8 @@ export function AnnouncementForm({ storeId, zone, bar, translationReady }: { sto
     const errors = form.errors as Record<string, string | undefined>;
     const leave = useLeaveGuard(form.isDirty || datesTouched, { description: t('content::admin_shared.leave') });
 
-    const send = () => {
-        form.transform((data) => ({ ...data, store: storeId, version: bar.version, starts_at: sentMoment(starts), ends_at: sentMoment(ends) }));
+    const send = (read = false) => {
+        form.transform((data) => ({ ...data, ...markFields(translation, read), store: storeId, version: bar.version, starts_at: sentMoment(starts), ends_at: sentMoment(ends) }));
         form.post(`${LIST}/announcement`, { preserveScroll: true, onSuccess: () => setDatesTouched(false) });
     };
 

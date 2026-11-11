@@ -10,7 +10,7 @@ Laravel 13 · PHP 8.4 · PostgreSQL 17 (no Redis for now) · modular monolith, 1
 - Decision records: [`docs/architecture/adr/`](docs/architecture/adr/)
 - Module specifications: [`docs/modules/`](docs/modules/)
 - **Product import files** — the agreed format, a guide to filling it, and a complete example of the
-  products file and the store file: [`docs/modules/catalog-import/`](docs/modules/catalog-import/README.md)
+  products file and the store file: [`src/Modules/Catalog/Presentation/import-format/`](src/Modules/Catalog/Presentation/import-format/guide.md)
 
 ## Rules that are not negotiable
 

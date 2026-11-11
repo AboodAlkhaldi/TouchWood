@@ -202,7 +202,9 @@ discounts larger than `net_subtotal`. The rate is the store's at the moment the 
 
 ### 1.8 The store's file (catalog.md §2.3)
 
-Pricing's `ImportSection` for a store's file:
+Pricing's `ImportSection` for a store's file — **a store not wired to Odoo's**: since 2026-11-11 a
+wired store's file gives codes only, a price in it refused when the file is read (catalog.md amendment
+43(b)); what follows reaches a store wired after its file was kept:
 
 - **The file's page** says, per item, the retail price that will be set — or why not: more decimals
   than the store's currency has, or 0 (owner, 2026-10-07: refused, never rounded); in a wired store,

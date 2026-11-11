@@ -10,10 +10,14 @@ use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\ValueObject\ProductCode;
 
 /**
- * **A store file, read and checked** (catalog.md §1.3, amendment 6(g); the guide, §2): codes with
- * their prices, stock optional, at most 1,000 items, each code once. Every problem collected, then
- * the file refused whole. Whether each code is in the catalog is its page's question, never a
- * refusal: an unknown code is corrected or removed there.
+ * **A store file, read and checked** (catalog.md §1.3, amendments 6(g), 43; the guide, §2): the codes
+ * to switch on in one store, at most 1,000 items, each code once - **read by the store's wiring**
+ * (owner, 2026-11-11). A store **wired to Odoo** takes codes only: its prices and stock are Odoo's, so
+ * an item carrying either is refused, the field named - as a products file's `stores` and
+ * `attribute_set` are. A store **not wired** gives each item its price, stock optional, as before.
+ * A top-level `note` - text, the example file's own explanation - is accepted and ignored.
+ * Every problem collected, then the file refused whole. Whether each code is in the catalog is its page's question,
+ * never a refusal: an unknown code is corrected or removed there.
  */
 final readonly class StoreFillFile
 {
@@ -23,6 +27,12 @@ final readonly class StoreFillFile
 
     public const int MAX_BYTES = 2 * 1024 * 1024;
 
+    /** What a wired store's file may not give (amendment 43), refused with why rather than "not a field". */
+    private const array ODOOS = [
+        'price' => "not in a store file: a store's prices come from Odoo",
+        'stock' => "not in a store file: a store's stock comes from Odoo",
+    ];
+
     /**
      * @param  list<FileItem>  $items
      */
@@ -31,9 +41,11 @@ final readonly class StoreFillFile
     ) {}
 
     /**
+     * @param  bool  $wired  whether the store is wired to Odoo, asked when the file is read
+     *
      * @throws ImportRefused
      */
-    public static function read(string $json): self
+    public static function read(string $json, bool $wired): self
     {
         $problems = new FileProblems;
 
@@ -59,9 +71,13 @@ final readonly class StoreFillFile
         }
 
         foreach (array_keys($data) as $key) {
-            if (! in_array($key, ['format', 'items'], true)) {
+            if (! in_array($key, ['format', 'items', 'note'], true)) {
                 $problems->add("file › {$key}", 'not a field of the format');
             }
+        }
+
+        if (array_key_exists('note', $data) && ! is_string($data['note'])) {
+            $problems->add('file › note', 'text');
         }
 
         if (($data['format'] ?? null) !== self::FORMAT) {
@@ -86,14 +102,14 @@ final readonly class StoreFillFile
             $at = "item {$number}";
 
             if (! is_array($raw) || array_is_list($raw) && $raw !== []) {
-                $problems->add($at, 'an object with "code", "price" and, if known, "stock"');
+                $problems->add($at, $wired ? 'an object with "code"' : 'an object with "code", "price" and, if known, "stock"');
 
                 continue;
             }
 
             foreach (array_keys($raw) as $key) {
-                if (! in_array($key, ['code', 'price', 'stock'], true)) {
-                    $problems->add("{$at} › {$key}", 'not a field of the format');
+                if (! in_array($key, $wired ? ['code'] : ['code', 'price', 'stock'], true)) {
+                    $problems->add("{$at} › {$key}", ($wired ? self::ODOOS[$key] ?? null : null) ?? 'not a field of the format');
                 }
             }
 
@@ -109,13 +125,13 @@ final readonly class StoreFillFile
                 $problems->add("{$at} › code", "{$code} again: item {$seen[$code]} names it already");
             }
 
-            $price = ProductsFile::price($raw['price'] ?? null, "{$at} › price", true, $problems);
-            $stock = ProductsFile::stock($raw['stock'] ?? null, "{$at} › stock", $problems);
+            $price = $wired ? null : ProductsFile::price($raw['price'] ?? null, "{$at} › price", true, $problems);
+            $stock = $wired ? null : ProductsFile::stock($raw['stock'] ?? null, "{$at} › stock", $problems);
 
             if ($code !== null && ! isset($seen[$code])) {
                 $seen[$code] = $number;
 
-                if ($price !== null) {
+                if ($wired || $price !== null) {
                     $read[] = new FileItem($number, $code, $price, $stock);
                 }
             }

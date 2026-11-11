@@ -526,7 +526,7 @@ export type StoreFileItemData = {
 id: string,
 number: number,
 code: string,
-price: string,
+price: string | null,
 stock: number | null,
 state: string,
 standing: string | null,

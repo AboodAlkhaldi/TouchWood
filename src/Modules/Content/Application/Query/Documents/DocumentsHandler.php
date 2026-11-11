@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Modules\Content\Application\Query\Documents;
 
+use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Catalog\Public\Dto\FoundProductDto;
+use Modules\Catalog\Public\Dto\ProductDto;
+use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Content\Application\ContentAccess;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\Query\ScreenReads;
@@ -14,7 +18,10 @@ use Modules\Content\Domain\Model\DocumentText;
 use Modules\Content\Domain\Model\Publication;
 use Modules\Content\Domain\Repository\Documents;
 use Modules\Content\Domain\Repository\SlugHistory;
+use Modules\Content\Domain\Repository\UnreadTranslations;
+use Modules\Platform\Public\Contracts\StaffNames;
 use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\StoreId;
 
 /**
  * What W7, W8 and W9 show (content.md §4.4), each under its kind's permission in the store: a tab of the list (title,
@@ -31,6 +38,9 @@ final readonly class DocumentsHandler
         private Documents $documents,
         private SlugHistory $history,
         private ScreenReads $reads,
+        private UnreadTranslations $marks,
+        private StaffNames $names,
+        private CatalogApi $catalog,
     ) {}
 
     public static function permission(DocumentKind $kind): string
@@ -47,11 +57,15 @@ final readonly class DocumentsHandler
      *
      * @throws ContentError|Unauthorized
      */
-    public function list(DocumentKind $kind, ?string $storeId, Publication $tab, ?string $after = null, ?string $categoryId = null): array
+    public function list(DocumentKind $kind, ?string $storeId, ?Publication $tab, ?string $after = null, ?string $categoryId = null): array
     {
         $store = $this->access->authorize(self::permission($kind), $storeId);
+        $read = $this->reads->documents($kind, $store->id, $tab, $after, $categoryId);
+        // "By" is a name (W7): one read for the page's rows; someone no longer staff reads as nobody.
+        $names = $this->names->forReader(array_values(array_filter(array_map(static fn (array $row): ?string => is_string($row['changedBy'] ?? null) ? $row['changedBy'] : null, $read['rows']))));
+        $read['rows'] = array_map(static fn (array $row): array => [...$row, 'changedBy' => is_string($row['changedBy'] ?? null) ? ($names[strtolower($row['changedBy'])] ?? null)?->name : null], $read['rows']);
 
-        return $this->reads->documents($kind, $store->id, $tab, $after, $categoryId);
+        return $read;
     }
 
     /**
@@ -71,9 +85,11 @@ final readonly class DocumentsHandler
 
         return [
             'id' => $document->id,
+            'storeId' => $document->storeId,
             'status' => $document->status->value,
             'publishedAt' => $document->publishedAt?->format(DATE_ATOM),
             'version' => $document->version,
+            'translationUnread' => $this->marks->has($kind->value, $document->id),
             ...$document->fields(),
             'texts' => array_map(static fn (DocumentText $text): array => [
                 'title' => $text->title,
@@ -126,5 +142,44 @@ final readonly class DocumentsHandler
         ksort($found, SORT_STRING);
 
         return array_values($found);
+    }
+
+    /**
+     * The products a post or a project may link (§1.12, §1.13: "ready products"): the store's ready products with a size
+     * switched on there, found by a name in either language or a code, 20 at a time. Two queries.
+     *
+     * @return list<array{id: string, nameAr: string, nameEn: string|null, archived: bool}>
+     *
+     * @throws ContentError|Unauthorized
+     */
+    public function findProducts(DocumentKind $kind, ?string $storeId, ?string $text): array
+    {
+        $store = $this->access->authorize(self::permission($kind), $storeId);
+        $found = $this->catalog->searchProducts(StoreId::fromString($store->id), $text, true, null, null, 20);
+
+        return array_values(array_map(static fn (FoundProductDto $product): array => ['id' => strtolower($product->productId), 'nameAr' => $product->nameAr, 'nameEn' => $product->nameEn, 'archived' => false], array_filter($found->rows, static fn (FoundProductDto $product): bool => $product->stage === ProductStage::Ready)));
+    }
+
+    /**
+     * The products an item links, by name, in its order: one archived since it was linked is marked so (§1.1 rule 17).
+     * One query; called once the item's form has been read under its permission.
+     *
+     * @param  list<string>  $productIds
+     * @return list<array{id: string, nameAr: string, nameEn: string|null, archived: bool}>
+     */
+    public function linkedProducts(array $productIds): array
+    {
+        $found = $productIds === [] ? [] : $this->catalog->products($productIds);
+        $linked = [];
+
+        foreach ($productIds as $id) {
+            $product = $found[strtolower($id)] ?? null;
+
+            if ($product instanceof ProductDto) {
+                $linked[] = ['id' => strtolower($id), 'nameAr' => $product->nameAr, 'nameEn' => $product->nameEn, 'archived' => $product->stage === ProductStage::Archived];
+            }
+        }
+
+        return $linked;
     }
 }

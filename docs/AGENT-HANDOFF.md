@@ -48,7 +48,7 @@ The owner agreed this split on 2026-11-04.
 
 **Stage 9: migration, wording, launch**
 9. Investigate the old site's database dump: what's there, what's usable, how it maps to the new tables. **Report before moving anything.**
-10. Prepare products from the old data for the bulk import, with the owner, against their final product list (`docs/modules/catalog-import/`).
+10. Prepare products from the old data for the bulk import, with the owner, against their final product list (`src/Modules/Catalog/Presentation/import-format/`).
 11. Old accounts: an earlier decision says "no previous-shop data at all", with old accounts' sign-in left to the migration stage. **Settle that with the owner first.**
 12. The redirect sheet, the 6 blog posts, and the SEO cutover.
 13. The final wording review across the whole site, with the owner (§5).
@@ -157,4 +157,4 @@ The owner's design prototypes on claude.ai are private; ask if you need them. St
 - Enter, ask to see, or commit a live key, token or password. The owner enters them.
 - Move or delete old-site data, or switch the domain, without the owner's word.
 - Start building themes or Content before the owner has settled what they ask.
-- Change the agreed import format (`docs/modules/catalog-import/`) without the owner.
+- Change the agreed import format (`src/Modules/Catalog/Presentation/import-format/`) without the owner.

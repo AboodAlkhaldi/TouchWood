@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Access\Public\Enums\PermissionGroup;
+use Modules\Catalog\Public\Contracts\StoreWiring as CatalogWiring;
 use Modules\Catalog\Public\Events\ProductMadeReady;
 use Modules\Catalog\Public\Events\StoreListingChanged;
 use Modules\Catalog\Public\Events\VariantCodeCorrected;
@@ -84,11 +85,11 @@ final class SyncServiceProvider extends ServiceProvider
         $this->app->bind(SyncWords::class, LangSyncWords::class);
         $this->app->bind(NoticeAddresses::class, UrlNoticeAddresses::class);
         $this->app->bind(HostAddresses::class, DnsHostAddresses::class);
-        $this->app->bind(HostAddresses::class, DnsHostAddresses::class);
-        // In place of Pricing's and Inventory's "no store is wired" (sync.md §2.2): registered after
-        // them, so these bindings win.
+        // In place of Pricing's, Inventory's and Catalog's "no store is wired" (sync.md §2.2; catalog.md
+        // amendment 43, the store file): registered after them, so these bindings win.
         $this->app->bind(PricingWiring::class, ConnectionWiring::class);
         $this->app->bind(InventoryWiring::class, ConnectionWiring::class);
+        $this->app->bind(CatalogWiring::class, ConnectionWiring::class);
 
         // `/sync/...` is the provider's: never a store's code (platform.md, reserved paths).
         $this->app->make(ReservedPaths::class)->reserve('sync', 'sync');

@@ -153,6 +153,8 @@ final readonly class BannersController
                 Inputs::text($request, 'starts_at'),
                 Inputs::text($request, 'ends_at'),
                 Inputs::map($request, 'images'),
+                Inputs::flag($request, 'translated'),
+                Inputs::flag($request, 'read'),
             ));
         } catch (DomainError $error) {
             return Refusals::back($request, $error, self::BOXES);
@@ -164,7 +166,7 @@ final readonly class BannersController
 
         if (Inputs::text($request, 'intent') === 'schedule' && $read->state === 'DRAFT') {
             try {
-                $schedule->handle(new ScheduleBanner($saved, $read->version));
+                $schedule->handle(new ScheduleBanner($saved, $read->version, Inputs::flag($request, 'read')));
             } catch (DomainError $error) {
                 return Refusals::to(self::LIST."/{$saved}", $error, self::BOXES);
             }

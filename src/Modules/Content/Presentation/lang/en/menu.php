@@ -8,4 +8,9 @@ return [
     'bars' => 'Bars',
     'banners' => 'Banners',
     'popups' => 'Pop-Ups',
+    'pages' => 'Pages',
+    'blog' => 'Blog',
+    'projects' => 'Projects',
+    'seo' => 'SEO',
+    'redirects' => 'Redirects',
 ];

@@ -11,11 +11,13 @@ use Modules\Content\Application\ContentCache;
 use Modules\Content\Application\ContentImages;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\Moments;
+use Modules\Content\Application\TranslationMarks;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Domain\Model\HomeLogo;
 use Modules\Content\Domain\Model\HomeSection;
 use Modules\Content\Domain\Repository\HomeSections;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Modules\Content\Domain\Service\HomeSectionSettings;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\AuditChanges;
@@ -37,6 +39,7 @@ final readonly class ShowHomeSectionHandler
         private ConnectionInterface $db,
         private PlatformApi $platform,
         private ContentCache $cache,
+        private TranslationMarks $marks,
     ) {}
 
     /**
@@ -60,6 +63,7 @@ final readonly class ShowHomeSectionHandler
                 $logos = $this->sections->logos($section->id);
                 HomeSectionSettings::requireShowable($section->type, $section->settings, $logos);
                 $this->images->requireReady(self::logoBoxes($logos));
+                $this->marks->showing(UnreadTranslations::HOME_SECTION, $section->id, $command->read);
             }
 
             $this->sections->update(new HomeSection($section->id, $section->storeId, $section->type, $section->position, $command->visible, $section->settings, $section->version, $staffId, Moments::now()));

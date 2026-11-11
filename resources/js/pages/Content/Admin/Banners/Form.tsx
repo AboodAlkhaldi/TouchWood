@@ -5,7 +5,7 @@ import { ImageBox } from '@/components/content/image-box';
 import { sentMoment } from '@/components/content/moments';
 import { StateBadge } from '@/components/content/list';
 import { PairFields } from '@/components/content/parts';
-import { useReadTick, useTranslation } from '@/components/content/translate';
+import { markFields, useReadTick, useTranslation } from '@/components/content/translate';
 import { DateTimeField } from '@/components/DateTimeField';
 import { SelectField, TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
@@ -73,7 +73,7 @@ export default function Form({ store, storeTimezone, placement: asked, banner, i
     const [starts, setStarts] = useState<MomentInput>(() => momentFrom(banner?.startsAt ?? null, zone));
     const [ends, setEnds] = useState<MomentInput>(() => momentFrom(banner?.endsAt ?? null, zone));
     const [touched, setTouched] = useState(false);
-    const translation = useTranslation('banner', store.id, translationReady);
+    const translation = useTranslation('banner', store.id, translationReady, banner?.translationUnread === true);
     const tick = useReadTick(translation);
     const state = banner?.state ?? 'DRAFT';
     const scheduled = state === 'SCHEDULED' || state === 'LIVE';
@@ -104,8 +104,9 @@ export default function Form({ store, storeTimezone, placement: asked, banner, i
         LISTING: t('content::admin_banners.placement.LISTING'),
     };
 
-    const send = (intent: 'draft' | 'schedule') => {
+    const send = (intent: 'draft' | 'schedule', read = false) => {
         form.transform((data) => ({
+            ...markFields(translation, read),
             ...data,
             category_id: data.placement === 'LISTING' && onCategory ? data.category_id : '',
             store: store.id,
@@ -127,7 +128,7 @@ export default function Form({ store, storeTimezone, placement: asked, banner, i
                     event.preventDefault();
 
                     if (!ended) {
-                        checks.submit(() => tick.ask(() => send('schedule'), scheduleLabel));
+                        checks.submit(() => tick.ask((read) => send('schedule', read), scheduleLabel));
                     }
                 }}
                 data-test="banner-form"

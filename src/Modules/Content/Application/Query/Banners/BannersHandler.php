@@ -11,6 +11,7 @@ use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\InvalidContentInput;
 use Modules\Content\Domain\Model\BannerPlacement;
 use Modules\Content\Domain\Repository\Banners;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Shared\Application\Unauthorized;
 
 /**
@@ -25,6 +26,7 @@ final readonly class BannersHandler
         private ContentAccess $access,
         private Banners $banners,
         private ScreenReads $reads,
+        private UnreadTranslations $marks,
     ) {}
 
     /**
@@ -50,6 +52,6 @@ final readonly class BannersHandler
         $banner = $this->banners->find($bannerId);
         $this->access->authorize(self::PERMISSION, $banner?->storeId, item: true);
 
-        return $banner === null ? [] : ['id' => $banner->id, 'store_id' => $banner->storeId, ...$banner->fields(), 'images' => $banner->images, 'version' => $banner->version];
+        return $banner === null ? [] : ['id' => $banner->id, 'store_id' => $banner->storeId, ...$banner->fields(), 'images' => $banner->images, 'version' => $banner->version, 'translation_unread' => $this->marks->has(UnreadTranslations::BANNER, $banner->id)];
     }
 }

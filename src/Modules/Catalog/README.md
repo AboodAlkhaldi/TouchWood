@@ -9,9 +9,10 @@ category tree, brands, attributes, labels, warranties, each store's choice of wh
 and the JSON import. It owns nothing about how many (Inventory) or for how much (Pricing). The rules
 are in the specification, [docs/modules/catalog.md](../../../docs/modules/catalog.md); this file says
 how the code is organised and why. **The import's file format** — a guide and a complete example of
-each file, which the owner fills real files from — is in
-[docs/modules/catalog-import/](../../../docs/modules/catalog-import/README.md): the import reads exactly
-that, so a change to it changes the guide and both examples too.
+each file, which the owner fills real files from — is in this module,
+[Presentation/import-format/](Presentation/import-format/guide.md) (moved from `docs/modules/catalog-import/`,
+catalog.md amendment 43): the import reads exactly that, so a change to it changes the guide and both
+examples too, and the import's tests read the same files.
 
 **Being built** (from 2026-10-02), backend first, in seven steps: 1 foundation · 2 the shared lists
 · 3 products and variants · 4 each store's choice · 5 listing, search and the public contract ·
@@ -366,7 +367,7 @@ public surface never references Access.
 
 ### The import and the store file (step 6)
 
-**A products file** (catalog.md §1.12, amendments 6 and 7; the format in `docs/modules/catalog-import/`)
+**A products file** (catalog.md §1.12, amendments 6 and 7; the format in `Presentation/import-format/`, amendment 43)
 is a Super Admin's (`catalog.import.run`), from upload to acceptance:
 
 1. **Upload** (`UploadImport`): the JSON alone, or a zip with `products.json` at its top — told apart by
@@ -452,7 +453,17 @@ page, never stored.
 
 **Prices and stock come only with a store's file** — a products file that names a store is refused
 (amendment 9(a)) — and are shown and not kept until stage 5, when Pricing and Inventory register their
-`ImportSection`s (declared in `Public/Contracts`).
+`ImportSection`s (declared in `Public/Contracts`). **A store file follows its store's wiring**
+(amendment 43(b), owner 2026-11-11): `UploadStoreFill` asks Catalog's own port,
+`Public/Contracts/StoreWiring::isWired`, inside its change, and `StoreFillFile::read($json, $wired)`
+reads by it - a store wired to Odoo gives codes only (`price` or `stock` refused by name, "a store's
+prices come from Odoo"), one not wired its price, stock optional. Catalog binds `NoStoreWired`; Sync,
+above Catalog, binds its `ConnectionWiring` in its place, as for Pricing and Inventory. A wired store's
+items keep no price (`store_fill_items.price` may be empty, `2026_11_11_100000_…`). A top-level `note`
+(text: the example's own explanation) is read and ignored. **Switching on asks again**: the sections
+ignore a file's prices in a store wired since, and `SwitchOnStoreFillItems` never switches on an item
+with no price in a store not wired (any more) - `ViewStoreFill` marks it `NO_PRICE`, asking the wiring
+once and only for a file holding such an item, so the page's queries do not grow.
 
 ### The screens: the shared lists (screens step 1)
 
@@ -601,7 +612,7 @@ fills stores. **Upload Store File** takes the `.json`; a refused file's problems
 flashed with the list's next view (at most 500), in the format's own words - English, as the format is
 - and are listed under the upload in its dialog. A file's page shows each item: number, code, its
 product (named, linked to its page), price, stock, and where it stands - Ready, Not Ready and what it
-lacks, Archived, Already On, Unknown Code - or what was done (Switched On, Removed), still naming its
+lacks, Archived, Already On, Unknown Code, No Price (amendment 43(b)) - or what was done (Switched On, Removed), still naming its
 product; ticked open items are switched on (ready ones only, said before the press) or removed, every
 ready one switched on at once, an unknown code corrected.
 
@@ -657,11 +668,12 @@ products are on sale in one query (`CatalogProductReads::onSaleAmong`). Each par
 recorded, the same for 3 products and for 120: names 9, codes 6, before 8, products 6, the list 3 - and
 the same for 2 products the file updates and for 12 (their codes and attributes read together).
 
-**The files' guide** (`/admin/import-guide`, linked from S10's and S11's uploads): the repository's
-own `docs/modules/catalog-import/README.md` rendered on the server (CommonMark, raw HTML stripped),
-its links to the two example files pointing at their downloads - whoever fills a file opens it
-(`catalog.listing.fill` in some store, or `catalog.import.run`). **Assumption for hosting**: the
-`docs/` folder ships with the application, as the guide is read from it.
+**The files' guide** (`/admin/import-guide`, linked from S10's and S11's uploads): this module's
+own `Presentation/import-format/guide.md` (`ImportGuideController::FOLDER`, amendment 43) rendered on
+the server (CommonMark, raw HTML stripped), its links to the two example files pointing at their
+downloads - whoever fills a file opens it (`catalog.listing.fill` in some store, or
+`catalog.import.run`). Nothing reads `docs/` (`tests/Architecture/NoDocsReadsTest`), so the docs folder
+need not ship.
 
 ### The shop's audiences (screens step 5)
 
@@ -884,13 +896,13 @@ individual's filter can offer a value only a wholesale-only size has (the produc
 | `Unit/CatalogListingRowsTest` | The listing is never written outside a transaction |
 | `Unit/CatalogSearchTermsTest` | What was typed, as search reads it; word pairs, a run of words before one |
 | `Unit/CatalogProductTest` | A product archived remembers the stage it left — archived twice or not — and restoring goes back there |
-| `Unit/CatalogImportFilesTest` | Step 6's two files read and checked: the guide's own examples, every rule refused with where, every problem collected, descriptions' markers; Arabic digits in either file read as 0-9 |
+| `Unit/CatalogImportFilesTest` | Step 6's two files read and checked: the guide's own examples, every rule refused with where, every problem collected, descriptions' markers; Arabic digits in either file read as 0-9; a store file read by the store's wiring and its ignored `note`; the guide stating each limit the code holds (amendment 43) |
 | `Integration/CatalogImportUploadTest` | Uploading: who may; names listed once with their counts, matched as search compares words, a brand by number; what refuses a file; a zip kept, its products.json at the top, photos unpacked into the archives' own files |
 | `Integration/CatalogImportDecisionsTest` | Deciding names and codes: targets in their list, active, of the right job; what may be created; values under their attribute; new codes free; all or none; closed while bringing in |
 | `Integration/CatalogImportChangesTest` | The changes before bringing in: each field, replace and fill-empty (and add), the selected or all, the file's own kept, the names list following |
 | `Integration/CatalogImportBringInTest` | The confirm asking again; bringing in: lists made, products created with photos, skipped, held, recoded, updated, replaced; all or nothing with the reason; the locks' order |
 | `Integration/CatalogImportAcceptTest` | Accepting (ready, on sale nowhere new, relations), archiving and deleting only what the import created |
-| `Integration/CatalogStoreFillTest` | The store file: an admin role's job in that store; switching on the variant carrying each code of a ready product; mending and removing items |
+| `Integration/CatalogStoreFillTest` | The store file: an admin role's job in that store; switching on the variant carrying each code of a ready product; mending and removing items; by the store's wiring (amendment 43): not wired, a price required and the price and stock set when switched on; wired, a price or stock refused by name and codes kept alone; wired after it was kept, the file's ignored |
 | `Integration/CatalogImportPagesTest` | The pages' reads: a products file's page and list, a store file's page with each item's standing, and its store's list |
 | `Integration/CatalogImportSaleTest` | Amendment 9: no store in a products file; keep on sale or take off sale, every time, in every store, cleared with its decision, asked again when put on sale after the confirm; codes two catalog products hold; words added to an updated product kept apart; a new category's taken address counted; a job given up on taking the products' lock first |
 | `Integration/CatalogImportConstraintsTest` | The database's named CHECKs of the import's and the listing's tables (steps 5 and 6), each refused by name — those on a nullable column with it left NULL (lesson 35) |

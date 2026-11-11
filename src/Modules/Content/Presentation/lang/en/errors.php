@@ -104,6 +104,10 @@ return [
         'title' => 'Can\'t delete this',
         'detail' => 'Only a draft can be deleted. Unpublish it, or move it back to draft, first.',
     ],
+    'translation_unread' => [
+        'title' => 'Translated English not read yet',
+        'detail' => 'Translate filled the English here and nobody has read it yet. Tick "I read the translated English." first.',
+    ],
     'image_not_ready' => [
         'title' => 'Image not ready',
         'detail' => 'The :attribute is not ready.',

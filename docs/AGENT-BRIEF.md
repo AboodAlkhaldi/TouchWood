@@ -69,7 +69,7 @@ Also:
 |---|---|
 | `docs/HANDOFF.md` | **The source of truth.** §2 non-negotiable rules; §5.4 performance; §9 Catalog (§9.2 the three status axes, §9.5 search, §9.6 listing filters); §15.4 hosting items; §16 rejected — do not re-propose; §17 build order. |
 | `docs/modules/catalog.md` | **What was agreed for Catalog.** §1 the rules the screens show and keep; §1.12 the import's page, part by part; §1.3 the store file's page; §3 **every use case with its permission and scope**; §7 every error, with its type and when; §8 the test scenarios (#21 is the query budget, waiting for the screens); §9.6 amendments 1–11, in the owner's words. |
-| `docs/modules/catalog-import/` | The products file's and the store file's exact format: a guide and two complete examples. **Changed only with the owner**; the guide, both examples and catalog.md §1.12 change together. |
+| `src/Modules/Catalog/Presentation/import-format/` | The products file's and the store file's exact format (moved from `docs/modules/catalog-import/`, catalog.md amendment 43): a guide and two complete examples. **Changed only with the owner**; the guide, both examples and catalog.md §1.12 change together. |
 | `src/Modules/Catalog/README.md` | **How the backend is built**: every command and query by name, the import's flow, the store file, the listing's rows, the tests. |
 | `docs/modules/frontend.md` | The frontend foundation and the screens built so far: §1.4 links, §1.5 two languages, §1.6 page data, §1.7 forms and errors, §1.10 the Geist foundation, **§1.11 shadcn's code under Geist's rules**, §2 the layouts (§2.2 the admin header's search "comes with Catalog and Sales", Home's cards), §3 the screens so far — the model to follow, §4 what other modules must change, **§5 the performance budgets**, §6 accessibility and right-to-left, §7 test scenarios. |
 | `docs/modules/platform.md`, `access.md`, `b2b.md` | Finished specs: the contracts the screens call (stores, the menu registry, Home cards, settings, media, audit; staff names; the company status). |
@@ -120,7 +120,7 @@ scope; the README names the classes.
 | **The products import** (Super Admin, `catalog.import.run`) | `UploadImport`, `DecideImportNames`, `DecideImportCodes` (with keep on sale / take off sale), the changes before bringing in (`SetImported…`), `BringInImport` (the confirm, queued), `Accept…`, `Archive…`, `DeleteImportedProducts`, `DiscardImport`; reads `ViewImport`, `ListImports`. |
 | **The store file** (admin roles, `catalog.listing.fill`) | `UploadStoreFill`, `CorrectStoreFillCode`, `RemoveStoreFillItems`, `SwitchOnStoreFillItems`; reads `ViewStoreFill`, `ListStoreFills`. |
 | **The storefront** | `ShopCatalog` — `menu`, `category`, `brand`, `product`, `relations` — and `ShopSearch` — `suggest`, `results`; built on the listing's own rows (`catalog.listing`). |
-| **The other modules' contract** | `Public/Contracts/CatalogApi`; `ListingFacts` and `ImportSections` are declared for stage 5. |
+| **The other modules' contract** | `Public/Contracts/CatalogApi`; `ListingFacts` and `ImportSections` are declared for stage 5; `StoreWiring` (amendment 43) for Sync to bind. |
 
 ### 5.2 What is not built — the screens bring it
 
@@ -163,7 +163,7 @@ From the specs and the owner — each one cited where it is written:
   (amendment 6(h); access.md amendment 62); **the import is the Super Admin's only** (a reserved
   permission).
 - **Prices and stock are shown, not kept, until stage 5**: a store file's page says so, once
-  (catalog.md §2.3, §9.3 #15).
+  (catalog.md §2.3, §9.3 #15). **A store wired to Odoo gives codes only** in its file (amendment 43).
 - **The import's page** shows, part by part, what catalog.md §1.12 lists: the names to decide (with
   how many catalog items a name matches), the codes to decide (update, replace, skip, new codes; keep
   on sale or take off sale for a product on sale), the changes to all or the selected, the addresses
@@ -174,7 +174,8 @@ From the specs and the owner — each one cited where it is written:
   `codes`, `addresses`, `sales`, `code_changes`.
 - **The limits** the pages state: a products file of 2,000 products, a JSON of 20 MB, a zip of
   500 MB and 100,000 entries; a store file of 1,000 items, each code once, 2 MB; a price with at most
-  6 decimal places; a stock up to 2,147,483,647 (catalog.md §1.3, §1.12).
+  6 decimal places; a stock up to 2,147,483,647 - none in a wired store's file (catalog.md §1.3, §1.12,
+  amendment 43).
 - **Out of stock never shows**: never listed, searched or suggested; a direct link opens a "Not
   available now" page with no Add to Cart (HANDOFF §9.2).
 - **Every error** has its type (`catalog.{name}`) and both languages' text in

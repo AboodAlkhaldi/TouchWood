@@ -8,7 +8,8 @@ use Spatie\LaravelData\Data;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
 /**
- * One item of a store file: # · code · its product · price · stock; `OPEN` with where it stands now
+ * One item of a store file: # · code · its product · price (none in a wired store's file) · stock; `OPEN`
+ * with where it stands now
  * (`READY`, `NOT_READY` and what it lacks, `ARCHIVED`, `ALREADY_ON`, `UNKNOWN`), or `ON` / `REMOVED`.
  */
 #[TypeScript]
@@ -22,7 +23,7 @@ final class StoreFileItemData extends Data
         public string $id,
         public int $number,
         public string $code,
-        public string $price,
+        public ?string $price,
         public ?int $stock,
         public string $state,
         public ?string $standing,

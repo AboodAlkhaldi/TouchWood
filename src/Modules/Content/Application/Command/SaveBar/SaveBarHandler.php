@@ -11,9 +11,11 @@ use Modules\Content\Application\ContentCache;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\EditCheck;
 use Modules\Content\Application\Moments;
+use Modules\Content\Application\TranslationMarks;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Model\Bar;
 use Modules\Content\Domain\Repository\FrameItems;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Modules\Content\Domain\ValueObject\Words;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Unauthorized;
@@ -36,6 +38,7 @@ final readonly class SaveBarHandler
         private ConnectionInterface $db,
         private PlatformApi $platform,
         private ContentCache $cache,
+        private TranslationMarks $marks,
     ) {}
 
     /**
@@ -57,6 +60,8 @@ final readonly class SaveBarHandler
             $this->check->version($command->version, $bar->version, $bar->updatedBy, $bar->updatedAt, $store);
             $saved = new Bar($store->id, $text['ar'], $text['en'], $link, $command->isOn, $starts, $ends, $bar->version + 1, $staffId, Moments::now());
             $this->frame->saveBar($saved);
+            // Switched on, it shows what is saved at once: the tick is asked as for Publish.
+            $this->marks->saved(UnreadTranslations::BAR, $store->id, $store->id, $command->translated, $command->read, $command->isOn);
             $this->platform->recordAudit(ContentAudit::entry('content.bar.saved', 'content.bar', $store->id, $store->id, ContentAudit::diff($bar->fields(), $saved->fields())));
             $this->cache->invalidate();
         }, 3);

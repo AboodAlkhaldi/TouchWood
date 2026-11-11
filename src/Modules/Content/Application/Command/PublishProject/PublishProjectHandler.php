@@ -30,6 +30,6 @@ final readonly class PublishProjectHandler
     {
         $this->access->holds(self::PERMISSION);
         $store = $this->access->authorize(self::PERMISSION, $this->documents->find(DocumentKind::Project, $command->id)?->storeId, item: true);
-        $this->writer->publish(DocumentKind::Project, $command->id, $command->version, $store, $this->access->staffId());
+        $this->writer->publish(DocumentKind::Project, $command->id, $command->version, $store, $this->access->staffId(), $command->read);
     }
 }

@@ -4,7 +4,7 @@ import { Link, router, usePage } from '@inertiajs/react';
 import { Plus, Trash2 } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
 import { PairFields } from '@/components/content/parts';
-import { TranslateAllButton, useReadTick, useTranslation, type Pair } from '@/components/content/translate';
+import { markFields, TranslateAllButton, useReadTick, useTranslation, type Pair } from '@/components/content/translate';
 import { SelectField, TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { Note } from '@/components/Note';
@@ -69,7 +69,7 @@ export function SectionForm({ store, section, logos: savedLogos, icons, translat
     const [logos, setLogos] = useState<Logo[]>(() => savedLogos.map((logo) => ({ key: `logo-${++next}`, image: logo.image, mediaId: logo.mediaId, name: { ar: logo.nameAr, en: logo.nameEn ?? '' }, link: logo.link ?? '' })));
     const [dirty, setDirty] = useState(false);
     const [saving, setSaving] = useState(false);
-    const translation = useTranslation('homepage', store.id, translationReady);
+    const translation = useTranslation('homepage', store.id, translationReady, section.translationUnread);
     const tick = useReadTick(translation);
     const type = section.type;
     const change = (path: Path, value: unknown) => {
@@ -137,10 +137,11 @@ export function SectionForm({ store, section, logos: savedLogos, icons, translat
     };
     const label = t('content::admin_home.section.save');
 
-    const send = () =>
+    const send = (read = false) =>
         router.post(
             `${HOME}/${section.id}`,
             {
+                ...markFields(translation, read),
                 store: store.id,
                 version: section.version,
                 // Words only, as HomeSectionSettings reads them: plain JSON the visit sends as it is.

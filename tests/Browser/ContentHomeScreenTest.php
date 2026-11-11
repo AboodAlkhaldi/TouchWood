@@ -58,8 +58,10 @@ it('fills a section with Translate, shows it, refuses one without English, and m
         ->and($page->script("document.querySelector('[data-test=\"preview-home\"]') !== null && document.querySelector('[data-test=\"section-PROJECTS\"] [data-test=\"edit-section\"]')?.getAttribute('href') === '/admin/content/home/{$projects}'"))->toBeTrue()
         ->and((string) $page->script("document.querySelector('[data-test=\"section-PROJECTS\"]').textContent"))->toContain("[en] مشاريعنا {$run}"); // the fake translator's English
 
-    // Its switch shows it.
+    // Its switch shows it, once the translated English is said to be read: Translate's mark outlived the save (P14).
     $page->click('[data-test="section-PROJECTS"] [data-test="show"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"read-tick\"]') !== null"))->toBeTrue();
+    $page->click('[data-test="read-tick"]')->click('[data-test="read-confirm"]');
     expect(browserSoon($page, "document.querySelector('[data-test=\"section-PROJECTS\"] [data-test=\"show\"]')?.getAttribute('data-state') === 'checked' && document.body.textContent.includes('Section shown')"))->toBeTrue((string) $page->script("document.querySelector('main').textContent.slice(0, 400)"))
         ->and((bool) DB::table('content.home_sections')->where('id', $projects)->value('is_visible'))->toBeTrue(json_encode(DB::table('content.home_sections')->where('id', $projects)->first()) ?: '');
 

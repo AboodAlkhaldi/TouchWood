@@ -3,7 +3,7 @@ import { useTranslator } from '@/lib/t';
 import type { ImportGuidePage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 
 /*
-| The files' guide (docs/modules/catalog-import/README.md), as the panel shows it (catalog.md §4.4
+| The files' guide (Presentation/import-format/guide.md), as the panel shows it (catalog.md §4.4
 | S10, S11 link it): the repository's own guide - one source, written by the team, raw HTML stripped
 | on the server all the same - and its two example files to download. English, as the files' format
 | is, so it reads left to right on an Arabic page too.
