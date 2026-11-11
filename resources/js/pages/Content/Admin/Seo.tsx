@@ -50,8 +50,8 @@ export default function Seo(page: SeoPageData) {
         { id: 'site_name_en', label: t('content::admin_seo.site_name_en'), value: form.data.site_name_en, rules: { required: true, length: { max: 60 } } },
         { id: 'title_pattern_ar', label: t('content::admin_seo.title_pattern_ar'), value: form.data.title_pattern_ar, rules: { required: true, length: { max: 80 } } },
         { id: 'title_pattern_en', label: t('content::admin_seo.title_pattern_en'), value: form.data.title_pattern_en, rules: { required: true, length: { max: 80 } } },
-        { id: 'description_ar', label: t('content::admin_seo.description_ar'), value: form.data.description_ar, rules: { length: { max: 160 } } },
-        { id: 'description_en', label: t('content::admin_seo.description_en'), value: form.data.description_en, rules: { required: form.data.description_ar !== '', length: { max: 160 } } },
+        { id: 'description_ar', label: t('content::admin_seo.description_ar'), value: form.data.description_ar, rules: { required: true, length: { max: 160 } } },
+        { id: 'description_en', label: t('content::admin_seo.description_en'), value: form.data.description_en, rules: { required: true, length: { max: 160 } } },
     ]);
     const errors = form.errors as Record<string, string | undefined>;
     const leave = useLeaveGuard(form.isDirty || image?.id !== page.shareImage?.id, { description: t('content::admin_shared.leave') });

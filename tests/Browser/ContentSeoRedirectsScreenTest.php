@@ -38,9 +38,9 @@ function seoBrowserSheet(string $run, string $staffId): string
     DB::table('content.redirect_uploads')->insert([
         'id' => $id,
         'lines' => json_encode([
-            ['line' => 2, 'old' => "/old-a-{$run}", 'new' => '/ae/ar', 'result' => 'NEW', 'reason' => null],
-            ['line' => 3, 'old' => "/old-b-{$run}", 'new' => '/ae/en', 'result' => 'NEW', 'reason' => null],
-            ['line' => 4, 'old' => '/ae/taken', 'new' => '/ae/ar', 'result' => 'REFUSED', 'reason' => 'old_store'],
+            ['line' => 2, 'old' => "/old-a-{$run}", 'new' => '/ae/ar', 'result' => 'NEW', 'reason' => null, 'typed_old' => "/old-a-{$run}", 'typed_new' => '/ae/ar'],
+            ['line' => 3, 'old' => "/old-b-{$run}", 'new' => '/ae/en', 'result' => 'NEW', 'reason' => null, 'typed_old' => "/old-b-{$run}", 'typed_new' => '/ae/en'],
+            ['line' => 4, 'old' => '/ae/taken', 'new' => '/ae/ar', 'result' => 'REFUSED', 'reason' => 'old_store', 'typed_old' => '/ae/taken', 'typed_new' => '/ae/ar'],
         ], JSON_THROW_ON_ERROR),
         'state' => 'CHECKED',
         'created_by' => $staffId,
@@ -59,10 +59,13 @@ it('saves the SEO defaults with the pattern\'s sample following what is typed', 
     $page->clear('#site_name_ar')->type('#site_name_ar', "تاتش وود {$run}")
         ->clear('#site_name_en')->type('#site_name_en', "TouchWood {$run}")
         ->clear('#title_pattern_ar')->type('#title_pattern_ar', ':title | :site')
-        ->clear('#title_pattern_en')->type('#title_pattern_en', ':title - :site');
+        ->clear('#title_pattern_en')->type('#title_pattern_en', ':title - :site')
+        ->clear('#description_ar')->type('#description_ar', 'أدوات وخشب')
+        ->clear('#description_en')->type('#description_en', 'Tools and wood');
     expect(browserSoon($page, "document.querySelector('[data-test=\"pattern-sample\"]')?.textContent.includes('- TouchWood {$run}') === true"))->toBeTrue();
     $page->click('[data-test="save-seo"]');
-    expect(browserSoon($page, "document.body.textContent.includes('SEO saved')"))->toBeTrue()
+    // The toast itself: the page's own words travel in its body too, so a bare text search would find them anyway.
+    expect(browserSoon($page, "document.querySelector('[data-sonner-toast]')?.textContent.includes('SEO saved') === true"))->toBeTrue((string) $page->script("[...document.querySelectorAll('[role=alert], [data-slot=field-error]')].map((e) => e.textContent).join(' | ')"))
         ->and(DB::table('content.seo_defaults')->where('store_id', Fx::storeId('ae'))->value('site_name_en'))->toBe("TouchWood {$run}");
     $page->assertNoJavaScriptErrors();
 });
