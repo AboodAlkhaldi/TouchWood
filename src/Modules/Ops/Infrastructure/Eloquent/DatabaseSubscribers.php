@@ -80,10 +80,14 @@ final readonly class DatabaseSubscribers implements Subscribers
 
     public function page(StoreId $store, ?string $afterId, int $limit): array
     {
+        // Newest first, as every other Ops list (ops.md §4.1; owner, 2026-11-10). The cursor is one of the store's own
+        // rows, read in the same query: another store's, or one gone, compares as null and ends the list.
+        $after = $afterId === null ? '' : ' AND (created_at, id) < (SELECT c.created_at, c.id FROM ops.subscribers c WHERE c.id = ? AND c.store_id = ?)';
+
         /** @var list<stdClass> $rows */
         $rows = $this->db->select(
-            'SELECT '.self::COLUMNS.' FROM ops.subscribers WHERE store_id = ?'.($afterId === null ? '' : ' AND id > ?').' ORDER BY id LIMIT ?',
-            $afterId === null ? [$store->value, $limit] : [$store->value, strtolower($afterId), $limit],
+            'SELECT '.self::COLUMNS.' FROM ops.subscribers WHERE store_id = ?'.$after.' ORDER BY created_at DESC, id DESC LIMIT ?',
+            $afterId === null ? [$store->value, $limit] : [$store->value, strtolower($afterId), $store->value, $limit],
         );
 
         return array_map(self::subscriber(...), $rows);

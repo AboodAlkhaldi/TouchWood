@@ -1,8 +1,8 @@
 # Inventory — module specification
 
 **Status (2026-10-10): the full spec, accepted** (#102); **returns (§1.9) and order edits (§1.4,
-`adjustHold`) added and accepted** (#106); **being built** from 2026-10-10 in five steps — see
-[its README](../../src/Modules/Inventory/README.md). §2 — what
+`adjustHold`) added and accepted** (#106); **built** from 2026-10-10 in five steps, with its screens and
+the later amendments — see [its README](../../src/Modules/Inventory/README.md). §2 — what
 other modules call — was agreed first and is on `main` (#97, "interfaces first", owner 2026-10-07). The
 rest follows from the owner's answers of 2026-10-01 to 2026-10-10 (§9.2). What waits for the
 provider's team or another session is §9.1. Handoff §12.1, revised 2026-10-07, 2026-10-09 and
@@ -712,8 +712,8 @@ their one detail stands.
 | 1 | ~~Which warehouse / location counts, "On hand" or "Available"?~~ **Answered** (owner, 2026-10-19): **available to order, per size**; warehouses are not ours to see (sync.md §9.1 #6) | — |
 | 2 | ~~Does the provider call us when stock changes?~~ **Answered** (owner, 2026-10-13): it notifies us of price and stock changes; we also read hourly, nightly and on Sync now (sync.md §1.3) | — |
 | 3 | ~~Returns in a wired store~~ **Answered** (owner, 2026-10-19): nothing is ever written to the provider, so **§1.9's rule is final** (no longer provisional) | — |
-| 4 | `ListingFacts::endingSoon` (§2.3) | Catalog's amendment 16(h), accepted (#103, 50e9991); its backend being built |
-| 5 | Inventory's screens: stock and its history, hand changes, the Low Stock list, the switches | The frontend session, after this spec |
+| 4 | ~~`ListingFacts::endingSoon` (§2.3)~~ **Built**: Catalog's amendment 16(h) (#103, 50e9991), `ListingFacts::endingSoon`, pushed by Inventory's step 4a | — |
+| 5 | ~~Inventory's screens: stock and its history, hand changes, the Low Stock list, the switches~~ **Built** by the stage 5 screens session (steps 4 and 5; `resources/js/pages/Inventory/Admin`) | — |
 
 ### 9.2 Answered (owner, 2026-10-09, 2026-10-10, 2026-10-11, 2026-10-18, 2026-10-19 and 2026-10-28)
 

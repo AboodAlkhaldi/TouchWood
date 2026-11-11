@@ -436,6 +436,8 @@ a screen offers only what the reader may do next — asked of an Application que
 **What every screen keeps** — as Loyalty's (loyalty.md §4.1), unchanged: Geist's rules on shadcn's
 code (frontend.md §1.11), every box checking itself as it is typed (the server's own rules, from
 `Coupon/Inputs` and `GiftLevelFields`), every number in 0-9 (Arabic-Indic typed is read as Latin),
+**a coupon is قسيمة, coupons قسائم, in every Arabic word of every module** (owner, 2026-11-10; كوبون is
+not used),
 every moment through `Time` in the store's zone, names in the page's language first, money through
 `resources/js/lib/money.ts` (an amount typed as the store writes it, "149.50", checked against the
 currency's decimals), dates, amounts and typed text isolated inside sentences. Lists page with **Show
@@ -456,7 +458,7 @@ reason is written under the item instead).
 
 | # | Entry | Address | Icon | Offered for |
 |---|---|---|---|---|
-| 10 | Coupons · الكوبونات | `/admin/coupons` | `coupons` (Lucide `TicketPercent`'s sibling `Ticket`, new) | any of the four jobs |
+| 10 | Coupons · القسائم | `/admin/coupons` | `coupons` (Lucide `TicketPercent`'s sibling `Ticket`, new) | any of the four jobs |
 | 20 | Segments · الشرائح | `/admin/segments` | `segments` (Lucide `UsersRound`, new) | any of the four |
 | 30 | Gift Levels · مستويات الهدايا | `/admin/gift-levels` | `gifts` (Lucide `Gift`, new) | any of the four |
 
@@ -538,8 +540,10 @@ it again." (§1.4) [Q14].
 - **A segment's page**: its facts; for a manager **Edit…** (names, the rule's numbers), **Refresh Now**
   (a rule segment; a toast "Members updated: 120."), **Delete Segment…** (AlertDialog; its assignments
   keep their customers, §5's SET NULL — said in the dialog).
-- **Members**: the names, a page at a time (Show More); "Deleted customer" never shows — they leave at
-  the next refresh (§1.5).
+- **Members**: the names, a page at a time (Show More); a customer anonymized since shows as
+  **"Deleted customer"**, no other detail (Q18 (a), as Uses and Customers), until the next refresh takes
+  them out (§1.5). *(Corrected 2026-11-10 to match Q18 and the built screen: this line said "Deleted
+  customer" never shows.)*
 - **Picking by hand** (a static segment) [Q8]: **Add Customers…** — a search by name, email or phone
   (`SearchSegmentCandidates`: registered in the store or ordered in it; email and phone only among
   customers the reader may view, access.md amendment 72(b)), each result with **Add**; each member

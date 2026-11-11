@@ -117,7 +117,7 @@ final class PromotionsFixtures
             'id' => $id,
             'store_id' => Fx::storeId($storeCode),
             'code' => $code,
-            'name_ar' => 'كوبون الصيف',
+            'name_ar' => 'قسيمة الصيف',
             'name_en' => 'Summer coupon',
             'eligibility' => 'PUBLIC',
             'discount_kind' => 'PERCENT',
