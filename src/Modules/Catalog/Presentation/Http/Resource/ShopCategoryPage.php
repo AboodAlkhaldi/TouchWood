@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Presentation\Http\Resource;
 
+use Spatie\LaravelData\Attributes\Hidden;
 use Spatie\LaravelData\Data;
+use Spatie\TypeScriptTransformer\Attributes\Hidden as TypeScriptHidden;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
 /**
@@ -33,5 +35,8 @@ final class ShopCategoryPage extends Data
         public ShopAddressData $address,
         public array $cardFacts = [],
         public bool $soldOut = false,
+        /** @var list<string> the category's id and those above it, from the top: what the slots above its list are asked with (amendment 41(a)) */
+        #[Hidden, TypeScriptHidden]
+        public array $categoryPath = [],
     ) {}
 }

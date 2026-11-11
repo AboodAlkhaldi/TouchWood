@@ -100,6 +100,7 @@ final readonly class ShopPages
             self::address('storefront.catalog.category', $locale, ['slug' => $page->slug], $page->otherSlug === null ? null : ['slug' => $page->otherSlug], false),
             $this->facts($store, $page->products->cards),
             $page->soldOut,
+            $around['ids'],
         );
     }
 

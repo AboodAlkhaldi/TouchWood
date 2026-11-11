@@ -8,6 +8,7 @@ use Illuminate\Database\ConnectionInterface;
 use Modules\Content\Application\CampaignRules;
 use Modules\Content\Application\ContentAccess;
 use Modules\Content\Application\ContentAudit;
+use Modules\Content\Application\ContentCache;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\Moments;
 use Modules\Content\Domain\Exception\CampaignNotChangeable;
@@ -39,6 +40,7 @@ final readonly class CancelCampaignHandler
         private CampaignRules $rules,
         private ConnectionInterface $db,
         private PlatformApi $platform,
+        private ContentCache $cache,
     ) {}
 
     /**
@@ -92,6 +94,8 @@ final readonly class CancelCampaignHandler
             $this->rules->endPrices($run);
             $cancelled = $run->with(state: RunState::Cancelled, notice: true, noticeId: null, cancelledAt: Moments::now());
             $this->campaigns->updateRun($cancelled);
+            // Its smart bar never shows (§1.9): the shop's frame copy goes.
+            $this->cache->invalidate();
             $this->rules->keepTargets($run, null);
             $this->platform->recordAudit(ContentAudit::entry('content.campaign.cancelled', 'content.campaign_run', $run->id, $store->id, ContentAudit::diff($run->fields(), $cancelled->fields())));
         }, 3);

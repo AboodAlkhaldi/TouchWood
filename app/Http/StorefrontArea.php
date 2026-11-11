@@ -33,6 +33,12 @@ final class StorefrontArea
      */
     public const string RESOLVED_STORE = 'store';
 
+    /**
+     * The live theme of the store, on the page's shell (content.md §1.8): Content's, after the store is known, so
+     * only the shop's pages wear a theme - the panel and an error page drawn outside these lists stay base.
+     */
+    public const string THEME = 'content.storefront-theme';
+
     /** The store and the language as the page reads them - Platform's half of a shop page. */
     public const string SHOP = 'storefront.shop';
 
@@ -70,7 +76,7 @@ final class StorefrontArea
      *
      * @var list<string>
      */
-    public const array MIDDLEWARE = [self::SESSION, 'web', self::STORE, self::SHOP, self::IDENTIFY, KeepNoCopy::ALIAS, self::PAGE];
+    public const array MIDDLEWARE = [self::SESSION, 'web', self::STORE, self::THEME, self::SHOP, self::IDENTIFY, KeepNoCopy::ALIAS, self::PAGE];
 
     /**
      * The same, for an address that finishes a payment already under way: it still answers when the store has been
@@ -78,7 +84,7 @@ final class StorefrontArea
      *
      * @var list<string>
      */
-    public const array MIDDLEWARE_FINISHING = [self::SESSION, 'web', self::STORE.':finishing', self::SHOP, self::IDENTIFY, KeepNoCopy::ALIAS, self::PAGE];
+    public const array MIDDLEWARE_FINISHING = [self::SESSION, 'web', self::STORE.':finishing', self::THEME, self::SHOP, self::IDENTIFY, KeepNoCopy::ALIAS, self::PAGE];
 
     /**
      * And the same without a store, for the country page.

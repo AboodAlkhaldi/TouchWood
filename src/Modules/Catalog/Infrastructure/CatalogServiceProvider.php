@@ -23,6 +23,7 @@ use Modules\Catalog\Application\Import\StoreFillCodes;
 use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Products\InMemoryProductStoreSections;
 use Modules\Catalog\Application\Products\InMemoryShopCardFacts;
+use Modules\Catalog\Application\Products\InMemoryShopListingSlots;
 use Modules\Catalog\Application\Products\InMemoryShopProductSections;
 use Modules\Catalog\Application\Query\ListCategories\ListCategoriesHandler;
 use Modules\Catalog\Application\Query\Lists\CatalogListReads;
@@ -84,6 +85,7 @@ use Modules\Catalog\Public\Contracts\ListingFacts;
 use Modules\Catalog\Public\Contracts\ProductStoreSections;
 use Modules\Catalog\Public\Contracts\ShopBestSellers;
 use Modules\Catalog\Public\Contracts\ShopCardFacts;
+use Modules\Catalog\Public\Contracts\ShopListingSlots;
 use Modules\Catalog\Public\Contracts\ShopProductSections;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
@@ -144,6 +146,9 @@ final class CatalogServiceProvider extends ServiceProvider
         // The shop product page's sections (amendment 26(b)): one registry, the modules above register.
         $this->app->singleton(InMemoryShopProductSections::class);
         $this->app->alias(InMemoryShopProductSections::class, ShopProductSections::class);
+        // What other modules put above a product list (amendment 41(a)): Content's smart bar and listing banner.
+        $this->app->singleton(InMemoryShopListingSlots::class);
+        $this->app->alias(InMemoryShopListingSlots::class, ShopListingSlots::class);
         // What the modules add to the shop's product cards (amendment 32): one registry, the modules register.
         $this->app->singleton(InMemoryShopCardFacts::class);
         $this->app->alias(InMemoryShopCardFacts::class, ShopCardFacts::class);

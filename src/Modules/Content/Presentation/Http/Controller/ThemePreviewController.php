@@ -35,4 +35,10 @@ final readonly class ThemePreviewController
     {
         return redirect()->back()->withCookie($cookie->forget());
     }
+
+    /** Stop Preview on the shop's own line (PR 9): the same cookie forgotten, back to the page it was pressed on. */
+    public function stopOnShop(ThemePreviewCookie $cookie): RedirectResponse
+    {
+        return redirect()->back()->withCookie($cookie->forget());
+    }
 }
