@@ -19,6 +19,7 @@ use Modules\Content\Application\Query\ScreenReads;
 use Modules\Content\Application\Query\Shop\ShopReads;
 use Modules\Content\Application\Redirects\AddressProbe;
 use Modules\Content\Application\Redirects\SheetReader;
+use Modules\Content\Application\RefusalWords;
 use Modules\Content\Application\Sitemap\SitemapFiles;
 use Modules\Content\Application\Sitemap\SitemapSources;
 use Modules\Content\Domain\Repository\Banners;
@@ -71,6 +72,7 @@ use Modules\Content\Infrastructure\Queue\PruneRedirectUploadsJob;
 use Modules\Content\Infrastructure\Queue\QueuedContentJobs;
 use Modules\Content\Infrastructure\Queue\QueueWantedSitemapsJob;
 use Modules\Content\Infrastructure\Sheets\OpenSpoutSheetReader;
+use Modules\Content\Presentation\Http\FormRefusalWords;
 use Modules\Content\Presentation\Http\RedirectAnswer;
 use Modules\Content\Public\Contracts\CampaignNotices;
 use Modules\Content\Public\Contracts\ContentApi;
@@ -107,6 +109,8 @@ final class ContentServiceProvider extends ServiceProvider
         $this->app->bind(CampaignNames::class, ContentCampaignNames::class);
         $this->app->bind(Campaigns::class, DatabaseCampaigns::class);
         $this->app->bind(Themes::class, DatabaseThemes::class);
+        // A refusal carried inside another (a schedule stopped part way) is said in a form's own words.
+        $this->app->bind(RefusalWords::class, FormRefusalWords::class);
 
         $this->app->bind(HomeSections::class, DatabaseHomeSections::class);
         $this->app->bind(FrameItems::class, DatabaseFrameItems::class);

@@ -112,7 +112,8 @@ return [
     ],
     'campaign_partly_scheduled' => [
         'title' => 'Scheduled in some stores',
-        'detail' => 'Not scheduled in :store; it stays a draft there. Scheduled already in :scheduled. Fix what is said for :store, then schedule again.',
+        'detail' => 'Not scheduled in :store, which stays a draft: :reason Scheduled now in :scheduled. Open the page again before you schedule again.',
+        'unexpected' => 'The server couldn\'t finish that store just now, and nothing changed there. Try again in a minute.',
     ],
     'category_not_empty' => [
         'title' => 'Category in use',

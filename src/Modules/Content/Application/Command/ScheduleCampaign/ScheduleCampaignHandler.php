@@ -11,6 +11,7 @@ use Modules\Content\Application\ContentAudit;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\EditCheck;
 use Modules\Content\Application\Moments;
+use Modules\Content\Application\RefusalWords;
 use Modules\Content\Domain\Exception\CampaignPartlyScheduled;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\ContentNotFound;
@@ -24,6 +25,8 @@ use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
+use Shared\Domain\ValueObject\StoreId;
+use Throwable;
 
 /**
  * Schedules a campaign's draft runs (content.md §1.7 #14, #15, #16). **All of them are checked first, with no
@@ -49,12 +52,13 @@ final readonly class ScheduleCampaignHandler
         private EditCheck $check,
         private ConnectionInterface $db,
         private PlatformApi $platform,
+        private RefusalWords $words,
     ) {}
 
     /**
      * @return list<string> the runs scheduled, in store-id order
      *
-     * @throws ContentError|Unauthorized
+     * @throws ContentError|Unauthorized|Throwable
      */
     public function handle(ScheduleCampaign $command): array
     {
@@ -100,21 +104,18 @@ final readonly class ScheduleCampaignHandler
 
         $staffId = $this->access->staffId();
         $scheduled = [];
-        $scheduledIn = [];
         // The version this press expects: the form's, raised by each store this press schedules.
         $version = $command->version;
 
         foreach ($drafts as $run) {
             try {
                 $done = $this->scheduleOne($run->id, $stores[$run->storeId], $staffId, $version);
-            } catch (DomainError $refusal) {
-                // Partly scheduled (§1.7 #15): the page says which store refused and which are scheduled already.
-                throw $scheduled === [] ? $refusal : new CampaignPartlyScheduled(self::name($stores[$run->storeId]), implode(app()->getLocale() === 'ar' ? '، ' : ', ', $scheduledIn), $refusal);
+            } catch (Throwable $failure) {
+                throw $this->stopped($found->id, $run, $failure);
             }
 
             if ($done) {
                 $scheduled[] = $run->id;
-                $scheduledIn[] = self::name($stores[$run->storeId]);
                 $version++;
             }
         }
@@ -122,9 +123,36 @@ final readonly class ScheduleCampaignHandler
         return $scheduled;
     }
 
-    private static function name(StoreDto $store): string
+    /**
+     * Partly scheduled (§1.7 #15; reviews of #382): when the campaign has a run scheduled now, the person is told which
+     * store refused, why - the store's own refusal, or words for a failure that is none - and **every** store scheduled
+     * now, this press's and earlier ones'. With none scheduled, the refusal goes as it is.
+     */
+    private function stopped(string $campaignId, CampaignRun $refused, Throwable $failure): Throwable
     {
-        return $store->name->in(app()->getLocale());
+        $scheduledNow = [];
+
+        foreach ($this->campaigns->runsOf($campaignId) as $run) {
+            if ($run->state === RunState::Scheduled && $run->id !== $refused->id) {
+                $store = $this->platform->store(StoreId::fromString($run->storeId));
+                $scheduledNow[] = $store === null ? $run->storeId : $store->name->in(app()->getLocale());
+            }
+        }
+
+        if ($scheduledNow === []) {
+            return $failure;
+        }
+
+        $refusal = $failure instanceof DomainError ? $failure : null;
+        $store = $this->platform->store(StoreId::fromString($refused->storeId));
+
+        return new CampaignPartlyScheduled(
+            $store === null ? $refused->storeId : $store->name->in(app()->getLocale()),
+            implode(app()->getLocale() === 'ar' ? '، ' : ', ', $scheduledNow),
+            $refusal === null ? $this->words->unexpected() : $this->words->sentence($refusal),
+            $refusal,
+            $failure,
+        );
     }
 
     /**

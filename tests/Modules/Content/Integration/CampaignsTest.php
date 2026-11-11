@@ -33,6 +33,7 @@ use Modules\Content\Application\Command\SetRunPrices\SetRunPrices;
 use Modules\Content\Application\Command\SetRunPrices\SetRunPricesHandler;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\Query\PreviewRunPrices\PreviewRunPricesHandler;
+use Modules\Content\Application\RefusalWords;
 use Modules\Content\Domain\Exception\CampaignNotChangeable;
 use Modules\Content\Domain\Exception\CampaignPartlyScheduled;
 use Modules\Content\Domain\Exception\CampaignPricesNotAllowed;
@@ -55,6 +56,7 @@ use Modules\Pricing\Public\Contracts\CampaignNames;
 use Modules\Pricing\Public\Contracts\CampaignPrices;
 use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
+use Shared\Domain\Error\ErrorCategory;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
@@ -161,6 +163,16 @@ function campaignsChange(string $campaignId, array $with = [], array $stores = [
 function campaignsSchedule(string $campaignId, ?string $code = null): array
 {
     return app(ScheduleCampaignHandler::class)->handle(new ScheduleCampaign($campaignId, campaignsVersion($campaignId), $code === null ? null : Fx::storeId($code)));
+}
+
+/**
+ * Schedule pressed by someone whose page read this version (the reads frozen by StaleCampaigns when a test says so).
+ *
+ * @return list<string>
+ */
+function campaignsScheduleRead(string $campaignId, int $version): array
+{
+    return app(ScheduleCampaignHandler::class)->handle(new ScheduleCampaign($campaignId, $version));
 }
 
 /** @param array<string, mixed> $prices */
@@ -399,27 +411,61 @@ describe('prices: a draft\'s stay in Content, Schedule hands them to Pricing (§
         $name = static fn (int $n, string $locale): string => Cx::store((string) DB::table('platform.stores')->where('id', DB::table('content.campaign_runs')->where('id', $order[$n])->value('store_id'))->value('code'))->name->in($locale);
 
         // The refused store and the ones scheduled already are named, in both languages, the store's own refusal kept.
-        expect($stopped?->refusal->type())->toStartWith('pricing.')
-            ->and($stopped?->getPrevious())->toBe($stopped?->refusal)
-            ->and($stopped?->context())->toMatchArray(['store' => $name(1, app()->getLocale()), 'scheduled' => $name(0, app()->getLocale())])
+        $refusal = $stopped->refusal ?? new NotDeletable;
+
+        expect($refusal->type())->toStartWith('pricing.')
+            ->and($stopped?->getPrevious())->toBe($refusal)
+            ->and($stopped?->context())->toMatchArray([
+                'store' => $name(1, app()->getLocale()),
+                'scheduled' => $name(0, app()->getLocale()),
+                // The store's own reason, in its own words.
+                'reason' => FormErrors::message($refusal),
+                'refusal' => $refusal->type(),
+            ])
             ->and(array_map(campaignsState(...), $order))->toBe(['SCHEDULED', 'DRAFT', 'DRAFT']);
 
         $was = app()->getLocale();
-        $refusal = $stopped === null ? new NotDeletable : $stopped->refusal;
 
-        foreach (['en', 'ar'] as $locale) {
+        foreach (['en' => 'Open the page again', 'ar' => 'افتح الصفحة من جديد'] as $locale => $reload) {
             app()->setLocale($locale);
-            $words = FormErrors::message(new CampaignPartlyScheduled($name(1, $locale), $name(0, $locale), $refusal));
+            $reason = app(RefusalWords::class)->sentence($refusal);
+            $words = FormErrors::message(new CampaignPartlyScheduled($name(1, $locale), $name(0, $locale), $reason, $refusal));
 
-            expect($words)->toContain($name(1, $locale), $name(0, $locale))
-                ->and(str_contains($words, ':store'))->toBeFalse();
+            expect($words)->toContain($name(1, $locale), $name(0, $locale), $reason, $reload)
+                ->and(preg_match('/:[a-z]+/', $words))->toBe(0);
         }
 
         app()->setLocale($was);
 
+        // Pressed again unmended: this press schedules nothing, and the store scheduled before is still named.
+        $again = campaignsRefusal(fn () => campaignsSchedule($campaign));
+        expect($again)->toBe('content.campaign_partly_scheduled');
+
         // Mended, another press schedules the rest.
         campaignsPrices($order[1], campaignsPercent('PRODUCT', $size['product']));
         expect(campaignsSchedule($campaign))->toBe([$order[1], $order[2]]);
+    });
+
+    it('names the stores that went through when a store fails with no refusal at all (retries spent), in words saying so', function () {
+        campaignsEditor(['sa', 'ae']);
+        $campaign = campaignsDraft(['sa', 'ae']);
+        $order = DB::table('content.campaign_runs')->where('campaign_id', $campaign)->orderBy('store_id')->pluck('id')->all();
+        DB::statement("CREATE FUNCTION content.campaigns_test_fail() RETURNS trigger LANGUAGE plpgsql AS \$\$ BEGIN IF NEW.id = '{$order[1]}' AND NEW.state = 'SCHEDULED' THEN RAISE EXCEPTION 'away'; END IF; RETURN NEW; END \$\$");
+        DB::statement('CREATE TRIGGER campaigns_test_fail BEFORE UPDATE ON content.campaign_runs FOR EACH ROW EXECUTE FUNCTION content.campaigns_test_fail()');
+        $stopped = null;
+
+        try {
+            campaignsSchedule($campaign);
+        } catch (CampaignPartlyScheduled $refusal) {
+            $stopped = $refusal;
+        }
+
+        expect($stopped?->refusal)->toBeNull()
+            ->and($stopped?->getPrevious())->toBeInstanceOf(QueryException::class)
+            ->and($stopped?->category())->toBe(ErrorCategory::Unavailable)
+            ->and($stopped?->reason)->toBe(__('content::errors.campaign_partly_scheduled.unexpected'))
+            ->and($stopped?->context()['refusal'] ?? null)->toBe('unexpected')
+            ->and(array_map(campaignsState(...), $order))->toBe(['SCHEDULED', 'DRAFT']);
     });
 });
 
@@ -917,17 +963,70 @@ describe('a copy read before another change committed (review of #382)', functio
         })();
         $run = campaignsRun($campaign);
         // The scheduler, without Pricing's permission, read the run with no choices.
-        $scheduler = Fx::staffWith([ContentPermissions::CAMPAIGN_MANAGE], ['sa']);
+        Fx::actAsStaff(Fx::staffWith([ContentPermissions::CAMPAIGN_MANAGE], ['sa']));
+        $version = campaignsVersion($campaign);
         StaleCampaigns::freeze(CarbonImmutable::now()->toDateTimeImmutable(), [], $campaign);
-        // Someone with the price right then set the run's prices.
-        campaignsEditor();
-        campaignsPrices($run, campaignsPercent('PRODUCT', $size['product']));
-        Fx::actAsStaff($scheduler);
+        // The run then held choices: written straight, so only the price right can catch it, not the version.
+        DB::table('content.campaign_runs')->where('id', $run)->update(['price_choices' => json_encode(campaignsPercent('PRODUCT', $size['product']))]);
 
-        expect(fn () => app(ScheduleCampaignHandler::class)->handle(new ScheduleCampaign($campaign, campaignsVersion($campaign))))->toThrow(CampaignPricesNotAllowed::class)
+        expect(fn () => campaignsScheduleRead($campaign, $version))->toThrow(CampaignPricesNotAllowed::class)
             ->and(campaignsState($run))->toBe('DRAFT')
             ->and(DB::table('pricing.campaign_sets')->count())->toBe(0);
     });
+
+    it('refuses a schedule read before the campaign changed, on its locked row: the version', function () {
+        campaignsEditor();
+        $campaign = campaignsDraft();
+        $version = campaignsVersion($campaign);
+        StaleCampaigns::freeze(CarbonImmutable::now()->toDateTimeImmutable(), [], $campaign);
+        campaignsChange($campaign, ['nameEn' => 'Changed meanwhile']);
+
+        expect(fn () => campaignsScheduleRead($campaign, $version))->toThrow(StaleEdit::class)
+            ->and(campaignsState(campaignsRun($campaign)))->toBe('DRAFT');
+    });
+
+    it('refuses on the locked rows an English name blanked, an end passed and a notice no longer a draft since the read', function (string $change) {
+        $notice = strtolower((string) Str::ulid());
+        // Ops' answer about the notice: once the change is armed, a draft when Schedule first asks, sent by the time
+        // its locked transaction asks again.
+        $asked = new ArrayObject(['armed' => 0, 'calls' => 0]);
+        app()->instance(CampaignNotices::class, new class($notice, $asked) implements CampaignNotices
+        {
+            /** @param ArrayObject<string, int> $asked */
+            public function __construct(private string $notice, private ArrayObject $asked) {}
+
+            public function drafts(StoreId $store, ?string $after, int $limit): array
+            {
+                return [];
+            }
+
+            public function named(StoreId $store, array $ids): array
+            {
+                $sent = $this->asked['armed'] === 1 && ++$this->asked['calls'] > 1;
+
+                return [new NoticeChoiceDto($this->notice, 'أ', 'A', $sent ? 'SENT' : 'DRAFT')];
+            }
+        });
+        campaignsEditor();
+        $campaign = campaignsDraft();
+        $run = campaignsRun($campaign);
+        app(ChooseRunNoticeHandler::class)->handle(new ChooseRunNotice($run, campaignsVersion($campaign), $notice));
+        $version = campaignsVersion($campaign);
+        StaleCampaigns::freeze(CarbonImmutable::now()->toDateTimeImmutable(), [], $campaign);
+
+        // Each change written straight, so the version does not catch it: the locked rows' own check must.
+        match ($change) {
+            'english' => DB::table('content.campaigns')->where('id', $campaign)->update(['name_en' => null]),
+            'end' => DB::table('content.campaign_runs')->where('id', $run)->update(['starts_at' => '2026-11-01 00:00:00+00', 'ends_at' => '2026-11-02 00:00:00+00']),
+            default => $asked['armed'] = 1,
+        };
+
+        expect(campaignsRefusal(fn () => campaignsScheduleRead($campaign, $version)))->toBe(match ($change) {
+            'english' => 'name:english',
+            'end' => 'ends_at:past',
+            default => 'content.notice_not_draft',
+        })->and(campaignsState($run))->toBe('DRAFT');
+    })->with(['the English name' => ['english'], 'the end' => ['end'], 'the notice' => ['notice']]);
 });
 
 describe('the tables hold the rules, a NULL included (lessons 35, 162)', function () {

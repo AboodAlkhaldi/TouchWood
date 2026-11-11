@@ -11,7 +11,7 @@ use Modules\Content\Domain\Repository\Campaigns;
 use Modules\Content\Infrastructure\Eloquent\DatabaseCampaigns;
 
 /**
- * The campaigns' repository with its unlocked reads frozen at a moment: what `due()` and `runsOf()` answered then is
+ * The campaigns' repository with its unlocked reads frozen at a moment: what `due()`, `runsOf()` and `find()` answered then is
  * what they answer now, so a handler meets the copy it read before another change committed (review of #382). Every
  * lock and write goes to the database as it is.
  */
@@ -22,6 +22,9 @@ final class StaleCampaigns implements Campaigns
 
     /** @var array<string, list<CampaignRun>> */
     private array $runsOf = [];
+
+    /** @var array<string, Campaign|null> */
+    private array $found = [];
 
     public function __construct(
         private readonly DatabaseCampaigns $real,
@@ -39,6 +42,7 @@ final class StaleCampaigns implements Campaigns
 
         foreach ($campaignIds as $id) {
             $stale->runsOf[strtolower($id)] = $stale->real->runsOf($id);
+            $stale->found[strtolower($id)] = $stale->real->find($id);
         }
 
         app()->instance(Campaigns::class, $stale);
@@ -48,7 +52,7 @@ final class StaleCampaigns implements Campaigns
 
     public function find(string $id): ?Campaign
     {
-        return $this->real->find($id);
+        return array_key_exists(strtolower($id), $this->found) ? $this->found[strtolower($id)] : $this->real->find($id);
     }
 
     public function lock(string $id): ?Campaign
