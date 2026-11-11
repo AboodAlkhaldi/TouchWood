@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link, router } from '@inertiajs/react';
-import { PhoneCards, StateBadge } from '@/components/content/list';
+import { StateBadge } from '@/components/content/list';
+import { PhoneCards } from '@/components/PhoneCards';
 import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { StoreFilter } from '@/components/StoreFilter';

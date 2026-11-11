@@ -98,6 +98,19 @@ function browserSoon(mixed $page, string $expression, int $seconds = 15): bool
 }
 
 /**
+ * Whether a list's row reads as a card on a phone (round 3 #15): the card is drawn, the row of the table beside it is
+ * not, and no card is wider than the window. Each selector is a CSS selector: the card's (`[data-test="brand-card-1"]`)
+ * and the table row's it stands for (`[data-test="brand-1"]`), or null where the row has no test name of its own.
+ */
+function browserRowIsCard(mixed $page, string $card, ?string $row = null): bool
+{
+    $cardJs = json_encode($card, JSON_THROW_ON_ERROR);
+    $rowJs = json_encode($row, JSON_THROW_ON_ERROR);
+
+    return browserSoon($page, "(() => { const card = document.querySelector({$cardJs}); const row = {$rowJs} === null ? null : document.querySelector({$rowJs}); const box = card?.getBoundingClientRect(); return card !== null && card.getClientRects().length > 0 && box.right <= window.innerWidth + 1 && box.left >= -1 && (row === null || row.getClientRects().length === 0); })()");
+}
+
+/**
  * Whether the staff member has landed in the panel. The code's submit only starts the sign-in, and
  * a page opened before its answer lands is the sign-in screen again (it raced, and lost, in CI on
  * 2026-10-04) - so every sign-in waits for this before it opens the screen under test.
