@@ -394,11 +394,16 @@ suspended. Both get the same `CompanyPage`, in the same queries (recorded per st
 `MyCompanyPageTest`). No route moved: Start, Change Company Details and Apply Again post to
 `draft/start` and come back to the address, which then draws the form; Send and Discard come back
 and draw the view. What both pages share — the frame, the history, the companies elsewhere, the
-lifecycle, the status boxes, the company's card, the bank account, and the Discard dialog a
-suspended company's frozen draft needs too — is `CompanyShell.tsx`; the view page never imports
-`CompanyForm.tsx` (`CompanyPagesSplitTest`). Sizes on 2026-11-11 (local build): the view page
-53.0 KB, the form's 59.6 KB. The form's page is still near the budget: anything added to it, or to
-what it shares, must be measured first.
+lifecycle, the status boxes, the company's card, the bank account — is `CompanyShell.tsx`; the
+view page never imports `CompanyForm.tsx` (`CompanyPagesSplitTest`).
+
+**The two confirmations load on their first press** (owner, 2026-11-11: "continue trimming"):
+Discard — the form's and a suspended company's frozen draft's — and Remove File are in
+`dialogs.tsx`, which no page imports statically (`CompanyPagesSplitTest`). Each is mounted on its
+first press and kept mounted after, so it closes with its animation and gives focus back as before
+(the Discard button; the paper's ⋯ button, or Choose File once it is removed); the server never
+renders one, since a closed dialog is not there (lesson 180). Sizes on 2026-11-11 (local build): the
+view page 51.2 KB, the form's 57.8 KB.
 
 **It reaches the shop's frame through Access** (access.md amendment 50), never by being written into
 it: `CustomerAccountPages` lists it beside the account's tabs for company accounts, and

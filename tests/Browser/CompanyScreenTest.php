@@ -343,8 +343,10 @@ it('opens the form\'s page on Start and brings the view back on Discard, on a ph
 */
 it('opens each confirmation on Cancel, closes it on Escape, and gives focus back, on a phone', function (string $locale) {
     $customerId = B2BFixtures::verifiedCompanyAccount();
-    $type = collect(B2BFixtures::documentTypes())->first(static fn ($type): bool => $type->isActive())->id();
-    $row = "document-{$type}";
+    $active = array_values(array_filter(B2BFixtures::documentTypes(), static fn ($type): bool => $type->isActive()));
+    // The starting lists have active document types; a paper is put under each (companyScreenPapers).
+    expect($active)->not->toBeEmpty();
+    $row = "document-{$active[0]->id()}";
     $page = companyScreenSignIn($customerId, $locale);
     $page->resize(375, 812);
     $page->navigate("/sa/{$locale}/account/company")->click('[data-test="start"]')->assertPresent('[data-test="company-form"]');
