@@ -14,11 +14,14 @@ final readonly class ProviderValue
 {
     /**
      * @param  list<'price'|'stock'>  $missing  the values the provider was bound to send and did not
+     * @param  int|null  $refused  the status the provider refused this code with, alone (Odoo's `403` or
+     *                             other `4xx` for one id, sync.md §2.4): no value came, the size is reported
      */
     public function __construct(
         public string $code,
         public mixed $price,
         public mixed $stock,
         public array $missing = [],
+        public ?int $refused = null,
     ) {}
 }

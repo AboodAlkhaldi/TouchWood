@@ -108,6 +108,8 @@ function syncScreensWired(): string
     $ready = Px::ready(['60 cm']);
     Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $ready['product'], true)));
     $code = (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
+    // It answers a code we do not have though not asked, as a provider might (§2.4: Odoo answers only ours).
+    FakeProvider::bound()->answersUnasked = true;
     FakeProvider::bound()->values = [new ProviderValue($code, '120.50', 7), new ProviderValue('987654', '5', 1)];
     syncScreensSuper()->post('/admin/sync/provider/wire', ['store' => 'sa', 'provider' => 'ODOO', 'address' => 'https://odoo.test/api', 'key' => 'k', 'secret' => 's', 'settings' => ['database' => 'tw']]);
     $read = (string) DB::table('sync.reads')->value('id');
@@ -134,6 +136,8 @@ function syncScreensWorst(): string
     Fx::asSystem(fn (): string => app(AddCategoryDiscountHandler::class)->handle(new AddCategoryDiscount(Fx::storeId('sa'), $category, null, '50', 'BOTH', null, null)));
     CarbonImmutable::setTestNow(CarbonImmutable::now()->addHour());
     $code = static fn (string $size): string => (string) DB::table('catalog.variants')->where('id', $size)->value('code');
+    // It answers a code we do not have though not asked, as a provider might (§2.4: Odoo answers only ours).
+    FakeProvider::bound()->answersUnasked = true;
     FakeProvider::bound()->values = [new ProviderValue($code($onSale), '400', null), new ProviderValue($code($discounted), '120', null), new ProviderValue($code($bad), '0', 2), new ProviderValue('987654', '5', 1)];
     $staff = [Fx::staff(firstName: 'Huda'), Fx::staff(firstName: 'Omar'), Fx::staff(firstName: 'Lina')];
     DB::table('sync.reads')->insert(array_map(static fn (string $asker, int $n): array => [
@@ -415,13 +419,12 @@ describe('the Provider page (Y3)', function () {
             ->and(DB::table('sync.connections')->count())->toBe(0);
         Http::assertNothingSent();
     })->with([
-        'not HTTPS' => ['http://odoo.test/touchwood/v1', 'The address must start with https://.', 'يجب أن يبدأ العنوان بـ https://.'],
-        'a query' => ['https://odoo.test/touchwood/v1?db=tw', 'Odoo\'s address can\'t hold a query (?) or a fragment (#).', 'لا يجوز أن يحوي عنوان Odoo استعلامًا (?) أو جزءًا (#).'],
-        'a fragment' => ['https://odoo.test/touchwood/v1#top', 'Odoo\'s address can\'t hold a query (?) or a fragment (#).', 'لا يجوز أن يحوي عنوان Odoo استعلامًا (?) أو جزءًا (#).'],
-        'another path' => ['https://odoo.test/api', 'Odoo\'s address must end in /touchwood/v1.', 'يجب أن ينتهي عنوان Odoo بـ /touchwood/v1.'],
-        'no path' => ['https://odoo.test', 'Odoo\'s address must end in /touchwood/v1.', 'يجب أن ينتهي عنوان Odoo بـ /touchwood/v1.'],
-        'a bad port' => ['https://odoo.test:99999/touchwood/v1', 'The address can\'t be called: check its host and its port.', 'لا يمكن الاتصال بهذا العنوان: تحقّق من اسم المضيف والمنفذ.'],
-        'another version' => ['https://odoo.test/touchwood/v2', 'Odoo\'s address must end in /touchwood/v1.', 'يجب أن ينتهي عنوان Odoo بـ /touchwood/v1.'],
+        'not HTTPS' => ['http://example.odoo.com', 'The address must start with https://.', 'يجب أن يبدأ العنوان بـ https://.'],
+        'a query' => ['https://example.odoo.com?db=tw', 'Odoo\'s address can\'t hold a query (?) or a fragment (#).', 'لا يجوز أن يحوي عنوان Odoo استعلامًا (?) أو جزءًا (#).'],
+        'a fragment' => ['https://example.odoo.com#top', 'Odoo\'s address can\'t hold a query (?) or a fragment (#).', 'لا يجوز أن يحوي عنوان Odoo استعلامًا (?) أو جزءًا (#).'],
+        'the whole call\'s address' => ['https://example.odoo.com/json/2/product.product/read', 'Odoo\'s address is the account\'s address alone, with no path: https://example.odoo.com.', 'عنوان Odoo هو عنوان الحساب وحده، بلا مسار: https://example.odoo.com.'],
+        'the old custom path' => ['https://example.odoo.com/touchwood/v1', 'Odoo\'s address is the account\'s address alone, with no path: https://example.odoo.com.', 'عنوان Odoo هو عنوان الحساب وحده، بلا مسار: https://example.odoo.com.'],
+        'a bad port' => ['https://example.odoo.com:99999', 'The address can\'t be called: check its host and its port.', 'لا يمكن الاتصال بهذا العنوان: تحقّق من اسم المضيف والمنفذ.'],
     ]);
 
     it('says the provider\'s reason when its test fails, saving nothing', function () {

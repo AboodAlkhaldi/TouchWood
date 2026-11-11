@@ -37,6 +37,8 @@ describe('a Bad Value\'s refused value', () => {
 
     it('is what the server says was refused - the price, the stock, or both - never a guess', () => {
         assert.deepEqual(badValuesOf({ twice: [{ price: '1', stock: 1 }], count: 2 }), ['twice']);
+        // A code the provider refused alone (sync.md §2.4): its own sentence, never "both refused".
+        assert.deepEqual(badValuesOf({ price: null, stock: null, refused: 'both', provider_refused: 403 }), ['provider_refused']);
         assert.deepEqual(badValuesOf({ price: '0', stock: 2, refused: 'price' }), ['bad_price']);
         assert.deepEqual(badValuesOf({ price: '120', stock: 2.5, refused: 'stock' }), ['bad_stock']);
         assert.deepEqual(badValuesOf({ price: '120', stock: -3, refused: 'stock' }), ['below_zero']);

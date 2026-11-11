@@ -291,7 +291,9 @@ export function Detail({ about, links }: { about: ReportedData; links: Links }) 
                         <span key={refused} data-test="bad-value">
                             {refused === 'twice' || refused === 'missing_price' || refused === 'missing_stock'
                                 ? t(`${D}.${refused}`)
-                                : t(`${D}.${refused}`, { value: sent(t, refused === 'bad_price' ? detail.price : detail.stock) })}
+                                : refused === 'provider_refused'
+                                  ? t(`${D}.provider_refused`, { status: String(detail.provider_refused) })
+                                  : t(`${D}.${refused}`, { value: sent(t, refused === 'bad_price' ? detail.price : detail.stock) })}
                         </span>
                     ))}
                 </span>

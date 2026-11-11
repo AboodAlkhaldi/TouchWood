@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
+use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Platform\Public\LongQueue;
 use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscount;
 use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscountHandler;
@@ -135,28 +136,37 @@ describe('a read', function () {
             ->and(DB::table('inventory.stock')->where('variant_id', $a)->value('in_stock'))->toBe(7)
             ->and(DB::table('inventory.stock')->where('variant_id', $b)->value('in_stock'))->toBe(5)
             ->and([$row?->state, $row?->prices_changed, $row?->stock_changed, $row?->skipped])->toBe(['DONE', 2, 2, 0])
-            ->and(DB::table('sync.connections')->value('last_read_at'))->not->toBeNull()
             ->and(DB::table('sync.connections')->value('last_full_read_at'))->not->toBeNull()
             ->and(Fx::audits('sync.read.done', $read))->toBe(1)
             ->and(syncReadsOpen())->toBe([]);
     });
 
-    it('asks, each hour, for what changed since the last read that covered every change - from its start - never moved by a notice\'s read', function () {
+    it('asks every code of ours not archived for the hour\'s read as for a full one - Odoo cannot say what changed (§2.4) - and a notice\'s for its codes only', function () {
+        [$a, $b, $gone] = syncReadsSelling(['60 cm', '80 cm', '100 cm']);
+        DB::table('catalog.variants')->where('id', $gone)->update(['is_archived' => true]);
         // The first full read starts at 10:00.
         syncReadsRun();
         // A notice at 10:20 reads its codes only.
         CarbonImmutable::setTestNow('2026-10-17 10:20:00+00');
         syncReadsQueue(ReadKind::Notified, ['123', '456']);
         syncReadsRun();
-        // The hour, at 11:00, asks from 10:00: a notice lost meanwhile is still caught.
+        // The hour, at 11:00, asks for everything again: a notice lost meanwhile is still caught.
         CarbonImmutable::setTestNow('2026-10-17 11:00:00+00');
         syncReadsQueue(ReadKind::Hourly);
         syncReadsRun();
 
-        expect(syncReadsFake()->reads[0])->toBe(['codes' => null, 'changedSince' => null])
-            ->and(syncReadsFake()->reads[1])->toBe(['codes' => ['123', '456'], 'changedSince' => null])
-            ->and(syncReadsFake()->reads[2]['changedSince']?->format('H:i'))->toBe('10:00')
-            ->and(CarbonImmutable::parse((string) DB::table('sync.connections')->value('last_read_at'))->format('H:i'))->toBe('11:00')
+        $sorted = static function (array $codes): array {
+            sort($codes);
+
+            return $codes;
+        };
+        $ours = $sorted(array_values(app(CatalogApi::class)->variantCodes()));
+
+        expect($sorted(syncReadsFake()->reads[0]))->toBe($ours)
+            ->and($ours)->toContain(syncReadsCode($a), syncReadsCode($b))
+            ->and($ours)->not->toContain(syncReadsCode($gone))
+            ->and(syncReadsFake()->reads[1])->toBe(['123', '456'])
+            ->and($sorted(syncReadsFake()->reads[2]))->toBe($ours)
             // The hour's is not a full read.
             ->and(CarbonImmutable::parse((string) DB::table('sync.connections')->value('last_full_read_at'))->format('H:i'))->toBe('10:00');
     });
@@ -172,6 +182,8 @@ describe('a read', function () {
 
 describe('what a read reports (§1.6)', function () {
     it('reports a code we do not have, never creating it, and closes it once a size carries it', function () {
+        // It answers codes not asked - one we do not have, a code it should not send - as a provider might (§2.4: Odoo answers only ours).
+        syncReadsFake()->answersUnasked = true;
         syncReadsFake()->values = [new ProviderValue('987654', '10', 1)];
 
         syncReadsRun();
@@ -202,6 +214,8 @@ describe('what a read reports (§1.6)', function () {
         [$archived, $zero, $fraction, $below] = syncReadsSelling(['1', '2', '3', '4']);
         DB::table('catalog.variants')->where('id', $archived)->update(['is_archived' => true]);
         DB::table('inventory.stock')->insert(['store_id' => Fx::storeId('sa'), 'variant_id' => $below, 'product_id' => DB::table('catalog.variants')->where('id', $below)->value('product_id'), 'in_stock' => 5, 'updated_at' => now()]);
+        // It answers codes not asked - one we do not have, a code it should not send - as a provider might (§2.4: Odoo answers only ours).
+        syncReadsFake()->answersUnasked = true;
         syncReadsFake()->values = [
             new ProviderValue(syncReadsCode($archived), '10', 1),
             new ProviderValue(syncReadsCode($zero), '0', 1),

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Modules\Sync\Domain\Provider;
 
-use DateTimeImmutable;
 use Modules\Sync\Domain\Exception\ConnectionFailed;
 use Modules\Sync\Domain\Exception\InvalidSyncInput;
 use Modules\Sync\Domain\Model\Connection;
@@ -44,12 +43,14 @@ interface ProviderAdapter
     public function test(Connection $connection): void;
 
     /**
-     * The provider's sizes, page by page: those codes only, or every one; changed since a time, or all.
+     * The provider's values for these codes of ours - a notice's, one code's, or every code of ours for the
+     * hour's, the night's and Sync now's reads (sync.md §2.4: Odoo's API cannot say what changed, nor list
+     * what it has for us). A code the provider does not have is left out; one it cannot have is not asked.
      *
-     * @param  list<string>|null  $codes
+     * @param  list<string>  $codes
      * @return iterable<ProviderValue>
      *
      * @throws ConnectionFailed
      */
-    public function read(Connection $connection, ?array $codes, ?DateTimeImmutable $changedSince): iterable;
+    public function read(Connection $connection, array $codes): iterable;
 }

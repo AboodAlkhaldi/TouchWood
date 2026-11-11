@@ -186,6 +186,8 @@ function syncBrowserWired(): array
 {
     $ready = syncBrowserProduct();
     $unknown = '7'.substr((string) hrtime(true), -8);
+    // It answers a code we do not have though not asked, as a provider might (§2.4: Odoo answers only ours).
+    FakeProvider::bound()->answersUnasked = true;
     FakeProvider::bound()->values = [new ProviderValue($ready['code'], '150.00', '2.5'), new ProviderValue($unknown, '5', 1)];
     $before = DB::table('sync.reads')->where('store_id', Fx::storeId('ae'))->pluck('id')->all();
     syncBrowserAsSuperAdmin(fn () => app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('ae'), 'ODOO', 'https://odoo.test/api', 'k', 's', ['database' => 'tw'])));
