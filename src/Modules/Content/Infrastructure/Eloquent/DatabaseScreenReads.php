@@ -212,7 +212,7 @@ final readonly class DatabaseScreenReads implements ScreenReads
     {
         $storeId = strtolower($storeId);
         $counts = ['all' => 0, 'scheduled' => 0, 'live' => 0, 'ended' => 0];
-        $held = $heldStores === null ? null : array_values(array_map(strtolower(...), $heldStores));
+        $held = $heldStores === null ? null : array_map(strtolower(...), $heldStores);
         // A campaign with a run in a store the reader holds no job in is not theirs to open (§1.7 #5): left out
         // of the rows and the counts alike, in the query, so a page is never short (lesson 69).
         $onlyHeld = static function (Builder $query, string $runs) use ($held): void {
