@@ -37,11 +37,13 @@ use Modules\B2B\Domain\Exception\CompanyTypeInactive;
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
 use Modules\B2B\Presentation\Http\Request\CompanyAddressRequest;
 use Modules\B2B\Presentation\Http\Request\CompanyDraftRequest;
+use Modules\B2B\Presentation\Http\Resource\CompanyPage;
 use Modules\B2B\Presentation\Http\Resource\CompanyPages;
+use Modules\B2B\Public\Enums\CompanyStatus;
 use Shared\Domain\Error\DomainError;
 
 /**
- * F11 — the company's own page (b2b.md §4.5, amendment 14), and every change it makes: starting
+ * F11 — the company's own page (b2b.md §4.5, amendments 14 and 35), and every change it makes: starting
  * the draft, the form saving itself a field at a time, its papers and answers, discarding and
  * sending it, and the company's address.
  *
@@ -63,9 +65,18 @@ final readonly class MyCompanyController
         private CompanyPages $pages,
     ) {}
 
+    /**
+     * One address, two pages (owner, 2026-11-10; b2b.md amendment 35): the form's while a draft is
+     * open that may change — before the first send, an approved company changing its details, a
+     * rejected one applying again — and the view page in every other state, which never carries
+     * the form. Both take the same data. Every post here comes back to this address, so starting
+     * a draft opens the form and sending or discarding it shows the view, as before.
+     */
     public function show(ViewMyCompanyHandler $handler): Response
     {
-        return $this->page->render('B2B/Storefront/Company/Company', $this->pages->page($handler->handle(new ViewMyCompany))->toArray(), self::WORDS);
+        $page = $this->pages->page($handler->handle(new ViewMyCompany));
+
+        return $this->page->render(self::editing($page) ? 'B2B/Storefront/Company/Edit' : 'B2B/Storefront/Company/Company', $page->toArray(), self::WORDS);
     }
 
     /** The first draft, Apply again after a rejection, or Change company details (§4.5). */
@@ -217,6 +228,15 @@ final readonly class MyCompanyController
         }
 
         return back()->withErrors([$where => FormErrors::message($error)]);
+    }
+
+    /**
+     * Whether the page is the form: a draft open, and no company yet, or one approved or rejected.
+     * Under review there is nothing to change, and a suspended company's draft may only go (§1.1).
+     */
+    private static function editing(CompanyPage $page): bool
+    {
+        return $page->draft !== null && in_array($page->company?->status, [null, CompanyStatus::Approved->value, CompanyStatus::Rejected->value], true);
     }
 
     private static function uploaded(Request $request): ?UploadedFile
