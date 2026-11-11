@@ -14,6 +14,7 @@ use Modules\Content\Domain\Model\DocumentText;
 use Modules\Content\Domain\Model\Publication;
 use Modules\Content\Domain\Repository\Documents;
 use Modules\Content\Domain\Repository\SlugHistory;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Shared\Application\Unauthorized;
 
 /**
@@ -31,6 +32,7 @@ final readonly class DocumentsHandler
         private Documents $documents,
         private SlugHistory $history,
         private ScreenReads $reads,
+        private UnreadTranslations $marks,
     ) {}
 
     public static function permission(DocumentKind $kind): string
@@ -74,6 +76,7 @@ final readonly class DocumentsHandler
             'status' => $document->status->value,
             'publishedAt' => $document->publishedAt?->format(DATE_ATOM),
             'version' => $document->version,
+            'translationUnread' => $this->marks->has($kind->value, $document->id),
             ...$document->fields(),
             'texts' => array_map(static fn (DocumentText $text): array => [
                 'title' => $text->title,

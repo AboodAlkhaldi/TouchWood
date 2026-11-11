@@ -19,5 +19,7 @@ final readonly class FillHomeSection
         public int $version,
         public array $settings,
         public array $logos = [],
+        public bool $translated = false,
+        public bool $read = false,
     ) {}
 }

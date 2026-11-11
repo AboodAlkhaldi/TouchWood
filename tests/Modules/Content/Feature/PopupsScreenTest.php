@@ -171,5 +171,6 @@ it('costs few queries of its own', function () {
 
     // Measured 2026-11-10: 11 each, the panel's frame's 10 (AdminFrameQueryBudgetTest) and 1 of its own - the list; the
     // form's pop-up (its image none here). Content's target is 15 of its own (§4.2).
-    expect([Screen::queries($browser, POPUPS_SCREEN.'?store=sa'), Screen::queries($browser, POPUPS_SCREEN.'/'.DB::table('content.popups')->value('id'))])->toBe([11, 11]);
+    // 2026-11-11 (PR 7b, P14): one more on a form and on the sections' list - Translate's unread mark (content.unread_translations).
+    expect([Screen::queries($browser, POPUPS_SCREEN.'?store=sa'), Screen::queries($browser, POPUPS_SCREEN.'/'.DB::table('content.popups')->value('id'))])->toBe([11, 12]);
 });

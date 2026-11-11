@@ -12,6 +12,7 @@ startsAt: string | null,
 endsAt: string | null,
 images: Record<string, string>,
 version: number,
+translationUnread: boolean,
 };
 export type BannerFormPageData = {
 store: ContentStoreData,
@@ -49,6 +50,7 @@ isOn: boolean,
 startsAt: string | null,
 endsAt: string | null,
 version: number,
+translationUnread: boolean,
 };
 export type BarsPageData = {
 stores: ContentStoreData[],
@@ -114,6 +116,7 @@ type: string,
 isVisible: boolean,
 version: number,
 settings: Record<string, any>,
+translationUnread: boolean,
 };
 export type HomeSectionPageData = {
 store: ContentStoreData,
@@ -138,6 +141,7 @@ state: string,
 startsAt: string | null,
 endsAt: string | null,
 version: number,
+translationUnread: boolean,
 };
 export type PopupFormPageData = {
 store: ContentStoreData,

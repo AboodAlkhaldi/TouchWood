@@ -15,12 +15,14 @@ use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\EditCheck;
 use Modules\Content\Application\Moments;
 use Modules\Content\Application\PopupRules;
+use Modules\Content\Application\TranslationMarks;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Domain\Exception\InvalidContentInput;
 use Modules\Content\Domain\Model\Popup;
 use Modules\Content\Domain\Model\ScheduleState;
 use Modules\Content\Domain\Repository\Popups;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Modules\Content\Domain\ValueObject\Schedule;
 use Modules\Content\Domain\ValueObject\Words;
 use Modules\Platform\Public\Contracts\PlatformApi;
@@ -52,6 +54,7 @@ final readonly class SavePopupHandler
         private ConnectionInterface $db,
         private PlatformApi $platform,
         private ContentCache $cache,
+        private TranslationMarks $marks,
     ) {}
 
     /**
@@ -80,6 +83,7 @@ final readonly class SavePopupHandler
                 $id = strtolower((string) Str::ulid());
                 $popup = $this->popup($id, $store->id, $fields, new Schedule(false, $fields['starts'], $fields['ends']), 1, $staffId, $now);
                 $this->popups->add($popup);
+                $this->marks->saved(UnreadTranslations::POPUP, $id, $store->id, $command->translated, $command->read, false);
                 $this->platform->recordAudit(ContentAudit::entry('content.popup.created', 'content.popup', $id, $store->id, ContentAudit::diff([], $popup->fields())));
                 $this->cache->invalidate();
 
@@ -102,6 +106,7 @@ final readonly class SavePopupHandler
             }
 
             $this->popups->update($popup);
+            $this->marks->saved(UnreadTranslations::POPUP, $was->id, $store->id, $command->translated, $command->read, $was->schedule->isScheduled);
             $this->platform->recordAudit(ContentAudit::entry('content.popup.changed', 'content.popup', $was->id, $store->id, ContentAudit::diff($was->fields(), $popup->fields())));
             $this->cache->invalidate();
 

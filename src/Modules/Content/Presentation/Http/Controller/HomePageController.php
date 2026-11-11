@@ -136,7 +136,7 @@ final readonly class HomePageController
         $visible = Inputs::flag($request, 'visible');
 
         try {
-            $show->handle(new ShowHomeSection($section, $visible));
+            $show->handle(new ShowHomeSection($section, $visible, Inputs::flag($request, 'read')));
         } catch (MissingEnglish) {
             // The spec's own words for Show refused (§4.4 W1): "Add the English first."
             return back()->withErrors(['form' => __('content::admin_home.sections.add_english')]);
@@ -174,6 +174,8 @@ final readonly class HomePageController
                     'nameEn' => is_array($logo) && is_string($logo['nameEn'] ?? null) && $logo['nameEn'] !== '' ? $logo['nameEn'] : null,
                     'link' => is_array($logo) && is_string($logo['link'] ?? null) && trim($logo['link']) !== '' ? trim($logo['link']) : null,
                 ], $logos)) : [],
+                Inputs::flag($request, 'translated'),
+                Inputs::flag($request, 'read'),
             ));
         } catch (DomainError $error) {
             return Refusals::back($request, $error, self::sectionBoxes());

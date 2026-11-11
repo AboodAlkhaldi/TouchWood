@@ -33,6 +33,7 @@ use Modules\Content\Domain\Repository\RedirectUploads;
 use Modules\Content\Domain\Repository\SlugHistory;
 use Modules\Content\Domain\Repository\SmartBars;
 use Modules\Content\Domain\Repository\StoreSeo;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Modules\Content\Domain\Repository\WaitingJobs;
 use Modules\Content\Infrastructure\Cache\VersionedContentCache;
 use Modules\Content\Infrastructure\Eloquent\ContentCatalogUsage;
@@ -51,6 +52,7 @@ use Modules\Content\Infrastructure\Eloquent\DatabaseSitemapSources;
 use Modules\Content\Infrastructure\Eloquent\DatabaseSlugHistory;
 use Modules\Content\Infrastructure\Eloquent\DatabaseSmartBars;
 use Modules\Content\Infrastructure\Eloquent\DatabaseStoreSeo;
+use Modules\Content\Infrastructure\Eloquent\DatabaseUnreadTranslations;
 use Modules\Content\Infrastructure\Eloquent\DatabaseWaitingJobs;
 use Modules\Content\Infrastructure\External\HttpAddressProbe;
 use Modules\Content\Infrastructure\External\NoCampaignsYet;
@@ -116,6 +118,9 @@ final class ContentServiceProvider extends ServiceProvider
         $this->app->bind(ContentJobs::class, QueuedContentJobs::class);
         $this->app->bind(AddressProbe::class, HttpAddressProbe::class);
         $this->app->bind(SheetReader::class, OpenSpoutSheetReader::class);
+
+        // PR 7b: Translate's mark kept until read (content.md §1.3, P14).
+        $this->app->bind(UnreadTranslations::class, DatabaseUnreadTranslations::class);
     }
 
     public function boot(): void

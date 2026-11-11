@@ -4,7 +4,7 @@ import { Trash2 } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
 import { ImageBox } from '@/components/content/image-box';
 import { isShopLink, linkRule, PairFields } from '@/components/content/parts';
-import { TranslateAllButton, useReadTick, useTranslation, type Pair } from '@/components/content/translate';
+import { markFields, TranslateAllButton, useReadTick, useTranslation, type Pair } from '@/components/content/translate';
 import { TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { Note } from '@/components/Note';
@@ -39,7 +39,7 @@ export default function Logos({ store, section, logos: saved, translationReady }
     const [dirty, setDirty] = useState(false);
     const [saving, setSaving] = useState(false);
     const [adding, setAdding] = useState(0);
-    const translation = useTranslation('homepage', store.id, translationReady);
+    const translation = useTranslation('homepage', store.id, translationReady, section.translationUnread);
     const tick = useReadTick(translation);
     const checks = useChecks([
         { id: 'heading_ar', label: t('content::admin_home.fields.arabic', { field: t('content::admin_home.fields.heading') }), value: heading.ar, rules: { length: { max: 80 } } },
@@ -73,10 +73,10 @@ export default function Logos({ store, section, logos: saved, translationReady }
     const label = t('content::admin_home.section.save');
     const name = { ar: t('content::admin_home.fields.arabic', { field: t('content::admin_home.fields.logo_name') }), en: t('content::admin_home.fields.english', { field: t('content::admin_home.fields.logo_name') }) };
 
-    const send = () =>
+    const send = (read = false) =>
         router.post(
             `/admin/content/home/${section.id}`,
-            { store: store.id, version: section.version, settings: { heading }, logos: logos.map((logo) => ({ mediaId: logo.mediaId, nameAr: logo.name.ar, nameEn: logo.name.en, link: logo.link })) },
+            { ...markFields(translation, read), store: store.id, version: section.version, settings: { heading }, logos: logos.map((logo) => ({ mediaId: logo.mediaId, nameAr: logo.name.ar, nameEn: logo.name.en, link: logo.link })) },
             { preserveScroll: 'errors', onStart: () => setSaving(true), onFinish: () => setSaving(false), onSuccess: () => setDirty(false) },
         );
 

@@ -14,6 +14,7 @@ use Modules\Content\Application\ContentCache;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\EditCheck;
 use Modules\Content\Application\Moments;
+use Modules\Content\Application\TranslationMarks;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Domain\Exception\InvalidContentInput;
@@ -22,6 +23,7 @@ use Modules\Content\Domain\Model\BannerPlacement;
 use Modules\Content\Domain\Model\ScheduleState;
 use Modules\Content\Domain\Repository\Banners;
 use Modules\Content\Domain\Repository\ContentLocks;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Modules\Content\Domain\ValueObject\Schedule;
 use Modules\Content\Domain\ValueObject\Words;
 use Modules\Platform\Public\Contracts\PlatformApi;
@@ -49,6 +51,7 @@ final readonly class SaveBannerHandler
         private ConnectionInterface $db,
         private PlatformApi $platform,
         private ContentCache $cache,
+        private TranslationMarks $marks,
     ) {}
 
     /**
@@ -83,6 +86,7 @@ final readonly class SaveBannerHandler
                 $id = strtolower((string) Str::ulid());
                 $banner = new Banner($id, $store->id, $placement, $fields['category'], $fields['name'], $fields['link'], $command->hasWords, $fields['alt']['ar'], $fields['alt']['en'], new Schedule(false, $fields['starts'], $fields['ends']), count($this->banners->inPlacement($store->id, $placement)), $fields['images'], 1, $staffId, $now);
                 $this->banners->add($banner);
+                $this->marks->saved(UnreadTranslations::BANNER, $id, $store->id, $command->translated, $command->read, false);
                 $this->platform->recordAudit(ContentAudit::entry('content.banner.created', 'content.banner', $id, $store->id, ContentAudit::diff([], $banner->fields())));
                 $this->cache->invalidate();
 
@@ -106,6 +110,7 @@ final readonly class SaveBannerHandler
             }
 
             $this->banners->update($banner);
+            $this->marks->saved(UnreadTranslations::BANNER, $was->id, $store->id, $command->translated, $command->read, $was->schedule->state($now) !== ScheduleState::Draft);
             $this->platform->recordAudit(ContentAudit::entry('content.banner.changed', 'content.banner', $was->id, $store->id, ContentAudit::diff($was->fields(), $banner->fields())));
             $this->cache->invalidate();
 

@@ -28,5 +28,7 @@ final readonly class SaveBanner
         public ?string $startsAt,
         public ?string $endsAt,
         public array $images,
+        public bool $translated = false,
+        public bool $read = false,
     ) {}
 }

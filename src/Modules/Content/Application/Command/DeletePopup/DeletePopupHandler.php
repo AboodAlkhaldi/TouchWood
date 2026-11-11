@@ -10,10 +10,12 @@ use Modules\Content\Application\ContentAudit;
 use Modules\Content\Application\ContentCache;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\PopupRules;
+use Modules\Content\Application\TranslationMarks;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Domain\Exception\NotDeletable;
 use Modules\Content\Domain\Repository\Popups;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Unauthorized;
 
@@ -29,6 +31,7 @@ final readonly class DeletePopupHandler
         private ConnectionInterface $db,
         private PlatformApi $platform,
         private ContentCache $cache,
+        private TranslationMarks $marks,
     ) {}
 
     /**
@@ -49,6 +52,7 @@ final readonly class DeletePopupHandler
             }
 
             $this->popups->delete($was->id);
+            $this->marks->forget(UnreadTranslations::POPUP, $was->id);
             $this->platform->recordAudit(ContentAudit::entry('content.popup.deleted', 'content.popup', $was->id, $store->id, ContentAudit::diff($was->fields(), [])));
             $this->cache->invalidate();
         }, 3);

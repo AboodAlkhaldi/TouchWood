@@ -12,6 +12,7 @@ use Modules\Content\Domain\Model\HomeSection;
 use Modules\Content\Domain\Model\HomeSectionType;
 use Modules\Content\Domain\Repository\FrameItems;
 use Modules\Content\Domain\Repository\HomeSections;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Shared\Application\Unauthorized;
 
 /**
@@ -27,6 +28,7 @@ final readonly class HomePageHandler
         private ContentAccess $access,
         private HomeSections $sections,
         private FrameItems $frame,
+        private UnreadTranslations $marks,
     ) {}
 
     /**
@@ -39,9 +41,12 @@ final readonly class HomePageHandler
         $store = $this->access->authorize(self::PERMISSION, $storeId);
         $sections = $this->sections->ofStore($store->id);
         $present = array_map(static fn (HomeSection $section): string => $section->type->value, $sections);
+        // Show asks for the tick on a section whose translated English nobody has read (§1.3, P14): one read for all.
+        $unread = $this->marks->marked(UnreadTranslations::HOME_SECTION, array_map(static fn (HomeSection $section): string => $section->id, $sections));
 
         return [
             'sections' => array_map(static fn (HomeSection $section): array => [
+                'translationUnread' => in_array(strtolower($section->id), $unread, true),
                 'id' => $section->id,
                 'type' => $section->type->value,
                 'position' => $section->position,
@@ -72,6 +77,7 @@ final readonly class HomePageHandler
             'isVisible' => $section->isVisible,
             'version' => $section->version,
             'settings' => $section->settings,
+            'translationUnread' => $this->marks->has(UnreadTranslations::HOME_SECTION, $section->id),
             'logos' => array_map(static fn (HomeLogo $logo): array => ['mediaId' => $logo->mediaId, 'nameAr' => $logo->nameAr, 'nameEn' => $logo->nameEn, 'link' => $logo->link], $this->sections->logos($section->id)),
         ];
     }
