@@ -162,7 +162,7 @@ final readonly class DocumentsHandler
         $found = $this->catalog->searchProducts(StoreId::fromString($store->id), $text, true, null, $after, self::PRODUCTS);
 
         return [
-            'products' => array_values(array_map(static fn (FoundProductDto $product): array => ['id' => strtolower($product->productId), 'nameAr' => $product->nameAr, 'nameEn' => $product->nameEn, 'archived' => false], $found->rows)),
+            'products' => array_map(static fn (FoundProductDto $product): array => ['id' => strtolower($product->productId), 'nameAr' => $product->nameAr, 'nameEn' => $product->nameEn, 'archived' => false], $found->rows),
             'next' => $found->next,
         ];
     }

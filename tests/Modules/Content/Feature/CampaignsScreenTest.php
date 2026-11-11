@@ -194,10 +194,11 @@ it('saves a new campaign as a draft and opens its page with each store\'s run, t
         ->where('runs.0.ceilingPercent', 30)
         ->where('translations', fn (Collection $words): bool => $words->has('content::admin_themes.parts.name.HERO')));
 
+    /** @var list<array<string, mixed>> $runs */
     $runs = $browser->get(CAMPAIGNS_SCREEN."/{$id}")->viewData('page')['props']['runs'];
     $sa = collect($runs)->firstWhere('store.code', 'sa');
 
-    expect($sa['drafts'])->toBe([['id' => $draft, 'titleAr' => 'بدأت العروض', 'titleEn' => 'Offers started', 'status' => 'DRAFT']]);
+    expect($sa['drafts'] ?? null)->toBe([['id' => $draft, 'titleAr' => 'بدأت العروض', 'titleEn' => 'Offers started', 'status' => 'DRAFT']]);
 
     // Arabic is required to save: refused under its box, nothing written.
     $refused = $browser->post(CAMPAIGNS_SCREEN, campaignsScreenFields(['sa'], ['name_ar' => '']), Screen::fromPage(CAMPAIGNS_SCREEN.'/new'));

@@ -1,5 +1,5 @@
 /*
-| A search's reads as they are typed (resources/js/lib/latest-read.ts; the #386 review): only the latest read's answer is
+| A search's reads as they are typed (resources/js/lib/latest-read.ts; PR 7b's review): only the latest read's answer is
 | taken, whatever order the answers arrive in, and a read still on its way when the search is cleared is dropped. Run by
 | tests/Frontend/run.mjs, inside the PHP suite.
 */

@@ -135,6 +135,8 @@ describe('the admin menu', function () {
             'content/home_page',
             'content/bars',
             'content/banners',
+            'content/campaigns',
+            'content/themes',
             'content/popups',
             'content/pages',
             'content/blog',

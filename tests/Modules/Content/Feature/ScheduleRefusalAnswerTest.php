@@ -15,6 +15,7 @@ use Modules\Content\Application\Command\SaveCampaign\SaveCampaignHandler;
 use Modules\Content\Application\Command\SetRunPrices\SetRunPrices;
 use Modules\Content\Application\Command\SetRunPrices\SetRunPricesHandler;
 use Modules\Content\Application\ContentPermissions;
+use Symfony\Component\HttpFoundation\Response;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
 use Tests\Modules\Access\Support\FakeBreachList;
@@ -83,6 +84,7 @@ function scheduleRefusalCampaign(): array
     return ['campaign' => $campaign, 'variant' => $variant, 'refused' => (string) DB::table('content.campaign_runs')->where('id', $runs[1])->value('store_id'), 'browser' => $browser];
 }
 
+/** @return TestResponse<Response> */
 function scheduleRefusalPress(AdminBrowser $browser, string $campaign, bool $json = false): TestResponse
 {
     $version = (int) DB::table('content.campaigns')->where('id', $campaign)->value('version');

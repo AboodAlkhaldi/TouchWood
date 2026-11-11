@@ -31,7 +31,11 @@ beforeEach(function () {
     RecordingSecurityMessages::install();
 });
 
-/** A draft campaign of these stores, written through its use case as the system, its id. */
+/**
+ * A draft campaign of these stores, written through its use case as the system, its id.
+ *
+ * @param  list<string>  $codes
+ */
 function contentCampaignsScreenDraft(string $run, array $codes): string
 {
     $typed = static fn (int $days): string => CarbonImmutable::now()->addDays($days)->setTimezone('Asia/Riyadh')->format('Y-m-d 00:00');

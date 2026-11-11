@@ -43,7 +43,7 @@ it('takes an entry under Content and shows the section after Marketing and befor
 it('holds in the application\'s own menu only the entries whose screens are built, in §4.3\'s order', function () {
     Fx::actAsStaff(Fx::staff(superAdmin: true));
 
-    expect(array_map(static fn (MenuEntryDto $entry): string => $entry->key, app(InMemoryAdminMenu::class)->forCurrentActor()['content'] ?? []))->toBe(['home_page', 'bars', 'banners', 'popups', 'pages', 'blog', 'projects', 'seo', 'redirects']);
+    expect(array_map(static fn (MenuEntryDto $entry): string => $entry->key, app(InMemoryAdminMenu::class)->forCurrentActor()['content'] ?? []))->toBe(['home_page', 'bars', 'banners', 'campaigns', 'themes', 'popups', 'pages', 'blog', 'projects', 'seo', 'redirects']);
 });
 
 it('names the Content section in both languages, and draws it with its own icon', function () {

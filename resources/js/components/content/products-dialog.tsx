@@ -12,7 +12,7 @@ import type { ProductChoiceData } from '@/types/generated/Modules/Content/Presen
 /*
 | Add Product's dialog (content.md §1.12, §1.13), loaded when it is asked: the store's ready products, read from the
 | server 300 ms after the last key (`GET …/products?store=&q=`), 20 at a time with Show More (`after`, §9.3c S4), each
-| added once, up to the kind's limit. Done closes it. **An older answer is dropped** (the #386 review): a read is aborted
+| added once, up to the kind's limit. Done closes it. **An older answer is dropped** (PR 7b's review): a read is aborted
 | when the search changes, and only the latest read's answer is taken, so "dra" answering after "drawer" shows nothing
 | of "dra".
 */
