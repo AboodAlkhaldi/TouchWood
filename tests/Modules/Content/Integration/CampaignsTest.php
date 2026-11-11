@@ -405,12 +405,14 @@ describe('prices: a draft\'s stay in Content, Schedule hands them to Pricing (§
             ->and(array_map(campaignsState(...), $order))->toBe(['SCHEDULED', 'DRAFT', 'DRAFT']);
 
         $was = app()->getLocale();
+        $refusal = $stopped === null ? new NotDeletable : $stopped->refusal;
 
         foreach (['en', 'ar'] as $locale) {
             app()->setLocale($locale);
-            $words = FormErrors::message(new CampaignPartlyScheduled($name(1, $locale), $name(0, $locale), $stopped?->refusal ?? new NotDeletable));
+            $words = FormErrors::message(new CampaignPartlyScheduled($name(1, $locale), $name(0, $locale), $refusal));
 
-            expect($words)->toContain($name(1, $locale))->toContain($name(0, $locale))->not->toContain(':store');
+            expect($words)->toContain($name(1, $locale), $name(0, $locale))
+                ->and(str_contains($words, ':store'))->toBeFalse();
         }
 
         app()->setLocale($was);

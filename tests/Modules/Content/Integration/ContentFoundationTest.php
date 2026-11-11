@@ -252,8 +252,8 @@ describe('the errors', function () {
             $named++;
         }
 
-        // §7 lists eighteen; a moved folder must not pass over nothing.
-        expect($named)->toBe(18);
+        // §7 lists eighteen, and PR 6's review adds a schedule stopped part way; a moved folder must not pass over nothing.
+        expect($named)->toBe(19);
     });
 });
 
