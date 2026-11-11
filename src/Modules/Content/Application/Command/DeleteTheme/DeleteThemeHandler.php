@@ -9,10 +9,12 @@ use Modules\Content\Application\ContentAccess;
 use Modules\Content\Application\ContentAudit;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\EditCheck;
+use Modules\Content\Application\TranslationMarks;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Domain\Exception\NotDeletable;
 use Modules\Content\Domain\Repository\Themes;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Unauthorized;
 
@@ -31,6 +33,7 @@ final readonly class DeleteThemeHandler
         private EditCheck $check,
         private ConnectionInterface $db,
         private PlatformApi $platform,
+        private TranslationMarks $marks,
     ) {}
 
     /**
@@ -55,6 +58,8 @@ final readonly class DeleteThemeHandler
             }
 
             $this->themes->delete($was->id);
+            // Its Translate mark goes with it (§1.3 #4).
+            $this->marks->forget(UnreadTranslations::THEME, $was->id);
             $this->platform->recordAudit(ContentAudit::entry('content.theme.deleted', 'content.theme', $was->id, null, ContentAudit::diff($was->fields(), [])));
         }, 3);
     }

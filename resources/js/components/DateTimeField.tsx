@@ -51,6 +51,8 @@ type Props = {
     disabled?: boolean;
     /** A start the server refuses once it has passed, rather than taking it as now: the field doesn't promise it will. */
     refusesPast?: boolean;
+    /** A moment that is always typed - a campaign's or a theme's (content.md §1.7 #1): no Now, no No End. */
+    required?: boolean;
 };
 
 /** A plain day as day-picker's local date, or undefined when the text is not one. */
@@ -79,7 +81,7 @@ function useNow(): number {
     return now;
 }
 
-export function DateTimeField({ id, label, kind, value, onChange, zone, after = null, check, error, disabled = false, refusesPast = false }: Props) {
+export function DateTimeField({ id, label, kind, value, onChange, zone, after = null, check, error, disabled = false, refusesPast = false, required = false }: Props) {
     const { locale } = usePage<SharedProps>().props;
     const t = useTranslator();
     const now = useNow();
@@ -106,20 +108,22 @@ export function DateTimeField({ id, label, kind, value, onChange, zone, after = 
             <FieldLegend variant="label" className="text-label-14 text-ink">
                 {label}
             </FieldLegend>
-            <Field orientation="horizontal">
-                <Checkbox
-                    id={`${id}-none`}
-                    checked={value.none}
-                    disabled={disabled}
-                    onCheckedChange={(on) => change({ none: on === true })}
-                    data-test={`${id}-none`}
-                />
-                <FieldLabel htmlFor={`${id}-none`} className="font-normal">
-                    {kind === 'start' ? t('ui.moment.now') : t('ui.moment.no_end')}
-                </FieldLabel>
-            </Field>
+            {required ? null : (
+                <Field orientation="horizontal">
+                    <Checkbox
+                        id={`${id}-none`}
+                        checked={value.none}
+                        disabled={disabled}
+                        onCheckedChange={(on) => change({ none: on === true })}
+                        data-test={`${id}-none`}
+                    />
+                    <FieldLabel htmlFor={`${id}-none`} className="font-normal">
+                        {kind === 'start' ? t('ui.moment.now') : t('ui.moment.no_end')}
+                    </FieldLabel>
+                </Field>
+            )}
 
-            {value.none ? null : (
+            {value.none && !required ? null : (
                 <div className="flex flex-wrap items-end gap-3">
                     <Field className="w-auto">
                         <FieldLabel id={`${id}-date-label`} htmlFor={`${id}-date`}>

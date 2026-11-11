@@ -12,14 +12,17 @@ use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\EditCheck;
 use Modules\Content\Application\Moments;
 use Modules\Content\Application\RefusalWords;
+use Modules\Content\Application\TranslationMarks;
 use Modules\Content\Domain\Exception\CampaignPartlyScheduled;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Domain\Exception\InvalidContentInput;
+use Modules\Content\Domain\Exception\TranslationUnread;
 use Modules\Content\Domain\Model\Campaign;
 use Modules\Content\Domain\Model\CampaignRun;
 use Modules\Content\Domain\Model\RunState;
 use Modules\Content\Domain\Repository\Campaigns;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Modules\Content\Domain\ValueObject\Words;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
@@ -30,7 +33,8 @@ use Throwable;
 
 /**
  * Schedules a campaign's draft runs (content.md §1.7 #14, #15, #16). **All of them are checked first, with no
- * writes**: English beside the Arabic name, an end still to come, **Pricing's permission in a store whose run holds
+ * writes**: English beside the Arabic name, **Translate's mark on it cleared by the tick** (§1.3 #4,
+ * `TranslationUnread`), an end still to come, **Pricing's permission in a store whose run holds
  * price choices** (`CampaignPricesNotAllowed`, naming it), a chosen notice still a draft of its store. A run with no
  * prices schedules as it is (#16: "theme only").
  *
@@ -53,6 +57,8 @@ final readonly class ScheduleCampaignHandler
         private ConnectionInterface $db,
         private PlatformApi $platform,
         private RefusalWords $words,
+        private TranslationMarks $marks,
+        private UnreadTranslations $unread,
     ) {}
 
     /**
@@ -88,6 +94,11 @@ final readonly class ScheduleCampaignHandler
         $this->check->version($command->version, $found->version, $found->updatedBy, $found->updatedAt, $stores[$drafts[0]->storeId]);
         Words::requireEnglish('name', $found->nameAr, $found->nameEn);
 
+        // Translate's English name nobody has said they read asks for the tick (§1.3 #4), before anything is written.
+        if (! $command->read && $this->unread->has(UnreadTranslations::CAMPAIGN, $found->id)) {
+            throw new TranslationUnread;
+        }
+
         foreach ($drafts as $run) {
             if ($run->endsAt <= $now) {
                 throw new InvalidContentInput('ends_at', InvalidContentInput::PAST);
@@ -109,7 +120,7 @@ final readonly class ScheduleCampaignHandler
 
         foreach ($drafts as $run) {
             try {
-                $done = $this->scheduleOne($run->id, $stores[$run->storeId], $staffId, $version);
+                $done = $this->scheduleOne($run->id, $stores[$run->storeId], $staffId, $version, $command->read);
             } catch (Throwable $failure) {
                 throw $this->stopped($found->id, $run, $failure);
             }
@@ -163,9 +174,9 @@ final readonly class ScheduleCampaignHandler
      *
      * @throws ContentError
      */
-    private function scheduleOne(string $runId, StoreDto $store, ?string $staffId, int $version): bool
+    private function scheduleOne(string $runId, StoreDto $store, ?string $staffId, int $version, bool $read): bool
     {
-        return $this->db->transaction(function () use ($runId, $store, $staffId, $version): bool {
+        return $this->db->transaction(function () use ($runId, $store, $staffId, $version, $read): bool {
             $now = Moments::now();
             $run = $this->campaigns->findRun($runId) ?? throw new ContentNotFound;
             $campaign = $this->campaigns->lock($run->campaignId) ?? throw new ContentNotFound;
@@ -178,6 +189,8 @@ final readonly class ScheduleCampaignHandler
 
             $this->check->version($version, $campaign->version, $campaign->updatedBy, $campaign->updatedAt, $store);
             Words::requireEnglish('name', $campaign->nameAr, $campaign->nameEn);
+            // Judged again on the locked row: the tick clears the mark with the first store scheduled (§1.3 #4).
+            $this->marks->showing(UnreadTranslations::CAMPAIGN, $campaign->id, $read);
 
             if ($run->endsAt <= $now) {
                 throw new InvalidContentInput('ends_at', InvalidContentInput::PAST);

@@ -77,6 +77,131 @@ slugAr: string,
 slugEn: string,
 posts: number,
 };
+export type CampaignData = {
+id: string,
+nameAr: string,
+nameEn: string | null,
+startsLocal: string,
+endsLocal: string,
+themeId: string | null,
+version: number,
+state: string,
+halfLive: boolean,
+translationUnread: boolean,
+};
+export type CampaignFormPageData = {
+stores: ContentStoreData[],
+campaign: CampaignData | null,
+runs: CampaignRunData[],
+theme: CampaignThemeData | null,
+themes: NamedChoiceData[],
+mayOpenThemes: boolean,
+translationReady: boolean,
+};
+export type CampaignNoticeData = {
+id: string,
+titleAr: string | null,
+titleEn: string | null,
+status: string,
+};
+export type CampaignOfferData = {
+kind: string,
+id: string,
+startsAt: string,
+endsAt: string | null,
+alwaysWins: boolean,
+sizes: number,
+};
+export type CampaignPreviewData = {
+products: CampaignPreviewProductData[],
+next: string | null,
+reachedProducts: number,
+reachedSizes: number,
+skippedSizes: number,
+deepestBasisPoints: number | null,
+otherOffers: CampaignOfferData[],
+currency: string,
+};
+export type CampaignPreviewProductData = {
+productId: string,
+nameAr: string,
+nameEn: string | null,
+sizes: CampaignPreviewSizeData[],
+};
+export type CampaignPreviewSizeData = {
+variantId: string,
+code: string,
+retail: string | null,
+newPrice: string | null,
+depthBp: number | null,
+skipped: string | null,
+};
+export type CampaignPricesData = {
+lines: string,
+targets: CampaignTargetData[],
+leftOut: CampaignTargetData[],
+};
+export type CampaignRowData = {
+id: string,
+nameAr: string,
+nameEn: string | null,
+runId: string,
+state: string,
+overall: string,
+startsAt: string | null,
+endsAt: string | null,
+stores: RunStateData[],
+themeAr: string | null,
+themeEn: string | null,
+notice: CampaignNoticeData | null,
+version: number,
+};
+export type CampaignRunData = {
+id: string,
+store: ContentStoreData,
+state: string,
+startsAt: string,
+endsAt: string,
+pricesOpen: boolean,
+mayPrice: boolean,
+mayNotices: boolean,
+ceilingPercent: number | null,
+currency: string,
+decimals: number,
+prices: CampaignPricesData | null,
+skipped: CampaignTargetData[],
+notice: CampaignNoticeData | null,
+drafts: CampaignNoticeData[],
+};
+export type CampaignTargetData = {
+kind: string,
+id: string,
+nameAr: string,
+nameEn: string | null,
+detail: string | null,
+archived: boolean,
+percentBp: number | null,
+amountMinor: number | null,
+};
+export type CampaignThemeData = {
+id: string,
+nameAr: string,
+nameEn: string | null,
+startsLocal: string,
+endsLocal: string,
+state: string,
+parts: ThemePartFillData[],
+dates: ThemeDateMatchData[],
+};
+export type CampaignsPageData = {
+stores: ContentStoreData[],
+storeCode: string,
+storeTimezone: string,
+tab: string,
+counts: Record<string, number>,
+campaigns: CampaignRowData[],
+next: string | null,
+};
 export type CategoryChoiceData = {
 id: string,
 pathAr: string,
@@ -204,6 +329,11 @@ logos: HomeLogoData[],
 icons: string[],
 translationReady: boolean,
 };
+export type NamedChoiceData = {
+id: string,
+nameAr: string,
+nameEn: string | null,
+};
 export type PopupData = {
 id: string,
 name: string,
@@ -271,6 +401,11 @@ next: string | null,
 q: string,
 checkWaits: boolean,
 };
+export type RunStateData = {
+storeId: string,
+code: string,
+state: string,
+};
 export type SeoPageData = {
 stores: ContentStoreData[],
 storeCode: string,
@@ -306,4 +441,65 @@ link: string | null,
 state: string,
 startsAt: string | null,
 endsAt: string | null,
+};
+export type ThemeData = {
+id: string,
+nameAr: string,
+nameEn: string | null,
+storeIds: string[],
+startsLocal: string,
+endsLocal: string,
+version: number,
+state: string,
+states: RunStateData[],
+translationUnread: boolean,
+};
+export type ThemeDateMatchData = {
+storeId: string,
+match: boolean,
+};
+export type ThemeFormPageData = {
+stores: ContentStoreData[],
+theme: ThemeData | null,
+parts: ThemePartData[],
+images: Record<string, ContentImageData>,
+campaigns: NamedChoiceData[],
+translationReady: boolean,
+previewing: boolean,
+};
+export type ThemePartData = {
+part: string,
+textAr: string | null,
+textEn: string | null,
+link: string | null,
+promises: ThemePromiseData[],
+images: ThemePartImageData[],
+};
+export type ThemePartFillData = {
+part: string,
+filled: boolean,
+};
+export type ThemePartImageData = {
+key: string,
+mediaId: string,
+};
+export type ThemePromiseData = {
+ar: string,
+en: string | null,
+};
+export type ThemeRowData = {
+id: string,
+nameAr: string,
+nameEn: string | null,
+stores: RunStateData[],
+startsLocal: string,
+endsLocal: string,
+zone: string | null,
+parts: number,
+state: string,
+version: number,
+};
+export type ThemesPageData = {
+themes: ThemeRowData[],
+next: string | null,
 };

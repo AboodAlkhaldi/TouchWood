@@ -9,12 +9,14 @@ use Modules\Content\Application\ContentAccess;
 use Modules\Content\Application\ContentAudit;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\EditCheck;
+use Modules\Content\Application\TranslationMarks;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Domain\Exception\NotDeletable;
 use Modules\Content\Domain\Model\CampaignRun;
 use Modules\Content\Domain\Model\RunState;
 use Modules\Content\Domain\Repository\Campaigns;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Unauthorized;
 
@@ -33,6 +35,7 @@ final readonly class DeleteCampaignHandler
         private EditCheck $check,
         private ConnectionInterface $db,
         private PlatformApi $platform,
+        private TranslationMarks $marks,
     ) {}
 
     /**
@@ -58,6 +61,8 @@ final readonly class DeleteCampaignHandler
             }
 
             $this->campaigns->delete($was->id);
+            // Its Translate mark goes with it (§1.3 #4).
+            $this->marks->forget(UnreadTranslations::CAMPAIGN, $was->id);
             $this->platform->recordAudit(ContentAudit::entry('content.campaign.deleted', 'content.campaign', $was->id, null, ContentAudit::diff($was->fields(), [])));
         }, 3);
     }

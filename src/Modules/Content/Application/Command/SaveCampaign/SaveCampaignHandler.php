@@ -12,6 +12,7 @@ use Modules\Content\Application\ContentAudit;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\EditCheck;
 use Modules\Content\Application\Moments;
+use Modules\Content\Application\TranslationMarks;
 use Modules\Content\Domain\Exception\CampaignNotChangeable;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\ContentNotFound;
@@ -21,6 +22,7 @@ use Modules\Content\Domain\Model\Campaign;
 use Modules\Content\Domain\Model\CampaignRun;
 use Modules\Content\Domain\Model\RunState;
 use Modules\Content\Domain\Repository\Campaigns;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Modules\Content\Domain\Service\CampaignAlerts;
 use Modules\Content\Domain\ValueObject\Words;
 use Modules\Platform\Public\Contracts\PlatformApi;
@@ -41,7 +43,8 @@ use Shared\Application\Unauthorized;
  * - A store taken off: its draft run goes; a scheduled one must be cancelled first; an ended or cancelled one stays.
  *
  * One transaction under the campaign's row, then its runs in store-id order (lesson 37); Pricing's store locks come
- * after, in the same order. Refused over a newer version.
+ * after, in the same order. Refused over a newer version. **Translate's mark** on the English name stays until the tick
+ * (§1.3 #4, `TranslationMarks`): kept on a campaign of drafts, refused on one with a run scheduled or live.
  */
 final readonly class SaveCampaignHandler
 {
@@ -56,6 +59,7 @@ final readonly class SaveCampaignHandler
         private EditCheck $check,
         private ConnectionInterface $db,
         private PlatformApi $platform,
+        private TranslationMarks $marks,
     ) {}
 
     /**
@@ -93,7 +97,7 @@ final readonly class SaveCampaignHandler
         $staffId = $this->access->staffId();
 
         return $command->campaignId === null
-            ? $this->create($name, $starts, $ends, $stores, $moments, $command->themeId, $staffId)
+            ? $this->create($command, $name, $starts, $ends, $stores, $moments, $staffId)
             : $this->change($command, $name, $starts, $ends, $stores, $moments, $staffId);
     }
 
@@ -102,12 +106,12 @@ final readonly class SaveCampaignHandler
      * @param  list<StoreDto>  $stores
      * @param  array<string, array{0: \DateTimeImmutable, 1: \DateTimeImmutable}>  $moments
      */
-    private function create(array $name, string $starts, string $ends, array $stores, array $moments, ?string $themeId, ?string $staffId): string
+    private function create(SaveCampaign $command, array $name, string $starts, string $ends, array $stores, array $moments, ?string $staffId): string
     {
         $now = Moments::now();
-        $themeId = $this->rules->theme($themeId, $now);
+        $themeId = $this->rules->theme($command->themeId, $now);
 
-        return $this->db->transaction(function () use ($name, $starts, $ends, $stores, $moments, $themeId, $staffId, $now): string {
+        return $this->db->transaction(function () use ($command, $name, $starts, $ends, $stores, $moments, $themeId, $staffId, $now): string {
             $id = strtolower((string) Str::ulid());
             $campaign = new Campaign($id, $name['ar'], $name['en'], $starts, $ends, $themeId, 1, $staffId, $now);
             $this->campaigns->add($campaign);
@@ -117,6 +121,8 @@ final readonly class SaveCampaignHandler
             }
 
             $this->platform->recordAudit(ContentAudit::entry('content.campaign.created', 'content.campaign', $id, null, ContentAudit::diff([], [...$campaign->fields(), 'stores' => self::storeList($stores)])));
+            // A new campaign is all drafts: nothing shoppers see, so an unread English name keeps its mark (§1.3 #4).
+            $this->marks->saved(UnreadTranslations::CAMPAIGN, $id, $stores[0]->id, $command->translated, $command->read, false);
 
             return $id;
         }, 3);
@@ -195,6 +201,10 @@ final readonly class SaveCampaignHandler
                 [...$was->fields(), 'stores' => implode(',', $held)],
                 [...$campaign->fields(), 'stores' => self::storeList($stores)],
             )));
+            // A run scheduled or live shows the name to staff's alerts and the shop: saved with unread English it asks
+            // for the tick as Schedule would; a campaign of drafts alone keeps the mark (§1.3 #4).
+            $shown = array_filter($open, static fn (CampaignRun $run): bool => $run->state !== RunState::Draft) !== [];
+            $this->marks->saved(UnreadTranslations::CAMPAIGN, $was->id, $stores[0]->id, $command->translated, $command->read, $shown);
 
             return $was->id;
         }, 3);
