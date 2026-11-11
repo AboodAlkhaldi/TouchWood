@@ -11,6 +11,7 @@ use Modules\Content\Application\ContentAudit;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\EditCheck;
 use Modules\Content\Application\Moments;
+use Modules\Content\Domain\Exception\CampaignPartlyScheduled;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Domain\Exception\InvalidContentInput;
@@ -22,6 +23,7 @@ use Modules\Content\Domain\ValueObject\Words;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\Unauthorized;
+use Shared\Domain\Error\DomainError;
 
 /**
  * Schedules a campaign's draft runs (content.md §1.7 #14, #15, #16). **All of them are checked first, with no
@@ -32,8 +34,9 @@ use Shared\Application\Unauthorized;
  * Then **each run schedules in its own transaction, one store's pricing lock at a time, in store-id order** (lesson 37):
  * the campaign's row, the run's, then `CampaignPrices::save` - the only call that hands a draft's choices to Pricing,
  * which is the record from then on (Content's copy is cleared). **If a store then refuses** (Pricing's ceiling, a
- * target no longer there), the runs done stay scheduled, the rest stay drafts, and the refusal goes to the person: the
- * campaign reads Mixed until another press.
+ * target no longer there), the runs done stay scheduled, the rest stay drafts, and the person is told which store
+ * refused and which are scheduled already (`CampaignPartlyScheduled`, the store's own refusal kept beside it; the first
+ * store's refusal alone, when none is done): the campaign reads Mixed until another press.
  */
 final readonly class ScheduleCampaignHandler
 {
@@ -97,24 +100,44 @@ final readonly class ScheduleCampaignHandler
 
         $staffId = $this->access->staffId();
         $scheduled = [];
+        $scheduledIn = [];
+        // The version this press expects: the form's, raised by each store this press schedules.
+        $version = $command->version;
 
         foreach ($drafts as $run) {
-            if ($this->scheduleOne($run->id, $stores[$run->storeId], $staffId)) {
+            try {
+                $done = $this->scheduleOne($run->id, $stores[$run->storeId], $staffId, $version);
+            } catch (DomainError $refusal) {
+                // Partly scheduled (§1.7 #15): the page says which store refused and which are scheduled already.
+                throw $scheduled === [] ? $refusal : new CampaignPartlyScheduled(self::name($stores[$run->storeId]), implode(app()->getLocale() === 'ar' ? '، ' : ', ', $scheduledIn), $refusal);
+            }
+
+            if ($done) {
                 $scheduled[] = $run->id;
+                $scheduledIn[] = self::name($stores[$run->storeId]);
+                $version++;
             }
         }
 
         return $scheduled;
     }
 
+    private static function name(StoreDto $store): string
+    {
+        return $store->name->in(app()->getLocale());
+    }
+
     /**
-     * One store's run, in its own transaction.
+     * One store's run, in its own transaction, **judged again on its locked rows** (review of #382): the campaign's
+     * version as this press expects it, the English name, an end still to come, a notice still a draft, and Pricing's
+     * permission for the choices the run holds now - a SetRunPrices between the first checks and this one is not
+     * handed to Pricing for someone without the price right.
      *
      * @throws ContentError
      */
-    private function scheduleOne(string $runId, StoreDto $store, ?string $staffId): bool
+    private function scheduleOne(string $runId, StoreDto $store, ?string $staffId, int $version): bool
     {
-        return $this->db->transaction(function () use ($runId, $store, $staffId): bool {
+        return $this->db->transaction(function () use ($runId, $store, $staffId, $version): bool {
             $now = Moments::now();
             $run = $this->campaigns->findRun($runId) ?? throw new ContentNotFound;
             $campaign = $this->campaigns->lock($run->campaignId) ?? throw new ContentNotFound;
@@ -125,7 +148,19 @@ final readonly class ScheduleCampaignHandler
                 return false;
             }
 
+            $this->check->version($version, $campaign->version, $campaign->updatedBy, $campaign->updatedAt, $store);
+            Words::requireEnglish('name', $campaign->nameAr, $campaign->nameEn);
+
+            if ($run->endsAt <= $now) {
+                throw new InvalidContentInput('ends_at', InvalidContentInput::PAST);
+            }
+
+            if ($run->noticeId !== null) {
+                $this->rules->requireDraftNotice($run->noticeId, $run->storeId);
+            }
+
             if ($run->priceChoices !== null && ! $run->priceChoices->isEmpty()) {
+                $this->rules->requirePriceRight($store);
                 $this->rules->savePrices($run, $run->priceChoices, $store);
             }
 

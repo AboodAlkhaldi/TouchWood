@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\FormErrors;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Database\Seeders\CatalogSeeder;
@@ -33,6 +34,7 @@ use Modules\Content\Application\Command\SetRunPrices\SetRunPricesHandler;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\Query\PreviewRunPrices\PreviewRunPricesHandler;
 use Modules\Content\Domain\Exception\CampaignNotChangeable;
+use Modules\Content\Domain\Exception\CampaignPartlyScheduled;
 use Modules\Content\Domain\Exception\CampaignPricesNotAllowed;
 use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Domain\Exception\InvalidContentInput;
@@ -57,6 +59,7 @@ use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Content\Support\ContentFixtures as Cx;
+use Tests\Modules\Content\Support\StaleCampaigns;
 use Tests\Modules\Pricing\Support\PricingFixtures as Rx;
 
 use function Pest\Laravel\seed;
@@ -385,8 +388,32 @@ describe('prices: a draft\'s stay in Content, Schedule hands them to Pricing (§
         campaignsPrices($order[1], campaignsPercent('PRODUCT', strtolower((string) Str::ulid())));
         campaignsPrices($order[0], campaignsPercent('PRODUCT', $size['product']));
 
-        expect(campaignsRefusal(fn () => campaignsSchedule($campaign)))->toStartWith('pricing.')
+        $stopped = null;
+
+        try {
+            campaignsSchedule($campaign);
+        } catch (CampaignPartlyScheduled $refusal) {
+            $stopped = $refusal;
+        }
+
+        $name = static fn (int $n, string $locale): string => Cx::store((string) DB::table('platform.stores')->where('id', DB::table('content.campaign_runs')->where('id', $order[$n])->value('store_id'))->value('code'))->name->in($locale);
+
+        // The refused store and the ones scheduled already are named, in both languages, the store's own refusal kept.
+        expect($stopped?->refusal->type())->toStartWith('pricing.')
+            ->and($stopped?->getPrevious())->toBe($stopped?->refusal)
+            ->and($stopped?->context())->toMatchArray(['store' => $name(1, app()->getLocale()), 'scheduled' => $name(0, app()->getLocale())])
             ->and(array_map(campaignsState(...), $order))->toBe(['SCHEDULED', 'DRAFT', 'DRAFT']);
+
+        $was = app()->getLocale();
+
+        foreach (['en', 'ar'] as $locale) {
+            app()->setLocale($locale);
+            $words = FormErrors::message(new CampaignPartlyScheduled($name(1, $locale), $name(0, $locale), $stopped?->refusal ?? new NotDeletable));
+
+            expect($words)->toContain($name(1, $locale))->toContain($name(0, $locale))->not->toContain(':store');
+        }
+
+        app()->setLocale($was);
 
         // Mended, another press schedules the rest.
         campaignsPrices($order[1], campaignsPercent('PRODUCT', $size['product']));
@@ -828,6 +855,76 @@ describe('what other modules read (§1.7 #13; §2.1; the CampaignNames port)', f
         app(DeleteCampaignHandler::class)->handle(new DeleteCampaign($campaign, campaignsVersion($campaign)));
 
         expect(DB::table('content.smart_bars')->where('id', $bar)->count())->toBe(0);
+    });
+});
+
+describe('a copy read before another change committed (review of #382)', function () {
+    it('sends the notice chosen since the job read the run, not the one it read', function () {
+        $old = strtolower((string) Str::ulid());
+        $new = strtolower((string) Str::ulid());
+        campaignsNotices(['sa' => [new NoticeChoiceDto($old, 'أ', 'Old', 'DRAFT'), new NoticeChoiceDto($new, 'ب', 'New', 'DRAFT')]]);
+        campaignsEditor();
+        $campaign = campaignsDraft();
+        $run = campaignsRun($campaign);
+        app(ChooseRunNoticeHandler::class)->handle(new ChooseRunNotice($run, campaignsVersion($campaign), $old));
+        campaignsSchedule($campaign);
+        campaignsClock('2026-11-11 10:00:00+00');
+
+        StaleCampaigns::freeze(CarbonImmutable::now()->toDateTimeImmutable(), [Fx::storeId('sa'), Fx::storeId('ae'), Fx::storeId('eg')]);
+        app(ChooseRunNoticeHandler::class)->handle(new ChooseRunNotice($run, campaignsVersion($campaign), $new));
+        campaignsTick();
+
+        expect(campaignsEvents(CampaignWentLive::class))->toHaveCount(1)
+            ->and(campaignsEvents(CampaignWentLive::class)[0]['noticeId'])->toBe($new);
+    });
+
+    it('judges an alert on the end moved since the job read the run, and keeps its stamp for the new moment', function () {
+        $run = campaignsLive(120);
+        $campaign = (string) DB::table('content.campaign_runs')->where('id', $run)->value('campaign_id');
+        campaignsAt('2026-11-11 10:00:00+00', 0);
+        campaignsClock('2026-11-13 10:00:00+00');
+
+        // Read when the 72-hour alert was due; the end then moved five days on.
+        StaleCampaigns::freeze(CarbonImmutable::now()->toDateTimeImmutable(), [Fx::storeId('sa')]);
+        campaignsChange($campaign, ['endsAt' => campaignsTyped('2026-11-21 10:00:00+00')]);
+        campaignsTick();
+
+        expect(campaignsAlerts($run))->toBe(0)
+            ->and(DB::table('content.campaign_runs')->where('id', $run)->value('warned_72_at'))->toBeNull();
+    });
+
+    it('tells Cancel it lost when the run went live after Cancel read it, once its row is locked', function () {
+        campaignsEditor();
+        $campaign = campaignsDraft();
+        $run = campaignsRun($campaign);
+        campaignsSchedule($campaign);
+        StaleCampaigns::freeze(CarbonImmutable::now()->toDateTimeImmutable(), [], $campaign);
+        campaignsClock('2026-11-11 10:00:00+00');
+        Fx::asSystem(fn () => app(Campaigns::class)->goLive($run, CarbonImmutable::now()->toDateTimeImmutable()));
+
+        expect(campaignsRefusal(fn () => app(CancelCampaignHandler::class)->handle(new CancelCampaign($campaign))))->toBe('not_changeable:went_live')
+            ->and(campaignsState($run))->toBe('LIVE');
+    });
+
+    it('asks Pricing\'s permission again for the choices a run holds when it is scheduled, not those read before', function () {
+        $size = Px::ready(['60 cm']);
+        $campaign = (static function (): string {
+            campaignsEditor();
+
+            return campaignsDraft();
+        })();
+        $run = campaignsRun($campaign);
+        // The scheduler, without Pricing's permission, read the run with no choices.
+        $scheduler = Fx::staffWith([ContentPermissions::CAMPAIGN_MANAGE], ['sa']);
+        StaleCampaigns::freeze(CarbonImmutable::now()->toDateTimeImmutable(), [], $campaign);
+        // Someone with the price right then set the run's prices.
+        campaignsEditor();
+        campaignsPrices($run, campaignsPercent('PRODUCT', $size['product']));
+        Fx::actAsStaff($scheduler);
+
+        expect(fn () => app(ScheduleCampaignHandler::class)->handle(new ScheduleCampaign($campaign, campaignsVersion($campaign))))->toThrow(CampaignPricesNotAllowed::class)
+            ->and(campaignsState($run))->toBe('DRAFT')
+            ->and(DB::table('pricing.campaign_sets')->count())->toBe(0);
     });
 });
 

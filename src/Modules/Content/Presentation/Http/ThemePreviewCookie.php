@@ -17,6 +17,10 @@ use Symfony\Component\HttpFoundation\Cookie;
  * so a changed or forged value reads as none), HTTP-only, the whole site's path, two hours (the build's pick). Nobody
  * else sees it: it lives in the presser's browser alone, and it names the presser, so a browser signed in as someone
  * else reads none. **The shop reads it with its frame (PR 9)**: past the frame's cache, `noindex`, `no-store`.
+ *
+ * **For PR 9**: `themeFor()` says only whose cookie it is. The reader must ask again that this staff member still holds
+ * `content.theme.manage` in the theme's stores (a role changed or a Super Admin removed within the two hours), and
+ * must decrypt the cookie on the shop's routes as on the panel's (`EncryptCookies` wraps it a second time).
  */
 final readonly class ThemePreviewCookie
 {
@@ -37,12 +41,18 @@ final readonly class ThemePreviewCookie
             'until' => CarbonImmutable::now()->addMinutes(self::MINUTES)->getTimestamp(),
         ], JSON_THROW_ON_ERROR));
 
-        return Cookie::create(self::NAME, $value, CarbonImmutable::now()->addMinutes(self::MINUTES), '/', null, null, true, false, Cookie::SAMESITE_LAX);
+        return Cookie::create(self::NAME, $value, CarbonImmutable::now()->addMinutes(self::MINUTES), '/', null, self::secure(), true, false, Cookie::SAMESITE_LAX);
     }
 
     public function forget(): Cookie
     {
-        return Cookie::create(self::NAME, '', 1, '/', null, null, true, false, Cookie::SAMESITE_LAX);
+        return Cookie::create(self::NAME, '', 1, '/', null, self::secure(), true, false, Cookie::SAMESITE_LAX);
+    }
+
+    /** Secure as the session's cookie is (`session.secure`, `SESSION_SECURE_COOKIE`), said outright, not left to the request. */
+    private static function secure(): bool
+    {
+        return (bool) config('session.secure', false);
     }
 
     /** The theme this browser previews for this staff member now, or null: none, another's, past its time, or forged. */

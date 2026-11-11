@@ -110,6 +110,10 @@ return [
             'notice_sent' => 'This campaign has gone live in this store, so its notice was sent and can\'t be changed.',
         ],
     ],
+    'campaign_partly_scheduled' => [
+        'title' => 'Scheduled in some stores',
+        'detail' => 'Not scheduled in :store; it stays a draft there. Scheduled already in :scheduled. Fix what is said for :store, then schedule again.',
+    ],
     'category_not_empty' => [
         'title' => 'Category in use',
         'detail' => 'This category holds posts. Move them to another category first.',

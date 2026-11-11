@@ -86,9 +86,20 @@ final readonly class AdvanceCampaignsHandler
         return $changed;
     }
 
-    private function advance(CampaignRun $run, DateTimeImmutable $now, bool $storeOn): bool
+    /**
+     * One run, in its own transaction. **Everything is decided from the run's row locked here**, never from the copy
+     * `due()` read before (review of #382): a notice chosen or an end moved since then is what goes out, and a run
+     * cancelled, ended or changed meanwhile is left as its new state says. The conditional updates stay behind it.
+     */
+    private function advance(CampaignRun $due, DateTimeImmutable $now, bool $storeOn): bool
     {
-        return $this->db->transaction(function () use ($run, $now, $storeOn): bool {
+        return $this->db->transaction(function () use ($due, $now, $storeOn): bool {
+            $run = $this->campaigns->lockRun($due->id);
+
+            if ($run === null || ($run->state !== RunState::Scheduled && $run->state !== RunState::Live)) {
+                return false;
+            }
+
             if ($run->endsAt <= $now) {
                 if (! $this->campaigns->endOnTime($run->id, $now)) {
                     return false;
@@ -113,7 +124,7 @@ final readonly class AdvanceCampaignsHandler
                 $this->outbox->record(new CampaignWentLive((string) Str::uuid(), $run->id, $run->storeId, $run->noticeId, $now));
                 $changed = true;
                 // Live now: a late one is judged at once for its alerts (§1.7 #11, "goes live late").
-                $run = $this->campaigns->findRun($run->id) ?? $run;
+                $run = $this->campaigns->lockRun($run->id) ?? $run;
             }
 
             foreach (CampaignAlerts::due($run, $now) as $hours) {

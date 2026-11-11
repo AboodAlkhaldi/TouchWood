@@ -322,7 +322,7 @@ describe('the tables hold the rules, a NULL included (lessons 35, 162)', functio
 });
 
 describe('Preview Theme (W5b)', function () {
-    it('gives the presser\'s browser alone a signed cookie for two hours, and opens the theme\'s store', function () {
+    it('reads the signed cookie for its presser alone, for two hours, refusing a changed or forged one (the route: ThemePreviewRouteTest)', function () {
         $super = themesSuper();
         $theme = themesDraft(['sa']);
         $cookie = app(ThemePreviewCookie::class);
