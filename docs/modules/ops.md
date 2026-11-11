@@ -1388,7 +1388,8 @@ notice's, a message's and the daily report's email, and the two list jobs; a cal
 | The webhook: the site in maintenance | Nothing | No need: this address alone is still served | Nothing |
 | The webhook: an unknown email, a replay | Nothing | No: 204, nothing changes. A replay **older than the row's joining** (`ts_event` before its `confirmed_at`) leaves the row: Brevo trying again never undoes a newer opt-in. With no `ts_event` it counts, the safe way round | Nothing |
 | The webhook: what it cannot read (not JSON, batched, no email) | Nothing | No: 204 | A line in the log, naming nothing of the body |
-| The webhook: our app down altogether | Nothing | No answer is retried by Brevo; a proxy's 502 or 503 is **thrown away, and that unsubscribe is lost** to us (§9.6) | Brevo's event log only |
+| The webhook: our app down altogether | Nothing | No answer is retried by Brevo; a proxy's 502 or 503 is **thrown away, and that unsubscribe is lost** to us, until the nightly read finds it (§9.6 #1, once switched on) | Brevo's event log only |
+| The nightly read (§9.6 #1): a page fails (no connection, a 5xx, a refusal, a proxy's page) | Nothing | The list's job, as the list jobs (`ProviderFailureRules`): nothing of that list is taken until every page is read, and its start is not moved. A list gone at Brevo (404) is read no further. At its limit of pages (15 of 500) it takes what it read, keeps the old start and logs an error naming no address | The failed jobs after the last; the log |
 
 **A production server that cannot deliver does not serve:** a web request or a queue worker refuses to boot on a `log` driver, or with no usable key or sender, naming every problem at once. A missing list folder or webhook secret is a critical log line, at most once an hour, until the owner says otherwise (§9.6; `OpsServiceProvider::ONLY_LOGGED` is the one line). No other console command is stopped, or nobody could mend it: `migrate`, `config:clear`, `package:discover`, `ops:brevo:check`. Only `APP_ENV=production` is guarded.
 
@@ -1598,6 +1599,19 @@ the builder's pick of the waits); #3, S10c (§1.6). **#1 is not built, held for 
 date-time"), `emailBlacklisted` in each contact and pages of up to 500; but each contact also carries `listUnsubscribed`, a list of
 ids with no description, so a contact may leave one list without being blacklisted. What the nightly read acts on waits for the
 owner's answer.
+
+**Built 2026-11-11, switched off (the owner's answer (b), 2026-11-10):** a contact counts as unsubscribed when `emailBlacklisted`
+is true **or** our list's id is in its `listUnsubscribed`; another list's id alone leaves it. Each goes to
+`CustomerSubscriptions::unsubscribedAtProvider`, the webhook's own path: a guest's row removed, a customer's consent withdrawn
+through Access, and the webhook's replay rule with the contact's `modifiedAt` as the event's time. `ReadBrevoUnsubscribesJob` runs
+at 03:20 Riyadh on one server and queues one `ReadBrevoListUnsubscribesJob` per kept list (unique per list, retried as the list
+jobs are, 280 s at most, on the normal connection). Each list is read with `sort=asc`, pages of 500 and at most 15 of them, from an
+hour before the start of its last full read (`ops.newsletter_lists.unsubscribes_read_at`), the first time from an hour before the
+list was made; the unsubscribes are taken once every page is read (a guest's takes the contact off the list, which would move the
+pages under the walk). **Off unless `BREVO_NIGHTLY_READ=true` and `OPS_NEWSLETTER_DRIVER=brevo`**: off, nothing is called. It stays
+off until one real run at staging has shown the right people (docs/HANDOFF.md §15.4), since three things are not in Brevo's
+reference: whether leaving one list moves `modifiedAt`, whether that contact is still listed, and whether being added to the list
+again clears `listUnsubscribed` (if not, someone who left and agreed again would be withdrawn the next night).
 
 ### 9.7 Content's changes — **[ACCEPTED by the owner, 2026-11-10, with content.md; not built]**
 
