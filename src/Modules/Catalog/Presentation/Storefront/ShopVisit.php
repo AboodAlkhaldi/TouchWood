@@ -31,6 +31,9 @@ final class ShopVisit
     /** @var array<string, list<ShopMenuItemData>> */
     private array $menus = [];
 
+    /** @var array<string, list<array<array-key, mixed>>> the menus as the cache keeps them, photos included */
+    private array $kept = [];
+
     public function __construct(
         private readonly ShopperType $shoppers,
         private readonly ShopCatalog $catalog,
@@ -55,6 +58,7 @@ final class ShopVisit
         if ($request !== $this->readFor) {
             $this->viewer = null;
             $this->menus = [];
+            $this->kept = [];
             $this->readFor = is_object($request) ? $request : null;
         }
     }
@@ -65,14 +69,15 @@ final class ShopVisit
     public function menu(StoreId $store, string $locale): array
     {
         $viewer = $this->viewer(); // starts afresh on a new request
-        $key = "menu:{$store->value}:".($this->catalog->baseStore() ?? '-').":{$locale}:{$viewer->value}";
+        $key = $this->key($store, $locale);
 
         if (! isset($this->menus[$key])) {
-            /** @var list<array{id: string, name: string, slug: string, children: list<mixed>}> $kept */
+            /** @var list<array{id: string, name: string, slug: string, image: string|null, products: int, children: list<mixed>}> $kept */
             $kept = $this->pages->remember($key, fn (): array => array_map(
                 static fn (MenuCategory $category): array => self::kept($category),
                 $this->catalog->menu($store, $locale, $viewer),
             ));
+            $this->kept[$key] = $kept;
             $this->menus[$key] = array_map(self::item(...), $kept);
         }
 
@@ -93,11 +98,30 @@ final class ShopVisit
     }
 
     /**
-     * @return array{id: string, name: string, slug: string, children: list<mixed>}
+     * The top categories as this viewer's menu offers them, in its order, each with its photo's media id (C4, amendment
+     * 46(b)): read from the menu's cached copy, so they cost no query of their own.
+     *
+     * @return list<array{name: string, slug: string, image: string|null}>
+     */
+    public function topCategories(StoreId $store, string $locale, int $limit): array
+    {
+        $this->menu($store, $locale);
+        $key = $this->key($store, $locale);
+
+        return array_slice(array_map(static fn (array $top): array => ['name' => (string) ($top['name'] ?? ''), 'slug' => (string) ($top['slug'] ?? ''), 'image' => is_string($top['image'] ?? null) ? $top['image'] : null], $this->kept[$key] ?? []), 0, max($limit, 0));
+    }
+
+    private function key(StoreId $store, string $locale): string
+    {
+        return "menu:{$store->value}:".($this->catalog->baseStore() ?? '-').":{$locale}:{$this->viewer()->value}";
+    }
+
+    /**
+     * @return array{id: string, name: string, slug: string, image: string|null, products: int, children: list<mixed>}
      */
     private static function kept(MenuCategory $category): array
     {
-        return ['id' => $category->id, 'name' => $category->name, 'slug' => $category->slug, 'children' => array_map(self::kept(...), $category->children)];
+        return ['id' => $category->id, 'name' => $category->name, 'slug' => $category->slug, 'image' => $category->imageMediaId, 'products' => $category->products, 'children' => array_map(self::kept(...), $category->children)];
     }
 
     /**
@@ -108,7 +132,7 @@ final class ShopVisit
         /** @var list<array<array-key, mixed>> $children */
         $children = is_array($kept['children'] ?? null) ? array_values($kept['children']) : [];
 
-        return new ShopMenuItemData((string) ($kept['id'] ?? ''), (string) ($kept['name'] ?? ''), (string) ($kept['slug'] ?? ''), array_map(self::item(...), $children));
+        return new ShopMenuItemData((string) ($kept['id'] ?? ''), (string) ($kept['name'] ?? ''), (string) ($kept['slug'] ?? ''), array_map(self::item(...), $children), (int) ($kept['products'] ?? 0));
     }
 
     /**

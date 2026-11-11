@@ -59,10 +59,12 @@ final readonly class DatabaseShopReader implements ShopReader
         $name = self::column('name', $locale);
         $bindings = [$storeId, $locale, $locale, $storeId, $baseStoreId];
 
+        // How many products each category's page lists for this viewer, below it included (a listing row is one product
+        // in a store and language): counted in the same read, so the drawer's counts cost no query (amendment 46(a)).
         $rows = $this->db->select(
-            'WITH listed AS (SELECT DISTINCT unnest(category_path) AS id FROM '.self::LISTING
-            .' WHERE store_id = ? AND locale = ? AND in_category_pages AND orderable AND '.self::seenBy($viewer).')'
-            ." SELECT c.id, c.parent_id, c.{$name} AS name, s.slug, c.image_media_id FROM catalog.categories c"
+            'WITH listed AS (SELECT unnest(category_path) AS id, count(*) AS products FROM '.self::LISTING
+            .' WHERE store_id = ? AND locale = ? AND in_category_pages AND orderable AND '.self::seenBy($viewer).' GROUP BY 1)'
+            ." SELECT c.id, c.parent_id, c.{$name} AS name, s.slug, c.image_media_id, l.products FROM catalog.categories c"
             .' JOIN listed l ON l.id = c.id'
             .' JOIN catalog.category_slugs s ON s.category_id = c.id AND s.locale = ? AND s.is_current'
             .' LEFT JOIN catalog.store_category_ranks r ON r.store_id = ? AND r.category_id = c.id'
@@ -77,6 +79,7 @@ final readonly class DatabaseShopReader implements ShopReader
             'name' => (string) $row->name,
             'slug' => (string) $row->slug,
             'image_media_id' => $row->image_media_id === null ? null : (string) $row->image_media_id,
+            'products' => (int) $row->products,
         ], $rows));
     }
 

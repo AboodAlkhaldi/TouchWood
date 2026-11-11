@@ -27,9 +27,10 @@ interface ShopReader
      * The categories in a store's menu (§1.5, amendment 5(a), (k)): active, with something listed in
      * them or below them **for this viewer** — of any brand: a secondary brand is reached through its
      * own category — in the store's own order among their siblings, or the base store's until the
-     * store's admins place them, then by name.
+     * store's admins place them, then by name - each with how many products its page lists for this viewer, those
+     * below it included (amendment 46(a)).
      *
-     * @return list<array{id: string, parent_id: string|null, name: string, slug: string, image_media_id: string|null}>
+     * @return list<array{id: string, parent_id: string|null, name: string, slug: string, image_media_id: string|null, products: int}>
      */
     public function menu(string $storeId, ?string $baseStoreId, string $locale, ShopperKind $viewer): array;
 

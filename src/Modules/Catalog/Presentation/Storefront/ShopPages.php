@@ -278,6 +278,25 @@ final readonly class ShopPages
     }
 
     /**
+     * Chosen products as this viewer's cards, in the order given, those they can order here only, with what the modules
+     * add to them (amendment 46(c)).
+     *
+     * @param  list<string>  $productIds
+     * @return array{cards: list<array<string, mixed>>, cardFacts: array<string, array<string, array<string, mixed>>>}
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function cardsOf(StoreId $store, string $locale, array $productIds): array
+    {
+        $cards = $productIds === [] ? [] : $this->catalog->cardsOf($store, $locale, $this->visit->viewer(), $productIds);
+
+        return [
+            'cards' => array_map(static fn (ShopCardData $card): array => $card->toArray(), $this->cards($store, $locale, $cards)),
+            'cardFacts' => $cards === [] ? [] : $this->facts($store, $cards),
+        ];
+    }
+
+    /**
      * @return list<ShopCardData>
      *
      * @throws InvalidCatalogAttribute
