@@ -593,7 +593,7 @@ final readonly class DatabaseShopReader implements ShopReader
         $rows = $this->db->select(
             'SELECT * FROM (SELECT found.*, CASE WHEN tier = 3 THEN -near ELSE 0 END AS k2, COALESCE(sales_rank::bigint, '.SearchCursor::UNRANKED.') AS k3 FROM ('
             .'SELECT l.product_id, l.name, l.slug, l.card_photo, l.sales_rank, l.card_variant_id, l.retail_card_variant_id,'
-            .' l.ending_soon_companies, l.ending_soon_individuals, l.retail_price_minor, l.retail_price_before_minor, l.retail_from_minor, l.wholesale_from_minor, l.for_companies,'
+            .' l.ending_soon_companies, l.ending_soon_individuals, l.retail_price_minor, l.retail_price_before_minor, l.retail_from_minor, l.wholesale_from_minor, l.wholesale_from_before_minor, l.for_companies,'
             .' '.self::labelsOf($locale, 'l').' AS labels, '.self::ratingOf('l').','
             .' CASE WHEN split_part(l.search_text, chr(10), 1) = ?::text OR split_part(l.search_text, chr(10), 2) = ?::text THEN 1'
             ." WHEN l.search_document @@ to_tsquery('simple', ?) THEN 2"
@@ -795,7 +795,7 @@ final readonly class DatabaseShopReader implements ShopReader
      * buy — a retail one — or, for a company or a guest, the first on sale here (§2.2: companies and
      * guests share a card); its labels, read with it; its side's "Last pieces" (amendment 16(h)); and its
      * price (amendment 35): retail for every viewer — the retail card size's, and "From" — and "Wholesale
-     * from" for a company or a guest.
+     * from" for a company or a guest, with its price before while an offer lowers it (amendment 45).
      *
      * @param  array<array-key, mixed>  $rows  listing rows, each with its labels
      * @return list<ProductCard>
@@ -827,6 +827,8 @@ final readonly class DatabaseShopReader implements ShopReader
                     self::minor($row->retail_from_minor),
                     // Never an individual's; a guest's only where companies may buy it (its category open to them).
                     $individual || ! (bool) ($row->for_companies ?? true) ? null : self::minor($row->wholesale_from_minor),
+                    // Its normal price, crossed out beside it while an offer takes it lower (amendment 45).
+                    self::minor($row->wholesale_from_before_minor),
                 ),
             );
         }, $rows);

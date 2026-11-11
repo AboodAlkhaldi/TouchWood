@@ -383,6 +383,7 @@ now: MoneyData | null,
 before: MoneyData | null,
 from: MoneyData | null,
 wholesaleFrom: MoneyData | null,
+wholesaleFromBefore: MoneyData | null,
 };
 export type ShopCategoryPage = {
 name: string,

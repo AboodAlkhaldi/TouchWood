@@ -13,6 +13,7 @@ use Modules\Platform\Public\Dto\MoneyData;
 use Modules\Platform\Public\Enums\ShopperKind;
 use Modules\Pricing\Domain\Repository\PriceCandidates;
 use Modules\Pricing\Domain\Service\PriceResolution;
+use Modules\Pricing\Domain\ValueObject\ResolvedPrice;
 use Modules\Pricing\Presentation\Http\Resource\ShopBandData;
 use Modules\Pricing\Presentation\Http\Resource\ShopWholesaleData;
 use Modules\Pricing\Presentation\Http\Resource\ShopWholesaleSizeData;
@@ -24,7 +25,8 @@ use Shared\Domain\ValueObject\Money;
  * `pricing.wholesale`: for a company or a guest — an individual buys retail only (amendment 14(e)) —
  * each of the page's sizes that sells wholesale (as Catalog read them, in the product's order) and is
  * priced: what one piece costs now on a wholesale line below any band, and its bands — from each band's
- * start, what a piece costs there now (the band, or a sale or discount below it). Without VAT. Catalog's
+ * start, what a piece costs there now (the band, or a sale or discount below it) — each with its normal
+ * price while an offer takes it lower, struck through (amendment 45). Without VAT. Catalog's
  * own size price is retail only, so a size sold wholesale only is priced here alone. One read of the
  * sizes' candidates, none when no size sells wholesale; the store from Platform's cache.
  */
@@ -55,11 +57,16 @@ final readonly class WholesaleBandsSection implements ShopProductSection
         $money = static fn (?Money $unit): ?MoneyData => $unit === null || $unit->currencyCode !== $store->currencyCode ? null : MoneyData::of($unit, $store, $visit->locale);
         $sizes = [];
 
+        // The normal price - the band, or the retail price - only while a sale, discount or campaign takes
+        // the price below it, so a band alone is never shown as a reduction (catalog.md amendment 45).
+        $before = static fn (ResolvedPrice $price): ?Money => $price->unit->compareTo($price->listUnit) < 0 ? $price->listUnit : null;
+
         foreach ($visit->wholesaleSizes as $variantId) {
             $of = $candidates[$variantId] ?? [];
-            $price = $money(PriceResolution::resolve($of, SaleMode::Wholesale, 1, $now)?->unit);
+            $resolved = PriceResolution::resolve($of, SaleMode::Wholesale, 1, $now);
+            $price = $money($resolved?->unit);
 
-            if ($price === null) {
+            if ($resolved === null || $price === null) {
                 continue;
             }
 
@@ -75,14 +82,15 @@ final readonly class WholesaleBandsSection implements ShopProductSection
             $bands = [];
 
             foreach (array_unique($starts) as $start) {
-                $unit = $money(PriceResolution::resolve($of, SaleMode::Wholesale, $start, $now)?->unit);
+                $at = PriceResolution::resolve($of, SaleMode::Wholesale, $start, $now);
+                $unit = $money($at?->unit);
 
-                if ($unit !== null) {
-                    $bands[] = new ShopBandData($start, $unit);
+                if ($at !== null && $unit !== null) {
+                    $bands[] = new ShopBandData($start, $unit, $money($before($at)));
                 }
             }
 
-            $sizes[$variantId] = new ShopWholesaleSizeData($price, $bands);
+            $sizes[$variantId] = new ShopWholesaleSizeData($price, $money($before($resolved)), $bands);
         }
 
         return $sizes === [] ? null : (new ShopWholesaleData($sizes))->toArray();

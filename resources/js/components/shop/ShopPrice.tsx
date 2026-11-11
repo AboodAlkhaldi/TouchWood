@@ -41,7 +41,11 @@ export function ShopPrice({ now, before = null, className }: { now: MoneyData; b
     );
 }
 
-/** A card's price (amendment 35(a)): "From" the lowest where its sizes differ, else today's with any sale; a guest's or a company's "Wholesale from" under it. */
+/**
+ * A card's price (amendment 35(a)): "From" the lowest where its sizes differ, else today's with any sale; a guest's or a
+ * company's "Wholesale from" under it - on a sale, its old price struck through and its percent off, as the retail price's
+ * (amendment 45).
+ */
 export function CardPrice({ price }: { price: ShopCardPriceData | null }) {
     const t = useTranslator();
 
@@ -62,7 +66,7 @@ export function CardPrice({ price }: { price: ShopCardPriceData | null }) {
             {price.wholesaleFrom !== null ? (
                 <span className="flex flex-wrap items-center gap-x-1.5 text-copy-13 text-ink-muted" data-test="wholesale-from">
                     <span>{t('catalog::shop.price.wholesale_from')}</span>
-                    <Money value={price.wholesaleFrom} />
+                    {price.wholesaleFromBefore !== null ? <ShopPrice now={price.wholesaleFrom} before={price.wholesaleFromBefore} /> : <Money value={price.wholesaleFrom} />}
                 </span>
             ) : null}
         </span>

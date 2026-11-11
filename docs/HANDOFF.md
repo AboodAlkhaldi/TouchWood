@@ -1856,6 +1856,11 @@ Decide these when the owning module is reached; do not design them now.
   the rows written before it take them. **From then every size told not orderable, or with no price, is gone from
   the lists at once, a size switched on with no stock row among them (it counts as 0)**: count and price a store
   before opening it. A store with neither is an empty shop.
+- **A wholesale price on sale struck through** (owner, 2026-11-11; catalog.md amendment 45): the deploy that brings
+  migration `2026_11_11_210000_add_wholesale_before_to_catalog_listing` runs `php artisan pricing:candidates:rebuild`
+  once after the migrations. The two new columns (`store_variant_facts.wholesale_from_before_minor`,
+  `listing.wholesale_from_before_minor`) start empty, so until it runs no wholesale price shows its old one; the
+  repair pushes every price, and each push writes the products' listing rows again. No other command is needed.
 - **The import's zip disk** (`CATALOG_IMPORTS_DISK` in `config/catalog.php`, `local` by default): a
   zip waits there from its upload until its products are brought in or its import discarded. With
   more than one server it must be storage they share.

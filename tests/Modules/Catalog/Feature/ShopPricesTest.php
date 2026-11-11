@@ -7,6 +7,7 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
@@ -21,6 +22,7 @@ use Modules\Pricing\Application\Command\AddSale\AddSale;
 use Modules\Pricing\Application\Command\AddSale\AddSaleHandler;
 use Modules\Pricing\Application\Command\SetWholesalePrices\SetWholesalePrices;
 use Modules\Pricing\Application\Command\SetWholesalePrices\SetWholesalePricesHandler;
+use Modules\Pricing\Presentation\Console\RebuildPriceCandidatesCommand;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
@@ -142,7 +144,9 @@ describe('a card', function () {
             ->where('products.0.price.now.text', fn (string $text): bool => str_starts_with($text, '30.00 '))
             ->where('products.0.price.before', null)
             ->where('products.0.price.from.minor', 25_00)
-            ->where($wholesaleFrom === null ? 'products.0.price.wholesaleFrom' : 'products.0.price.wholesaleFrom.minor', $wholesaleFrom);
+            ->where($wholesaleFrom === null ? 'products.0.price.wholesaleFrom' : 'products.0.price.wholesaleFrom.minor', $wholesaleFrom)
+            // A band is a wholesale line's normal price, not a reduction: nothing struck (amendment 45).
+            ->where('products.0.price.wholesaleFromBefore', null);
 
         // A guest: the least a piece costs on a wholesale line of any wholesale size — 80 cm's band from 5.
         get($url)->assertOk()->assertInertia($card(20_00));
@@ -200,11 +204,84 @@ describe('a card', function () {
             app(AddSaleHandler::class)->handle(new AddSale(Fx::storeId('sa'), null, [$eighty], null, '18.00', null, null));
         });
 
+        // "Wholesale from" 18.00 is the sale under 80 cm's band of 20.00: that band struck through (amendment 45).
         get($url)->assertInertia(fn (AssertableInertia $page) => $page
             ->where('products.0.price.now.minor', 24_00)
             ->where('products.0.price.before.minor', 30_00)
             ->where('products.0.price.from.minor', 18_00)
-            ->where('products.0.price.wholesaleFrom.minor', 18_00));
+            ->where('products.0.price.wholesaleFrom.minor', 18_00)
+            ->where('products.0.price.wholesaleFromBefore.minor', 20_00));
+    });
+
+    // Amendment 45 (owner, 2026-11-11): a wholesale-only sale shows its old price struck through.
+    it('strikes "Wholesale from" through only while an offer takes the card\'s least wholesale price lower', function () {
+        $p = shopPricesProduct();
+        [, $eighty, $hundred] = $p['sizes'];
+        $url = '/sa/en/categories/'.shopPricesSlug('category', $p['category']);
+        $card = static fn (int $wholesaleFrom, ?int $before) => static fn (AssertableInertia $page) => $page
+            ->where('products.0.price.wholesaleFrom.minor', $wholesaleFrom)
+            ->where($before === null ? 'products.0.price.wholesaleFromBefore' : 'products.0.price.wholesaleFromBefore.minor', $before);
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->startOfSecond());
+
+        // 100 cm, sold wholesale only, on sale at 30.00 - under its bands of 35.00 and 32.00 - while 80 cm's band
+        // of 20.00 stays the least: the card's "Wholesale from" is not lower than it would be, so nothing is struck.
+        Fx::asSystem(fn () => app(AddSaleHandler::class)->handle(new AddSale(Fx::storeId('sa'), null, [$hundred], null, '30.00', null, null)));
+        get($url)->assertOk()->assertInertia($card(20_00, null));
+        expect(DB::table('catalog.store_variant_facts')->where('variant_id', $hundred)->first(['wholesale_from_minor', 'wholesale_from_before_minor']))
+            ->toEqual((object) ['wholesale_from_minor' => 30_00, 'wholesale_from_before_minor' => 32_00]);
+
+        // 80 cm at 40.00, its band from 5 at 31.00: 100 cm's sale is now the least. Struck through is what the card
+        // would say with no offer - 80 cm's 31.00, the least normal price - not 100 cm's own 32.00 (lowest price wins).
+        Rx::set('sa', [$eighty => '40.00']);
+        Fx::asSystem(fn () => app(SetWholesalePricesHandler::class)->handle(new SetWholesalePrices(Fx::storeId('sa'), $eighty, [5 => '31.00'])));
+        get($url)->assertInertia($card(30_00, 31_00));
+        // Search reads its own columns: the same card there.
+        get('/sa/en/search?q=Drawer')->assertOk()->assertInertia($card(30_00, 31_00));
+
+        // A company sees what a guest sees; an individual never a wholesale price, nor its old one.
+        shopPricesViewer(ShopperKind::Company);
+        get($url)->assertInertia($card(30_00, 31_00));
+        shopPricesViewer(ShopperKind::Individual);
+        get($url)->assertInertia(fn (AssertableInertia $page) => $page->where('products.0.price.wholesaleFrom', null)->where('products.0.price.wholesaleFromBefore', null));
+    });
+
+    it('strikes a wholesale-only product\'s "Wholesale from" through on a sale, and not once a band goes under the sale', function () {
+        $category = Px::category('Kitchens');
+        $p = Px::ready(['100 cm'], $category);
+        [$hundred] = $p['variants'];
+        $store = Fx::storeId('sa');
+        Fx::asSystem(function () use ($p, $store, $hundred): void {
+            app(ChooseInStoreHandler::class)->handle(new ChooseInStore($store, $p['product'], true));
+            app(SetSellingTermsHandler::class)->handle(new SetSellingTerms($store, $p['product'], [$hundred => ['retail' => false, 'wholesale' => true]], wholesaleMinimum: 5));
+        });
+        Px::onSale('sa', $p['product']);
+        Rx::set('sa', [$hundred => '40.00']);
+        Fx::asSystem(fn () => app(SetWholesalePricesHandler::class)->handle(new SetWholesalePrices($store, $hundred, [5 => '35.00', 20 => '32.00'])));
+        $url = '/sa/en/categories/'.shopPricesSlug('category', $category);
+        $card = static fn (int $wholesaleFrom, ?int $before) => static fn (AssertableInertia $page) => $page
+            ->where('products.0.price.now', null)
+            ->where('products.0.price.wholesaleFrom.minor', $wholesaleFrom)
+            ->where($before === null ? 'products.0.price.wholesaleFromBefore' : 'products.0.price.wholesaleFromBefore.minor', $before);
+
+        get($url)->assertOk()->assertInertia($card(32_00, null));
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->startOfSecond());
+        Fx::asSystem(fn () => app(AddSaleHandler::class)->handle(new AddSale($store, null, [$hundred], null, '30.00', null, null)));
+        get($url)->assertInertia($card(30_00, 32_00));
+        shopPricesViewer(ShopperKind::Company);
+        get($url)->assertInertia($card(30_00, 32_00));
+
+        // Deploying (HANDOFF §15): the columns start empty; Pricing's repair pushes every price, which fills them.
+        DB::table('catalog.store_variant_facts')->where('variant_id', $hundred)->update(['wholesale_from_before_minor' => null]);
+        DB::table('catalog.listing')->where('product_id', $p['product'])->update(['wholesale_from_before_minor' => null]);
+        get($url)->assertInertia($card(30_00, null));
+        expect(Artisan::call(RebuildPriceCandidatesCommand::NAME))->toBe(0);
+        get($url)->assertInertia($card(30_00, 32_00));
+
+        // The band from 20 at 29.00, under the sale: the least is a band, a normal price, so nothing is struck.
+        shopPricesViewer(ShopperKind::Guest);
+        Fx::asSystem(fn () => app(SetWholesalePricesHandler::class)->handle(new SetWholesalePrices($store, $hundred, [5 => '35.00', 20 => '29.00'])));
+        get($url)->assertInertia($card(29_00, null));
     });
 
     it('has no "From" while its sizes cost the same; before it is priced it is not listed at all (amendment 39)', function () {
@@ -244,6 +321,35 @@ describe('a product page', function () {
         get($url)->assertInertia(fn (AssertableInertia $page) => $page
             ->has('variants', 2)
             ->where('sections', fn ($sections): bool => array_key_exists('pricing.wholesale', shopPricesSections($sections)) && shopPricesBands($sections) === null));
+    });
+
+    // Amendment 45 (owner, 2026-11-11): a wholesale-only size on sale shows its old price struck through.
+    it('gives each wholesale price its normal price while an offer takes it lower, and none for a band alone', function () {
+        $p = shopPricesProduct();
+        [, $eighty, $hundred] = $p['sizes'];
+        $url = '/sa/en/products/'.shopPricesSlug('product', $p['product']);
+        $minor = static fn (mixed $money): ?int => is_array($money) && is_int($money['minor'] ?? null) ? $money['minor'] : null;
+        // size => [its price before, [[from, its unit before]]]
+        $befores = static function (mixed $sections) use ($minor): array {
+            $sizes = [];
+
+            foreach ((array) (shopPricesSections($sections)['pricing.wholesale']['sizes'] ?? []) as $variantId => $size) {
+                $sizes[(string) $variantId] = [$minor($size['priceBefore'] ?? null), array_map(static fn (array $band): array => [$band['minQuantity'], $minor($band['unitBefore'] ?? null)], $size['bands'] ?? [])];
+            }
+
+            return $sizes;
+        };
+
+        get($url)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('sections', fn ($sections): bool => $befores($sections) === [$eighty => [null, [[5, null]]], $hundred => [null, [[5, null], [20, null]]]]));
+
+        // 100 cm, sold wholesale only, on sale at 30.00: under its own price of 40.00 and both its bands.
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->startOfSecond());
+        Fx::asSystem(fn () => app(AddSaleHandler::class)->handle(new AddSale(Fx::storeId('sa'), null, [$hundred], null, '30.00', null, null)));
+
+        get($url)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('sections', fn ($sections): bool => shopPricesBands($sections) === [$eighty => [25_00, [[5, 20_00]]], $hundred => [30_00, [[5, 30_00], [20, 30_00]]]]
+                && $befores($sections) === [$eighty => [null, [[5, null]]], $hundred => [40_00, [[5, 35_00], [20, 32_00]]]]));
     });
 
     // Security audit run-2 (2026-10-27): the page showed a guest the bands where its card did not.
