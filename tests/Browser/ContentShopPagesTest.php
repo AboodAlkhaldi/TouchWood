@@ -52,6 +52,8 @@ beforeEach(function () {
     config(['session.driver' => 'database']);
     seed(PlatformSeeder::class);
     seed(CatalogSeeder::class);
+    // The runs before keep their rows: the catalogue's names start from the clock, so each is new.
+    Px::numberFrom((int) substr((string) hrtime(true), -8));
 });
 
 /**
