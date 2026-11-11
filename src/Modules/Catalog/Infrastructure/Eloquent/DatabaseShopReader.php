@@ -295,6 +295,24 @@ final readonly class DatabaseShopReader implements ShopReader
         return array_values(array_filter(array_map(static fn (string $id): ?ProductCard => $cards[$id] ?? null, $ids)));
     }
 
+    public function cardsAmong(string $storeId, string $locale, ShopperKind $viewer, array $productIds, ?string $after, int $limit): array
+    {
+        $ids = self::ulids($productIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        // One read however many are asked: the store's listing for this viewer narrows them, in id order.
+        $query = $this->listed($storeId, $locale, $viewer)->whereRaw('product_id = ANY(?::bpchar[])', [self::array($ids)]);
+
+        if ($after !== null && Ulids::valid($after)) {
+            $query->where('product_id', '>', strtolower($after));
+        }
+
+        return $this->cards($query->orderBy('product_id')->limit($limit)->get()->all(), $viewer);
+    }
+
     public function cardsSharing(string $storeId, string $locale, ShopperKind $viewer, string $column, string $value, string $brandId, array $except, int $limit): array
     {
         $query = $this->listed($storeId, $locale, $viewer)

@@ -71,6 +71,16 @@ interface CampaignPrices
     public function productIds(StoreId $store, string $runId, ?string $after, int $limit): array;
 
     /**
+     * Every product the run reaches now, in id order, at most 20,000 - for the shop's campaign page, which pages them
+     * through what the store lists for its shopper (catalog.md amendment 47), so a Show More never opens on nothing
+     * (pricing.md §9.6 #8, added with content PR 10's review). The products of its categories and brands are every
+     * store's: the store's listing narrows them.
+     *
+     * @return list<string>
+     */
+    public function reachedProductIds(StoreId $store, string $runId): array;
+
+    /**
      * The sizes the run skips now because a provider's price would take it past the store's ceiling (§9.6
      * #5), in id order, for the campaign's page; one query.
      *

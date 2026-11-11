@@ -10,8 +10,14 @@ use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
+use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiences;
+use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiencesHandler;
+use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTerms;
+use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTermsHandler;
 use Modules\Content\Application\Command\AdvanceCampaigns\AdvanceCampaigns;
 use Modules\Content\Application\Command\AdvanceCampaigns\AdvanceCampaignsHandler;
+use Modules\Content\Application\Command\CancelCampaign\CancelCampaign;
+use Modules\Content\Application\Command\CancelCampaign\CancelCampaignHandler;
 use Modules\Content\Application\Command\EndCampaign\EndCampaign;
 use Modules\Content\Application\Command\EndCampaign\EndCampaignHandler;
 use Modules\Content\Application\Command\FillHomeSection\FillHomeSection;
@@ -32,6 +38,8 @@ use Modules\Content\Application\Command\SavePost\SavePost;
 use Modules\Content\Application\Command\SavePost\SavePostHandler;
 use Modules\Content\Application\Command\SaveProject\SaveProject;
 use Modules\Content\Application\Command\SaveProject\SaveProjectHandler;
+use Modules\Content\Application\Command\SaveSeoDefaults\SaveSeoDefaults;
+use Modules\Content\Application\Command\SaveSeoDefaults\SaveSeoDefaultsHandler;
 use Modules\Content\Application\Command\ScheduleCampaign\ScheduleCampaign;
 use Modules\Content\Application\Command\ScheduleCampaign\ScheduleCampaignHandler;
 use Modules\Content\Application\Command\SetRunPrices\SetRunPrices;
@@ -44,9 +52,14 @@ use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\Documents\DocumentInput;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
+use Modules\Platform\Public\Contracts\ShopperType;
+use Modules\Platform\Public\Enums\ShopperKind;
+use Modules\Pricing\Application\Command\SetWholesalePrices\SetWholesalePrices;
+use Modules\Pricing\Application\Command\SetWholesalePrices\SetWholesalePricesHandler;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Content\Support\ContentFixtures as Cx;
+use Tests\Modules\Pricing\Support\PricingFixtures as Rx;
 
 use function Pest\Laravel\get;
 use function Pest\Laravel\seed;
@@ -310,13 +323,13 @@ describe('H5 the projects and H6 a project (§1.13)', function () {
  *
  * @return array{campaign: string, run: string}
  */
-function contentShopCampaign(string $productId): array
+function contentShopCampaign(string $productId, string $nameAr = 'عروض الشتاء', string $nameEn = 'Winter Offers', string $kind = 'PRODUCT'): array
 {
     Cx::editor([ContentPermissions::CAMPAIGN_MANAGE, ContentPermissions::PRICING_PRICE_EDIT]);
-    $campaign = app(SaveCampaignHandler::class)->handle(new SaveCampaign(null, 0, 'عروض الشتاء', 'Winter Offers', Cx::typed(1), Cx::typed(60 * 24 * 5), [Fx::storeId('sa')]));
+    $campaign = app(SaveCampaignHandler::class)->handle(new SaveCampaign(null, 0, $nameAr, $nameEn, Cx::typed(1), Cx::typed(60 * 24 * 5), [Fx::storeId('sa')]));
     $run = (string) DB::table('content.campaign_runs')->where('campaign_id', $campaign)->value('id');
     $version = static fn (): int => (int) DB::table('content.campaigns')->where('id', $campaign)->value('version');
-    app(SetRunPricesHandler::class)->handle(new SetRunPrices($run, $version(), ['lines' => 'BOTH', 'targets' => [['kind' => 'PRODUCT', 'id' => $productId, 'percentBp' => 1000]]]));
+    app(SetRunPricesHandler::class)->handle(new SetRunPrices($run, $version(), ['lines' => 'BOTH', 'targets' => [['kind' => $kind, 'id' => $productId, 'percentBp' => 1000]]]));
     app(ScheduleCampaignHandler::class)->handle(new ScheduleCampaign($campaign, $version()));
 
     return ['campaign' => $campaign, 'run' => $run];
@@ -446,5 +459,175 @@ describe('the queries (owner, 2026-10-19: 8 a shop page is a target, not a cap)'
         // project 3; a campaign 5 (the run, Pricing's three reads of the run's products, the cards). Over the target of 8:
         // recorded, not hidden (owner, 2026-10-19).
         expect($counts)->toBe(['home' => 9, 'page' => 8, 'blog' => 9, 'post' => 10, 'projects' => 9, 'project' => 9, 'campaign' => 11]);
+    });
+});
+
+/** The shop's next requests seen as this kind of shopper, each starting afresh (as Catalog's ShopPagesTest). */
+function contentShopViewer(ShopperKind $kind): void
+{
+    app()->forgetScopedInstances();
+    app()->scoped(ShopperType::class, static fn (): ShopperType => new readonly class($kind) implements ShopperType
+    {
+        public function __construct(private ShopperKind $kind) {}
+
+        public function current(): ShopperKind
+        {
+            return $this->kind;
+        }
+    });
+}
+
+/** The campaign job's tick, as the system. */
+function contentShopTick(): void
+{
+    Fx::asSystem(fn (): int => app(AdvanceCampaignsHandler::class)->handle(new AdvanceCampaigns));
+}
+
+/** A product in a new category, chosen and on sale in the store, sold retail and wholesale (25.00, from 5 at 20.00). */
+function contentShopWholesaleProduct(): string
+{
+    $p = Px::ready(['80 cm'], Px::category('Hinges'));
+    $store = Fx::storeId('sa');
+    Fx::asSystem(function () use ($p, $store): void {
+        app(ChooseInStoreHandler::class)->handle(new ChooseInStore($store, $p['product'], true));
+        app(SetSellingTermsHandler::class)->handle(new SetSellingTerms($store, $p['product'], [$p['variants'][0] => ['retail' => true, 'wholesale' => true]], wholesaleMinimum: 5));
+    });
+    Px::onSale('sa', $p['product']);
+    Rx::set('sa', [$p['variants'][0] => '25.00']);
+    Fx::asSystem(fn () => app(SetWholesalePricesHandler::class)->handle(new SetWholesalePrices($store, $p['variants'][0], [5 => '20.00'])));
+
+    return $p['product'];
+}
+
+describe('who is looking (catalog.md amendments 14, 35, 46)', function () {
+    it('gives an individual no company-only product, neither in the drawer\'s counts nor among a post\'s cards, and no wholesale price', function () {
+        $companies = Px::category('Workshops');
+        $forCompanies = Px::ready(['60 cm'], $companies);
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $forCompanies['product'], true)));
+        Px::onSale('sa', $forCompanies['product']);
+        Fx::asSystem(fn () => app(SetCategoryAudiencesHandler::class)->handle(new SetCategoryAudiences(Fx::storeId('sa'), $companies, false)));
+        $wholesale = contentShopWholesaleProduct();
+        $post = contentShopPost(products: [$forCompanies['product'], $wholesale]);
+        $url = '/sa/en/blog/'.DB::table('content.blog_post_translations')->where('post_id', $post)->where('locale', 'en')->value('slug');
+        $card = static fn (array $page, string $product): ?array => array_values(array_filter($page['products'], static fn (array $card): bool => $card['productId'] === $product))[0] ?? null;
+        $counts = static fn (array $page): array => array_column($page['frame']['catalog']['menu'], 'products', 'id');
+
+        contentShopViewer(ShopperKind::Guest);
+        $guest = contentShopPage($url, 'Content/Storefront/Document');
+
+        expect(array_column($guest['products'], 'productId'))->toBe([$forCompanies['product'], $wholesale])
+            ->and($counts($guest)[$companies] ?? null)->toBe(1)
+            ->and($card($guest, $wholesale)['price']['wholesaleFrom']['minor'] ?? null)->toBe(20_00);
+
+        contentShopViewer(ShopperKind::Individual);
+        $individual = contentShopPage($url, 'Content/Storefront/Document');
+
+        expect(array_column($individual['products'], 'productId'))->toBe([$wholesale])
+            ->and($counts($individual))->not->toHaveKey($companies)
+            ->and($card($individual, $wholesale)['price'] ?? null)->toHaveKey('wholesaleFrom')
+            ->and($card($individual, $wholesale)['price']['wholesaleFrom'] ?? null)->toBeNull();
+
+        contentShopViewer(ShopperKind::Company);
+        $company = contentShopPage($url, 'Content/Storefront/Document');
+
+        expect(array_column($company['products'], 'productId'))->toBe([$forCompanies['product'], $wholesale])
+            ->and($card($company, $wholesale)['price']['wholesaleFrom']['minor'] ?? null)->toBe(20_00);
+    });
+});
+
+describe('the head (§1.14)', function () {
+    it('takes the SEO defaults saved after the page was read: the frame\'s cached copy is replaced', function () {
+        contentShopPublishedPage(['titleEn' => 'About Us']);
+
+        expect(contentShopPage('/sa/en/pages/about-us', 'Content/Storefront/Document')['head']['title'])->toBe('About Us');
+
+        $save = static fn (string $site): mixed => app(SaveSeoDefaultsHandler::class)->handle(new SaveSeoDefaults(Fx::storeId('sa'), 'تاتش وود', $site, ':title | :site', ':title - :site', 'وصف', 'A description', null, null));
+        Cx::editor([ContentPermissions::SEO_MANAGE]);
+        $save('TouchWood');
+        $page = contentShopPage('/sa/en/pages/about-us', 'Content/Storefront/Document');
+
+        expect($page['head']['title'])->toBe('About Us - TouchWood')
+            ->and($page['head']['description'])->toBe('A description');
+
+        $save('TouchWood KSA');
+
+        expect(contentShopPage('/sa/en/pages/about-us', 'Content/Storefront/Document')['head']['title'])->toBe('About Us - TouchWood KSA');
+    });
+});
+
+describe('H7 a campaign\'s address and its life (§4.5, §9.3f F2, F6)', function () {
+    it('gives a second campaign of the same name the next free address in each language', function () {
+        $p = contentShopProduct();
+        ['run' => $first] = contentShopCampaign($p['product']);
+        ['run' => $second] = contentShopCampaign($p['product']);
+        $slugs = static fn (string $run): array => (array) DB::table('content.campaign_runs')->where('id', $run)->first(['slug_ar', 'slug_en']);
+
+        expect($slugs($first))->toBe(['slug_ar' => 'عروض-الشتاء', 'slug_en' => 'winter-offers'])
+            ->and($slugs($second))->toBe(['slug_ar' => 'عروض-الشتاء-2', 'slug_en' => 'winter-offers-2']);
+    });
+
+    it('keeps rule 15 for an Arabic name of Latin letters only: its Arabic address is the Arabic word for a campaign', function () {
+        $p = contentShopProduct();
+        ['run' => $run] = contentShopCampaign($p['product'], 'Black Friday', 'Black Friday');
+        ['run' => $again] = contentShopCampaign($p['product'], 'Black Friday', 'Black Friday');
+
+        expect((array) DB::table('content.campaign_runs')->where('id', $run)->first(['slug_ar', 'slug_en']))->toBe(['slug_ar' => 'حملة', 'slug_en' => 'black-friday'])
+            ->and(DB::table('content.campaign_runs')->where('id', $again)->value('slug_ar'))->toBe('حملة-2');
+    });
+
+    it('answers 404 for a cancelled run, and 301 home for a run the job has not ended though its end has come', function () {
+        $p = contentShopProduct();
+        ['campaign' => $cancelled] = contentShopCampaign($p['product'], 'عروض ملغاة', 'Cancelled Offers');
+        app(CancelCampaignHandler::class)->handle(new CancelCampaign($cancelled));
+
+        expect(contentShopAnswer('/sa/en/campaigns/cancelled-offers'))->toBe('404 ');
+
+        ['run' => $run] = contentShopCampaign($p['product']);
+        Cx::clockOn(2);
+        contentShopTick();
+        expect(contentShopAnswer('/sa/en/campaigns/winter-offers'))->toStartWith('200');
+
+        // Past its end, still LIVE: the job has not ticked.
+        Cx::clockOn(60 * 24 * 6);
+
+        expect(DB::table('content.campaign_runs')->where('id', $run)->value('state'))->toBe('LIVE')
+            ->and(contentShopAnswer('/sa/en/campaigns/winter-offers'))->toBe('301 '.url('/sa/en'));
+    });
+
+    it('pages a large target through what the store lists: no empty page behind Show More, 24 cards a page', function () {
+        $category = Px::category('Slides');
+
+        // 100 products of the category this store never chose, made first, so they hold the lowest ids.
+        foreach (range(1, 100) as $n) {
+            Px::ready(['60 cm'], $category);
+        }
+
+        $sold = [];
+
+        foreach (range(1, 25) as $n) {
+            $p = Px::ready(['60 cm'], $category);
+            Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $p['product'], true)));
+            Px::onSale('sa', $p['product']);
+            $sold[] = $p['product'];
+        }
+
+        sort($sold, SORT_STRING);
+        contentShopCampaign($category, kind: 'CATEGORY');
+        Cx::clockOn(2);
+        contentShopTick();
+
+        $first = contentShopPage('/sa/en/campaigns/winter-offers', 'Content/Storefront/Campaign');
+
+        expect(array_column($first['products'], 'productId'))->toBe(array_slice($sold, 0, 24))
+            ->and($first['next'])->toBe($sold[23]);
+
+        $second = contentShopPage('/sa/en/campaigns/winter-offers?after='.$first['next'], 'Content/Storefront/Campaign');
+
+        expect(array_column($second['products'], 'productId'))->toBe([$sold[24]])
+            ->and($second['next'])->toBeNull();
+
+        // The query count on such a page: the frame's 6, the run 1, Pricing's reach 4 (the run's prices, targets and
+        // products left out, its category's products), the page of cards 1. Recorded (owner, 2026-10-19).
+        expect(contentShopQueries('/sa/en/campaigns/winter-offers'))->toBe(12);
     });
 });

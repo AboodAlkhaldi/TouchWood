@@ -60,9 +60,6 @@ final readonly class ShopPagesController
     /** Products on a page of a campaign's (H7), as a page of the catalogue's lists. */
     public const int CAMPAIGN_PAGE = 24;
 
-    /** Pages of the run's products read at most to fill one of cards: the loop has its end. */
-    private const int CAMPAIGN_READS = 4;
-
     public function __construct(
         private Page $page,
         private ShopDocuments $documents,
@@ -213,21 +210,10 @@ final readonly class ShopPagesController
             return $run['slug'] === null ? throw new NotFoundHttpException : self::moved($request, 'storefront.content.campaign', $run['slug'], true);
         }
 
-        $after = self::text($request, 'after');
-        $shown = ['cards' => [], 'cardFacts' => []];
-        $next = null;
-
-        for ($read = 0; $read < self::CAMPAIGN_READS && count($shown['cards']) < self::CAMPAIGN_PAGE; $read++) {
-            $ids = $prices->productIds($store->storeId(), $run['id'], $after, self::CAMPAIGN_PAGE);
-            $found = $ids === [] ? ['cards' => [], 'cardFacts' => []] : $cards->read($store->storeId(), $locale, $ids);
-            $shown = ['cards' => [...$shown['cards'], ...$found['cards']], 'cardFacts' => [...$shown['cardFacts'], ...$found['cardFacts']]];
-            $next = count($ids) === self::CAMPAIGN_PAGE ? $ids[self::CAMPAIGN_PAGE - 1] : null;
-            $after = $next;
-
-            if ($next === null) {
-                break;
-            }
-        }
+        // Every product the run reaches - its categories' and brands' across every store - paged through what this store lists
+        // for this shopper in one read (catalog.md amendment 47): 24 a page while more are there, never an empty page.
+        $shown = $cards->page($store->storeId(), $locale, $prices->reachedProductIds($store->storeId(), $run['id']), self::text($request, 'after'), self::CAMPAIGN_PAGE);
+        $next = $shown['next'];
 
         $seo = ContentFrame::seo($frame->of($request, $store, $locale)['kept']);
 

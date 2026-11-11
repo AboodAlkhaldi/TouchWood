@@ -344,6 +344,20 @@ final readonly class ShopCatalog
     }
 
     /**
+     * A page of chosen products' cards, those this viewer can order here, in id order after `after` (amendment 47): a
+     * campaign's page, whose products may be thousands across every store. One read.
+     *
+     * @param  list<string>  $productIds
+     * @return list<ProductCard>
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function cardsAmong(StoreId $store, string $locale, ShopperKind $viewer, array $productIds, ?string $after, int $limit): array
+    {
+        return $this->reader->cardsAmong($store->value, ShopLocale::of($locale), $viewer, $productIds, $after, self::limit($limit, self::PAGE_MAX + 1));
+    }
+
+    /**
      * What a product's page suggests (§1.10), only what a shopper can order here: the hand-picked
      * "Related" — or, when staff picked none, the same category's, then the same brand's, a secondary
      * brand's products only on its own products' pages (amendment 5(l)) — and the hand-picked "Goes

@@ -15,6 +15,7 @@ use Modules\Content\Domain\Model\Campaign;
 use Modules\Content\Domain\Model\CampaignRun;
 use Modules\Content\Domain\Model\RunState;
 use Modules\Content\Domain\Repository\Campaigns;
+use Modules\Content\Domain\Repository\ContentLocks;
 use Modules\Content\Domain\Repository\Themes;
 use Modules\Content\Domain\ValueObject\PriceChoices;
 use Modules\Content\Domain\ValueObject\Slug;
@@ -45,6 +46,7 @@ final readonly class CampaignRules
         private Themes $themes,
         private CampaignNotices $notices,
         private CampaignPrices $prices,
+        private ContentLocks $locks,
     ) {}
 
     /**
@@ -250,8 +252,11 @@ final readonly class CampaignRules
 
     /**
      * A run being scheduled gets its campaign page's address from the campaign's name, per language (H7; the build's
-     * pick, content.md §9.3f F6), unless it has one; it is kept from then. A name that makes no address (only signs)
-     * gives `campaign` and the next free number.
+     * pick, content.md §9.3f F6), unless it has one; it is kept from then. Rule 15 holds: Arabic letters for `ar`,
+     * Latin for `en`. A name that makes no address in its language - an Arabic name of Latin letters only, a name of
+     * signs - gives the word for a campaign there, `حملة` or `campaign`, and the next free number (F6).
+     *
+     * Under the store's lock for campaign addresses, so two runs scheduled at once never reach for one address.
      */
     public function giveAddress(CampaignRun $run, Campaign $campaign): void
     {
@@ -259,9 +264,11 @@ final readonly class CampaignRules
             try {
                 return Slug::fromTitle("slug_{$locale}", $locale, (string) $name)->value;
             } catch (InvalidContentInput) {
-                return 'campaign';
+                return $locale === 'ar' ? 'حملة' : 'campaign';
             }
         };
+
+        $this->locks->lock($run->storeId, ContentLocks::CAMPAIGN_ADDRESSES);
 
         $this->campaigns->giveAddress($run->id, $run->storeId, $slug('ar', $campaign->nameAr), $slug('en', $campaign->nameEn ?? $campaign->nameAr));
     }

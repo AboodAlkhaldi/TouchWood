@@ -32,6 +32,9 @@ interface ContentLocks
     /** The redirects, which belong to no store (taken with `ALL_STORES`): a new old address, a sheet applied. */
     public const string REDIRECTS = 'redirects';
 
+    /** A store's campaign runs' shop addresses, given at Schedule (H7): taken alone, last in its transaction. */
+    public const string CAMPAIGN_ADDRESSES = 'campaign_addresses';
+
     /** The store name a lock of something that belongs to no store is taken under. */
     public const string ALL_STORES = '*';
 

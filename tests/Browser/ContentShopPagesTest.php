@@ -152,3 +152,17 @@ it('sends brand.com/ to the base store\'s Arabic home with no store remembered, 
     $page->navigate('/', BROWSER_PAGE_LOAD);
     $page->assertPathIs('/eg/en')->assertNoJavaScriptErrors();
 });
+
+it('draws a stored link outside the rules as its plain words, never as a link', function () {
+    $paths = contentShopBrowserItems();
+    $slug = substr($paths['page'], strlen('/pages/'));
+    // Written past the editor, which refuses it (§1.1 rule 16): what the shop does with one that reached a body anyway.
+    DB::table('content.page_translations')->where('locale', 'en')->where('slug', $slug)->update(['body' => json_encode(['blocks' => [['type' => 'paragraph', 'runs' => [['text' => 'A link that is not one', 'link' => 'javascript:alert(1)'], ['text' => ' and one that is', 'link' => '/pages/returns']]]]])]);
+
+    $page = visit("/eg/en{$paths['page']}");
+
+    expect(browserSoon($page, "document.querySelector('[data-test=\"content-page\"]')?.textContent.includes('A link that is not one') === true"))->toBeTrue()
+        ->and($page->script("document.querySelectorAll('[data-test=\"content-page\"] a[href^=\"javascript\"]').length"))->toBe(0)
+        ->and($page->script("document.querySelector('[data-test=\"content-page\"] a[href=\"/eg/en/pages/returns\"]') !== null"))->toBeTrue();
+    $page->assertNoJavaScriptErrors();
+});

@@ -74,7 +74,7 @@ export default function Document(props: ShopDocumentPageData) {
                     </section>
                 ) : null}
 
-                <ContentBlocks blocks={props.blocks as unknown as Block[]} image={(ref) => images[ref] ?? null} href={(to) => shopHref(to, store, locale)?.href ?? to} />
+                <ContentBlocks blocks={props.blocks as unknown as Block[]} image={(ref) => images[ref] ?? null} href={(to) => shopHref(to, store, locale)?.href ?? null} />
             </article>
 
             {products.length > 0 ? (

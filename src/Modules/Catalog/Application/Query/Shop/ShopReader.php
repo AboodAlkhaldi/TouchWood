@@ -103,6 +103,15 @@ interface ShopReader
     public function cardsOf(string $storeId, string $locale, ShopperKind $viewer, array $productIds): array;
 
     /**
+     * Of these products, those this viewer can order here, in id order after `after`, at most `limit` - one read
+     * however many are asked (amendment 47).
+     *
+     * @param  list<string>  $productIds
+     * @return list<ProductCard>
+     */
+    public function cardsAmong(string $storeId, string $locale, ShopperKind $viewer, array $productIds, ?string $after, int $limit): array;
+
+    /**
      * Cards sharing a category or a brand with a product, best-selling first, leaving some out: of
      * brands shown in default listings, or of the product's own brand — a secondary brand's products
      * are suggested on its own products' pages only (amendment 5(l)) — those this viewer sees only.
