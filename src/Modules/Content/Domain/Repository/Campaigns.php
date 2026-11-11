@@ -95,4 +95,10 @@ interface Campaigns
      * update that stamped it, which alone writes its `CampaignExpiring`.
      */
     public function stampWarning(string $runId, int $hours, DateTimeImmutable $now): bool;
+
+    /**
+     * Gives a run its shop address (content.md §5 `slug_ar`, `slug_en`; H7) where it has none: these slugs, or the first of
+     * `-2`, `-3`... free in its store and language. An address once given is kept, so a link to it never breaks.
+     */
+    public function giveAddress(string $runId, string $storeId, string $slugAr, string $slugEn): void;
 }

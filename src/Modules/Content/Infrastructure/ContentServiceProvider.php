@@ -18,6 +18,7 @@ use Modules\Content\Application\ContentCache;
 use Modules\Content\Application\ContentJobs;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\Query\ScreenReads;
+use Modules\Content\Application\Query\Shop\ShopDocuments;
 use Modules\Content\Application\Query\Shop\ShopReads;
 use Modules\Content\Application\Redirects\AddressProbe;
 use Modules\Content\Application\Redirects\SheetReader;
@@ -53,6 +54,7 @@ use Modules\Content\Infrastructure\Eloquent\DatabasePopups;
 use Modules\Content\Infrastructure\Eloquent\DatabaseRedirects;
 use Modules\Content\Infrastructure\Eloquent\DatabaseRedirectUploads;
 use Modules\Content\Infrastructure\Eloquent\DatabaseScreenReads;
+use Modules\Content\Infrastructure\Eloquent\DatabaseShopDocuments;
 use Modules\Content\Infrastructure\Eloquent\DatabaseShopReads;
 use Modules\Content\Infrastructure\Eloquent\DatabaseSitemapSources;
 use Modules\Content\Infrastructure\Eloquent\DatabaseSlugHistory;
@@ -131,6 +133,7 @@ final class ContentServiceProvider extends ServiceProvider
         $this->app->bind(ContentLocks::class, DatabaseContentLocks::class);
         $this->app->bind(ContentCache::class, VersionedContentCache::class);
         $this->app->bind(ShopReads::class, DatabaseShopReads::class);
+        $this->app->bind(ShopDocuments::class, DatabaseShopDocuments::class);
         $this->app->bind(ScreenReads::class, DatabaseScreenReads::class);
 
         // PR 4: SEO, the sitemaps, the robots file and the redirects.

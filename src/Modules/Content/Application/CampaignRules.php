@@ -11,11 +11,13 @@ use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\InvalidContentInput;
 use Modules\Content\Domain\Exception\NoticeNotDraft;
 use Modules\Content\Domain\Exception\NoticeTaken;
+use Modules\Content\Domain\Model\Campaign;
 use Modules\Content\Domain\Model\CampaignRun;
 use Modules\Content\Domain\Model\RunState;
 use Modules\Content\Domain\Repository\Campaigns;
 use Modules\Content\Domain\Repository\Themes;
 use Modules\Content\Domain\ValueObject\PriceChoices;
+use Modules\Content\Domain\ValueObject\Slug;
 use Modules\Content\Public\Contracts\CampaignNotices;
 use Modules\Platform\Public\Dto\StoreDto;
 use Modules\Pricing\Public\Contracts\CampaignPrices;
@@ -244,5 +246,23 @@ final readonly class CampaignRules
     public function moveEnd(CampaignRun $run, DateTimeImmutable $end): void
     {
         $this->prices->changeEnd(StoreId::fromString($run->storeId), $run->id, $end);
+    }
+
+    /**
+     * A run being scheduled gets its campaign page's address from the campaign's name, per language (H7; the build's
+     * pick, content.md §9.3f F6), unless it has one; it is kept from then. A name that makes no address (only signs)
+     * gives `campaign` and the next free number.
+     */
+    public function giveAddress(CampaignRun $run, Campaign $campaign): void
+    {
+        $slug = static function (string $locale, ?string $name): string {
+            try {
+                return Slug::fromTitle("slug_{$locale}", $locale, (string) $name)->value;
+            } catch (InvalidContentInput) {
+                return 'campaign';
+            }
+        };
+
+        $this->campaigns->giveAddress($run->id, $run->storeId, $slug('ar', $campaign->nameAr), $slug('en', $campaign->nameEn ?? $campaign->nameAr));
     }
 }

@@ -136,10 +136,8 @@ describe('the country page, which belongs to no store', function () {
         $browser->get('/')->assertRedirect('/sa/en');
     });
 
-    it('still lets a visitor who has chosen nothing choose', function () {
-        (new AdminBrowser)->get('/')
-            ->assertOk()
-            ->assertInertia(fn (AssertableInertia $page) => $page->component('Platform/Storefront/ChooseStore'));
+    it('sends a visitor who has chosen nothing on to the base store (content.md Q20 (a))', function () {
+        (new AdminBrowser)->get('/')->assertStatus(302)->assertRedirect('/sa/ar');
     });
 });
 
@@ -162,13 +160,13 @@ describe('the theme, on the shop', function () {
             ->assertInertia(fn (AssertableInertia $page) => $page->where('theme.mode', 'dark'));
     });
 
-    it('works on the country page too, which belongs to no store', function () {
+    it('works from brand.com/ too, which belongs to no store and sends a first visit on (content.md Q20 (a))', function () {
         $browser = new AdminBrowser;
 
-        $browser->get('/')->assertOk();
+        $browser->get('/')->assertRedirect('/sa/ar');
         $browser->post('/preferences', ['preference' => 'theme', 'value' => 'dark'])->assertRedirect();
 
-        $browser->get('/')
+        $browser->get('/sa/ar')
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page->where('theme.mode', 'dark'));
     });

@@ -115,7 +115,7 @@ it('answers a mistyped shop address with the shop\'s not-found page, in the addr
             ->where('translations', fn (Collection $words): bool => $words->get('errors.shop.back') === $back
                 // The frame's own words travel with it, as on every shop page (StorefrontArea::WORDS).
                 && $words->has('access::auth.sign_in')
-                && $words->has('platform::stores.placeholder'))
+                && $words->has('platform::stores.choose_title'))
             // Nobody signed in: a guest, as on any shop page; no panel's data.
             ->where('shopper', null)
             ->missing('menu'));
@@ -194,11 +194,11 @@ it('says no developer message with debug on either', function () {
 });
 
 it('leaves a shop page that is there, Catalog\'s own not-found page and the store\'s home as they were', function () {
-    get('/sa/en')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->component('Platform/Storefront/Home'));
+    get('/sa/en')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->component('Content/Storefront/Home'));
     get('/sa/en/sign-in')->assertOk();
     get('/sa/en/products/no-such-product')->assertNotFound()->assertInertia(fn (AssertableInertia $page) => $page->component('Catalog/Storefront/NotFound'));
     get('/sa')->assertRedirect();
-    get('/')->assertOk();
+    get('/')->assertRedirect('/sa/ar');
 });
 
 it('leaves a form sent, and anything but a read sent to a mistyped address, on Laravel\'s page - never "method not allowed"', function () {

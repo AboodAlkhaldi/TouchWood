@@ -194,6 +194,8 @@ final readonly class ScheduleCampaignHandler
 
             $scheduled = $run->with(state: RunState::Scheduled, choices: true, priceChoices: null);
             $this->campaigns->updateRun($scheduled);
+            // Its campaign page's address (H7), made from the name once and kept.
+            $this->rules->giveAddress($run, $campaign);
             $this->campaigns->update(new Campaign($campaign->id, $campaign->nameAr, $campaign->nameEn, $campaign->startsLocal, $campaign->endsLocal, $campaign->themeId, $campaign->version + 1, $staffId, $now));
             $this->platform->recordAudit(ContentAudit::entry('content.campaign.scheduled', 'content.campaign_run', $run->id, $store->id, ContentAudit::diff($run->fields(), $scheduled->fields())));
 

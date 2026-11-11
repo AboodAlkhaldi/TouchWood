@@ -27,13 +27,11 @@ beforeEach(function () {
     seed(PlatformSeeder::class);
 });
 
-it('draws the country page and goes into the store somebody picks', function () {
-    // A visitor with no cookie has chosen nothing, which is the only reason this page exists.
+it('sends a first visit from brand.com/ on to the base store\'s Arabic home', function () {
+    // No country page for a visitor with no cookie (content.md Q20 (a)): the header's country switch changes store.
     visit('/')
-        ->assertSee('اختر دولتك')
-        ->click('السعودية')
         ->assertPathIs('/sa/ar')
-        ->assertSee('السعودية')
+        ->assertPresent('[data-test="country-switch"]')
         ->assertNoJavaScriptErrors();
 });
 
@@ -64,13 +62,11 @@ it('moves to another country and keeps the language it was being read in', funct
         ->assertNoJavaScriptErrors();
 });
 
-it('fits the country page and the shop\'s header on a phone, both ways round', function () {
+it('fits the shop\'s header on a phone, both ways round', function () {
     // Phones are supported (frontend.md §2.1): the header's switches, the logo and the menus fit the
     // screen, in English and in Arabic, with nothing scrolling sideways.
-    $page = visit('/');
+    $page = visit('/sa/ar');
     $page->resize(375, 812);
-    $page->assertSee('اختر دولتك');
-    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the country page scrolls sideways');
 
     foreach (['/sa/en', '/sa/ar', '/eg/en'] as $address) {
         $page->navigate($address, BROWSER_PAGE_LOAD)->assertPresent('[data-test="country-switch"]');
