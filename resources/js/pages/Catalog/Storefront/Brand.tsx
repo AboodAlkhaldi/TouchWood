@@ -5,6 +5,7 @@ import { ShopPhoto } from '@/components/shop/ShopPhoto';
 import { ShopTrail } from '@/components/shop/ShopTrail';
 import { Empty, EmptyDescription, EmptyHeader } from '@/components/ui/empty';
 import { StorefrontLayout } from '@/layouts/StorefrontLayout';
+import { ListingSlots, type ListingSlotsData } from '@/components/content/ListingSlot';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import { useLoadMore } from '@/lib/use-load-more';
@@ -16,7 +17,7 @@ import type { ShopBrandPage, ShopCardData } from '@/types/generated/Modules/Cata
 | design has no brand page: drawn from its look (frontend.md §2.1).
 */
 
-export default function Brand({ name, slug, logo, description, products, next, address, cardFacts, soldOut }: ShopBrandPage) {
+export default function Brand({ name, slug, logo, description, products, next, address, cardFacts, soldOut, slots }: ShopBrandPage & { slots?: ListingSlotsData }) {
     const t = useTranslator();
     const link = useLink();
     const facts = useCardFacts(cardFacts, products[0]?.productId);
@@ -31,6 +32,7 @@ export default function Brand({ name, slug, logo, description, products, next, a
                     <h1 className="text-heading-32 text-ink">{name}</h1>
                 </header>
                 <RichText document={description} className="max-w-3xl" />
+                <ListingSlots slots={slots} />
 
                 {list.rows.length === 0 ? (
                     <Empty className="py-12">

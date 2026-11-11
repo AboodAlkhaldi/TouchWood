@@ -2,6 +2,7 @@ import { Suspense, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
 import { Minus, Plus, X } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
+import { ThemeCartMessage } from '@/components/content/ThemeMarks';
 import { TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { Money } from '@/components/Money';
@@ -55,6 +56,8 @@ export default function Cart(cart: CartPage) {
         <StorefrontLayout title={t(`${C}.title`)}>
             <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
                 <h1 className="text-heading-24 text-ink">{t(`${C}.title`)}</h1>
+                {/* A live theme's cart message (content.md §1.8 part 9), from the frame. */}
+                <ThemeCartMessage />
                 <FormError />
                 {cart.payment === null ? null : (
                     <Suspense fallback={null}>

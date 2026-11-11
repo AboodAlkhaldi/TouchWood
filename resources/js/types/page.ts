@@ -29,7 +29,8 @@ export type Theme = {
     /** Light, dark, or System - what nobody choosing means (owner, 2026-10-02). */
     choice: ThemeChoice;
     /** Custom properties for a campaign an admin made; absent for the one that ships with us. */
-    style?: string;
+    /** A live theme's artwork as custom properties, written by the server (content.md §1.8); shop pages only. */
+    style?: string | null;
 };
 
 /** A menu entry the person may use, as Platform's registry answered for them. */
@@ -144,6 +145,27 @@ export type NewsletterWords = {
     failed: string;
 };
 
+/** An image's sizes: size slug => format => address (Platform's `MediaUrlsDto::$variants`). */
+export type ImageSizes = Record<string, Record<string, string>>;
+
+/** Content's part of the shop's frame (content.md §1.5; `ContentFramePart`), already in the page's language. */
+export type ContentFrame = {
+    bar: { text: string; link: string | null; art?: boolean } | null;
+    footer: {
+        about: string | null;
+        phone: string | null;
+        email: string | null;
+        address: string | null;
+        copyright: string | null;
+        columns: { title: string; links: { text: string; link: string }[] }[];
+    } | null;
+    popup: { id: string; title: string; text: string; button: string | null; link: string | null; delaySeconds: number; image: ImageSizes } | null;
+    theme: { badge: string | null; flag: string | null; ribbon: string | null; cart: { text: string; link: string | null } | null; footerArt: boolean } | null;
+    /** The name of the theme a staff member previews here (W5b), or null. */
+    preview: string | null;
+    words: Record<string, string>;
+};
+
 export type SharedProps = {
     /** Sent back as X-CSRF-TOKEN so the two same-named cookies are never consulted (§1.4). */
     csrfToken: string;
@@ -175,7 +197,7 @@ export type SharedProps = {
      * Shop pages under a store: what modules put in the frame, by module (catalog.md §4.5) - Catalog's
      * category menu and search box.
      */
-    frame?: { catalog?: ShopFrameData; sales?: { pieces: number; words: { cart: string; pieces: Record<string, string> } }; ops?: { unread: number | null; words: BellWords | null; newsletter: NewsletterWords | null } };
+    frame?: { catalog?: ShopFrameData; sales?: { pieces: number; words: { cart: string; pieces: Record<string, string> } }; ops?: { unread: number | null; words: BellWords | null; newsletter: NewsletterWords | null }; content?: ContentFrame };
     /** Panel pages, for a signed-in staff member: what modules put in the frame, by module (ops.md §4.15 O1). */
     panelFrame?: { ops?: { unread: number; manyStores: boolean; words: BellWords } };
     /** Whether the sidebar starts open or shut down to its rail; this browser's own choice. */

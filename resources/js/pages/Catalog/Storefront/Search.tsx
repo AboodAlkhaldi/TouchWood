@@ -1,4 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
+import { ListingSlots, type ListingSlotsData } from '@/components/content/ListingSlot';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { ProductCards, useCardFacts } from '@/components/shop/ProductCards';
 import { Button } from '@/components/ui/button';
@@ -15,7 +16,7 @@ import type { SharedProps } from '@/types/page';
 | listings, only what this viewer may see. The design has no results page: drawn from its look.
 */
 
-export default function Search({ query, total, products, next, address, cardFacts }: ShopSearchPage) {
+export default function Search({ query, total, products, next, address, cardFacts, slots }: ShopSearchPage & { slots?: ListingSlotsData }) {
     const t = useTranslator();
     const link = useLink();
     const { frame } = usePage<SharedProps>().props;
@@ -30,6 +31,7 @@ export default function Search({ query, total, products, next, address, cardFact
                 <h1 className="text-heading-24 text-ink" data-test="search-heading">
                     {heading}
                 </h1>
+                <ListingSlots slots={slots} />
 
                 {short ? (
                     <p className="text-copy-14 text-ink-muted">{t('catalog::shop.search.short')}</p>

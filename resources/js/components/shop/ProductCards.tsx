@@ -6,6 +6,7 @@ import { ShopStars } from '@/components/feedback/shop';
 import { Badge } from '@/components/ui/badge';
 import { figure, intlLocale } from '@/lib/digits';
 import { ShopPhoto } from '@/components/shop/ShopPhoto';
+import { isReduced, ThemeBadge, ThemeFlag } from '@/components/content/ThemeMarks';
 import { CardPrice } from '@/components/shop/ShopPrice';
 import { useLink } from '@/lib/routes';
 import { keptBeside } from '@/lib/use-load-more';
@@ -81,6 +82,8 @@ function ProductCard({ card, test }: { card: ShopCardData; test: string }) {
     const t = useTranslator();
     const link = useLink();
     const locale = usePage<SharedProps>().props.locale;
+    // A live theme marks every product showing a reduced price now (content.md Q9 (a)).
+    const reduced = isReduced(card.price?.now, card.price?.before);
 
     return (
         <Link
@@ -88,7 +91,10 @@ function ProductCard({ card, test }: { card: ShopCardData; test: string }) {
             className="material-small group grid h-full content-start gap-3 overflow-hidden bg-surface p-3 hover:shadow-[0_0_0_1px_var(--tw-line-strong)]"
             data-test={test}
         >
-            <ShopPhoto photo={card.photo} size="card" alt={card.name} className="aspect-square w-full rounded-md" />
+            <span className="relative block">
+                <ShopPhoto photo={card.photo} size="card" alt={card.name} className="aspect-square w-full rounded-md" />
+                <ThemeFlag reduced={reduced} />
+            </span>
             <span className="text-label-14 text-ink group-hover:underline">{card.name}</span>
             <CardPrice price={card.price} />
             {card.rating === null || card.ratingCount === 0 ? null : (
@@ -99,8 +105,9 @@ function ProductCard({ card, test }: { card: ShopCardData; test: string }) {
                     </span>
                 </span>
             )}
-            {card.labels.length === 0 && !card.lastPieces ? null : (
-                <span className="flex flex-wrap gap-1">
+            {card.labels.length === 0 && !card.lastPieces && !reduced ? null : (
+                <span className="flex flex-wrap gap-1 empty:hidden">
+                    <ThemeBadge reduced={reduced} />
                     {card.lastPieces ? (
                         <Badge className={tone('amber')} data-test="last-pieces">
                             {t('catalog::shop.last_pieces')}

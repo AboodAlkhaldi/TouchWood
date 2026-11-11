@@ -1,5 +1,6 @@
 import { Link, router } from '@inertiajs/react';
 import { X } from 'lucide-react';
+import { ListingSlots, type ListingSlotsData } from '@/components/content/ListingSlot';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { ProductCards, useCardFacts } from '@/components/shop/ProductCards';
 import { ShopTrail } from '@/components/shop/ShopTrail';
@@ -39,7 +40,7 @@ function query(chosen: Chosen): Record<string, string> {
     return Object.fromEntries(entries.filter((entry): entry is [string, string] => entry[1] !== null));
 }
 
-export default function Category({ name, slug, path, children, products, next, filters, address, cardFacts, soldOut }: ShopCategoryPage) {
+export default function Category({ name, slug, path, children, products, next, filters, address, cardFacts, soldOut, slots }: ShopCategoryPage & { slots?: ListingSlotsData }) {
     const t = useTranslator();
     const link = useLink();
     const here = link('storefront.catalog.category', { slug });
@@ -147,6 +148,8 @@ export default function Category({ name, slug, path, children, products, next, f
                                 ))}
                             </NativeSelect>
                         </div>
+
+                        <ListingSlots slots={slots} />
 
                         {list.rows.length === 0 ? (
                             <Empty className="py-12">
