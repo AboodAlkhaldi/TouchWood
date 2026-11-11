@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariant;
 use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariantHandler;
+use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
+use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Catalog\Application\Command\CorrectStoreFillCode\CorrectStoreFillCode;
 use Modules\Catalog\Application\Command\CorrectStoreFillCode\CorrectStoreFillCodeHandler;
 use Modules\Catalog\Application\Command\RemoveStoreFillItems\RemoveStoreFillItems;
@@ -17,6 +19,9 @@ use Modules\Catalog\Application\Command\SwitchOnStoreFillItems\SwitchOnStoreFill
 use Modules\Catalog\Application\Command\SwitchOnStoreFillItems\SwitchOnStoreFillItemsHandler;
 use Modules\Catalog\Application\Command\UploadStoreFill\UploadStoreFill;
 use Modules\Catalog\Application\Command\UploadStoreFill\UploadStoreFillHandler;
+use Modules\Catalog\Application\Query\ViewStoreFill\StoreFillItemView;
+use Modules\Catalog\Application\Query\ViewStoreFill\ViewStoreFill;
+use Modules\Catalog\Application\Query\ViewStoreFill\ViewStoreFillHandler;
 use Modules\Catalog\Domain\Exception\ImportRefused;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Infrastructure\External\NoStoreWired;
@@ -269,5 +274,37 @@ describe('by the store\'s wiring (amendment 43)', function () {
             ->and(catalogFillOn())->toBe([$sixty])
             ->and(DB::table('pricing.retail_prices')->where('variant_id', $sixty)->exists())->toBeFalse()
             ->and(DB::table('inventory.stock')->where('variant_id', $sixty)->value('in_stock'))->toBeNull();
+    });
+    it('never switches on an item kept with no price once its store is not wired: its page says to upload prices, the others go ahead', function () {
+        $first = Fx::asSystem(fn (): array => Px::ready(['60 cm']));
+        $second = Fx::asSystem(fn (): array => Px::ready(['60 cm']));
+        [$sixty] = $first['variants'];
+        [$onAlready] = $second['variants'];
+        $codeOf = static fn (string $variant): string => (string) DB::table('catalog.variants')->where('id', $variant)->value('code');
+        catalogFillWired();
+        $import = catalogFill([['code' => $codeOf($sixty)], ['code' => $codeOf($onAlready)]]);
+        // Unwired since the file was kept; the second product is on there already.
+        app()->instance(CatalogWiring::class, new NoStoreWired);
+        app()->forgetInstance(PricingWiring::class);
+        app()->forgetInstance(InventoryWiring::class);
+        app()->instance(PricingWiring::class, new Modules\Pricing\Infrastructure\External\NoStoreWired);
+        app()->instance(InventoryWiring::class, new Modules\Inventory\Infrastructure\External\NoStoreWired);
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $second['product'], true)));
+        $page = fn () => app(ViewStoreFillHandler::class)->handle(new ViewStoreFill($import));
+
+        expect(array_map(static fn (StoreFillItemView $item): ?string => $item->standing, $page()->items))->toBe([StoreFillItemView::NO_PRICE, StoreFillItemView::ALREADY_ON])
+            ->and(fn () => app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($import, [catalogFillItem($import, 1)])))->toThrow(InvalidCatalogAttribute::class, 'upload a new file with prices')
+            // Every one ready: the one with no price stays open, the other is marked on.
+            ->and(app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($import, null)))->toBe(1)
+            ->and(catalogFillStates($import))->toBe(['OPEN', 'ON'])
+            ->and(catalogFillOn())->toBe([$onAlready])
+            ->and(DB::table('pricing.retail_prices')->where('variant_id', $sixty)->exists())->toBeFalse();
+
+        // Wired again, the item has the provider's price: it stands ready, and switches on.
+        catalogFillWired();
+
+        expect($page()->items[0]->standing)->toBe(StoreFillItemView::READY)
+            ->and(app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($import, null)))->toBe(1)
+            ->and(catalogFillStates($import))->toBe(['ON', 'ON']);
     });
 });

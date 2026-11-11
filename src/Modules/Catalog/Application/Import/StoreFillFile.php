@@ -15,7 +15,7 @@ use Modules\Catalog\Domain\ValueObject\ProductCode;
  * (owner, 2026-11-11). A store **wired to Odoo** takes codes only: its prices and stock are Odoo's, so
  * an item carrying either is refused, the field named - as a products file's `stores` and
  * `attribute_set` are. A store **not wired** gives each item its price, stock optional, as before.
- * A top-level `note` - the example file's own explanation - is accepted and ignored.
+ * A top-level `note` - text, the example file's own explanation - is accepted and ignored.
  * Every problem collected, then the file refused whole. Whether each code is in the catalog is its page's question,
  * never a refusal: an unknown code is corrected or removed there.
  */
@@ -74,6 +74,10 @@ final readonly class StoreFillFile
             if (! in_array($key, ['format', 'items', 'note'], true)) {
                 $problems->add("file › {$key}", 'not a field of the format');
             }
+        }
+
+        if (array_key_exists('note', $data) && ! is_string($data['note'])) {
+            $problems->add('file › note', 'text');
         }
 
         if (($data['format'] ?? null) !== self::FORMAT) {

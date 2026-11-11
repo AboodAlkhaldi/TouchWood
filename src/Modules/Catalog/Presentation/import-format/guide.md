@@ -211,13 +211,18 @@ them.
 - **A store connected to Odoo** gives **codes only** — `{ "code": "1304" }` — its prices and stock come
   from Odoo. A file that gives a `price` or a `stock` there is refused, the field named.
 
-Which one applies is decided **when the file is uploaded**, by whether the store is connected then. A
-store connected to Odoo after its file was uploaded keeps Odoo's prices and stock: the file's are then
-ignored, and its page says so.
+Which one applies is decided **when the file is uploaded**, by whether the store is connected then;
+**switching an item on asks again**:
+
+- a store connected to Odoo after its file was uploaded keeps Odoo's prices and stock — the file's are
+  ignored, and its page says so;
+- a store disconnected from Odoo after its file (codes only) was uploaded cannot switch those items on,
+  as they have no price — its page marks them **No Price**: upload a new file with prices.
 
 - `format` must be exactly `"touchwood-store-fill/1"`.
-- `note` — optional: read by people, **ignored by the import** (the example uses it to say
-  the rule above). No other field may sit beside `format`, `note` and `items`.
+- `note` — optional, **text** (in quotes; anything else refuses the file): read by people,
+  **ignored by the import** (the example uses it to say the rule above). No other field may sit beside
+  `format`, `note` and `items`.
 - `items` holds **1 to 1,000** items, **each code once**. The file is at most **2 MB**. The store is
   the one whose page it is uploaded from — the file does not name it.
 - `code` — **required**: 1 to 10 digits **as text, in quotes** ("Codes" at the top); Arabic digits are

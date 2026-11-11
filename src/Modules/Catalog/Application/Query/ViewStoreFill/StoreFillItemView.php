@@ -8,7 +8,8 @@ namespace Modules\Catalog\Application\Query\ViewStoreFill;
  * One item of a store file (amendment 6(g)). An open item stands as one of:
  * `READY` — switching it on chooses the variant carrying its code —, `NOT_READY` (what the product
  * lacks, completed in its page), `ARCHIVED`, `ALREADY_ON`, or `UNKNOWN` — a code no product holds,
- * corrected or removed here.
+ * corrected or removed here. `NO_PRICE`: ready, but kept with no price while the store was wired to
+ * Odoo, which it is not any more - never switched on; a new file with prices is uploaded (amendment 43(b)).
  */
 final readonly class StoreFillItemView
 {
@@ -21,6 +22,9 @@ final readonly class StoreFillItemView
     public const string ALREADY_ON = 'ALREADY_ON';
 
     public const string UNKNOWN = 'UNKNOWN';
+
+    /** Ready, but with no price in a store not wired to Odoo: its file came while it was (amendment 43(b)). */
+    public const string NO_PRICE = 'NO_PRICE';
 
     /**
      * @param  string|null  $standing  for an open item, where it stands now

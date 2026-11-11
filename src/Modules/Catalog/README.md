@@ -456,7 +456,10 @@ reads by it - a store wired to Odoo gives codes only (`price` or `stock` refused
 prices come from Odoo"), one not wired its price, stock optional. Catalog binds `NoStoreWired`; Sync,
 above Catalog, binds its `ConnectionWiring` in its place, as for Pricing and Inventory. A wired store's
 items keep no price (`store_fill_items.price` may be empty, `2026_11_11_100000_…`). A top-level `note`
-(the example's own explanation) is read and ignored.
+(text: the example's own explanation) is read and ignored. **Switching on asks again**: the sections
+ignore a file's prices in a store wired since, and `SwitchOnStoreFillItems` never switches on an item
+with no price in a store not wired (any more) - `ViewStoreFill` marks it `NO_PRICE`, asking the wiring
+once and only for a file holding such an item, so the page's queries do not grow.
 
 ### The screens: the shared lists (screens step 1)
 
@@ -605,7 +608,7 @@ fills stores. **Upload Store File** takes the `.json`; a refused file's problems
 flashed with the list's next view (at most 500), in the format's own words - English, as the format is
 - and are listed under the upload in its dialog. A file's page shows each item: number, code, its
 product (named, linked to its page), price, stock, and where it stands - Ready, Not Ready and what it
-lacks, Archived, Already On, Unknown Code - or what was done (Switched On, Removed), still naming its
+lacks, Archived, Already On, Unknown Code, No Price (amendment 43(b)) - or what was done (Switched On, Removed), still naming its
 product; ticked open items are switched on (ready ones only, said before the press) or removed, every
 ready one switched on at once, an unknown code corrected.
 

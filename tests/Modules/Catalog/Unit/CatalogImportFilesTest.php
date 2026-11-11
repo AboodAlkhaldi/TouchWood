@@ -128,6 +128,10 @@ describe('the guide\'s examples', function () {
             ->and(array_column(storeFillProblems('{"format": "touchwood-store-fill/1", "notes": "x", "items": [{"code": "1304"}]}', true), 'at'))->toBe(['file › notes']);
     });
 
+    it('refuses a note that is not text', function (string $note) {
+        expect(storeFillProblems('{"format": "touchwood-store-fill/1", "note": '.$note.', "items": [{"code": "1304"}]}', true))->toBe([['at' => 'file › note', 'problem' => 'text']]);
+    })->with(['a number' => ['12'], 'a list' => ['["a"]'], 'an object' => ['{"en": "x"}'], 'nothing' => ['null']]);
+
     it('refuses the example product file uploaded alone: its photos come in the zip', function () {
         $problems = catalogImportProblems([], null, catalogImportExample('products.example.json'));
 
