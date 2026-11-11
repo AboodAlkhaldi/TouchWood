@@ -148,7 +148,7 @@ it('refuses what can never be assigned, writing nothing', function (Closure $mak
 /** A coupon's fields as the editor sends them: assigned, 15%, for these buyers. */
 function assignedFields(bool $forPublic = true, bool $forCompany = true, string $eligibility = 'ASSIGNED'): CouponFields
 {
-    return new CouponFields('كوبون', 'Coupon', $eligibility, 'PERCENT', 15, null, null, null, CarbonImmutable::now(), null, null, null, true, false, true, true, $forPublic, $forCompany, []);
+    return new CouponFields('قسيمة', 'Coupon', $eligibility, 'PERCENT', 15, null, null, null, CarbonImmutable::now(), null, null, null, true, false, true, true, $forPublic, $forCompany, []);
 }
 
 it('refuses a coupon assigned from a segment being changed to leave that segment\'s buyers out, and takes a change that keeps them', function (string $audience, bool $forPublic, bool $forCompany) {

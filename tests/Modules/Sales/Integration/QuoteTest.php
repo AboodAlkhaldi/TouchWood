@@ -764,7 +764,7 @@ describe('what the review asked for', function () {
         expect($quote->couponRefusal)->toBe('BELOW_MINIMUM')
             ->and($quote->couponId)->toBeNull()
             ->and($quote->couponNameEn)->toBe('Summer coupon')
-            ->and($quote->couponNameAr)->toBe('كوبون الصيف')
+            ->and($quote->couponNameAr)->toBe('قسيمة الصيف')
             ->and($quote->couponDiscount->minorUnits)->toBe(0)
             ->and($quote->allowWithPoints)->toBeFalse();
     });

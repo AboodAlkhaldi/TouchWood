@@ -61,7 +61,7 @@ describe('what it takes off', function () {
         expect($result->isTaken())->toBeTrue()
             ->and($result->couponId)->toBe($coupon)
             ->and($result->nameEn)->toBe('Summer coupon')
-            ->and($result->nameAr)->toBe('كوبون الصيف')
+            ->and($result->nameAr)->toBe('قسيمة الصيف')
             ->and($result->discount?->minorUnits)->toBe(45_00)
             ->and($result->discount?->currencyCode)->toBe(Pr::currency())
             ->and(shareMinors($result))->toBe([30_00, 15_00])

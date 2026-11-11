@@ -363,7 +363,8 @@ had none (owner, 2026-10-19, answer 33).
    owner, 2026-10-29, gap 6.1): staff pick the carrier (the preview lists those serving the new place with
    today's fee) and the fee — **today's** (`TODAY`, the default: the carrier must serve the place; a place no
    carrier serves makes the fee to be set) or **the order's own** (`KEEP`, any of the store's carriers; none
-   to keep while the fee is to be set); another store's country refused. A difference owed is settled as any
+   to keep while the fee is to be set; a fee staff typed, with no carrier, takes none: picked when it ships,
+   §9.7); another store's country refused. A difference owed is settled as any
    edit's (a staff payment request from stage 7 step 12).
 6. **The totals** — `PricingApi::totals` over the edited prices, the coupon, the points and the
    shipping. **The gift — staff decide** (owner, 2026-10-10): keep it, swap it for the gift of the level
@@ -1256,7 +1257,8 @@ To be set** and **Total before shipping**.
     carrier serves it: "No carrier serves this place: the fee will be to be set." For a bank-transfer order, it adds
     "It stays a bank transfer." (§9.6 #11)
   - **Keep the order's fee**: a list of all the store's carriers, the order's carrier picked first. Not offered while
-    the fee is to be set: there is none to keep (§9.6 #2).
+    the fee is to be set: there is none to keep (§9.6 #2). For a fee staff typed (no carrier), no list: "Carrier:
+    Picked when it ships" (§9.7).
 - **Changing the address, the carrier or the fee choice makes the preview stale**, as every other change does, and
   Confirm stays out of reach until Preview runs again (R2-36). A new address clears the carrier and fee choices.
 - **A fee to be set** shows **To be set** on either side of the preview's shipping row, and on the total's label.
@@ -1588,10 +1590,9 @@ refusing anything but one void.
    bought piece; a refusal's reason required; up to 3 transfer documents; the
    ways recorded (`BANK_TRANSFER`, `ONLINE`, `OTHER`); what counts as an unfinished order; the
    settings' defaults and admin-only permission; best-selling as pieces sold in 90 days.
-7. **Handoff §12.4's "hold stock while verifying" setting** (bank transfers, stage 7): stock is now
-   held for every order from placement until it ships or is cancelled (handoff §12.1, owner
-   2026-10-07), so the setting has nothing left to switch — for the owner to confirm it goes, with
-   Payments.
+7. ~~**Handoff §12.4's "hold stock while verifying" setting**~~ — **settled: dropped** (owner, 2026-10-19,
+   payments.md P9, §1.9): stock is held for every order from placement until it ships or is cancelled
+   (handoff §12.1, owner 2026-10-07), so the setting had nothing left to switch; no such setting exists.
 8. **An off store's unfinished orders in the other modules** — whether Inventory's, Promotions' and
    Loyalty's calls accept an order of a store that is off (Sales's edits, returns, cancellations):
    checked at build and tested (`OrderDecisionsTest`, `ReturnRequestsTest`: an off store's staff decide,
@@ -1930,8 +1931,12 @@ carrier serves stays a bank transfer. The screens say so in the preview; the own
 5. **Correcting a shipment whose carrier was since deleted keeps its name as a typed one**, in the page's language only,
    and the dialog says so.
 
-**Still open for the owner**: a fee staff set, kept through a move to another place with a carrier picked, can no longer
-be changed by Change Shipping Fee… (the order then has a carrier, §9.6 #4), only by another address change.
+**Answered by the owner, 2026-11-10 ("Yes, build B")**: a fee staff set, kept through a move to another place with a
+carrier picked, could no longer be changed by Change Shipping Fee… (the order then had a carrier, §9.6 #4), only by
+another address change. Now, until an order ships, it has either **a fee staff typed and no carrier** (Change Shipping
+Fee… keeps working) or **a carrier and that carrier's price**. "Keep the order's fee" on an order with no carrier takes
+no carrier: the edit page shows "Picked when it ships" in place of the list, and `OrderEditing` refuses one
+(`InvalidSalesAttribute('carrier')`). The carrier is picked at Ship…, as for any such order.
 
 ### 9.8 Stage 7 step 11 — #4–#7, #11, #13–#15 built (2026-11-02)
 

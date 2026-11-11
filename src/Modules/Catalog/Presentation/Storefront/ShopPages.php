@@ -150,7 +150,7 @@ final readonly class ShopPages
         }
 
         $viewer = $this->visit->viewer();
-        /** @var array{page: array<string, mixed>|null, other: string|null, category: string|null, companies?: bool|null, noindex?: bool} $kept */
+        /** @var array{page: array<string, mixed>|null, other: string|null, category: string|null, companies?: bool|null, noindex?: bool, trail?: list<array{name: string, slug: string}>|null} $kept */
         $kept = $this->cache->remember("product:{$store->value}:{$locale}:{$viewer->value}:{$owner['id']}", function () use ($store, $locale, $viewer, $owner): array {
             $page = $this->catalog->productPage($store, $locale, $viewer, $owner['id'], $owner['slug']);
 
@@ -188,7 +188,10 @@ final readonly class ShopPages
                 // A guest's: whether companies may buy it here, so whether its wholesale is shown (amendment 35).
                 // Kept with the page: a change of who sees its category is a Catalog change, a new version.
                 'companies' => $viewer === ShopperKind::Guest ? $this->openToCompanies($store, $owner['id']) : null,
-                'noindex' => $page->noindex()];
+                'noindex' => $page->noindex(),
+                // Its category out of this viewer's menu but still answering, emptied by stock or prices: the way to it
+                // (amendment 42). Kept with the page, as the menu it was read against is in the same cache.
+                'trail' => $this->wayToEmptied($store, $locale, $viewer, $page->categoryId)];
         });
 
         if ($kept['page'] === null) {
@@ -202,9 +205,12 @@ final readonly class ShopPages
         // Not available now: kept out of search engines (§1.4, P18), unless only stock or a price is missing (amendment 39).
         $address = self::address('storefront.catalog.product', $locale, ['slug' => $owner['slug']], $kept['other'] === null ? null : ['slug' => $kept['other']], $kept['noindex'] ?? $kept['page']['available'] !== true);
 
-        // The path to its category as this viewer's menu has it: no step a page they cannot open.
+        // The path to its category as this viewer's menu has it: no step a page they cannot open. A category the
+        // menu has left but whose page still answers keeps its way (amendment 42), read when the page was filled.
         $around = $kept['category'] === null ? null : $this->visit->around($store, $locale, $kept['category']);
-        $path = $around === null || $around['self'] === null ? [] : [...$around['path'], $around['self']];
+        $path = $around !== null && $around['self'] !== null
+            ? [...$around['path'], $around['self']]
+            : array_map(static fn (array $step): ShopLinkData => new ShopLinkData($step['name'], $step['slug']), $kept['trail'] ?? []);
 
         $customerId = $this->customerId();
         // Not available now: only the sections read on such a page too - the Save heart (amendment 34) and,
@@ -351,6 +357,25 @@ final readonly class ShopPages
         $actor = $this->actors->current();
 
         return $actor->type === ActorType::Customer && $actor->id !== null ? strtolower($actor->id) : null;
+    }
+
+    /**
+     * The way to a product's category when this viewer's menu has left it but its page still answers (amendment 42),
+     * as plain arrays for the cache; null when the menu holds it, or when its page does not answer.
+     *
+     * @return list<array{name: string, slug: string}>|null
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    private function wayToEmptied(StoreId $store, string $locale, ShopperKind $viewer, ?string $categoryId): ?array
+    {
+        if ($categoryId === null || $this->visit->around($store, $locale, $categoryId)['self'] !== null) {
+            return null;
+        }
+
+        $way = $this->catalog->wayToEmptied($store, $locale, $viewer, $categoryId);
+
+        return $way === null ? null : array_map(static fn (ShopLink $step): array => ['name' => $step->name, 'slug' => $step->slug], $way);
     }
 
     /** Whether companies may buy the product in the store: its category open to them (amendment 14). */
