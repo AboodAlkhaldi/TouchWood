@@ -33,7 +33,8 @@ use Shared\Domain\ValueObject\StoreId;
  * Writes sizes' candidates again from what they are made of (pricing.md §1.6 "materialized"), inside
  * the change's transaction, then tells Catalog the price a card shows (§1.10): what one piece costs
  * now on a retail line, and the retail price before it only while the price now is lower — and the
- * least one piece costs now on a wholesale line (catalog.md amendment 35, the card's "Wholesale from").
+ * least one piece costs now on a wholesale line (catalog.md amendment 35, the card's "Wholesale from"),
+ * with its normal price while an offer takes it lower (amendment 43, struck through beside it).
  *
  * In chunks, so the repair of a whole store stays under PostgreSQL's 65,535 parameters a statement
  * (as Catalog's listing rows): a few reads and writes a chunk, however many sizes.
@@ -183,10 +184,12 @@ final readonly class CandidateWriter
 
                 $written[$variantId] = $candidates;
                 $price = PriceResolution::resolve($candidates, SaleMode::Retail, 1, $now);
+                $wholesale = self::wholesaleFrom($candidates, $now);
                 $prices[$variantId] = $price === null ? null : new ListingPrice(
                     $price->unit,
                     $price->unit->compareTo($price->listUnit) < 0 ? $price->listUnit : null,
-                    self::wholesaleFrom($candidates, $now),
+                    $wholesale['now'] ?? null,
+                    $wholesale['before'] ?? null,
                 );
             }
 
@@ -213,13 +216,18 @@ final readonly class CandidateWriter
 
     /**
      * The least one piece costs now on a wholesale line, at any quantity: the line resolved from one piece
-     * and from each band's start — the price only changes there — the cheapest kept. None: not priced.
+     * and from each band's start — the price only changes there — the cheapest kept. And the least of the
+     * line's normal prices at those quantities — its band, or the retail price (§1.6 step 5) — kept as
+     * `before` only while the price now is lower: a sale, discount or campaign took it there, never a band
+     * alone (catalog.md amendment 43). None: not priced.
      *
      * @param  list<Candidate>  $candidates
+     * @return array{now: Money, before: ?Money}|null
      */
-    private static function wholesaleFrom(array $candidates, DateTimeImmutable $now): ?Money
+    private static function wholesaleFrom(array $candidates, DateTimeImmutable $now): ?array
     {
         $least = null;
+        $normal = null;
         $starts = [1];
 
         foreach ($candidates as $candidate) {
@@ -229,14 +237,26 @@ final readonly class CandidateWriter
         }
 
         foreach (array_unique($starts) as $quantity) {
-            $unit = PriceResolution::resolve($candidates, SaleMode::Wholesale, $quantity, $now)?->unit;
+            $price = PriceResolution::resolve($candidates, SaleMode::Wholesale, $quantity, $now);
 
-            if ($unit !== null && ($least === null || $unit->compareTo($least) < 0)) {
-                $least = $unit;
+            if ($price === null) {
+                continue;
+            }
+
+            if ($least === null || $price->unit->compareTo($least) < 0) {
+                $least = $price->unit;
+            }
+
+            if ($normal === null || $price->listUnit->compareTo($normal) < 0) {
+                $normal = $price->listUnit;
             }
         }
 
-        return $least;
+        if ($least === null || $normal === null) {
+            return null;
+        }
+
+        return ['now' => $least, 'before' => $least->compareTo($normal) < 0 ? $normal : null];
     }
 
     /** The sale's price on a size: its own, or its percentage of the retail price; none if that would be 0. */

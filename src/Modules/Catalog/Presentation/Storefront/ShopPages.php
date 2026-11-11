@@ -413,7 +413,7 @@ final readonly class ShopPages
 
         return array_map(static fn (ProductCard $card): ShopCardData => new ShopCardData(
             $card->productId, $card->name, $card->slug, $card->photo, self::labels($card->labels), $card->lastPieces, $card->rating?->average, $card->rating->count ?? 0,
-            $card->price === null ? null : new ShopCardPriceData($price($card->price->now), $price($card->price->before), $price($card->price->from), $price($card->price->wholesaleFrom)),
+            $card->price === null ? null : new ShopCardPriceData($price($card->price->now), $price($card->price->before), $price($card->price->from), $price($card->price->wholesaleFrom), $price($card->price->wholesaleFromBefore)),
         ), $cards);
     }
 

@@ -52,6 +52,8 @@ final readonly class DatabaseListingFacts implements ListingFacts
             'currency' => $price?->now->currencyCode,
             // The card's "Wholesale from" (amendment 35).
             'wholesale_from_minor' => $price?->wholesaleFrom?->minorUnits,
+            // And its normal price, only while that is lower: crossed out beside it (amendment 43).
+            'wholesale_from_before_minor' => $price?->wholesaleFromBefore?->minorUnits,
         ], $prices));
     }
 

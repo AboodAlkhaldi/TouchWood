@@ -341,7 +341,11 @@ Catalog's left out; the cards read them with the shop's pages (P22); Sales's Bes
 **The shop's prices** (amendment 35): `ListingPrice.wholesaleFrom` kept beside the price; the listing's
 `retail_from_minor` and `wholesale_from_minor`; a card's `price` (`CardPrice`, `ShopCardPriceData`) and
 each size's on its page, written as Platform's `MoneyData`; a product-page section told the `viewer` and
-the page's `wholesaleSizes`. **The shop's cart reads** (amendment 36): `ShopBestSellers` (bound to
+the page's `wholesaleSizes`. **A wholesale price on sale struck through** (amendment 43, 2026-11-11):
+`ListingPrice.wholesaleFromBefore` kept in `store_variant_facts.wholesale_from_before_minor`; the card's,
+`listing.wholesale_from_before_minor` (the least of its wholesale sizes' normal prices, only while "Wholesale
+from" is lower), carried as `CardPrice` / `ShopCardPriceData.wholesaleFromBefore`; no query added; after
+deploying, `pricing:candidates:rebuild` once. **The shop's cart reads** (amendment 36): `ShopBestSellers` (bound to
 `Presentation/Storefront/PageBestSellers`, the shop's own cards and `cardFacts`, `ShopReader::bestSelling`);
 a product-page section told every size the page shows (`sizes`). **The search log for Ops** (amendment 37):
 `CatalogApi::searchSummary`, by phrase, store and language over a range, keyset-paged, in `DatabaseSearchLog::summary`. **`ImportSections` is bound** (`InMemoryImportSections`, a singleton the modules above

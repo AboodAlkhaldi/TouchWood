@@ -34,7 +34,8 @@ use stdClass;
  *   that side can buy and order now is ending soon — any size for companies and guests, a size sold
  *   retail for individuals. And the cards' "From" and "Wholesale from" (amendment 35): the lowest
  *   price now among the retail sizes, only when they differ, and the least a piece costs on a
- *   wholesale line among the wholesale sizes.
+ *   wholesale line among the wholesale sizes — with, while an offer takes it lower, the least of their
+ *   normal prices, crossed out beside it (amendment 43).
  * - **The search reads** the names (A), the search words (B) and the names of its category and of
  *   every category above it (C), **in both languages on every page** (amendment 5(f), (g)), each as
  *   search compares words (handoff §5.2) — never the brand, the code or the description (5(c), (d)).
@@ -62,7 +63,7 @@ final readonly class DatabaseListingRows implements ListingRows
         .' for_individuals boolean, for_companies boolean, sells_retail boolean, sells_wholesale boolean,'
         .' card_variant_id text, retail_card_variant_id text, ending_soon_companies boolean, ending_soon_individuals boolean,'
         .' price_minor bigint, price_before_minor bigint, retail_price_minor bigint, retail_price_before_minor bigint,'
-        .' retail_from_minor bigint, wholesale_from_minor bigint';
+        .' retail_from_minor bigint, wholesale_from_minor bigint, wholesale_from_before_minor bigint';
 
     /** The columns written, in the order the insert names them. */
     private const array COLUMNS = [
@@ -71,7 +72,7 @@ final readonly class DatabaseListingRows implements ListingRows
         'price_minor', 'sales_rank', 'search_text', 'search_document',
         'for_individuals', 'for_companies', 'sells_retail', 'sells_wholesale', 'card_variant_id', 'retail_card_variant_id',
         'ending_soon_companies', 'ending_soon_individuals', 'price_before_minor', 'retail_price_minor', 'retail_price_before_minor',
-        'retail_from_minor', 'wholesale_from_minor',
+        'retail_from_minor', 'wholesale_from_minor', 'wholesale_from_before_minor',
     ];
 
     public function __construct(
@@ -143,7 +144,7 @@ final readonly class DatabaseListingRows implements ListingRows
             ." r.search_text, {$document},"
             .' r.for_individuals, r.for_companies, r.sells_retail, r.sells_wholesale, r.card_variant_id, r.retail_card_variant_id,'
             .' r.ending_soon_companies, r.ending_soon_individuals, r.price_before_minor, r.retail_price_minor, r.retail_price_before_minor,'
-            .' r.retail_from_minor, r.wholesale_from_minor'
+            .' r.retail_from_minor, r.wholesale_from_minor, r.wholesale_from_before_minor'
             .' FROM jsonb_to_recordset(?::jsonb) AS r('.self::RECORD.')'
             .' ON CONFLICT (store_id, locale, product_id) DO UPDATE SET '.$list('%1$s = EXCLUDED.%1$s')
             // Unchanged, it is not written at all.
@@ -230,7 +231,12 @@ final readonly class DatabaseListingRows implements ListingRows
                 $retail = array_values(array_filter($variants, static fn (array $variant): bool => $variant['retail']));
                 $switches = $audiences[$storeId][$categoryId] ?? ['individuals' => true, 'companies' => true];
                 $retailPrices = array_values(array_filter(array_column($retail, 'price'), is_int(...)));
-                $wholesaleFrom = array_values(array_filter(array_column(array_filter($variants, static fn (array $variant): bool => $variant['wholesale']), 'wholesaleFrom'), is_int(...)));
+                $wholesale = array_values(array_filter($variants, static fn (array $variant): bool => $variant['wholesale'] && $variant['wholesaleFrom'] !== null));
+                $wholesaleFrom = array_values(array_filter(array_column($wholesale, 'wholesaleFrom'), is_int(...)));
+                // Each wholesale size's normal price — before any sale, discount or campaign — and the card's,
+                // the least of them: what "Wholesale from" would say with no offer (amendment 43).
+                $wholesaleNormal = array_map(static fn (array $variant): int => $variant['wholesaleFromBefore'] ?? (int) $variant['wholesaleFrom'], $wholesale);
+                $wholesaleBefore = $wholesaleFrom === [] || $wholesaleNormal === [] || min($wholesaleNormal) <= min($wholesaleFrom) ? null : min($wholesaleNormal);
                 $sides = [
                     'for_individuals' => $switches['individuals'] && $retail !== [],
                     'for_companies' => $switches['companies'],
@@ -248,6 +254,8 @@ final readonly class DatabaseListingRows implements ListingRows
                     // "From" — only when the retail sizes' prices differ — and "Wholesale from" (amendment 35).
                     'retail_from_minor' => $retailPrices !== [] && count(array_unique($retailPrices)) > 1 ? min($retailPrices) : null,
                     'wholesale_from_minor' => $wholesaleFrom === [] ? null : min($wholesaleFrom),
+                    // Crossed out beside it only while it is lower (amendment 43).
+                    'wholesale_from_before_minor' => $wholesaleBefore,
                 ];
 
                 foreach (self::LOCALES as $locale) {
@@ -291,7 +299,7 @@ final readonly class DatabaseListingRows implements ListingRows
      * now (amendment 39); whether it is ending soon, and its price there, as pushed (P22, amendment 16(h)).
      *
      * @param  list<string>  $productIds
-     * @return array<string, array<string, non-empty-list<array{id: string, retail: bool, wholesale: bool, orderable: bool, ending: bool, price: int|null, before: int|null, wholesaleFrom: int|null}>>> product => store => variants
+     * @return array<string, array<string, non-empty-list<array{id: string, retail: bool, wholesale: bool, orderable: bool, ending: bool, price: int|null, before: int|null, wholesaleFrom: int|null, wholesaleFromBefore: int|null}>>> product => store => variants
      */
     private function sellableVariants(array $productIds): array
     {
@@ -309,7 +317,7 @@ final readonly class DatabaseListingRows implements ListingRows
             ->where('sp.not_available_now', false)
             ->where('v.is_archived', false)
             ->orderBy('sv.product_id')->orderBy('sv.store_id')->orderBy('v.position')->orderBy('v.id')
-            ->get(['sv.product_id', 'sv.store_id', 'sv.variant_id', 'sv.sells_retail', 'sv.sells_wholesale', 'f.orderable', 'f.ending_soon', 'f.price_minor', 'f.price_before_minor', 'f.wholesale_from_minor']);
+            ->get(['sv.product_id', 'sv.store_id', 'sv.variant_id', 'sv.sells_retail', 'sv.sells_wholesale', 'f.orderable', 'f.ending_soon', 'f.price_minor', 'f.price_before_minor', 'f.wholesale_from_minor', 'f.wholesale_from_before_minor']);
 
         $sellable = [];
 
@@ -324,6 +332,7 @@ final readonly class DatabaseListingRows implements ListingRows
                 'price' => $row->price_minor === null ? null : (int) $row->price_minor,
                 'before' => $row->price_before_minor === null ? null : (int) $row->price_before_minor,
                 'wholesaleFrom' => $row->wholesale_from_minor === null ? null : (int) $row->wholesale_from_minor,
+                'wholesaleFromBefore' => $row->wholesale_from_before_minor === null ? null : (int) $row->wholesale_from_before_minor,
             ];
         }
 

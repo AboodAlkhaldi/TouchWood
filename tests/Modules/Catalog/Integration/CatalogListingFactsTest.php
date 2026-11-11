@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Application\CatalogPermissions;
@@ -103,6 +104,32 @@ describe('the listing\'s facts', function () {
     it('takes a price before only above the price now, in its currency (sales ranks: CatalogSalesRanksTest)', function () {
         expect(fn () => new ListingPrice(Money::of(100, 'SAR'), Money::of(100, 'SAR')))->toThrow(InvalidArgumentException::class)
             ->and(fn () => new ListingPrice(Money::of(100, 'SAR'), Money::of(200, 'EGP')))->toThrow(InvalidArgumentException::class);
+    });
+
+    // Amendment 43 (owner, 2026-11-11): a wholesale price on sale is struck through beside its normal price.
+    it('takes a wholesale price before only with a wholesale price, above it, in its currency, and keeps it', function () {
+        $sar = static fn (int $minor): Money => Money::of($minor, 'SAR');
+
+        expect(fn () => new ListingPrice($sar(100), null, null, $sar(90)))->toThrow(InvalidArgumentException::class)
+            ->and(fn () => new ListingPrice($sar(100), null, $sar(80), $sar(80)))->toThrow(InvalidArgumentException::class)
+            ->and(fn () => new ListingPrice($sar(100), null, $sar(80), Money::of(90, 'EGP')))->toThrow(InvalidArgumentException::class);
+
+        [$sixty] = Px::ready(['60 cm'])['variants'];
+        $facts = app(ListingFacts::class);
+        $sa = StoreId::fromString(Fx::storeId('sa'));
+        $before = static fn (): array => (array) DB::table('catalog.store_variant_facts')->where('store_id', $sa->value)->where('variant_id', $sixty)->first(['wholesale_from_minor', 'wholesale_from_before_minor']);
+
+        $facts->prices($sa, [$sixty => new ListingPrice($sar(10_000), null, $sar(7_000), $sar(8_000))]);
+        expect($before())->toBe(['wholesale_from_minor' => 7_000, 'wholesale_from_before_minor' => 8_000]);
+
+        $facts->prices($sa, [$sixty => new ListingPrice($sar(10_000), null, $sar(8_000))]);
+        expect($before())->toBe(['wholesale_from_minor' => 8_000, 'wholesale_from_before_minor' => null]);
+
+        // The table holds the same rule: never at or below the wholesale price, never without one.
+        $write = static fn (?int $from, int $was) => fn () => DB::transaction(fn () => DB::table('catalog.store_variant_facts')
+            ->where('store_id', $sa->value)->where('variant_id', $sixty)->update(['wholesale_from_minor' => $from, 'wholesale_from_before_minor' => $was]));
+        expect($write(8_000, 8_000))->toThrow(QueryException::class)
+            ->and($write(null, 9_000))->toThrow(QueryException::class);
     });
 });
 
