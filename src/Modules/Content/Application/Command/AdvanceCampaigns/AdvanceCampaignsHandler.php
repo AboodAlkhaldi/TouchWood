@@ -7,6 +7,7 @@ namespace Modules\Content\Application\Command\AdvanceCampaigns;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
+use Modules\Content\Application\ContentCache;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\Moments;
 use Modules\Content\Domain\Model\CampaignRun;
@@ -55,6 +56,7 @@ final readonly class AdvanceCampaignsHandler
         private Outbox $outbox,
         private ConnectionInterface $db,
         private LoggerInterface $log,
+        private ContentCache $cache,
     ) {}
 
     /**
@@ -122,6 +124,8 @@ final readonly class AdvanceCampaignsHandler
                 }
 
                 $this->outbox->record(new CampaignWentLive((string) Str::uuid(), $run->id, $run->storeId, $run->noticeId, $now));
+                // Its smart bar shows from now (content.md §1.9, "while the run is live"): the shop's frame copy goes.
+                $this->cache->invalidate();
                 $changed = true;
                 // Live now: a late one is judged at once for its alerts (§1.7 #11, "goes live late").
                 $run = $this->campaigns->lockRun($run->id) ?? $run;

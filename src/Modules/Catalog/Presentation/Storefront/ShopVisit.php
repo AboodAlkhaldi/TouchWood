@@ -83,11 +83,13 @@ final class ShopVisit
      * The path to a category, the category itself and its sub-categories, as this viewer's menu has
      * them — nothing, for one the menu does not hold, so no step of a path is a page they cannot open.
      *
-     * @return array{path: list<ShopLinkData>, self: ShopLinkData|null, children: list<ShopLinkData>}
+     * `ids` is the category's own id and those above it, from the top (for the slots above its list, amendment 41(a)).
+     *
+     * @return array{path: list<ShopLinkData>, self: ShopLinkData|null, children: list<ShopLinkData>, ids: list<string>}
      */
     public function around(StoreId $store, string $locale, string $categoryId): array
     {
-        return self::find($this->menu($store, $locale), $categoryId, []) ?? ['path' => [], 'self' => null, 'children' => []];
+        return self::find($this->menu($store, $locale), $categoryId, [], []) ?? ['path' => [], 'self' => null, 'children' => [], 'ids' => [$categoryId]];
     }
 
     /**
@@ -112,9 +114,10 @@ final class ShopVisit
     /**
      * @param  list<ShopMenuItemData>  $items
      * @param  list<ShopLinkData>  $above
-     * @return array{path: list<ShopLinkData>, self: ShopLinkData, children: list<ShopLinkData>}|null
+     * @param  list<string>  $aboveIds
+     * @return array{path: list<ShopLinkData>, self: ShopLinkData, children: list<ShopLinkData>, ids: list<string>}|null
      */
-    private static function find(array $items, string $categoryId, array $above): ?array
+    private static function find(array $items, string $categoryId, array $above, array $aboveIds): ?array
     {
         foreach ($items as $item) {
             /** @var list<ShopMenuItemData> $children */
@@ -125,10 +128,11 @@ final class ShopVisit
                     'path' => $above,
                     'self' => new ShopLinkData($item->name, $item->slug),
                     'children' => array_map(static fn (ShopMenuItemData $child): ShopLinkData => new ShopLinkData($child->name, $child->slug), $children),
+                    'ids' => [...$aboveIds, $item->id],
                 ];
             }
 
-            $found = self::find($children, $categoryId, [...$above, new ShopLinkData($item->name, $item->slug)]);
+            $found = self::find($children, $categoryId, [...$above, new ShopLinkData($item->name, $item->slug)], [...$aboveIds, $item->id]);
 
             if ($found !== null) {
                 return $found;

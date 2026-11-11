@@ -6,14 +6,17 @@ namespace Modules\Catalog\Presentation\Http\Controller;
 
 use App\Http\Page;
 use App\Http\StorefrontArea;
+use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Modules\Catalog\Application\Products\InMemoryShopListingSlots;
 use Modules\Catalog\Application\Products\InMemoryShopProductSections;
 use Modules\Catalog\Application\Query\Shop\Moved;
 use Modules\Catalog\Application\Query\Shop\ShopFilters;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Presentation\Storefront\ShopPages;
+use Modules\Catalog\Public\Dto\ShopListingVisitDto;
 use Shared\Application\StoreContext;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -41,7 +44,7 @@ final readonly class ShopPagesController
         private StoreContext $stores,
     ) {}
 
-    public function category(Request $request, ShopPages $pages): Response
+    public function category(Request $request, ShopPages $pages, InMemoryShopListingSlots $slots): Response
     {
         try {
             $filters = ShopFilters::of(self::list($request, 'brands'), self::list($request, 'values'), self::text($request, 'side'), self::text($request, 'sort'));
@@ -53,11 +56,14 @@ final readonly class ShopPagesController
         return match (true) {
             $page === null => $this->notFound($request),
             $page instanceof Moved => self::moved($request, 'storefront.catalog.category', $page),
-            default => $this->page->render('Catalog/Storefront/Category', $page->toArray(), self::WORDS)->toResponse($request),
+            default => $this->page->render('Catalog/Storefront/Category', [
+                ...$page->toArray(),
+                'slots' => $this->slots($slots, ShopListingVisitDto::CATEGORY, $page->categoryPath),
+            ], self::WORDS)->toResponse($request),
         };
     }
 
-    public function brand(Request $request, ShopPages $pages): Response
+    public function brand(Request $request, ShopPages $pages, InMemoryShopListingSlots $slots): Response
     {
         try {
             $page = $pages->brand($this->stores->current(), app()->getLocale(), self::slug($request), self::text($request, 'after'));
@@ -68,7 +74,7 @@ final readonly class ShopPagesController
         return match (true) {
             $page === null => $this->notFound($request),
             $page instanceof Moved => self::moved($request, 'storefront.catalog.brand', $page),
-            default => $this->page->render('Catalog/Storefront/Brand', $page->toArray(), self::WORDS)->toResponse($request),
+            default => $this->page->render('Catalog/Storefront/Brand', [...$page->toArray(), 'slots' => $this->slots($slots, ShopListingVisitDto::BRAND)], self::WORDS)->toResponse($request),
         };
     }
 
@@ -88,7 +94,7 @@ final readonly class ShopPagesController
         };
     }
 
-    public function search(Request $request, ShopPages $pages): Response
+    public function search(Request $request, ShopPages $pages, InMemoryShopListingSlots $slots): Response
     {
         try {
             $page = $pages->search($this->stores->current(), app()->getLocale(), self::query($request), self::text($request, 'after'));
@@ -96,7 +102,21 @@ final readonly class ShopPagesController
             return $this->notFound($request);
         }
 
-        return $this->page->render('Catalog/Storefront/Search', $page->toArray(), self::WORDS)->toResponse($request);
+        return $this->page->render('Catalog/Storefront/Search', [...$page->toArray(), 'slots' => $this->slots($slots, ShopListingVisitDto::SEARCH)], self::WORDS)->toResponse($request);
+    }
+
+    /**
+     * What other modules put above this list (amendment 41(a)), by module: read when the page is drawn, never for a
+     * partial reload that leaves it out (Show More), so a list's next page asks them nothing.
+     *
+     * @param  list<string>  $categoryPath
+     */
+    private function slots(InMemoryShopListingSlots $slots, string $kind, array $categoryPath = []): Closure
+    {
+        $store = $this->stores->current();
+        $locale = app()->getLocale();
+
+        return static fn (): array => $slots->read(new ShopListingVisitDto($store, $locale, $kind, $categoryPath === [] ? null : $categoryPath[count($categoryPath) - 1], $categoryPath));
     }
 
     public function suggest(Request $request, ShopPages $pages): JsonResponse

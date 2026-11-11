@@ -16,11 +16,11 @@ use Symfony\Component\HttpFoundation\Cookie;
  * presser sees on the shop, for whom and until when - encrypted with the application's key (an authenticated cipher,
  * so a changed or forged value reads as none), HTTP-only, the whole site's path, two hours (the build's pick). Nobody
  * else sees it: it lives in the presser's browser alone, and it names the presser, so a browser signed in as someone
- * else reads none. **The shop reads it with its frame (PR 9)**: past the frame's cache, `noindex`, `no-store`.
+ * else reads none. **The shop reads it with its frame** (`shopTheme()`, `ShopFrameOfRequest`): past the frame's cache,
+ * `noindex`, `no-store`, and only during a staff view of an active Super Admin, asked again on every page.
  *
- * **For PR 9**: `themeFor()` says only whose cookie it is. The reader must ask again that this staff member still holds
- * `content.theme.manage` in the theme's stores (a role changed or a Super Admin removed within the two hours), and
- * must decrypt the cookie on the shop's routes as on the panel's (`EncryptCookies` wraps it a second time).
+ * `EncryptCookies` (in `web`, on the panel's routes and the shop's alike) adds and removes its own layer around this
+ * one, so what `read()` sees on either side is this class's value.
  */
 final readonly class ThemePreviewCookie
 {
@@ -58,9 +58,30 @@ final readonly class ThemePreviewCookie
     /** The theme this browser previews for this staff member now, or null: none, another's, past its time, or forged. */
     public function themeFor(Request $request, ?string $staffId): ?string
     {
+        $value = $staffId === null ? null : $this->read($request);
+
+        return $value !== null && $value['staff'] === strtolower((string) $staffId) ? $value['theme'] : null;
+    }
+
+    /**
+     * The theme this browser previews now, on the shop (PR 9), or null: none, past its time, or forged. **The shop
+     * knows no staff member by id**, so the caller must still ask that the page is a staff view of someone who may
+     * preview (`ShopFrameOfRequest`): the cookie alone shows nothing.
+     *
+     * On the shop's routes as on the panel's, `EncryptCookies` (in `web`) has taken its own layer off by then; what is
+     * read here is this class's own layer.
+     */
+    public function shopTheme(Request $request): ?string
+    {
+        return $this->read($request)['theme'] ?? null;
+    }
+
+    /** @return array{theme: string, staff: string}|null */
+    private function read(Request $request): ?array
+    {
         $raw = $request->cookies->get(self::NAME);
 
-        if (! is_string($raw) || $raw === '' || $staffId === null) {
+        if (! is_string($raw) || $raw === '') {
             return null;
         }
 
@@ -70,12 +91,12 @@ final readonly class ThemePreviewCookie
             return null;
         }
 
-        if (! is_array($value) || ($value['purpose'] ?? null) !== self::NAME || ($value['staff'] ?? null) !== strtolower($staffId)) {
+        if (! is_array($value) || ($value['purpose'] ?? null) !== self::NAME || ! is_string($value['staff'] ?? null) || ! is_string($value['theme'] ?? null)) {
             return null;
         }
 
         $until = $value['until'] ?? 0;
 
-        return is_int($until) && $until > CarbonImmutable::now()->getTimestamp() && is_string($value['theme'] ?? null) ? $value['theme'] : null;
+        return is_int($until) && $until > CarbonImmutable::now()->getTimestamp() ? ['theme' => $value['theme'], 'staff' => $value['staff']] : null;
     }
 }

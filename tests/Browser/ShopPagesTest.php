@@ -256,8 +256,9 @@ it('reads right to left in Arabic, at a phone\'s width, the menu in its Sheet, n
 
     $page->click('[data-test="category-sheet-open"]');
     // From the side the page starts on, once it has slid in: against the right, three quarters wide
-    // (measured 2026-10-12: 91 to 365 of 375, the last 10 the scroll lock's gap).
-    expect(browserUntil($page, "(() => { const r = document.querySelector('[data-test=\"category-sheet\"]').getBoundingClientRect(); return r.left > window.innerWidth / 5 && r.right > window.innerWidth * 0.9; })()"))->toBeTrue()
+    // (measured 2026-10-12: 91 to 365 of 375, the last 10 the scroll lock's gap). Since 2026-11-11 the drawer of
+    // content.md §1.5 (the owner's option C3), the design's min(320px, 86vw): 45 to 365.
+    expect(browserUntil($page, "(() => { const r = document.querySelector('[data-test=\"category-sheet\"]').getBoundingClientRect(); return r.left > 20 && r.right > window.innerWidth * 0.9; })()"))->toBeTrue()
         ->and(browserUntil($page, "[...document.querySelectorAll('[data-test=\"category-sheet\"] button')].some((b) => b.textContent.includes('مطابخ {$n}'))"))->toBeTrue();
     $page->script("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
 

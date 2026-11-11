@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Modules\Content\Infrastructure;
 
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Catalog\Public\Contracts\CatalogUsages;
+use Modules\Catalog\Public\Contracts\ShopListingSlots;
 use Modules\Catalog\Public\Events\ProductArchived;
 use Modules\Catalog\Public\Events\ProductMadeReady;
 use Modules\Catalog\Public\Events\StoreListingChanged;
@@ -74,12 +76,16 @@ use Modules\Content\Infrastructure\Queue\PruneRedirectUploadsJob;
 use Modules\Content\Infrastructure\Queue\QueuedContentJobs;
 use Modules\Content\Infrastructure\Queue\QueueWantedSitemapsJob;
 use Modules\Content\Infrastructure\Sheets\OpenSpoutSheetReader;
+use Modules\Content\Presentation\Frame\ContentFramePart;
+use Modules\Content\Presentation\Frame\ContentListingSlot;
 use Modules\Content\Presentation\Http\FormRefusalWords;
+use Modules\Content\Presentation\Http\Middleware\StorefrontTheme;
 use Modules\Content\Presentation\Http\RedirectAnswer;
 use Modules\Content\Public\Contracts\CampaignNotices;
 use Modules\Content\Public\Contracts\ContentApi;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
+use Modules\Platform\Public\Contracts\ShopFrameParts;
 use Modules\Platform\Public\Contracts\UnmatchedAddresses;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Events\MediaVariantsReady;
@@ -200,9 +206,17 @@ final class ContentServiceProvider extends ServiceProvider
             $schedule->job(AdvanceCampaignsJob::class)->everyMinute()->onOneServer();
         });
 
+        // The shop's frame (§1.5): the bar, the footer, the pop-up and the live theme's parts in every shop page's
+        // frame, after Catalog's, Ops' and Sales' (their order unchanged); the theme on the shell (§1.8, row L6).
+        $this->app->make(ShopFrameParts::class)->register('content', ContentFramePart::class);
+        $this->app->make(Router::class)->aliasMiddleware(StorefrontTheme::ALIAS, StorefrontTheme::class);
+        // Above every product list: the smart bar and the listing banner (§1.9, §1.6; catalog.md amendment 41(a)).
+        $this->app->make(ShopListingSlots::class)->register('content', ContentListingSlot::class);
+
         if (! $this->app->routesAreCached()) {
             $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/admin-routes.php');
             $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/public-routes.php');
+            $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/shop-routes.php');
         }
     }
 }

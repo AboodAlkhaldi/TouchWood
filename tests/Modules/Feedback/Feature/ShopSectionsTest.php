@@ -457,5 +457,6 @@ it('reads the sections in the same number of queries for one review as for ten, 
     // statement, the authors' names 1, the sizes bought 2 (Catalog's variants and their values) and
     // the stores' names 1; since 2026-10-27, Sales's Add to Cart 6 for a guest (catalog.md amendment 36) -
     // the limits a target, not a cap (owner, 2026-10-19).
-    expect([$one, $count()])->toBe([18, 18]);
+    // Content's frame, 2 more since 2026-11-11 (content.md §1.5, plan PR 9): its one cached read, the cache's version and copy.
+    expect([$one, $count()])->toBe([20, 20]);
 });

@@ -283,7 +283,8 @@ describe('the lists, read as the customer picks (Q7)', function () {
         // 2026-11-02: the bell's number (ops.md §4.15 O2).
         expect($read)->toBe($none)
             ->and($read)->toBeLessThanOrEqual(8)
-            ->and($page)->toBeLessThanOrEqual(22)
+            // Content's frame, 2 more since 2026-11-11 (content.md §1.5, plan PR 9): its one cached read, the cache's version and copy.
+            ->and($page)->toBeLessThanOrEqual(24)
             ->and($form)->toBeLessThanOrEqual(12);
     });
 });

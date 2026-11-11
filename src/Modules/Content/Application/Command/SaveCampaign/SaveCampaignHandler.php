@@ -9,6 +9,7 @@ use Illuminate\Support\Str;
 use Modules\Content\Application\CampaignRules;
 use Modules\Content\Application\ContentAccess;
 use Modules\Content\Application\ContentAudit;
+use Modules\Content\Application\ContentCache;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\EditCheck;
 use Modules\Content\Application\Moments;
@@ -59,6 +60,7 @@ final readonly class SaveCampaignHandler
         private EditCheck $check,
         private ConnectionInterface $db,
         private PlatformApi $platform,
+        private ContentCache $cache,
         private TranslationMarks $marks,
     ) {}
 
@@ -197,6 +199,8 @@ final readonly class SaveCampaignHandler
 
             $campaign = new Campaign($was->id, $name['ar'], $name['en'], $starts, $ends, $themeId, $was->version + 1, $staffId, $now);
             $this->campaigns->update($campaign);
+            // A run's moments may have moved, and its smart bar's with them (§1.9): the shop's frame copy goes.
+            $this->cache->invalidate();
             $this->platform->recordAudit(ContentAudit::entry('content.campaign.changed', 'content.campaign', $was->id, null, ContentAudit::diff(
                 [...$was->fields(), 'stores' => implode(',', $held)],
                 [...$campaign->fields(), 'stores' => self::storeList($stores)],

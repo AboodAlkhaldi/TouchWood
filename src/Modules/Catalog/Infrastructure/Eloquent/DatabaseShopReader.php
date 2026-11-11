@@ -209,13 +209,13 @@ final readonly class DatabaseShopReader implements ShopReader
             'WITH RECURSIVE up (id, parent_id, depth) AS ('
             .' SELECT c.id, c.parent_id, 0 FROM catalog.categories c WHERE c.id = ?'
             .' UNION ALL SELECT c.id, c.parent_id, up.depth + 1 FROM catalog.categories c JOIN up ON c.id = up.parent_id)'
-            .' SELECT c.'.self::column('name', $locale).' AS name, s.slug FROM up JOIN catalog.categories c ON c.id = up.id'
+            .' SELECT c.id, c.'.self::column('name', $locale).' AS name, s.slug FROM up JOIN catalog.categories c ON c.id = up.id'
             .' JOIN catalog.category_slugs s ON s.category_id = c.id AND s.locale = ? AND s.is_current'
             .' WHERE up.depth >= ? ORDER BY up.depth DESC',
             [$categoryId, $locale, $andItself ? 0 : 1],
         );
 
-        return array_values(array_map(static fn (stdClass $row): ShopLink => new ShopLink((string) $row->name, (string) $row->slug), $rows));
+        return array_values(array_map(static fn (stdClass $row): ShopLink => new ShopLink((string) $row->name, (string) $row->slug, (string) $row->id), $rows));
     }
 
     public function brandHead(string $locale, string $slug): ?array

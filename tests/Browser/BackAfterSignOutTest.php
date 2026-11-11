@@ -85,7 +85,15 @@ function backCustomerIn(string $email, int $width, int $height): mixed
 
 function backCustomerOut(mixed $page): void
 {
-    $page->click('[data-test="shopper-menu"]')->click('[data-test="sign-out"]');
+    // On a phone the shopper's menu is in the drawer's Account & settings (content.md §1.5, the owner's option C3).
+    if ($page->script('window.innerWidth <= 640') === true) {
+        $page->click('[data-test="category-sheet-open"]');
+        expect(browserUntil($page, "document.querySelector('[data-test=\"drawer-account\"]') !== null"))->toBeTrue();
+        $page->click('[data-test="drawer-account"]')->click('[data-test="drawer-sign-out"]');
+    } else {
+        $page->click('[data-test="shopper-menu"]')->click('[data-test="sign-out"]');
+    }
+
     expect(browserSoon($page, "document.querySelector('[data-test=\"bell\"]') === null && document.querySelector('[data-test=\"shopper-menu\"]') === null"))->toBeTrue();
 }
 

@@ -227,7 +227,8 @@ it('resolves the store from the cache alone once warm: tiny cache reads, never t
     get('/sa/ar')->assertOk();
     $queries = array_column(DB::getQueryLog(), 'query');
 
-    expect($queries)->toHaveCount(4);
+    // Content's frame, 2 more since 2026-11-11 (content.md §1.5, plan PR 9): its one cached read, the cache's version and copy.
+    expect($queries)->toHaveCount(6);
 
     foreach ($queries as $query) {
         expect($query)->toContain('"cache"');
