@@ -78,13 +78,55 @@ function myCompanySignedIn(string $customerId): AdminBrowser
 function myCompanyProps(AdminBrowser $browser, string $url = '/sa/en/account/company'): array
 {
     $props = [];
+    $component = '';
 
-    $browser->get($url)->assertOk()->assertInertia(function (AssertableInertia $page) use (&$props) {
-        $page->component('B2B/Storefront/Company/Company');
+    $browser->get($url)->assertOk()->assertInertia(function (AssertableInertia $page) use (&$props, &$component) {
         $props = $page->toArray()['props'];
+        $component = $page->toArray()['component'];
     });
 
+    // Every state on the one page meant for it (owner, 2026-11-10; b2b.md amendment 35).
+    expect($component)->toBe(myCompanyComponent($props));
+
     return $props;
+}
+
+/**
+ * Which of the company's two pages a state is drawn on (b2b.md amendment 35): the form's while a
+ * draft is open that may change - before the first send, an approved company changing its details,
+ * a rejected one applying again -, and the view page in every other state.
+ *
+ * @param  array<string, mixed>  $props
+ */
+function myCompanyComponent(array $props): string
+{
+    $company = $props['company'] ?? null;
+    $status = is_array($company) ? $company['status'] : null;
+
+    return ($props['draft'] ?? null) !== null && in_array($status, [null, 'APPROVED', 'REJECTED'], true)
+        ? 'B2B/Storefront/Company/Edit'
+        : 'B2B/Storefront/Company/Company';
+}
+
+/**
+ * The component the page answered with, and the queries it took - the second time, once the first
+ * visit has warmed what every page reads once.
+ *
+ * @return array{0: string, 1: int}
+ */
+function myCompanyDrawn(AdminBrowser $browser, string $url = '/sa/en/account/company'): array
+{
+    $browser->get($url)->assertOk();
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+    $response = $browser->get($url)->assertOk();
+    DB::disableQueryLog();
+    $component = '';
+    $response->assertInertia(function (AssertableInertia $page) use (&$component) {
+        $component = $page->toArray()['component'];
+    });
+
+    return [$component, count(DB::getQueryLog())];
 }
 
 /**
@@ -142,6 +184,62 @@ it('offers a company account its page from the account, and tells it on every sh
         ->and(array_column($props['companyTypes'], 'nameEn'))->toContain('Limited Liability Company')
         ->and($props['accountMenu']['pages'])->toBe([['key' => 'b2b.company', 'label' => 'Company Account', 'routeName' => 'storefront.company'], ['key' => 'promotions.coupons', 'label' => 'My Coupons', 'routeName' => 'storefront.promotions.coupons'], ['key' => 'sales.orders', 'label' => 'My Orders', 'routeName' => 'storefront.sales.orders'], ['key' => 'ops.notifications', 'label' => 'Notifications', 'routeName' => 'storefront.ops.bell'], ['key' => 'feedback.reviews', 'label' => 'My Reviews', 'routeName' => 'storefront.feedback.reviews'], ['key' => 'feedback.questions', 'label' => 'My Questions', 'routeName' => 'storefront.feedback.questions'], ['key' => 'feedback.wishlist', 'label' => 'My Wishlist', 'routeName' => 'storefront.feedback.wishlist']])
         ->and($props['shopperLines'])->toBe([['text' => 'Continue Company Application', 'routeName' => 'storefront.company', 'tone' => 'info']]);
+});
+
+/*
+| The page in two (owner, 2026-11-10: "ok split them into two pages"; b2b.md amendment 35): one
+| address, and the controller picks the page - the form's only while a draft is open that may
+| change, so a page that only shows never carries the form. Both are given the same data, read in
+| the same queries as when they were one page (the counts below were measured on main before the
+| split, 2026-11-11).
+*/
+it('draws each state on its own page, the form only while a draft may change, in the queries of the one page before', function () {
+    $drawn = [];
+
+    $new = myCompanySignedIn(B2BFixtures::verifiedCompanyAccount());
+    $drawn['nothing yet'] = myCompanyDrawn($new);
+    $new->post('/sa/en/account/company/draft/start')->assertRedirect('/sa/en/account/company');
+    $drawn['first draft'] = myCompanyDrawn($new);
+
+    $pendingId = B2BFixtures::verifiedCompanyAccount();
+    B2BFixtures::sent($pendingId);
+    $drawn['under review'] = myCompanyDrawn(myCompanySignedIn($pendingId));
+
+    $approvedId = B2BFixtures::verifiedCompanyAccount();
+    B2BFixtures::approved($approvedId);
+    $approved = myCompanySignedIn($approvedId);
+    $drawn['approved'] = myCompanyDrawn($approved);
+    $approved->post('/sa/en/account/company/draft/start')->assertRedirect('/sa/en/account/company');
+    $drawn['changing details'] = myCompanyDrawn($approved);
+
+    $rejectedId = B2BFixtures::verifiedCompanyAccount();
+    B2BFixtures::rejected($rejectedId);
+    $rejected = myCompanySignedIn($rejectedId);
+    $drawn['rejected'] = myCompanyDrawn($rejected);
+    $rejected->post('/sa/en/account/company/draft/start')->assertRedirect('/sa/en/account/company');
+    $drawn['applying again'] = myCompanyDrawn($rejected);
+
+    $suspendedId = B2BFixtures::verifiedCompanyAccount();
+    [$company] = B2BFixtures::approved($suspendedId);
+    $suspended = myCompanySignedIn($suspendedId);
+    $suspended->post('/sa/en/account/company/draft/start')->assertRedirect('/sa/en/account/company');
+    B2BFixtures::suspend(app(CompanyRepository::class)->forCustomer($suspendedId, Fx::storeId('sa')) ?? $company);
+    // Suspended with a draft: nothing in it may change, so it is not the form (§1.1).
+    $drawn['suspended with a draft'] = myCompanyDrawn($suspended);
+
+    $view = 'B2B/Storefront/Company/Company';
+    $edit = 'B2B/Storefront/Company/Edit';
+
+    expect($drawn)->toBe([
+        'nothing yet' => [$view, 35],
+        'first draft' => [$edit, 38],
+        'under review' => [$view, 51],
+        'approved' => [$view, 53],
+        'changing details' => [$edit, 60],
+        'rejected' => [$view, 47],
+        'applying again' => [$edit, 54],
+        'suspended with a draft' => [$view, 54],
+    ]);
 });
 
 it('says nothing of its own before the email is confirmed, where Access\'s mark already says it', function () {

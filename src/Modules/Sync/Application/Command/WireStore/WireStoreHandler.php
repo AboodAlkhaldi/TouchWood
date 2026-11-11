@@ -72,7 +72,6 @@ final readonly class WireStoreHandler
             $this->input->secret($command->secret, 'secret'),
             ConnectionState::Ok,
             null,
-            null,
             $this->staffId(),
         );
 

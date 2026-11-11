@@ -122,7 +122,6 @@ final readonly class ChangeConnectionHandler
             $key ?? $before->key,
             $secret ?? $before->secret,
             $before->state,
-            $before->lastReadAt,
             $before->lastError,
             $before->createdBy,
         );

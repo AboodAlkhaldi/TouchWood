@@ -35,6 +35,9 @@ return [
     ],
 
     // Sync's own reasons a read failed, kept as codes (Q31).
+    // A provider's reason stored under a code this version no longer has (sync.md §2.4): never shown as JSON.
+    'provider_unknown' => 'The provider could not be read.',
+
     'failures' => [
         'STOPPED_REWIRED' => 'Stopped: the store was unwired or wired again.',
         'WORKER_GONE' => 'Stopped: its worker went away.',
@@ -96,6 +99,8 @@ return [
             'missing_price' => 'Price not sent: the size keeps its price.',
             'missing_stock' => 'Stock not sent: the size keeps its stock.',
             'twice' => 'The code came twice in one read: both skipped.',
+            // Odoo refused this one id (its `403` or other `4xx`, sync.md §2.4): the rest of the read went on.
+            'provider_refused' => 'The provider refused this code (:status): the size keeps its price and stock.',
             'read_failed' => 'The read failed.',
             'discount_skipped' => 'Past the ceiling at the provider\'s price.',
             'discount_removed' => 'Discount removed',

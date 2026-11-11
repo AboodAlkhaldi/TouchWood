@@ -38,7 +38,7 @@ export function wholeStock(value: unknown): number | null {
     return typeof value === 'string' && /^\s*-?\d{1,18}\s*$/.test(value) ? Number(value.trim()) : null;
 }
 
-export type BadValue = 'twice' | 'bad_price' | 'bad_stock' | 'below_zero' | 'too_large' | 'missing_price' | 'missing_stock';
+export type BadValue = 'twice' | 'provider_refused' | 'bad_price' | 'bad_stock' | 'below_zero' | 'too_large' | 'missing_price' | 'missing_stock';
 
 /** Why a stock number the server refused was refused: not a whole number (skipped), below 0 (kept as 0), or too large. */
 function stockRefusal(stock: unknown): BadValue {
@@ -48,7 +48,8 @@ function stockRefusal(stock: unknown): BadValue {
 }
 
 /**
- * What a Bad Value's entry says was refused (sync.md §1.5 #2, §2.4): a code sent twice; else the value the
+ * What a Bad Value's entry says was refused (sync.md §1.5 #2, §2.4): a code sent twice; a code the provider
+ * refused alone (`provider_refused`, its status); else the value the
  * server names in `refused` - the price, the stock, or both, each with its own sentence; one the provider
  * was bound to send and did not, named in `missing` (Odoo's, sync.md §2.4 As built), said as not sent. An
  * entry kept from before the server named it (screens step 7's review) is read as before: the stock when it
@@ -57,6 +58,11 @@ function stockRefusal(stock: unknown): BadValue {
 export function badValuesOf(detail: Record<string, unknown>): BadValue[] {
     if (Array.isArray(detail.twice)) {
         return ['twice'];
+    }
+
+    // The provider refused this one code (Odoo's 403 or other 4xx for one id, sync.md §2.4): no value came.
+    if (typeof detail.provider_refused === 'number') {
+        return ['provider_refused'];
     }
 
     const missing = Array.isArray(detail.missing) ? detail.missing : [];
