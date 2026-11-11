@@ -3,8 +3,11 @@
 declare(strict_types=1);
 
 use Carbon\CarbonImmutable;
+use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\DB;
+use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
+use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Content\Application\Command\SaveBar\SaveBar;
 use Modules\Content\Application\Command\SaveBar\SaveBarHandler;
 use Modules\Content\Application\Command\SaveFooter\SaveFooter;
@@ -16,9 +19,13 @@ use Modules\Content\Application\Command\SchedulePopup\SchedulePopupHandler;
 use Modules\Content\Application\Command\ScheduleTheme\ScheduleTheme;
 use Modules\Content\Application\Command\ScheduleTheme\ScheduleThemeHandler;
 use Modules\Content\Application\ContentCache;
+use Modules\Pricing\Application\Command\AddSale\AddSale;
+use Modules\Pricing\Application\Command\AddSale\AddSaleHandler;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
+use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Content\Support\ContentBrowser as Cb;
 use Tests\Modules\Content\Support\ContentFixtures as Cx;
+use Tests\Modules\Pricing\Support\PricingFixtures as Rx;
 
 use function Pest\Laravel\seed;
 
@@ -127,8 +134,10 @@ it('shows the pop-up once per visitor after its delay: a Dialog at a computer\'s
         ->and(browserSoon($page, "document.querySelector('[data-test=\"popup\"]')?.getAttribute('data-kind') === 'dialog'", 10))->toBeTrue()
         ->and($page->script("document.querySelector('[data-test=\"popup\"]').textContent.includes('Spring offers {$run}')"))->toBeTrue()
         ->and($page->script("Math.round(document.querySelector('[data-test=\"popup\"]').getBoundingClientRect().width) <= 420"))->toBeTrue();
-    $page->keys('[data-test="popup"]', 'Escape');
-    expect(browserUntil($page, "document.querySelector('[data-test=\"popup\"]') === null"))->toBeTrue();
+    // Its button follows its link under the page's store and language, and closes it (§1.10).
+    expect($page->script("document.querySelector('[data-test=\"popup-button\"]')?.getAttribute('href')"))->toBe('/ae/en/categories/kitchens');
+    $page->click('[data-test="popup-button"]');
+    expect(browserSoon($page, "location.pathname === '/ae/en/categories/kitchens' && document.querySelector('[data-test=\"popup\"]') === null"))->toBeTrue();
 
     // The same visitor again: never twice.
     $page->navigate('/ae/en/search?q=a', BROWSER_PAGE_LOAD);
@@ -181,4 +190,56 @@ it('draws a theme\'s edges outside the content column from 1025 px, the start si
     DB::table('content.theme_stores')->where('store_id', Fx::storeId('ae'))->delete();
     app(ContentCache::class)->invalidate();
     CarbonImmutable::setTestNow();
+});
+
+it('marks only a reduced price with the theme\'s flag and badge on its card, and its ribbon and flag on its gallery', function () {
+    // catalog.md amendment 41(e), content.md Q9 (a): the price before above the price now, and nothing else, wears them.
+    seed(CatalogSeeder::class);
+    Px::numberFrom((int) substr((string) hrtime(true), -8));
+    $sa = Fx::storeId('sa');
+    DB::table('content.theme_stores')->where('store_id', $sa)->delete();
+    $category = Px::category('Kitchens');
+    $sale = Px::ready(['60 cm'], $category);
+    $plain = Px::ready(['60 cm'], $category);
+
+    foreach ([$sale, $plain] as $p) {
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore($sa, $p['product'], true)));
+        Px::onSale('sa', $p['product']);
+        Rx::set('sa', [$p['variants'][0] => '30.00']);
+    }
+
+    // On a whole second, a sale starting now starts at once (Pricing's SaleInput).
+    CarbonImmutable::setTestNow(CarbonImmutable::now()->startOfSecond());
+    Fx::asSystem(fn () => app(AddSaleHandler::class)->handle(new AddSale($sa, null, [$sale['variants'][0]], null, '24.00', null, null)));
+    Fx::asSystem(function () use ($sa): void {
+        $theme = app(SaveThemeHandler::class)->handle(new SaveTheme(null, 0, 'علم '.Cb::run(), 'Flag '.Cb::run(), Cx::typed(-60), Cx::typed(60 * 24), [$sa], [
+            ['part' => 'FLAG', 'images' => ['FLAG:any' => Cx::image(mime: 'image/png'), 'RIBBON:any' => Cx::image(mime: 'image/png')]],
+            ['part' => 'BADGE', 'textAr' => 'عرض', 'textEn' => 'Offer'],
+        ]));
+        app(ScheduleThemeHandler::class)->handle(new ScheduleTheme($theme, (int) DB::table('content.themes')->where('id', $theme)->value('version')));
+    });
+    CarbonImmutable::setTestNow();
+    app(ContentCache::class)->invalidate();
+    $slug = static fn (string $kind, string $id): string => (string) DB::table("catalog.{$kind}_slugs")->where("{$kind}_id", $id)->where('locale', 'en')->where('is_current', true)->value('slug');
+
+    try {
+        $page = visit('/sa/en/categories/'.$slug('category', $category));
+        expect(browserSoon($page, "document.querySelectorAll('[data-test=\"card\"]').length === 2"))->toBeTrue()
+            // The card with a price before wears the flag and the badge; the other neither.
+            ->and($page->script("[...document.querySelectorAll('[data-test=\"card\"]')].map((card) => [card.querySelector('[data-test=\"price-before\"]') !== null, card.querySelector('[data-test=\"theme-flag\"]') !== null, card.querySelector('[data-test=\"theme-badge\"]')?.textContent ?? null]).sort((a, b) => Number(b[0]) - Number(a[0]))"))->toBe([[true, true, 'Offer'], [false, false, null]]);
+
+        $page->navigate('/sa/en/products/'.$slug('product', $sale['product']), BROWSER_PAGE_LOAD);
+        expect(browserSoon($page, "document.querySelector('[data-test=\"gallery\"] [data-test=\"theme-ribbon\"]') !== null"))->toBeTrue()
+            ->and($page->script("document.querySelector('[data-test=\"gallery\"] [data-test=\"theme-flag\"]') !== null && document.querySelector('[data-test=\"theme-badge\"]')?.textContent === 'Offer'"))->toBeTrue();
+
+        $page->navigate('/sa/en/products/'.$slug('product', $plain['product']), BROWSER_PAGE_LOAD);
+        expect(browserSoon($page, "document.querySelector('[data-test=\"gallery\"]') !== null"))->toBeTrue()
+            // Its own gallery and price wear nothing; a related card of the reduced product may, as any card.
+            ->and($page->script("document.querySelector('[data-test=\"gallery\"] [data-test=\"theme-ribbon\"], [data-test=\"gallery\"] [data-test=\"theme-flag\"]') === null && [...document.querySelectorAll('[data-test=\"theme-badge\"]')].every((badge) => badge.closest('[data-test=\"card\"]') !== null)"))->toBeTrue();
+        $page->assertNoJavaScriptErrors();
+    } finally {
+        // The theme leaves Saudi Arabia's shop, which the other browser tests read.
+        DB::table('content.theme_stores')->where('store_id', $sa)->delete();
+        app(ContentCache::class)->invalidate();
+    }
 });

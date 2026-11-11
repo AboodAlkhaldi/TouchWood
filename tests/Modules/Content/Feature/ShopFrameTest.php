@@ -476,11 +476,12 @@ describe('a campaign\'s smart bar (§1.9: while the run is live)', function () {
         expect(shopFrameSmartBar())->toBe('Campaign sale');
 
         $row = DB::table('content.campaigns')->where('id', $campaign)->first();
-        app(SaveCampaignHandler::class)->handle(new SaveCampaign($campaign, shopFrameCampaignVersion($campaign), 'عروض الحملة', 'Campaign Offers', substr((string) $row?->starts_at_local, 0, 16), Cx::typed(60), [Fx::storeId('sa')]));
+        app(SaveCampaignHandler::class)->handle(new SaveCampaign($campaign, shopFrameCampaignVersion($campaign), 'عروض الحملة', 'Campaign Offers', substr((string) $row?->starts_at_local, 0, 16), Cx::typed(10), [Fx::storeId('sa')]));
 
         // Still live until its new end, read warm from the new copy; gone after it, though the job has not ticked.
         expect(shopFrameSmartBar())->toBe('Campaign sale');
-        Cx::clockOn(61);
+        // Inside the copy's hour (VersionedContentCache keeps one an hour): only the change can have replaced it.
+        Cx::clockOn(11);
         expect(shopFrameSmartBar())->toBeNull();
     });
 });
