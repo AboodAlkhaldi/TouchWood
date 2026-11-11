@@ -827,7 +827,7 @@ The build's picks where the text above leaves the detail open, marked so for the
 | E12 | W5 shows the dates as typed with the first store's zone under them, and the parts as "9 of 11" | W5 |
 | E13 | A band's artwork (parts 3, 4, 5, 10) has no size in the spec (§9.3 #14), so its box says it covers the band, up to 2400 pixels wide; transparent parts say PNG or WebP | W5b, §1.8 |
 | E14 | The comparison draws the part last opened: the shop as it is, then with the theme, at phone and computer width (Tabs), from the uploads' small pictures | W5b |
-| E15 | Preview Theme opens the shop in a new tab; while this browser's cookie names the theme, its page says "Previewing … in this browser" with Stop Preview | W5b |
+| E15 | Preview Theme sets the cookie, then opens **the staff view** of the theme's first store (Access's View Store post, in the panel's language), the only place the shop shows a preview (§9.3d D5); it waits while the form holds changes. While this browser's cookie names the theme, its page says "Previewing … in this browser" with Stop Preview. This replaces C11's "opens the theme's first store's Arabic home" | W5b |
 | E16 | A theme part's artwork uploads as kind `theme`, under `content.theme.manage` in the form's first store | W5b |
 | E17 | Menu icons the panel already draws: Campaigns `pricing`, Themes `gifts` | §4.3 |
 | E18 | **Schedule waits for typed prices**: while a store's Prices tab holds prices typed and not saved, Schedule Campaign is out of reach with "Save the prices typed in … first.", and leaving asks first (PR 8's review) | W4b |

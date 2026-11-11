@@ -84,7 +84,7 @@ it('refuses Schedule Theme over another theme of the store, the clash said under
     $page->assertNoJavaScriptErrors();
 })->with(['en', 'ar']);
 
-it('switches Preview Theme on for this browser, and off again', function () {
+it('switches Preview Theme on for this browser in a staff view of the shop, and off again', function () {
     $run = Cb::run();
     $page = Cb::signInAs(contentThemesScreenAdmin('ar'));
     $page->resize(375, 812);
@@ -93,9 +93,13 @@ it('switches Preview Theme on for this browser, and off again', function () {
     $page->navigate("/admin/content/themes/{$theme}", BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"preview-start\"]') !== null && document.querySelector('[data-test=\"previewing\"]') === null"))->toBeTrue();
 
-    // Its form opens the shop in a new tab; the signed cookie is this browser's from then on.
+    // The signed cookie, then the staff view of the theme's first store - the only place the shop shows a preview
+    // (content.md 9.3d D5): the shop's home opens with the theme's line on it.
     $page->click('[data-test="preview-start"]');
-    $page->wait(2);
+    expect(browserSoon($page, "window.location.pathname.startsWith('/ae/') && document.querySelector('[data-test=\"preview-line\"]')?.textContent.includes('الشتاء {$run}') === true"))->toBeTrue()
+        ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
+
+    // Back on its page, the panel says this browser previews it; Stop Preview there ends it.
     $page->navigate("/admin/content/themes/{$theme}", BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"previewing\"]')?.textContent.includes('الشتاء {$run}') === true"))->toBeTrue()
         ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));

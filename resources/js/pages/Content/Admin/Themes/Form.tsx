@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { Link, router, useForm, usePage } from '@inertiajs/react';
+import { Link, router, useForm } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { StateBadge } from '@/components/content/list';
 import { sentMoment } from '@/components/content/moments';
@@ -22,7 +22,6 @@ import { momentBox, type MomentInput } from '@/lib/moments';
 import { useTranslator } from '@/lib/t';
 import { useChecks, type Box } from '@/lib/use-checks';
 import type { ContentImageData, ThemeFormPageData } from '@/types/generated/Modules/Content/Presentation/Http/Resource';
-import type { SharedProps } from '@/types/page';
 
 /*
 | W5b, a theme's page (content.md §4.4, §1.8), a Super Admin's: its name per language, its stores and dates - typed once,
@@ -76,7 +75,6 @@ export default function Form(page: ThemeFormPageData) {
     const { stores, themeItem: theme, campaigns, translationReady, previewing } = page;
     const t = useTranslator();
     const name = useInLanguage();
-    const { csrfToken } = usePage<SharedProps>().props;
     const form = useForm({
         name_ar: theme?.nameAr ?? '',
         name_en: theme?.nameEn ?? '',
@@ -244,7 +242,7 @@ export default function Form(page: ThemeFormPageData) {
                         </Note>
                     ) : null}
                     {theme === null ? null : (
-                        <PreviewTheme themeId={theme.id} name={name(theme.nameAr, theme.nameEn ?? theme.nameAr)} previewing={previewing} csrfToken={csrfToken} dirty={dirty} />
+                        <PreviewTheme themeId={theme.id} storeCode={stores.find((store) => store.id === theme.storeIds[0])?.code ?? null} name={name(theme.nameAr, theme.nameEn ?? theme.nameAr)} previewing={previewing} dirty={dirty} />
                     )}
 
                     <fieldset disabled={ended} className="contents" data-test="theme-fields">
@@ -419,20 +417,32 @@ export default function Form(page: ThemeFormPageData) {
 }
 
 /**
- * Preview Theme (W5b `[ACCEPTED 2026-11-10]`): a signed cookie for this browser, then the theme's first store's home in a
- * new tab; Stop Preview takes the cookie away. Only a saved theme: what the shop draws is what is saved.
+ * Preview Theme (W5b `[ACCEPTED 2026-11-10]`): a signed cookie for this browser, then **the staff view** of the theme's
+ * first store - the only place the shop shows a preview (§9.3d D5) - opened through Access's own View Store post, which
+ * leaves the panel for the shop's home. Stop Preview takes the cookie away, here or on the shop's line. Only a saved
+ * theme, as the shop draws what is saved: out of reach while the form holds changes.
  */
-function PreviewTheme({ themeId, name, previewing, csrfToken, dirty }: { themeId: string; name: string; previewing: boolean; csrfToken: string; dirty: boolean }) {
+function PreviewTheme({ themeId, storeCode, name, previewing, dirty }: { themeId: string; storeCode: string | null; name: string; previewing: boolean; dirty: boolean }) {
     const t = useTranslator();
+    const [busy, setBusy] = useState(false);
+    const start = () =>
+        router.post(
+            `${LIST}/${themeId}/preview`,
+            {},
+            {
+                preserveScroll: true,
+                onStart: () => setBusy(true),
+                // The cookie is this browser's now: open the staff view, which goes to the shop.
+                onSuccess: () => (storeCode === null ? setBusy(false) : router.post('/admin/staff-view', { store: storeCode }, { onFinish: () => setBusy(false) })),
+                onError: () => setBusy(false),
+            },
+        );
 
     return (
         <div className="flex flex-wrap items-center gap-3" data-test="preview-theme">
-            <form method="post" action={`${LIST}/${themeId}/preview`} target="_blank">
-                <input type="hidden" name="_token" value={csrfToken} />
-                <Button type="submit" variant="outline" size="sm" data-test="preview-start" title={dirty ? t('content::admin_themes.preview.save_first') : undefined}>
-                    {t('content::admin_themes.preview.start')}
-                </Button>
-            </form>
+            <ActionButton type="button" variant="outline" size="sm" loading={busy} disabledReason={dirty ? t('content::admin_themes.preview.save_first') : undefined} onClick={start} data-test="preview-start">
+                {t('content::admin_themes.preview.start')}
+            </ActionButton>
             {previewing ? (
                 <>
                     <span className="text-copy-13 text-ink-muted" role="status" data-test="previewing">
