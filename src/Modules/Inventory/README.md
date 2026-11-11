@@ -5,8 +5,9 @@ How many pieces a store has, what is held for orders, and the history of every c
 
 ## Status
 
-Built in five steps, one PR each (stage 5's plan). Steps 1–3 are built alongside Pricing (owner,
-2026-10-10); step 4 waits for what Catalog's amendment 16 builds.
+Built in five steps, one PR each (stage 5's plan): steps 1–3 alongside Pricing (owner, 2026-10-10),
+step 4 once Catalog's amendment 16 was built; then the screens' server side and pages and the later
+amendments, all in the table below.
 
 | Step | What | State |
 |---|---|---|

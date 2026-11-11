@@ -475,12 +475,19 @@ final readonly class DatabaseApiReads implements ApiReads
         [$rank, $id] = preg_match('/\A([1-3]):([0-9a-z]{26})\z/', strtolower(trim((string) $after)), $cursor) === 1 ? [(int) $cursor[1], $cursor[2]] : [0, ''];
         $kinds = [1 => SitemapEntryDto::CATEGORY, 2 => SitemapEntryDto::BRAND, 3 => SitemapEntryDto::PRODUCT];
 
-        // What a guest finds listed here (§1.4): a row orderable now and open to individuals or companies - the
-        // guest's own test (DatabaseShopReader::seenBy). Its categories as the guest's menu has them (in category
-        // pages, active), its brands active and shown in the default listings (amendment 5(k)).
+        // Every page a guest gets with no noindex (§1.4): a row they would see were it in stock and priced -
+        // DatabaseShopReader::onlySoldOut's guest rule: its category open to companies, or to individuals with a size on
+        // sale here sold retail. That holds every row they find listed now (orderable, `for_individuals` or
+        // `for_companies`, each of which follows those switches) and, kept since the owner's choice of 2026-11-10, a row
+        // only sold out or unpriced, whose "Not available now" page answers 200 with no noindex (amendment 39(i)). Its
+        // categories as the guest's menu has them, or emptied the same way (in category pages, active: 39(j)); its
+        // brands active and shown in the default listings (amendment 5(k)).
+        $retail = 'EXISTS (SELECT 1 FROM catalog.store_variants sv JOIN catalog.variants v ON v.id = sv.variant_id'
+            .' WHERE sv.store_id = l.store_id AND sv.product_id = l.product_id AND sv.is_active AND NOT sv.not_available_now AND NOT v.is_archived AND sv.sells_retail)';
         $rows = $this->db->select(
             'WITH listed AS (SELECT l.locale, l.product_id, l.slug, l.category_path, l.in_category_pages, l.brand_id, l.brand_visible_by_default'
-            .' FROM catalog.listing l WHERE l.store_id = ? AND l.orderable AND (l.for_individuals OR l.for_companies)),'
+            .' FROM catalog.listing l LEFT JOIN catalog.store_category_audiences a ON a.store_id = l.store_id AND a.category_id = l.category_id'
+            ." WHERE l.store_id = ? AND (COALESCE(a.for_companies, true) OR (COALESCE(a.for_individuals, true) AND {$retail}))),"
             .' entries AS ('
             .'SELECT 1 AS rank, c.id::text AS id, c.updated_at FROM catalog.categories c'
             .' WHERE c.is_active AND c.id::text IN (SELECT unnest(category_path) FROM listed WHERE in_category_pages)'

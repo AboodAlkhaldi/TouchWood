@@ -15,7 +15,7 @@ use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use function Pest\Laravel\seed;
 
 /*
-| Every size's code, for Sync's whole reads (catalog.md amendment 42; sync.md §2.4): each variant not
+| Every size's code, for Sync's whole reads (catalog.md amendment 44; sync.md §2.4): each variant not
 | archived, of a product not archived - drafts and sizes switched on nowhere included - keyed by id; one
 | query however many.
 */

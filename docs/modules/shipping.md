@@ -1,6 +1,8 @@
 # Shipping — module specification
 
-**Status (2026-10-27): draft for the owner.** Shipping answers one question for Sales: *can this
+**Status: accepted by the owner, 2026-10-28, and built** in stage 7, steps 3 to 6, with its three admin screens
+(`src/Modules/Shipping/README.md`). *(Drafted 2026-10-27; this line said "draft for the owner" until 2026-11-10.)*
+Shipping answers one question for Sales: *can this
 store take this order to this address, with which carriers, for how much?* It holds each store's
 carriers and their prices by place, the free-shipping amounts, the tracking links, and the optional
 box list. It is built from handoff §12.5, the Sales contract that waits for it (sales.md §2.4, in code

@@ -39,7 +39,7 @@ interface ApiReads
     public function switchedOnVariantIds(string $storeId): array;
 
     /**
-     * @return array<string, string> variant id => code, every variant not archived of a product not archived (amendment 42)
+     * @return array<string, string> variant id => code, every variant not archived of a product not archived (amendment 44)
      */
     public function variantCodes(): array;
 

@@ -143,3 +143,40 @@ it('offers the menu entry only to whoever may use it', function () {
     expect(array_values(array_intersect($menu(Fx::staffWith(['ops.newsletter.manage'], ['sa'], RoleLevel::Admin)), ['subscribers'])))->toBe(['subscribers'])
         ->and(array_values(array_intersect($menu(Fx::staffWith(['ops.report.view'], ['sa'])), ['subscribers'])))->toBe([]);
 });
+
+it('lists newest first, 50 a page, Show More carrying on from the last row shown; another store\'s row as the cursor gives an empty page (owner, 2026-11-10)', function () {
+    // 53 rows a minute apart, the newest written last - and the last three at one moment, where the larger id goes first.
+    $start = now()->subHours(2)->startOfMinute();
+    $rows = [];
+
+    foreach (range(0, 52) as $i) {
+        $id = strtolower((string) Str::ulid());
+        $at = $start->copy()->addMinutes(min($i, 50));
+        $rows[] = [$at->getTimestamp(), $id];
+        DB::table('ops.subscribers')->insert([
+            'id' => $id, 'store_id' => Fx::storeId('sa'), 'email' => "guest{$i}@example.test", 'locale' => 'en', 'kind' => 'GUEST',
+            'customer_id' => null, 'token_hash' => null, 'created_at' => $at, 'confirmed_at' => null,
+        ]);
+    }
+
+    usort($rows, static fn (array $x, array $y): int => [$y[0], $y[1]] <=> [$x[0], $x[1]]);
+    $newest = array_column($rows, 1);
+    $browser = subscribersScreenStaff(Fx::staffWith(['ops.newsletter.manage'], ['sa', 'ae'], RoleLevel::Admin));
+    $json = ['HTTP_ACCEPT' => 'application/json'];
+
+    $first = $browser->get('/admin/newsletter/subscribers?store=sa', $json)->assertOk()->json();
+    expect(array_column($first['subscribers'], 'id'))->toBe(array_slice($newest, 0, 50))
+        ->and($first['next'])->toBe($newest[49]);
+
+    $second = $browser->get('/admin/newsletter/subscribers?store=sa&after='.$first['next'], $json)->assertOk()->json();
+    expect(array_column($second['subscribers'], 'id'))->toBe(array_slice($newest, 50))
+        ->and($second['next'])->toBeNull();
+
+    // A row of another store as the cursor: nothing of this one comes after it.
+    $elsewhere = strtolower((string) Str::ulid());
+    DB::table('ops.subscribers')->insert([
+        'id' => $elsewhere, 'store_id' => Fx::storeId('ae'), 'email' => 'ae@example.test', 'locale' => 'en', 'kind' => 'GUEST',
+        'customer_id' => null, 'token_hash' => null, 'created_at' => now(), 'confirmed_at' => null,
+    ]);
+    expect($browser->get("/admin/newsletter/subscribers?store=sa&after={$elsewhere}", $json)->assertOk()->json())->toBe(['subscribers' => [], 'next' => null]);
+});

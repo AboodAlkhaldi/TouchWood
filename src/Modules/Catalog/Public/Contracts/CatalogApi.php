@@ -97,7 +97,7 @@ interface CatalogApi
     public function switchedOnVariantIds(StoreId $store): array;
 
     /**
-     * For Sync's whole reads (amendment 42; sync.md §2.4: Odoo is asked by our own codes): **every size's
+     * For Sync's whole reads (amendment 44; sync.md §2.4: Odoo is asked by our own codes): **every size's
      * code** - each variant not archived, of a product not archived, drafts and sizes switched off in every
      * store included - keyed by variant id, in no particular order. One query.
      *
@@ -347,8 +347,11 @@ interface CatalogApi
      * search engine - a guest - finds listed there. **Products** listed now (§1.4: orderable, open to individuals
      * or companies), in each language they are listed in; **categories** a guest's menu shows (active, listing
      * something in their pages); **brands** active with a product listed there and shown in the default listings
-     * (amendment 5(k): a secondary brand is reached by its category). Each with its current address per language
-     * and its own last change. A page "Not available now", kept out of search engines, is never one of them.
+     * (amendment 5(k): a secondary brand is reached by its category). **And a product only sold out or unpriced**,
+     * which a guest would see were it in stock and priced, with the categories and brands it emptied: their pages
+     * answer with no noindex (amendment 39(i), (j); the owner's choice, 2026-11-10). Each with its current address
+     * per language and its own last change. Any other "Not available now" page, kept out of search engines, is never
+     * one of them.
      *
      * Keyset-paged: categories, brands, then products, each by id; `limit` 1 to 1000. One query a page; reads
      * only, for a caller that builds a file, never in a shopper's request.
