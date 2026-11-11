@@ -1,4 +1,5 @@
 import { TextareaField, TextField } from '@/components/Fields';
+import { isShopLink } from '@/components/content/links';
 import { TranslateButton, type Translation } from '@/components/content/translate';
 import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
@@ -26,29 +27,7 @@ type PairProps = {
     rich?: boolean;
 };
 
-/**
- * A link as the server takes one (Words::link, RichText::link): a full https:// address with a host, or a page of the shop -
- * one line, no backslash, no other scheme, never `//`. Checked as it is typed; the server checks it again.
- */
-export function isShopLink(value: string): boolean {
-    const address = value.trim();
-
-    if (address === '' || [...address].length > 2000 || address.includes('\\') || /[\s\p{Cc}\p{Cf}]/u.test(address)) {
-        return false;
-    }
-
-    if (address.toLowerCase().startsWith('https://')) {
-        try {
-            return new URL(address).hostname !== '';
-        } catch {
-            return false;
-        }
-    }
-
-    const page = `/${address.replace(/^\/+/, '')}`;
-
-    return !address.startsWith('//') && !page.includes(':') && !page.includes('//');
-}
+export { isShopLink };
 
 /** A link box's own rule, for `use-checks`: its sentence's key when the link is not one the server takes. */
 export const linkRule = (text: string): string | null => (isShopLink(text) ? null : 'content::admin_shared.link_rule');

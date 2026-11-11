@@ -17,7 +17,7 @@ import { useTranslator } from '@/lib/t';
 import { useChecks } from '@/lib/use-checks';
 import type { ContentImageData, HomeSectionPageData } from '@/types/generated/Modules/Content/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
-import { SortableList } from '../../../Catalog/Admin/SortableList';
+import { SortableList } from '@/components/content/sortable';
 
 /*
 | The logos band's own page (content.md §1.4 #8, §4.4 W1): its heading and its logos - each an image (360 x 156 PNG),
