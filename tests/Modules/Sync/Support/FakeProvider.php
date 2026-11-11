@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\Modules\Sync\Support;
 
-use DateTimeImmutable;
 use Modules\Sync\Domain\Exception\ConnectionFailed;
 use Modules\Sync\Domain\Model\Connection;
 use Modules\Sync\Domain\Provider\ProviderAdapter;
@@ -90,15 +89,21 @@ final class FakeProvider implements ProviderAdapter
         }
     }
 
-    /** @var list<array{codes: list<string>|null, changedSince: DateTimeImmutable|null}> each read asked of it */
+    /** @var list<list<string>> the codes each read asked of it */
     public array $reads = [];
 
     /** @var (callable(): mixed)|null run once, during the next read - what happens while the provider answers */
     public $whileReading = null;
 
-    public function read(Connection $connection, ?array $codes, ?DateTimeImmutable $changedSince): iterable
+    /**
+     * Its values for the codes asked, as Odoo answers (sync.md §2.4): a code not asked is left out - unless
+     * the test lets it answer everything it was given (`answersUnasked`), as another provider might.
+     */
+    public bool $answersUnasked = false;
+
+    public function read(Connection $connection, array $codes): iterable
     {
-        $this->reads[] = ['codes' => $codes, 'changedSince' => $changedSince];
+        $this->reads[] = $codes;
 
         if ($this->whileReading !== null) {
             $meanwhile = $this->whileReading;
@@ -110,6 +115,8 @@ final class FakeProvider implements ProviderAdapter
             throw new ConnectionFailed($this->failure);
         }
 
-        return $codes === null ? $this->values : array_values(array_filter($this->values, static fn (ProviderValue $value): bool => in_array($value->code, $codes, true)));
+        $asked = array_fill_keys(array_map(trim(...), $codes), true);
+
+        return $this->answersUnasked ? $this->values : array_values(array_filter($this->values, static fn (ProviderValue $value): bool => isset($asked[trim($value->code)])));
     }
 }

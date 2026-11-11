@@ -9,7 +9,8 @@ use Modules\Sync\Domain\ValueObject\ReadKind;
 
 /**
  * One read of a store, as its job runs it (sync.md §1.3, §5 `sync.reads`): what kind, the codes a
- * notified or one-code read asks for, and when it started - what the next hourly read asks from.
+ * notified or one-code read asks for - every other asks for every code of ours (§2.4) - and when it
+ * started.
  */
 final readonly class Read
 {
@@ -24,18 +25,12 @@ final readonly class Read
         public DateTimeImmutable $startedAt,
     ) {}
 
-    /** A read of everything the provider has: the night's, Sync now's, a store just wired. */
+    /**
+     * A full read, kept as the store's last full read: the night's, Sync now's, a store just wired. The
+     * hour's asks for everything too (§2.4), but is the hour's check, not the full one (§1.3, Q29).
+     */
     public function isFull(): bool
     {
         return $this->codes === null && $this->kind !== ReadKind::Hourly;
-    }
-
-    /**
-     * Whether it covers every change up to its start - the hour's and every full read - so the next
-     * hourly read may ask only for what changed after it (§1.3). A notice's or one code's does not.
-     */
-    public function coversChanges(): bool
-    {
-        return $this->codes === null;
     }
 }
