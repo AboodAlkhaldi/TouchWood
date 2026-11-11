@@ -85,7 +85,7 @@ function RelatedList({ kind, rows, reason, busy, onSave, onAdd }: { kind: Kind; 
         <span className="flex flex-wrap items-center gap-2">
             <span className="text-copy-14 text-ink">{nameIn(locale, row.nameAr, row.nameEn)}</span>
             {row.codes.length > 0 ? (
-                <span className="tw-figure font-mono text-copy-12 text-ink-muted" dir="ltr">
+                <span className="tw-figure font-mono text-label-12 text-ink-muted" dir="ltr">
                     {row.codes.join(' · ')}
                 </span>
             ) : null}
@@ -219,7 +219,7 @@ function FindDialog({
                             <li key={row.id} className="material-small flex items-center gap-3 px-3 py-2">
                                 <span className="grid">
                                     <span className="text-label-14 text-ink">{nameIn(locale, row.nameAr, row.nameEn)}</span>
-                                    <span className="tw-figure font-mono text-copy-12 text-ink-muted" dir="ltr">
+                                    <span className="tw-figure font-mono text-label-12 text-ink-muted" dir="ltr">
                                         {row.codes.join(' · ')}
                                     </span>
                                 </span>

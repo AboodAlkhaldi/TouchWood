@@ -83,7 +83,7 @@ export function DiscountPreview({ preview, loading = false, zone, more }: Props)
                                 <Collapsible>
                                     <CollapsibleTrigger className="group flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-start text-copy-14 text-ink hover:bg-surface focus-visible:ring-[3px] focus-visible:outline-none">
                                         <span>{nameIn(locale, product.nameAr, product.nameEn)}</span>
-                                        <span className="flex items-center gap-2 text-copy-12 text-ink-muted">
+                                        <span className="flex items-center gap-2 text-label-12 text-ink-muted">
                                             <span className="tw-figure">{plural(t, locale, 'pricing::admin_discounts.preview.sizes', product.sizes.length)}</span>
                                             <ChevronDown aria-hidden="true" className="size-4 transition-transform group-data-[state=open]:rotate-180" />
                                         </span>
@@ -93,7 +93,7 @@ export function DiscountPreview({ preview, loading = false, zone, more }: Props)
                                             {product.sizes.map((size) => (
                                                 <li key={size.variantId} className="flex flex-wrap items-center gap-x-2 text-copy-13" data-test={`preview-size-${size.variantId}`}>
                                                     <span className="text-ink">{size.name}</span>
-                                                    <span className="tw-figure font-mono text-copy-12 text-ink-muted" dir="ltr">
+                                                    <span className="tw-figure font-mono text-label-12 text-ink-muted" dir="ltr">
                                                         {size.code}
                                                     </span>
                                                     <Money value={size.retail} className="text-ink-muted" />

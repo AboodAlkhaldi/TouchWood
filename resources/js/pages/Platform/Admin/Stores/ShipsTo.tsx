@@ -139,7 +139,7 @@ function AddDialog({ store, choices, onOpenChange, returnFocusTo }: { store: Sto
                                         <span className={reason !== null ? 'opacity-60' : undefined}>
                                             <bdi>{choice.name}</bdi>
                                         </span>
-                                        {reason !== null ? <span className="text-copy-12 text-ink-muted">{reason}</span> : null}
+                                        {reason !== null ? <span className="text-copy-13 text-ink-muted">{reason}</span> : null}
                                     </span>
                                     {picked === choice.code ? <Check className="ms-auto size-4" aria-hidden /> : null}
                                 </CommandItem>

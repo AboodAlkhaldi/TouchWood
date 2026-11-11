@@ -160,7 +160,7 @@ function Row({
                     <Link href={`/admin/attributes/${attribute.id}`} className="text-label-14 text-ink after:absolute after:inset-0 focus-visible:after:ring-[3px]">
                         {name}
                     </Link>
-                    <span className="text-copy-12 text-ink-muted" dir={locale === 'ar' ? 'ltr' : 'rtl'}>
+                    <span className="text-label-12 text-ink-muted" dir={locale === 'ar' ? 'ltr' : 'rtl'}>
                         {other}
                     </span>
                 </span>

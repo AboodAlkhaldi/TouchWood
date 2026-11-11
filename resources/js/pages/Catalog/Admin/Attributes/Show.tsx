@@ -282,7 +282,7 @@ function ValueRow({
                             >
                                 <span className="grid gap-0.5">
                                     <span className={deleteReason !== null ? 'opacity-60' : undefined}>{t('catalog::admin_attributes.value.delete')}</span>
-                                    {deleteReason !== null ? <span className="text-copy-12 text-ink-muted">{deleteReason}</span> : null}
+                                    {deleteReason !== null ? <span className="text-copy-13 text-ink-muted">{deleteReason}</span> : null}
                                 </span>
                             </DropdownMenuItem>
                         </DropdownMenuContent>

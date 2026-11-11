@@ -344,7 +344,7 @@ function Row({
                                     <span className="grid gap-0.5">
                                         {/* The name dimmed; the reason in full ink, as on the roles page. */}
                                         <span className={nobodyToMove ? 'opacity-60' : undefined}>{t('b2b::admin_types.list.company.transfer')}</span>
-                                        {nobodyToMove ? <span className="text-copy-12 text-ink-muted">{t('b2b::admin_types.list.company.transfer_none')}</span> : null}
+                                        {nobodyToMove ? <span className="text-copy-13 text-ink-muted">{t('b2b::admin_types.list.company.transfer_none')}</span> : null}
                                     </span>
                                 </DropdownMenuItem>
                             ) : null}

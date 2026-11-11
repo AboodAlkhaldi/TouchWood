@@ -183,9 +183,9 @@ function Row({ row, frame, onOpen }: { row: WholesaleRowData; frame: PricingFram
                         {row.noRetailPrice ? <Mark tone="amber-subtle">{t('pricing::admin_wholesale.mark.no_retail')}</Mark> : null}
                         {row.minimumChanged ? <Mark tone="amber-subtle">{t('pricing::admin_wholesale.mark.minimum_changed')}</Mark> : null}
                     </span>
-                    {row.noRetailPrice ? <span className="text-copy-12 text-ink-muted">{t('pricing::admin_wholesale.mark.no_retail_reason')}</span> : null}
+                    {row.noRetailPrice ? <span className="text-copy-13 text-ink-muted">{t('pricing::admin_wholesale.mark.no_retail_reason')}</span> : null}
                     {row.minimumChanged && row.minimum !== null ? (
-                        <span className="text-copy-12 text-ink-muted">{t('pricing::admin_wholesale.mark.minimum_changed_reason', { minimum: figure(locale, row.minimum), first: figure(locale, row.bands[0]?.fromQuantity ?? 0) })}</span>
+                        <span className="text-copy-13 text-ink-muted">{t('pricing::admin_wholesale.mark.minimum_changed_reason', { minimum: figure(locale, row.minimum), first: figure(locale, row.bands[0]?.fromQuantity ?? 0) })}</span>
                     ) : null}
                 </span>
             </TableCell>
@@ -249,7 +249,7 @@ function PickSize({ frame, onChoose, onOpenChange, returnFocusTo }: { frame: Pri
                         <RowPhoto src={size.photo} />
                         <span className="grid min-w-0">
                             <span className="truncate">{label(size)}</span>
-                            <span className="tw-figure font-mono text-copy-12 text-ink-muted" dir="ltr">
+                            <span className="tw-figure font-mono text-label-12 text-ink-muted" dir="ltr">
                                 {size.code}
                             </span>
                         </span>

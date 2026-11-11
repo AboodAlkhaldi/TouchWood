@@ -78,7 +78,7 @@ export default function Report(page: SyncReportPage) {
                                 <TabsTrigger key={each} value={each} data-test={`tab-${each}`} className="flex-none gap-2 px-3 text-label-14">
                                     {t(`${R}.tabs.${each}`)}
                                     {each === 'problems' && open > 0 ? (
-                                        <span className="tw-figure text-copy-12 text-ink-muted" data-test="problems-count">
+                                        <span className="tw-figure text-label-12 text-ink-muted" data-test="problems-count">
                                             {figure(locale, open)}
                                         </span>
                                     ) : null}

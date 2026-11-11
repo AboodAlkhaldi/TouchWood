@@ -317,7 +317,7 @@ function Row({
                                     >
                                         <span className="grid gap-0.5">
                                             <span className={ready ? 'opacity-60' : undefined}>{t('catalog::admin_products.variants.delete')}</span>
-                                            {ready ? <span className="text-copy-12 text-ink-muted">{t('catalog::admin_products.variants.delete_reason')}</span> : null}
+                                            {ready ? <span className="text-copy-13 text-ink-muted">{t('catalog::admin_products.variants.delete_reason')}</span> : null}
                                         </span>
                                     </DropdownMenuItem>
                                 </>

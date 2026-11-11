@@ -162,7 +162,7 @@ export function SizesDialog({ storeCode, onOpenChange, returnFocusTo }: { storeC
                                 <li key={size.variantId} className="flex items-center gap-3 px-3 py-2" data-test={`size-result-${size.variantId}`}>
                                     <Checkbox id={`tick-${size.variantId}`} checked={ticked.has(size.variantId)} onCheckedChange={(on) => toggle(size, on === true)} data-test={`tick-${size.variantId}`} />
                                     <SizeLine size={size} htmlFor={`tick-${size.variantId}`} />
-                                    {(errors.failed ?? '').split(',').includes(size.variantId) ? <span className="text-copy-12 text-bad">{t(`${B}.search.refused`)}</span> : null}
+                                    {(errors.failed ?? '').split(',').includes(size.variantId) ? <span className="text-copy-13 text-bad">{t(`${B}.search.refused`)}</span> : null}
                                 </li>
                             ))}
                         </ul>

@@ -377,7 +377,7 @@ function Row({ file, mayUpdate, mayDelete, listTop }: { file: MediaFileRow; mayU
                                         <span className="grid gap-0.5">
                                             {/* The name dimmed; the reason in full ink, as on the roles page. */}
                                             <span className={file.deleteBlocked ? 'opacity-60' : undefined}>{t('platform::admin_media.delete_open')}</span>
-                                            {file.deleteBlocked ? <span className="text-copy-12 text-ink-muted">{t('platform::admin_media.delete_blocked')}</span> : null}
+                                            {file.deleteBlocked ? <span className="text-copy-13 text-ink-muted">{t('platform::admin_media.delete_blocked')}</span> : null}
                                         </span>
                                     </DropdownMenuItem>
                                 </>

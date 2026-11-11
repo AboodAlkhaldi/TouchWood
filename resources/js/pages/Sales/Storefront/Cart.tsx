@@ -174,7 +174,7 @@ function Line({ line }: { line: CartLineData }) {
                     </div>
                 </div>
 
-                <p className="text-copy-12 text-ink-muted">
+                <p className="text-label-12 text-ink-muted">
                     {most === null ? t(`${C}.line.from`, { minimum: figure(locale, fewest) }) : t(`${C}.line.limits`, { minimum: figure(locale, fewest), maximum: figure(locale, most) })}
                 </p>
 

@@ -109,7 +109,7 @@ export default function Read(page: SyncReadPage) {
                         {shown.map((each) => (
                             <TabsTrigger key={each} value={each} data-test={`section-${each}`} className="flex-none gap-2 px-3 text-label-14">
                                 {t(`${R}.read.sections.${each}`)}
-                                <span className="tw-figure text-copy-12 text-ink-muted">{figure(locale, counts[each])}</span>
+                                <span className="tw-figure text-label-12 text-ink-muted">{figure(locale, counts[each])}</span>
                             </TabsTrigger>
                         ))}
                     </TabsList>

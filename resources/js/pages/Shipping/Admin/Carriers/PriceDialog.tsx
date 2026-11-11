@@ -384,7 +384,7 @@ export function PriceDialog({
                                                 />
                                                 <label htmlFor={id} className="grid min-w-0 flex-1 gap-0.5">
                                                     <span className="truncate text-copy-14 text-ink">{row.name}</span>
-                                                    <span className="truncate text-copy-12 text-ink-muted">
+                                                    <span className="truncate text-label-12 text-ink-muted">
                                                         {[
                                                             row.otherName !== row.name ? row.otherName : null,
                                                             isPicked && moves.has(row.id) && owner !== undefined ? t(`${P}.picker.moving`, { amount: owner.amount.text }) : null,

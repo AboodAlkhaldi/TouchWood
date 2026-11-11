@@ -232,7 +232,7 @@ function Row({ row, storeChosen }: { row: ProductRowData; storeChosen: boolean }
                         {name}
                     </Link>
                     {other ? (
-                        <span className="text-copy-12 text-ink-muted" dir={locale === 'ar' ? 'ltr' : 'rtl'}>
+                        <span className="text-label-12 text-ink-muted" dir={locale === 'ar' ? 'ltr' : 'rtl'}>
                             {other}
                         </span>
                     ) : null}
