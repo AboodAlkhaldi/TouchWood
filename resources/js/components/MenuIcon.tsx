@@ -108,16 +108,13 @@ const ICONS = {
     // Ops' Reports section and its entry (ops.md §4.15, the menu): an icon the panel already draws (owner, 2026-11-05).
     reports: FileText,
     daily_reports: CalendarClock,
-    // Content's screens (content.md §4.3), each with its page: icons the panel already draws.
+    // Content's screens (content.md §4.3), each with its page: icons the panel already draws. Pages, Blog, Projects, SEO and
+    // Redirects name icons already here (document_types, audit, companies, stores, returns): a new name is bytes on every
+    // admin page, and those were 59.9 KB of 60 (JavaScriptBudgetTest, PR 7b).
     home_page: LayoutTemplate,
     bars: Megaphone,
     banners: Image,
     popups: MessageCircleQuestion,
-    pages: FileText,
-    blog: ScrollText,
-    projects: Building2,
-    seo: Store,
-    redirects: RefreshCw,
 } as const;
 
 type Props = {

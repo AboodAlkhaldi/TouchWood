@@ -163,7 +163,7 @@ describe('the schema', function () {
             'banner_images', 'banners', 'bars', 'blog_categories', 'blog_post_products', 'blog_post_translations', 'blog_posts',
             'footers', 'home_section_media', 'home_sections', 'job_runs', 'page_images', 'page_translations', 'pages', 'popups', 'post_images',
             'project_images', 'project_photos', 'project_products', 'project_translations', 'projects', 'redirect_uploads', 'redirects',
-            'seo_defaults', 'sitemaps', 'slug_history', 'smart_bars', 'waiting_jobs',
+            'seo_defaults', 'sitemaps', 'slug_history', 'smart_bars', 'unread_translations', 'waiting_jobs',
         ]);
     });
 });
@@ -251,8 +251,8 @@ describe('the errors', function () {
             $named++;
         }
 
-        // §7 lists eighteen; a moved folder must not pass over nothing.
-        expect($named)->toBe(18);
+        // §7 lists nineteen, TranslationUnread (P14) among them; a moved folder must not pass over nothing.
+        expect($named)->toBe(19);
     });
 });
 
