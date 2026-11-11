@@ -89,7 +89,8 @@ it('lists pages by tab with their counts, and saves a draft, then publishes it',
         ->where('counts.PUBLISHED', 0)
         ->has('rows', 1)
         ->where('rows.0.addressAr', '/pages/من-نحن')
-        ->where('rows.0.changedBy', fn (?string $name): bool => is_string($name) && $name !== '')
+        // "By" is the staff member's name, never their id.
+        ->where('rows.0.changedBy', fn (?string $name): bool => is_string($name) && str_contains($name, (string) DB::table('access.staff_users')->where('id', DB::table('content.pages')->value('updated_by'))->value('first_name')))
         ->where('translations', fn (Collection $words): bool => $words->has('content::admin_pages.title') && $words->has('content::admin_documents.tabs.draft')));
     expect(array_keys($browser->get('/admin/content/pages?store=sa', Screen::JSON)->json()))->toBe(['rows', 'next']);
 
