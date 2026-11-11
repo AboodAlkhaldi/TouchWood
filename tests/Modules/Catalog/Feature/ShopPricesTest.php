@@ -292,6 +292,7 @@ describe('a product page', function () {
         // since amendment 36); the bands add their one read of the sizes' prices; an individual's has no
         // bands and no question of whether companies may buy it. The limits are a target, not a cap
         // (owner, 2026-10-19).
-        expect([$guest, $warm()])->toBe([15, 13]);
+        // Content's frame, 2 more since 2026-11-11 (content.md §1.5, plan PR 9): its one cached read, the cache's version and copy.
+        expect([$guest, $warm()])->toBe([17, 15]);
     });
 });

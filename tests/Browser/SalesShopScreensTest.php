@@ -71,7 +71,9 @@ it('adds a piece in the cart, checks out and places the order at a phone\'s widt
     expect(browserUntil($page, "location.pathname === '/sa/en'"))->toBeTrue();
     $page->resize(375, 812);
 
-    $page->click('[data-test="header-cart"]');
+    // On a phone the cart is the tab bar's (content.md §1.5), drawn once the page is in the browser.
+    expect(browserUntil($page, "document.querySelector('[data-test=\"tab-cart\"]') !== null"))->toBeTrue();
+    $page->click('[data-test="tab-cart"]');
     expect(browserUntil($page, "location.pathname === '/sa/en/cart'"))->toBeTrue()
         ->and(salesShopWide($page))->toBe('', 'the cart scrolls sideways');
 
@@ -161,7 +163,8 @@ it('draws the cart\'s shipping, how much more ships free and the header\'s piece
 
     // The goods, 250.00: 50.00 short of free shipping at 300.00; no fee before checkout (gap 6.6).
     $page->resize(375, 812);
-    $page->click('[data-test="header-cart"]');
+    expect(browserUntil($page, "document.querySelector('[data-test=\"tab-cart\"]') !== null"))->toBeTrue();
+    $page->click('[data-test="tab-cart"]');
     expect(browserUntil($page, "location.pathname === '/sa/en/cart'"))->toBeTrue()
         ->and($text($page, '[data-test="free-shipping"]'))->toContain('Add')->toContain('50.00')->toContain('more for free shipping.')
         ->and($text($page, '[data-test="summary-shipping"]'))->toContain('Worked out at checkout')

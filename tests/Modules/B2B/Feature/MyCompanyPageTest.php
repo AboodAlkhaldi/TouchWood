@@ -230,15 +230,16 @@ it('draws each state on its own page, the form only while a draft may change, in
     $view = 'B2B/Storefront/Company/Company';
     $edit = 'B2B/Storefront/Company/Edit';
 
+    // Content's frame, 2 more since 2026-11-11 (content.md §1.5, plan PR 9): its one cached read, the cache's version and copy.
     expect($drawn)->toBe([
-        'nothing yet' => [$view, 35],
-        'first draft' => [$edit, 38],
-        'under review' => [$view, 51],
-        'approved' => [$view, 53],
-        'changing details' => [$edit, 60],
-        'rejected' => [$view, 47],
-        'applying again' => [$edit, 54],
-        'suspended with a draft' => [$view, 54],
+        'nothing yet' => [$view, 37],
+        'first draft' => [$edit, 40],
+        'under review' => [$view, 53],
+        'approved' => [$view, 55],
+        'changing details' => [$edit, 62],
+        'rejected' => [$view, 49],
+        'applying again' => [$edit, 56],
+        'suspended with a draft' => [$view, 56],
     ]);
 });
 

@@ -464,7 +464,8 @@ describe('the budget (P21)', function () {
         // exact check over the cheaper one regardless of the count. The limits are a target, not a cap
         // (owner, 2026-10-19). A product in stock, as a listed one now always is (amendment 39), one more than
         // the 13 measured with no stock rows: Inventory's ending-soon switches, read only once a size has a row.
-        expect($counts)->toBe(['category' => 6, 'brand' => 6, 'product' => 14, 'search' => 7, 'suggest' => 4, 'sign-in' => 6]);
+        // Content's frame, 2 more since 2026-11-11 (content.md §1.5, plan PR 9): its one cached read, the cache's version and copy. The suggestions, JSON with no frame, ask nothing of it.
+        expect($counts)->toBe(['category' => 8, 'brand' => 8, 'product' => 16, 'search' => 9, 'suggest' => 4, 'sign-in' => 8]);
     });
 
     it('records each page as production serves it - the session in the database - for a guest, an individual and a company', function () {
@@ -526,9 +527,10 @@ describe('the budget (P21)', function () {
             // every page one more since 2026-11-02 (ops.md §4.15 O2, Q7): the bell's number; none for a guest. A
             // product in stock, as a listed one now always is (amendment 39), one more: Inventory's ending-soon switches.
         ])->toBe([
-            'guest' => ['category' => 8, 'brand' => 8, 'product' => 16, 'search' => 9],
-            'individual' => ['category' => 17, 'brand' => 17, 'product' => 23, 'search' => 18],
-            'company' => ['category' => 17, 'brand' => 17, 'product' => 23, 'search' => 18],
+            // Content's frame, 2 more since 2026-11-11 (content.md §1.5, plan PR 9): its one cached read, the cache's version and copy.
+            'guest' => ['category' => 10, 'brand' => 10, 'product' => 18, 'search' => 11],
+            'individual' => ['category' => 19, 'brand' => 19, 'product' => 25, 'search' => 20],
+            'company' => ['category' => 19, 'brand' => 19, 'product' => 25, 'search' => 20],
         ]);
     });
 });
@@ -920,7 +922,8 @@ describe('the other language\'s slug (amendment 38: a notice carries one link)',
         }
 
         // The English pages' counts are the budget's above, held since before amendment 38 (a product in stock, amendment 39).
-        expect(array_map(shopPagesQueries(...), $pages))->toBe(['category en' => 6, 'category ar' => 6, 'brand en' => 6, 'brand ar' => 6, 'product en' => 14, 'product ar' => 14]);
+        // Content's frame, 2 more since 2026-11-11 (content.md §1.5, plan PR 9): its one cached read, the cache's version and copy.
+        expect(array_map(shopPagesQueries(...), $pages))->toBe(['category en' => 8, 'category ar' => 8, 'brand en' => 8, 'brand ar' => 8, 'product en' => 16, 'product ar' => 16]);
 
         foreach (['products', 'categories', 'brands'] as $path) {
             app()->forgetScopedInstances();

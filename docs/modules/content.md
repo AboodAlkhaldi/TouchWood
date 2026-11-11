@@ -774,6 +774,22 @@ The build's picks where the text above leaves the detail open, marked so for the
 | C11 | Preview Theme's cookie lasts two hours, names the presser (another staff member's browser reads none), and opens the theme's first store's Arabic home | W5b |
 | C12 | S8's link `/admin/content/campaigns/runs/{run}` answers 302 to `/admin/content/campaigns/{id}`, whose screen is PR 8's | §2.3 O3 |
 
+### 9.3c As built: the shop's frame (PR 9, 2026-11-11)
+
+The owner's answers of 2026-11-10/11 (plan §R): **the phone drawer is the design's option C3** (TouchWood Mobile Options, Decision 3), **the bell sits in the phone top bar beside Favourites**, **Explore opens search**, and the footer keeps Ops' built newsletter box. The rest are the build's picks, marked so for the owner to reject; none changes a rule.
+
+| # | As built | Where |
+|---|---|---|
+| D1 | **One cached read a page** (`frame:{store}:{locale}`): the bar, the footer, the pop-ups, the themes with their parts, the smart bars and the listing banners, each with its start and end, filtered by the clock; the frame part, the theme's middleware and a list's slot share it through the request (`ShopFrameOfRequest`). Warm it is **2 queries** (the cache's version and its copy), so every shop page's recorded count rose by 2 | §1.5 |
+| D2 | A campaign's smart bar shows while its run is scheduled or live, by the run's moments; Schedule, Cancel, End and Save Campaign replace the shop's copy | §1.9 |
+| D3 | The pop-up shows only on home, the catalogue's pages and Content's own (a list of where it may, so a page added later puts none between a customer and paying), never in a staff view. The browser keeps the last 50 ids shown | §1.10 |
+| D4 | The theme's background parts are one custom property each, switched at 641 px (`--tw-theme-bar`, `-promises`, `-points`, `-logos`, `-footer`) and `--tw-backdrop` from 1025 px: a 480 px tile on each side of the 72rem column, the start side's on the page's start side. Dark softens the bands with half of `--tw-overlay` (plan K8). Only a plain `https://`, `http://` or root-relative address is written | §1.8 |
+| D5 | **Preview Theme on the shop** needs a staff view of someone who may see off stores - an active Super Admin, the only holder of the reserved `content.theme.manage` - asked again on every page (`OffStoreViewers::mayView`, now on Platform's public contract). The shop knows no staff id, so the cookie's presser is not matched there: another Super Admin's staff view in the same browser would see it | W5b |
+| D6 | The shop's own **Stop Preview** is an unnamed `POST /{store}/{locale}/theme-preview/stop` that forgets the cookie | W5b |
+| D7 | The phone's drawer holds, under Account & settings: the staff view's menu (staff only) or the greeting with the way in or the verify-email badge; My Orders; Track a Shipment (the orders list, where each order's tracking is); Company Account; the country; Sign Out for a signed-in shopper (the header's menu holds it from 641 px). Categories are Catalog's menu tree, **without counts** (parked: the menu carries none) | §1.5 |
+| D8 | The tab bar is drawn once the page is in the browser (its room kept from the first paint) and the drawer's insides load when it opens, so the shop pages stay inside 60 KB | §1.5 |
+| D9 | The flag (from the 200 px WebP) and ribbon (600 px WebP) are drawn on a card and on the product page's gallery when the price before is above the price now, the badge with the card's labels and under the product page's price. The listing banner is part 8 first, then the nearest category's, then every list's | §1.8, catalog.md 41(e) |
+
 ### 9.4 Amendments other documents would need
 
 Accepted with this spec (owner, 2026-11-10); each module's builder is still asked before its rows are built (owner, 2026-10-28). **Written into the documents on 2026-11-10**, each in its module's own style: handoff §0.1, §4.1, §4.4, §13.2, §14; platform.md §9.4; access.md amendment 97; catalog.md amendment 41; pricing.md §9.6; sync.md amendment 2; ops.md §9.6's answers and §9.7; sales.md §9.10; frontend.md §1.8, §2.3; `themes.css`'s header; promotions.md §9.2 #4. **A1's `deptrac.yaml` and A2's `config/database.php` change with the backend's first PR.**

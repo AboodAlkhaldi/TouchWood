@@ -70,14 +70,18 @@ it('opens the shop from the panel as the staff member, and goes back', function 
     $page->assertVisible('[data-test="staff-view-line"]');
     expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 
-    // The menu: the panel and the way out of the view, no account - within the screen.
-    $page->click('[data-test="staff-view-menu"]')
-        ->assertPresent('[data-test="staff-view-panel"]')
-        ->assertPresent('[data-test="staff-view-leave"]')
-        ->assertMissing('[data-test="my-account"]');
-    expect(browserUntil($page, "(() => { const pop = document.querySelector('[role=\"menu\"]'); if (!pop || pop.getAnimations().length > 0) return false; const box = pop.getBoundingClientRect(); return box.left >= 0 && box.right <= window.innerWidth; })()"))->toBeTrue('the staff view\'s menu is wider than the screen');
+    // The menu, on a phone at the top of the drawer's Account & settings (content.md §1.5, the owner's option C3):
+    // the panel and the way out of the view, no account and no sign-out - within the screen.
+    $page->click('[data-test="category-sheet-open"]');
+    expect(browserUntil($page, "document.querySelector('[data-test=\"drawer-account\"]') !== null"))->toBeTrue();
+    $page->click('[data-test="drawer-account"]')
+        ->assertPresent('[data-test="drawer-staff-panel"]')
+        ->assertPresent('[data-test="drawer-staff-leave"]')
+        ->assertMissing('[data-test="drawer-sign-out"]')
+        ->assertMissing('[data-test="drawer-orders"]');
+    expect(browserUntil($page, "(() => { const sheet = document.querySelector('[data-test=\"category-sheet\"]'); if (!sheet || sheet.getAnimations().length > 0) return false; const box = sheet.getBoundingClientRect(); return box.left >= 0 && box.right <= window.innerWidth; })()"))->toBeTrue('the staff view\'s menu is wider than the screen');
 
-    $page->click('[data-test="staff-view-leave"]');
+    $page->click('[data-test="drawer-staff-leave"]');
     expect(browserUntil($page, "document.querySelector('[data-test=\"staff-view-line\"]') === null"))->toBeTrue();
     $page->assertPresent('a[href$="/sign-in"]');
 });
