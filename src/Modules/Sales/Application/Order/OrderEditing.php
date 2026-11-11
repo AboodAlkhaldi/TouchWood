@@ -48,7 +48,8 @@ use Shared\Domain\ValueObject\StoreId;
  * country refused. Staff choose the fee: **`TODAY`** (the default) — the carrier's fee today with today's
  * free-above, the carrier one serving the new place (asked for, else the order's own when it serves it,
  * else the cheapest), and a place no carrier serves makes the fee to be set; or **`KEEP`** — the order's own
- * rule, with any of the store's carriers (asked for, else the order's own); an order whose fee is still to
+ * rule, with any of the store's carriers (asked for, else the order's own) — but a fee staff typed (an order
+ * with no carrier) keeps none: its carrier is picked when it ships (§9.7); an order whose fee is still to
  * be set has none to keep. A difference owed is settled as any edit's. The same address place, or none
  * given, keeps the shipping as it is: a carrier or a fee choice then is refused.
  */
@@ -264,6 +265,11 @@ final readonly class OrderEditing
             [$id, $ar, $en] = [$own->carrierId, $own->carrierAr, $own->carrierEn];
 
             if ($carrierId !== null) {
+                // A fee staff typed stays theirs, with no carrier, so Change Shipping Fee keeps working until it ships (§9.7).
+                if ($own->carrierId === null) {
+                    throw new InvalidSalesAttribute('carrier', 'none: the fee was set by staff, and its carrier is picked when it ships');
+                }
+
                 $carrier = array_values(array_filter($this->shipping->carriers($store), static fn ($each): bool => $each->id === $carrierId))[0]
                     ?? throw new InvalidSalesAttribute('carrier', 'one of the store\'s carriers');
                 [$id, $ar, $en] = [$carrier->id, $carrier->nameAr, $carrier->nameEn];

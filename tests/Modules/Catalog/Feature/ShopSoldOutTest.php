@@ -805,6 +805,46 @@ describe('what only stock or a price empties (owner, 2026-11-03)', function () {
             ->and(array_column(shopSoldOutProps('/sa/en/categories/'.shopSoldOutSlug('category', $sibling))['path'], 'slug'))->toBe([shopSoldOutSlug('category', $top), shopSoldOutSlug('category', $middle)]);
     });
 
+    it('gives a sold-out product whose category emptied the way to that category, each step answering (owner, 2026-11-10)', function () {
+        $top = Px::category('Kitchens');
+        $middle = Px::category('Drawers', $top);
+        $emptied = Px::category('Runners', $middle);
+        $sibling = Px::category('Handles', $middle);
+        $gone = shopSoldOutProduct($emptied, ['60 cm']);
+        shopSoldOutProduct($sibling, ['80 cm']);
+        $url = static fn (string $locale): string => "/sa/{$locale}/products/".rawurlencode(shopSoldOutSlug('product', $gone['product'], $locale));
+        $way = static fn (string $locale): array => [shopSoldOutSlug('category', $top, $locale), shopSoldOutSlug('category', $middle, $locale), shopSoldOutSlug('category', $emptied, $locale)];
+
+        // On sale, the menu's path, as before.
+        expect(array_column(shopSoldOutProps($url('en'))['path'], 'slug'))->toBe($way('en'));
+
+        shopSoldOutByOrder($gone['variants'][0]);
+
+        foreach ([ShopperKind::Guest, ShopperKind::Individual, ShopperKind::Company] as $viewer) {
+            shopSoldOutViewer($viewer);
+            $page = shopSoldOutProps($url('en'));
+
+            // Out of the menu, its category still answers, so the trail goes on to it: every step a page that opens.
+            expect($page['available'])->toBeFalse()
+                ->and(array_column($page['path'], 'slug'))->toBe($way('en'))
+                ->and(array_column(shopSoldOutProps($url('ar'))['path'], 'slug'))->toBe($way('ar'));
+
+            foreach ($page['path'] as $step) {
+                app()->forgetScopedInstances();
+                get('/sa/en/categories/'.$step['slug'])->assertOk();
+            }
+        }
+
+        // Switched off for individuals: its page is not theirs, so no trail for them; companies keep it.
+        Fx::asSystem(fn () => app(SetCategoryAudiencesHandler::class)->handle(new SetCategoryAudiences(Fx::storeId('sa'), $emptied, false)));
+        shopSoldOutViewer(ShopperKind::Individual);
+        app()->forgetScopedInstances();
+        get('/sa/en/categories/'.shopSoldOutSlug('category', $emptied))->assertNotFound();
+        expect(shopSoldOutProps($url('en'))['path'])->toBe([]);
+        shopSoldOutViewer(ShopperKind::Company);
+        expect(array_column(shopSoldOutProps($url('en'))['path'], 'slug'))->toBe($way('en'));
+    });
+
     it('keeps every category above a whole branch emptied answering with its sentence, none of them with a sibling still listing', function () {
         $top = Px::category('Kitchens');
         $middle = Px::category('Drawers', $top);

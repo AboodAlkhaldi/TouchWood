@@ -36,7 +36,8 @@ interface Subscribers
     public function delete(string $id): void;
 
     /**
-     * The store's list, by id, after the one named.
+     * The store's list, newest first (when they joined, then id), after the one named; nothing after a row that is
+     * not the store's.
      *
      * @return list<Subscriber>
      */
