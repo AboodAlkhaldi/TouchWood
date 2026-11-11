@@ -43,6 +43,7 @@ use Modules\Content\Domain\Model\Publication;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Content\Support\ContentFixtures as Cx;
+use Tests\Modules\Pricing\Support\PricingFixtures as Pf;
 
 use function Pest\Laravel\seed;
 
@@ -146,9 +147,14 @@ describe('§1.12 the blog', function () {
     it('links up to 8 ready products, each once, and keeps one archived since it was linked', function () {
         Cx::editor([ContentPermissions::BLOG_MANAGE]);
         $ready = Px::ready()['product'];
+        // Sold in the store: a product newly linked is one the store's search offers (the #386 review).
+        Pf::switchOn('sa', productId: $ready);
         $draft = Px::product();
+        $elsewhere = Px::ready()['product'];
+        Pf::switchOn('ae', productId: $elsewhere);
 
         expect(documentRefusal(fn () => app(SavePostHandler::class)->handle(new SavePost(documentInput(['products' => [$draft]])))))->toBe('products:product')
+            ->and(documentRefusal(fn () => app(SavePostHandler::class)->handle(new SavePost(documentInput(['products' => [$elsewhere]])))))->toBe('products:product')
             ->and(documentRefusal(fn () => app(SavePostHandler::class)->handle(new SavePost(documentInput(['products' => [$ready, $ready]])))))->toBe('products:duplicate')
             ->and(documentRefusal(fn () => app(SavePostHandler::class)->handle(new SavePost(documentInput(['products' => array_fill(0, 9, $ready)])))))->toBe('products:too_many');
 

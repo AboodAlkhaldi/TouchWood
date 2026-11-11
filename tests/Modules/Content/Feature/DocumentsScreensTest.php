@@ -209,6 +209,52 @@ it('publishes a post with its summary, cover and products, found by the product 
         ->has("images.{$cover}"));
 });
 
+it('searches the store\'s own products 20 at a time, and never links another store\'s by its id (the #386 review)', function () {
+    $browser = documentsScreenEditor();
+    $ours = Px::ready()['product'];
+    Pf::switchOn('sa', productId: $ours);
+    $theirs = Px::ready()['product'];
+    Pf::switchOn('ae', productId: $theirs);
+
+    $found = $browser->get('/admin/content/blog/products?store='.Fx::storeId('sa').'&q=Drawer', Screen::JSON)->assertOk();
+    expect(array_column($found->json('products'), 'id'))->toBe([strtolower($ours)])
+        ->and($found->json())->toHaveKey('next');
+
+    // Typed in by its id, another store's product is refused under its box; the store's own is linked.
+    $refused = $browser->post('/admin/content/blog/posts', documentsScreenFields(['summary_ar' => 'ملخص', 'summary_en' => 'Summary', 'products' => [$theirs]]), Screen::fromPage('/admin/content/blog/posts/new'));
+    expect(Screen::errors($refused))->toHaveKey('products')
+        ->and(DB::table('content.blog_posts')->count())->toBe(0);
+
+    // A page further: 20 a page, Show More's cursor the next.
+    foreach (range(1, 20) as $n) {
+        Pf::switchOn('sa', productId: Px::ready()['product']);
+    }
+
+    $first = $browser->get('/admin/content/blog/products?store='.Fx::storeId('sa').'&q=Drawer', Screen::JSON)->assertOk();
+    $more = $browser->get('/admin/content/blog/products?store='.Fx::storeId('sa').'&q=Drawer&after='.urlencode((string) $first->json('next')), Screen::JSON)->assertOk();
+
+    expect($first->json('products'))->toHaveCount(20)
+        ->and($first->json('next'))->toBeString()
+        ->and($more->json('products'))->toHaveCount(1)
+        ->and(array_intersect(array_column($first->json('products'), 'id'), array_column($more->json('products'), 'id')))->toBe([]);
+});
+
+it('refuses a write to another store\'s item, and leaves it as it was (the #386 review)', function () {
+    $sa = documentsScreenEditor([ContentPermissions::PAGE_MANAGE]);
+    $sa->post('/admin/content/pages', documentsScreenFields(), Screen::fromPage('/admin/content/pages/new'))->assertRedirect();
+    $page = documentsScreenId('content.pages');
+    $ae = documentsScreenEditor([ContentPermissions::PAGE_MANAGE], ['ae']);
+
+    $changed = $ae->post("/admin/content/pages/{$page}", documentsScreenFields(['store' => Fx::storeId('ae'), 'version' => 1, 'title_ar' => 'ليس لك']), Screen::fromPage("/admin/content/pages/{$page}"));
+    $deleted = $ae->post("/admin/content/pages/{$page}/delete", [], Screen::fromPage("/admin/content/pages/{$page}"));
+
+    expect(Screen::errors($changed))->toHaveKey('form')
+        // A delete names the item before it is refused: another store's is not found, as a page they can't open.
+        ->and($deleted->getStatusCode())->toBe(404)
+        ->and(DB::table('content.page_translations')->where('page_id', $page)->where('locale', 'ar')->value('title'))->toBe('من نحن')
+        ->and(DB::table('content.pages')->where('id', $page)->exists())->toBeTrue();
+});
+
 it('keeps a project\'s photos in their order, and says the Projects page stays hidden while none is published', function () {
     $browser = documentsScreenEditor();
     [$one, $two] = [Cx::image(), Cx::image()];
