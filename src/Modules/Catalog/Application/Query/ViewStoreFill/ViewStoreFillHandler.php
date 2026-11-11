@@ -16,6 +16,7 @@ use Modules\Catalog\Application\Query\Products\ProductMissing;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
 use Modules\Catalog\Public\Contracts\ImportSection;
+use Modules\Catalog\Public\Contracts\StoreWiring;
 use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Unauthorized;
@@ -43,6 +44,7 @@ final readonly class ViewStoreFillHandler
         private CatalogProductReads $products,
         private PlatformApi $platform,
         private InMemoryImportSections $sections,
+        private StoreWiring $wiring,
     ) {}
 
     /**
@@ -60,13 +62,17 @@ final readonly class ViewStoreFillHandler
         $codes = $this->codes->in($store, array_values(array_unique(array_map(static fn (StoreFillItem $item): string => $item->code, $items))));
         $products = $this->products->cores(array_values(array_unique(array_map(static fn (StoreFillCode $code): string => $code->productId, $codes))));
         $missing = ProductMissing::ofDrafts($this->platform, $products);
+        // An open item kept with no price (its store was wired then) needs one if the store is not wired
+        // now (amendment 43(b)): asked once, and only for a file holding such an item.
+        $noPrice = array_filter($items, static fn (StoreFillItem $item): bool => $item->state === StoreFillItem::OPEN && $item->price === null) !== [];
+        $priceNeeded = $noPrice && ! $this->wiring->isWired(StoreId::fromString($store));
 
         return new StoreFillView(
             $import->id,
             $store,
             $import->fileName,
             (string) $import->uploadedAt,
-            array_map(fn (StoreFillItem $item): StoreFillItemView => $this->item($item, $store, $sections, $codes, $products, $missing), $items),
+            array_map(fn (StoreFillItem $item): StoreFillItemView => $this->item($item, $store, $sections, $codes, $products, $missing, $priceNeeded), $items),
             $sections !== [],
         );
     }
@@ -76,8 +82,9 @@ final readonly class ViewStoreFillHandler
      * @param  array<string, StoreFillCode>  $codes
      * @param  array<string, ProductCore>  $products
      * @param  array<string, list<string>>  $missing  what each draft lacks
+     * @param  bool  $priceNeeded  whether an item with no price must have one: the store is not wired
      */
-    private function item(StoreFillItem $item, string $store, array $sections, array $codes, array $products, array $missing): StoreFillItemView
+    private function item(StoreFillItem $item, string $store, array $sections, array $codes, array $products, array $missing, bool $priceNeeded): StoreFillItemView
     {
         $code = $codes[$item->code] ?? null;
         $product = $code === null ? null : ($products[$code->productId] ?? null);
@@ -98,6 +105,10 @@ final readonly class ViewStoreFillHandler
             $product->stage === ProductStage::Draft->value => [StoreFillItemView::NOT_READY, $missing[$product->id] ?? []],
             default => [self::standing($code), []],
         };
+
+        if ($standing === StoreFillItemView::READY && $priceNeeded && $item->price === null) {
+            $standing = StoreFillItemView::NO_PRICE;
+        }
 
         return new StoreFillItemView($item->id, $item->number, $item->code, $item->price, $item->stock, $item->state, $standing, $product?->id, $missing, $lines, $product?->nameAr, $product?->nameEn);
     }

@@ -22,7 +22,7 @@ use Modules\Catalog\Domain\ValueObject\VariantMeasures;
 use Shared\Domain\Text\LatinDigits;
 
 /**
- * **A product file, read and checked** (catalog.md §1.12; the guide in docs/modules/catalog-import/):
+ * **A product file, read and checked** (catalog.md §1.12; the guide in Presentation/import-format/):
  * every rule of the guide's §1.7 — the shape, each field's kind and limits, the rules the panel
  * holds a product to (its names, slugs, description, codes, search words, measures and details,
  * through the same value objects), two variants never sharing a code — in one product or in two
@@ -38,7 +38,7 @@ final readonly class ProductsFile
 
     public const int MAX_BYTES = 20 * 1024 * 1024;
 
-    /** A list's name — a brand, a category, an attribute, a value, a set, a warranty (§5.3). */
+    /** A list's name — a brand, a category, an attribute, a value, a warranty (§5.3). */
     public const int NAME_MAX = 100;
 
     public const int GALLERY_MAX = 20;
@@ -161,9 +161,10 @@ final readonly class ProductsFile
 
         self::onlyFields($raw, self::PRODUCT_FIELDS, $at, $problems);
 
-        // A products file names no store (amendment 9(a)): a store's own file brings prices and stock.
+        // A products file names no store (amendment 9(a)): each store's own file switches its products
+        // on - with their prices and stock where the store is not wired to Odoo (amendment 43).
         if (array_key_exists('stores', $raw)) {
-            $problems->add("{$at} › stores", "not in a products file: each store's own file brings its prices and stock");
+            $problems->add("{$at} › stores", "not in a products file: each store's own file switches its products on, with their prices and stock where the store is not wired to Odoo");
         }
 
         [$nameAr, $nameEn] = self::name($raw['name'] ?? null, "{$at} › name", $problems);

@@ -117,7 +117,7 @@ final readonly class DatabaseImports implements Imports
             (string) $row->id,
             (int) $row->number,
             (string) $row->code,
-            (string) $row->price,
+            $row->price === null ? null : (string) $row->price,
             $row->stock === null ? null : (int) $row->stock,
             (string) $row->state,
         ))->all());

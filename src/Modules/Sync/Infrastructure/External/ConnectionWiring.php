@@ -4,16 +4,18 @@ declare(strict_types=1);
 
 namespace Modules\Sync\Infrastructure\External;
 
+use Modules\Catalog\Public\Contracts\StoreWiring as CatalogWiring;
 use Modules\Inventory\Public\Contracts\StoreWiring as InventoryWiring;
 use Modules\Pricing\Public\Contracts\StoreWiring as PricingWiring;
 use Modules\Sync\Domain\Repository\Connections;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * Sync's answer to the question Pricing and Inventory ask (sync.md §2.2, §2.3): a store is wired while it
+ * Sync's answer to the question Pricing, Inventory and Catalog's store file ask (sync.md §2.2, §2.3;
+ * catalog.md amendment 43): a store is wired while it
  * has a connection. Read each time, in the caller's transaction, so wiring and unwiring are seen at once.
  */
-final readonly class ConnectionWiring implements InventoryWiring, PricingWiring
+final readonly class ConnectionWiring implements CatalogWiring, InventoryWiring, PricingWiring
 {
     public function __construct(
         private Connections $connections,

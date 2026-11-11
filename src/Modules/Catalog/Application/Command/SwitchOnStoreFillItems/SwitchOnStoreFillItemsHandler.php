@@ -17,6 +17,7 @@ use Modules\Catalog\Domain\Exception\ListItemNotFound;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\StoreListingRepository;
 use Modules\Catalog\Domain\Repository\VariantRepository;
+use Modules\Catalog\Public\Contracts\StoreWiring;
 use Modules\Catalog\Public\Enums\ProductStage;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
@@ -36,6 +37,12 @@ use Shared\Domain\ValueObject\StoreId;
  * once it commits (stage 5: inside it, this products' lock and their store locks would meet in
  * opposite orders), so a price or stock they then refuse leaves the item on and goes to the failed
  * jobs screen.
+ *
+ * **An item with no price in a store not wired to Odoo is never switched on** (amendment 43(b)): its file
+ * was kept while the store was wired, so it gave codes only, and the store has been unwired since -
+ * "every one ready" leaves it open, chosen by name it is refused; its page says to upload a new file
+ * with prices. One whose variant is on there already is marked on, as ever. The wiring is asked once,
+ * and only when such an item is met.
  */
 final readonly class SwitchOnStoreFillItemsHandler
 {
@@ -49,6 +56,7 @@ final readonly class SwitchOnStoreFillItemsHandler
         private ProductEvents $events,
         private ListingRows $listingRows,
         private InMemoryImportSections $sections,
+        private StoreWiring $wiring,
     ) {}
 
     /**
@@ -66,6 +74,7 @@ final readonly class SwitchOnStoreFillItemsHandler
             $entries = [];
             $products = [];
             $on = [];
+            $wired = null;
 
             foreach (StoreFills::chosen($command->itemIds, $items) as $item) {
                 $chosen = $item->state === StoreFillItem::OPEN ? $this->variantOf($item->code) : null;
@@ -81,6 +90,15 @@ final readonly class SwitchOnStoreFillItemsHandler
                 [$productId, $variantId] = $chosen;
                 $listing = $this->listings->of($store, $productId);
                 $wasActive = $listing->activeVariantIds();
+
+                // Not on there yet, with no price in a store not wired: never switched on (amendment 43(b)).
+                if ($item->price === null && ! in_array($variantId, $wasActive, true) && ! ($wired ??= $this->wiring->isWired(StoreId::fromString($store)))) {
+                    if ($all) {
+                        continue;
+                    }
+
+                    throw new InvalidCatalogAttribute("item {$item->number}", 'an item with a price: this store is not wired to Odoo, so upload a new file with prices');
+                }
                 $listing->choose([$variantId], true);
                 $entry = ListAudit::changed('listing', 'chosen', $productId, $listing->pullChanges(), $listing->snapshot(), $store);
 

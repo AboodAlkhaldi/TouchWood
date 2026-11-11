@@ -20,9 +20,11 @@ import { nameIn, useLocale } from '../parts';
 /*
 | One store file (catalog.md §4.4 S10, §1.3; amendment 6(g)), with no uploader shown: a Note, once -
 | the prices and stock are shown and not kept until Pricing and Inventory exist -, then the items:
-| number · code · its product (a link to its page) · price · stock · where it stands now (Ready · Not
+| number · code · its product (a link to its page) · price · stock ("—" in a store wired to Odoo, whose
+| file gives codes only - amendment 43) · where it stands now (Ready · Not
 | Ready and what it lacks · Archived · Already On · Unknown Code), or what was done (Switched On ·
-| Removed). Ticked open items: **Switch On Selected**, **Remove Selected…**; and **Switch On Every
+| Removed); **No Price** - ready, but its file came while the store was wired to Odoo, which it is
+| not any more: never switched on, a new file with prices uploaded (amendment 43(b)). Ticked open items: **Switch On Selected**, **Remove Selected…**; and **Switch On Every
 | Ready One**. An unknown code: **Correct Code…**, checked again. A product not ready is completed in
 | its own page, then switched on here.
 */
@@ -33,6 +35,7 @@ const STANDING_TONE: Record<string, Tone> = {
     ARCHIVED: 'gray-subtle',
     ALREADY_ON: 'blue-subtle',
     UNKNOWN: 'red-subtle',
+    NO_PRICE: 'amber-subtle',
 };
 
 export default function Show({ id, fileName, uploadedAt, storeCode, storeName, pricesKept, items }: StoreFilePage) {
@@ -183,9 +186,7 @@ function Row({
                     '—'
                 )}
             </TableCell>
-            <TableCell className="tw-figure text-end">
-                <bdi dir="ltr">{item.price}</bdi>
-            </TableCell>
+            <TableCell className="tw-figure text-end">{item.price === null ? '—' : <bdi dir="ltr">{item.price}</bdi>}</TableCell>
             <TableCell className="tw-figure text-end">{item.stock === null ? '—' : figureOf(item.stock)}</TableCell>
             <TableCell>
                 <div className="grid gap-1">
@@ -201,6 +202,11 @@ function Row({
                     {item.missing.length > 0 ? (
                         <span className="text-copy-13 text-ink-muted">
                             {t('catalog::admin_store_files.lacks')} {item.missing.map((rule) => t(`catalog::admin_products.missing.${rule}`)).join(locale === 'ar' ? '، ' : ', ')}
+                        </span>
+                    ) : null}
+                    {isOpen && item.standing === 'NO_PRICE' ? (
+                        <span className="text-copy-13 text-ink-muted" data-test="no-price">
+                            {t('catalog::admin_store_files.no_price')}
                         </span>
                     ) : null}
                     {item.lines.map((line) => (

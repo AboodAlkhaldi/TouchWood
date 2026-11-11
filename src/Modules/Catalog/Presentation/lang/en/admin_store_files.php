@@ -36,6 +36,7 @@ return [
         'ARCHIVED' => 'Archived',
         'ALREADY_ON' => 'Already On',
         'UNKNOWN' => 'Unknown Code',
+        'NO_PRICE' => 'No Price',
     ],
     'state' => [
         'ON' => 'Switched On',
@@ -59,6 +60,8 @@ return [
     'none_ready' => 'No item is ready.',
     'only_ready' => 'Only ready items are switched on: clear the others from the selection.',
     'lacks' => 'Lacks:',
+    // An item kept with no price while the store was wired to Odoo, which it is not any more (catalog.md amendment 43).
+    'no_price' => 'No price: this store is not connected to Odoo any more. Upload a new file with prices.',
     'back' => 'Store Files',
     'toast' => [
         'uploaded' => 'File uploaded',

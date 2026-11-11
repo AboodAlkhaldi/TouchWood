@@ -963,19 +963,21 @@ products one at a time in the panel:
 
 - **new products** with their details, images and codes, the stores each is chosen in, and each of
   those stores' price and stock — in one file, so a product and its stores arrive together;
-- **a store's choice** of products that already exist, with its prices and stock.
+- **a store's choice** of products that already exist, with its prices and stock — codes only in a
+  store wired to Odoo (catalog.md amendment 43).
 
 **The format and the flow were agreed with the owner on 2026-10-05** (`docs/modules/catalog.md`
 §1.12, §1.3, amendment 6). **The exact format — a guide to filling it and a complete example of each
-file — is in [`docs/modules/catalog-import/`](modules/catalog-import/README.md)**; the owner fills
+file — is in [`src/Modules/Catalog/Presentation/import-format/`](../src/Modules/Catalog/Presentation/import-format/guide.md)** (moved into the app, catalog.md amendment 43); the owner fills
 files from it, with another AI agent's help. In short: the products file goes in alone or in a zip
 with its photos, and **gets its own page** where the Super Admin decides each name the catalog lacks
 (a typo for an existing one, create it, or refuse it) and each code it already has (update, replace
 whole, skip, or another code), then brings the products in as drafts and accepts, archives or deletes
 them — replacing "a preview, then all-or-nothing". The admins' **store file** (codes and prices,
-stock optional) never creates or edits a product: its page switches existing products on in that
-store, an unknown code corrected or removed. In a store wired to a provider, the file's prices and
-stock are ignored with a warning: the provider is their source there (§12.2).
+stock optional; codes only in a store wired to Odoo, catalog.md amendment 43) never creates or edits a
+product: its page switches existing products on in that store, an unknown code corrected or removed. A
+store wired after its file was kept has the file's prices and stock ignored with a warning: the
+provider is their source there (§12.2).
 
 **The import lives in Catalog** (owner, 2026-10-02). Until Pricing and Inventory exist (stage 5), the
 file's prices and stock are shown and not kept; those modules then add their parts of the file to the
@@ -1879,9 +1881,10 @@ Decide these when the owning module is reached; do not design them now.
   (`OpsServiceProvider::requireRealDelivery`) does not run. The generated `/robots.txt` says `Disallow: /`
   outside production (Content, `RobotsFile`), which is right for staging. On the real domain
   `APP_ENV=production`.
-- **The `docs/` folder ships with the application**: the panel's files guide
-  (`/admin/import-guide`) is read from `docs/modules/catalog-import/` - the guide and its two
-  example files. A deploy that leaves `docs/` out breaks that page and its downloads.
+- **The `docs/` folder need not ship with the application**: the panel's files guide
+  (`/admin/import-guide`) and its two example files live in the Catalog module since catalog.md
+  amendment 43 (`src/Modules/Catalog/Presentation/import-format/`); nothing the app runs reads `docs/`
+  (`tests/Architecture/NoDocsReadsTest`).
 
 ---
 
