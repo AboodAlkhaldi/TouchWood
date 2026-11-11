@@ -111,13 +111,13 @@ it('lists every theme with its stores\' states and parts filled, and gives the f
 
     $browser->get(THEMES_SCREEN.'/new')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         ->component('Content/Admin/Themes/Form')
-        ->where('theme', null)
+        ->where('themeItem', null)
         ->where('translations', fn (Collection $words): bool => $words->has('content::admin_themes.parts.name.BACKDROP')));
 
     $browser->get(THEMES_SCREEN."/{$theme}")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
-        ->where('theme.id', $theme)
-        ->where('theme.state', 'DRAFT')
-        ->has('theme.storeIds', 2)
+        ->where('themeItem.id', $theme)
+        ->where('themeItem.state', 'DRAFT')
+        ->has('themeItem.storeIds', 2)
         ->has('parts', 2)
         ->where('parts.0.part', 'ANNOUNCEMENT')
         ->where('parts.0.textEn', 'Ramadan Kareem')
@@ -150,7 +150,7 @@ it('keeps Translate\'s mark on a draft theme, asks for the tick at Schedule and 
     $marked = fn (): bool => DB::table('content.unread_translations')->where('kind', 'THEME')->where('item_id', $theme)->exists();
 
     expect($marked())->toBeTrue();
-    $browser->get(THEMES_SCREEN."/{$theme}")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('theme.translationUnread', true));
+    $browser->get(THEMES_SCREEN."/{$theme}")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('themeItem.translationUnread', true));
 
     $refused = $browser->post(THEMES_SCREEN."/{$theme}", themesScreenFields(['sa'], ['version' => themesScreenVersion($theme), 'intent' => 'schedule']), Screen::fromPage(THEMES_SCREEN."/{$theme}"));
     expect(Screen::errors($refused))->toHaveKey('form')
@@ -187,10 +187,10 @@ it('takes a scheduled theme back to draft, deletes a draft with its mark, and en
     CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(5));
     Carbon::setTestNow(CarbonImmutable::now());
 
-    $browser->get(THEMES_SCREEN."/{$live}")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('theme.state', 'LIVE'));
+    $browser->get(THEMES_SCREEN."/{$live}")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('themeItem.state', 'LIVE'));
     $ended = $browser->post(THEMES_SCREEN."/{$live}/end", ['version' => themesScreenVersion($live)], Screen::fromPage(THEMES_SCREEN."/{$live}"))->assertRedirect();
     expect(AdminBrowser::flashed($ended, 'status'))->toBe(__('content::admin_themes.ended'));
-    $browser->get(THEMES_SCREEN."/{$live}")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('theme.state', 'ENDED'));
+    $browser->get(THEMES_SCREEN."/{$live}")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('themeItem.state', 'ENDED'));
 });
 
 it('uploads a part\'s artwork under the themes\' permission', function () {

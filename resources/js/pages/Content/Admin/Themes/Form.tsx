@@ -73,7 +73,7 @@ function partsFrom(page: ThemeFormPageData): Record<string, PartState> {
 type Asking = 'end' | 'draft' | 'delete' | null;
 
 export default function Form(page: ThemeFormPageData) {
-    const { stores, theme, campaigns, translationReady, previewing } = page;
+    const { stores, themeItem: theme, campaigns, translationReady, previewing } = page;
     const t = useTranslator();
     const name = useInLanguage();
     const { csrfToken } = usePage<SharedProps>().props;

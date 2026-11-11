@@ -22,7 +22,7 @@ final class ThemeFormPageData extends Data
      */
     public function __construct(
         public array $stores,
-        public ?ThemeData $theme,
+        public ?ThemeData $themeItem,
         public array $parts,
         public array $images,
         public array $campaigns,

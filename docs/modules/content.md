@@ -786,9 +786,33 @@ The build's picks where the text above leaves the detail open, marked so for the
 | S1 | **A link typed by staff** is refused by the editors exactly as by the server: an `https://` address's authority (up to the first `/`, `?` or `#`) is a host with a port of digits at most, **with no user part** (`https://shop@evil.example`, `https://@x`) and never empty (`https:///x`); spaces are trimmed as PHP's `trim()` does, so a no-break space at an end is refused. One case table, read by both sides (`link-cases.json`) | §1.1 rule 16 |
 | S2 | The editor's preview reads the typed marks as `MarkText` does, from one case table read by both sides (`mark-cases.json`); a mark the server would refuse is drawn as best it can, and the save says why | §1.2 |
 | S3 | W7 and W9 list by tab (Published, Draft); W8's posts list both states with a State column under the Posts and Categories tabs, filtered by category. Unpublish and Delete sit in the ⋯ of the item's own page, not on the list's rows | W7-W9 |
-| S4 | Add Product searches the store's ready products with a size switched on there, 20 at a time | W8, W9 |
+| S4 | Add Product searches the store's ready products with a size switched on there, 20 at a time, with Show More (PR 8, from #386's review); a product newly linked must be one that search offers, so another store's is refused by its id; one linked before stays while ready, or archived since | W8, W9 |
 | S5 | The blog's categories are added and changed in a dialog with Translate; their order is saved as dropped or moved | W8 |
 | S6 | Content's dragged lists draw plain on the server's render and first paint and load their dragging after mount, Move to Top and Move to Bottom included (lessons 180, 395) | §4.2 |
+
+### 9.3e As built: the admin screens W4 and W5 (PR 8, 2026-11-11)
+
+The build's picks where the text above leaves the detail open, marked so for the owner to reject; none changes a rule.
+
+| # | As built | Where |
+|---|---|---|
+| E1 | W4's tabs are **All, Scheduled, Live, Ended**, a cancelled run counted with the ended; tab and count read the chosen store's run; newest first, 50 with Show More. **The Offers column is not built** (parked: Pricing has no read counting a run's sizes without a preview per row) | W4 |
+| E2 | A campaign's and a theme's start and end are typed once, with no Now and no No End (§9.3b C1); the fields name the first chosen store's zone, and a line under them says each store reads them on its own clock (Q1 (a)) | W4b, W5b |
+| E3 | **Schedule Campaign** from a form with unsaved changes saves them and schedules every draft run in one press; from a saved form its question offers All Stores or one store. End Campaign… and Cancel Campaign… ask the same, naming the stores reached as they are chosen | W4b |
+| E4 | Each store's Prices tab and the theme's search are drawn once the page is mounted (never on the server's render), so the page stays under 60 KB; every tab stays drawn, so prices typed in one survive opening another. **Save Prices** is per store; a refused save keeps what was typed, the sizes it names marked in the preview and on their rows | W4b |
+| E5 | A run's prices may change while it is a draft, or scheduled with its start still to come; past its start they show fixed ("Prices are fixed while a campaign runs.") whatever Content's state says, as Pricing judges by the dates | W4b, §1.7 #8 |
+| E6 | The targets: products are the store's ready products with a size switched on, sizes those switched on and not archived, 20 a page with Show More; categories and brands those switched on, the whole list filtered as typed. A target since archived or switched off stays listed, marked Archived | W4b, §1.7 #4 |
+| E7 | The live preview shows Pricing's first page of 20 products with the totals for all; it has no Show More of its own | W4b |
+| E8 | **Save Notice** is per store. A notice no longer a draft is said in a red Note in its status's words (scheduled, being sent, sent, cancelled, failed, or deleted in Ops); **Offer Notices** links to `/admin/notices?store=` for whoever holds `ops.notice.manage` there | W4b, §1.7 #10 |
+| E9 | The theme card says Dates match or Dates differ for each store whose run is not over; **Use Campaign's Dates** is offered to a Super Admin while some differ and the theme has not ended | W4b, §1.7 #7 |
+| E10 | The Mixed badge reads **Mixed / مختلط**, amber, with each store's own badge beside it, on W4, W4b, W5 and W5b | §4.1 |
+| E11 | Translate's mark (§1.3 #4) on a campaign or a theme names its first store in store-id order; a campaign with a run scheduled or live, and a scheduled theme, refuse a save with unread English as their Schedule would | §1.3 #4 |
+| E12 | W5 shows the dates as typed with the first store's zone under them, and the parts as "9 of 11" | W5 |
+| E13 | A band's artwork (parts 3, 4, 5, 10) has no size in the spec (§9.3 #14), so its box says it covers the band, up to 2400 pixels wide; transparent parts say PNG or WebP | W5b, §1.8 |
+| E14 | The comparison draws the part last opened: the shop as it is, then with the theme, at phone and computer width (Tabs), from the uploads' small pictures | W5b |
+| E15 | Preview Theme opens the shop in a new tab; while this browser's cookie names the theme, its page says "Previewing … in this browser" with Stop Preview | W5b |
+| E16 | A theme part's artwork uploads as kind `theme`, under `content.theme.manage` in the form's first store | W5b |
+| E17 | Menu icons the panel already draws: Campaigns `pricing`, Themes `gifts` | §4.3 |
 
 ### 9.4 Amendments other documents would need
 

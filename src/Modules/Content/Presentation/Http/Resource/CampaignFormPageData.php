@@ -23,7 +23,7 @@ final class CampaignFormPageData extends Data
         public array $stores,
         public ?CampaignData $campaign,
         public array $runs,
-        public ?CampaignThemeData $theme,
+        public ?CampaignThemeData $linkedTheme,
         public array $themes,
         public bool $mayOpenThemes,
         public bool $translationReady,

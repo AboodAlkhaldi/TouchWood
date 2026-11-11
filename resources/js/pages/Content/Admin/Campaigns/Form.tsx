@@ -75,7 +75,7 @@ function useMounted(): boolean {
     return mounted;
 }
 
-export default function Form({ stores, campaign, runs, theme, themes, mayOpenThemes, translationReady }: CampaignFormPageData) {
+export default function Form({ stores, campaign, runs, linkedTheme, themes, mayOpenThemes, translationReady }: CampaignFormPageData) {
     const t = useTranslator();
     const name = useInLanguage();
     const form = useForm({
@@ -281,7 +281,7 @@ export default function Form({ stores, campaign, runs, theme, themes, mayOpenThe
                 </Card>
 
                 <ThemeCard
-                    theme={theme}
+                    theme={linkedTheme}
                     themes={themes}
                     value={form.data.theme}
                     onChange={(next) => form.setData('theme', next)}

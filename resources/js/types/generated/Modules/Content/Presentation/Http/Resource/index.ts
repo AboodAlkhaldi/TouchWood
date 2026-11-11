@@ -93,7 +93,7 @@ export type CampaignFormPageData = {
 stores: ContentStoreData[],
 campaign: CampaignData | null,
 runs: CampaignRunData[],
-theme: CampaignThemeData | null,
+linkedTheme: CampaignThemeData | null,
 themes: NamedChoiceData[],
 mayOpenThemes: boolean,
 translationReady: boolean,
@@ -460,7 +460,7 @@ match: boolean,
 };
 export type ThemeFormPageData = {
 stores: ContentStoreData[],
-theme: ThemeData | null,
+themeItem: ThemeData | null,
 parts: ThemePartData[],
 images: Record<string, ContentImageData>,
 campaigns: NamedChoiceData[],

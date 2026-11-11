@@ -17,7 +17,6 @@ use Modules\Content\Domain\Exception\CampaignPartlyScheduled;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Domain\Exception\InvalidContentInput;
-use Modules\Content\Domain\Exception\TranslationUnread;
 use Modules\Content\Domain\Model\Campaign;
 use Modules\Content\Domain\Model\CampaignRun;
 use Modules\Content\Domain\Model\RunState;
@@ -33,8 +32,7 @@ use Throwable;
 
 /**
  * Schedules a campaign's draft runs (content.md §1.7 #14, #15, #16). **All of them are checked first, with no
- * writes**: English beside the Arabic name, **Translate's mark on it cleared by the tick** (§1.3 #4,
- * `TranslationUnread`), an end still to come, **Pricing's permission in a store whose run holds
+ * writes**: English beside the Arabic name, an end still to come, **Pricing's permission in a store whose run holds
  * price choices** (`CampaignPricesNotAllowed`, naming it), a chosen notice still a draft of its store. A run with no
  * prices schedules as it is (#16: "theme only").
  *
@@ -43,7 +41,8 @@ use Throwable;
  * which is the record from then on (Content's copy is cleared). **If a store then refuses** (Pricing's ceiling, a
  * target no longer there), the runs done stay scheduled, the rest stay drafts, and the person is told which store
  * refused and which are scheduled already (`CampaignPartlyScheduled`, the store's own refusal kept beside it; the first
- * store's refusal alone, when none is done): the campaign reads Mixed until another press.
+ * store's refusal alone, when none is done): the campaign reads Mixed until another press. **Translate's mark** on the
+ * English name asks for the tick in each store's transaction, and the tick clears it (§1.3 #4, `TranslationUnread`).
  */
 final readonly class ScheduleCampaignHandler
 {
@@ -58,7 +57,6 @@ final readonly class ScheduleCampaignHandler
         private PlatformApi $platform,
         private RefusalWords $words,
         private TranslationMarks $marks,
-        private UnreadTranslations $unread,
     ) {}
 
     /**
@@ -93,11 +91,6 @@ final readonly class ScheduleCampaignHandler
         $now = Moments::now();
         $this->check->version($command->version, $found->version, $found->updatedBy, $found->updatedAt, $stores[$drafts[0]->storeId]);
         Words::requireEnglish('name', $found->nameAr, $found->nameEn);
-
-        // Translate's English name nobody has said they read asks for the tick (§1.3 #4), before anything is written.
-        if (! $command->read && $this->unread->has(UnreadTranslations::CAMPAIGN, $found->id)) {
-            throw new TranslationUnread;
-        }
 
         foreach ($drafts as $run) {
             if ($run->endsAt <= $now) {
@@ -189,7 +182,9 @@ final readonly class ScheduleCampaignHandler
 
             $this->check->version($version, $campaign->version, $campaign->updatedBy, $campaign->updatedAt, $store);
             Words::requireEnglish('name', $campaign->nameAr, $campaign->nameEn);
-            // Judged again on the locked row: the tick clears the mark with the first store scheduled (§1.3 #4).
+            // Translate's English name nobody has said they read asks for the tick (§1.3 #4), refused here before this
+            // store writes anything; the tick clears the mark with the first store scheduled. A campaign still marked
+            // has no run scheduled (its saves are refused once one is), so the first store refuses it whole.
             $this->marks->showing(UnreadTranslations::CAMPAIGN, $campaign->id, $read);
 
             if ($run->endsAt <= $now) {
