@@ -1,28 +1,15 @@
-import { type ReactNode, useState } from 'react';
-import { router } from '@inertiajs/react';
-import { ActionButton } from '@/components/ActionButton';
-import { DialogError, FormError } from '@/components/FormError';
+import type { ReactNode } from 'react';
+import { FormError } from '@/components/FormError';
 import { Note } from '@/components/Note';
 import { CopyButton } from '@/components/geist-only/CopyButton';
 import { Description } from '@/components/geist-only/Description';
-import {
-    AlertDialog,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemSeparator, ItemTitle } from '@/components/ui/item';
 import { AccountLayout } from '@/layouts/AccountLayout';
-import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
-import { useReturnFocus } from '@/lib/use-return-focus';
 import type { CompanyApplicationData, CompanyPage, CompanyStatusData } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
 import { companyStatusTone } from '../../status';
 import { CompanyHistory } from './CompanyHistory';
@@ -33,8 +20,8 @@ import { Card, Figure, figureOr, MARK, Phrase, StatusBox, typeOf, useLocale, wri
 | What the company's two pages share (b2b.md §4.5, amendments 14 and 35): the frame - two columns,
 | the status box and what follows it, the applications sent and the companies elsewhere under it,
 | the lifecycle beside it (amendment 16(e)), hidden while the company is suspended - and the status
-| boxes both draw: not sent yet, approved with its details and bank account, not approved and why -
-| and discarding the draft, which the form offers and a suspended company's frozen draft too.
+| boxes both draw: not sent yet, approved with its details and bank account, not approved and why.
+| Their confirmations load on first press (dialogs.tsx).
 |
 | The view page (Company.tsx) shows everything that only reads; the form's page (Edit.tsx) shows an
 | open draft that may change. Which one is drawn is the server's choice (MyCompanyController::show).
@@ -239,59 +226,4 @@ export function Reason({ text, reason }: { text: string; reason: string }) {
 
 function lastApproved(history: CompanyApplicationData[]): CompanyApplicationData | undefined {
     return history.find((application) => application.state === 'APPROVED');
-}
-
-
-/**
- * Discarding the draft, asked in the page, never with the browser's own box (owner, 2026-09-24) -
- * in shadcn's AlertDialog, which confirms what destroys: the draft goes, and any file only it holds.
- * Being destructive, it opens on Cancel, so Enter never discards by accident. Not a typed
- * confirmation: Geist keeps that friction for what is hard to undo, and a draft is started again
- * with one press.
- */
-export function DiscardModal({ open, onOpenChange, busy = false }: { open: boolean; onOpenChange: (open: boolean) => void; busy?: boolean }) {
-    const t = useTranslator();
-    const link = useLink();
-    const [discarding, setDiscarding] = useState(false);
-    const returnFocus = useReturnFocus(open);
-
-    return (
-        <AlertDialog
-            open={open}
-            // Not closed under a discard still out: its answer decides what the page shows next.
-            onOpenChange={(next) => (discarding ? undefined : onOpenChange(next))}
-        >
-            <AlertDialogContent onCloseAutoFocus={returnFocus} className="material-modal gap-0 overflow-hidden border-0 p-0 text-start data-[size=default]:sm:max-w-md">
-                <div className="grid gap-4 p-6">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle className="text-heading-20 text-ink">{t('b2b::company.discard_title')}</AlertDialogTitle>
-                        <AlertDialogDescription className="text-copy-14 text-ink-muted" data-test="discard-confirmation">
-                            {t('b2b::company.discard_confirm')}
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    {/* A refusal keeps the dialog open; it is said inside it, not only in a toast
-                        hidden under the backdrop (the review of the move). */}
-                    <DialogError open={open} />
-                </div>
-                <AlertDialogFooter className="border-t border-line bg-surface-sunken px-6 py-4">
-                    <AlertDialogCancel disabled={discarding} data-test="modal-cancel">
-                        {t('ui.cancel')}
-                    </AlertDialogCancel>
-                    <ActionButton
-                        variant="destructive"
-                        data-test="discard-confirm"
-                        loading={discarding}
-                        // Not while a save is out: its page request would cancel the saves (17(i)).
-                        disabledReason={busy ? t('b2b::company.saving_wait') : undefined}
-                        onClick={() => {
-                            setDiscarding(true);
-                            router.post(link('storefront.company.discard'), {}, { onFinish: () => setDiscarding(false) });
-                        }}
-                    >
-                        {t('b2b::company.discard_yes')}
-                    </ActionButton>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-    );
 }

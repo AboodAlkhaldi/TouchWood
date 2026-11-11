@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { router } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { Note } from '@/components/Note';
@@ -6,9 +6,12 @@ import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import type { CompanyPage, CompanyStatusData } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
 import { SentApplication } from './CompanyHistory';
-import { ApprovedStatus, CompanyCard, CompanyShell, DiscardModal, NewStatus, Reason, RejectedWhy } from './CompanyShell';
+import { ApprovedStatus, CompanyCard, CompanyShell, NewStatus, Reason, RejectedWhy } from './CompanyShell';
 import { AddressPicker, type Look } from './fields';
 import { Card, MARK, StatusBox, useLocale } from './parts';
+
+// The frozen draft's confirmation loads when first asked, not with the page (frontend.md §5).
+const DiscardModal = lazy(() => import('./dialogs').then((module) => ({ default: module.DiscardModal })));
 
 /*
 | F11 - the company's own page (b2b.md §4.5, amendment 14; the design's company screen), as it reads
@@ -201,16 +204,29 @@ function StartButton({ label, outline = false, test = 'start' }: { label: string
 function FrozenDraft() {
     const t = useTranslator();
     const [confirming, setConfirming] = useState(false);
+    // Loaded on the first press, then kept, so it closes with its animation (dialogs.tsx).
+    const [asked, setAsked] = useState(false);
 
     return (
         <Card test="frozen-draft">
             <p className="text-copy-14 text-ink">{t('b2b::company.suspended_draft')}</p>
             <div>
-                <ActionButton variant="outline" data-test="discard" onClick={() => setConfirming(true)}>
+                <ActionButton
+                    variant="outline"
+                    data-test="discard"
+                    onClick={() => {
+                        setAsked(true);
+                        setConfirming(true);
+                    }}
+                >
                     {t('b2b::company.discard_open')}
                 </ActionButton>
             </div>
-            <DiscardModal open={confirming} onOpenChange={setConfirming} />
+            {asked ? (
+                <Suspense fallback={null}>
+                    <DiscardModal open={confirming} onOpenChange={setConfirming} />
+                </Suspense>
+            ) : null}
         </Card>
     );
 }

@@ -1,19 +1,10 @@
-import { type ChangeEvent, createContext, type ReactNode, type RefObject, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { type ChangeEvent, createContext, lazy, type ReactNode, type RefObject, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, router } from '@inertiajs/react';
 import { ExternalLink, MoreHorizontal } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
 import { Note } from '@/components/Note';
 import { MiddleTruncate } from '@/components/geist-only/MiddleTruncate';
 import { Time } from '@/components/Time';
-import {
-    AlertDialog,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
@@ -34,9 +25,12 @@ import type {
     CompanyRequestData,
     CompanyTypeOptionData,
 } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
-import { DiscardModal } from './CompanyShell';
 import { AddressPicker, check, FieldState, type Look, mustFix, normal, ruleOf, SaveBeside, SaveMark, subjectOf } from './fields';
 import { Card, MARK, nameOf, Phrase, useLocale } from './parts';
+
+// The two confirmations load when first asked, not with the page (frontend.md §5; dialogs.tsx).
+const DiscardModal = lazy(() => import('./dialogs').then((module) => ({ default: module.DiscardModal })));
+const RemoveFileDialog = lazy(() => import('./dialogs').then((module) => ({ default: module.RemoveFileDialog })));
 
 /*
 | The company form (b2b.md §4.5, amendments 14(a), 15(a), 16 and 22): company details, documents,
@@ -117,6 +111,8 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
     const link = useLink();
     const locale = useLocale();
     const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+    // Loaded on the first press, then kept, so it closes with its animation (dialogs.tsx).
+    const [discardAsked, setDiscardAsked] = useState(false);
     const [standings, setStandings] = useState<Record<string, Standing>>({});
     const [waiting, setWaiting] = useState(0);
     const [sending, setSending] = useState(false);
@@ -311,13 +307,20 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
                             data-test="discard"
                             // Not while a save is out: its page request would cancel the saves (17(i)).
                             disabledReason={waiting > 0 ? t('b2b::company.saving_wait') : undefined}
-                            onClick={() => setConfirmingDiscard(true)}
+                            onClick={() => {
+                                setDiscardAsked(true);
+                                setConfirmingDiscard(true);
+                            }}
                         >
                             {t('b2b::company.discard_open')}
                         </ActionButton>
                     </div>
 
-                    <DiscardModal open={confirmingDiscard} onOpenChange={setConfirmingDiscard} busy={waiting > 0} />
+                    {discardAsked ? (
+                        <Suspense fallback={null}>
+                            <DiscardModal open={confirmingDiscard} onOpenChange={setConfirmingDiscard} busy={waiting > 0} />
+                        </Suspense>
+                    ) : null}
                 </div>
             </div>
         </ChangesContext.Provider>
@@ -935,6 +938,8 @@ function FileItem({
     const t = useTranslator();
     const link = useLink();
     const [confirming, setConfirming] = useState(false);
+    // Loaded on the first press, then kept, so it closes with its animation (dialogs.tsx).
+    const [asked, setAsked] = useState(false);
     const more = useRef<HTMLButtonElement>(null);
     const choose = useRef<HTMLButtonElement>(null);
     // Removed, the file's ⋯ and Open File go once the answer comes: focus goes to Choose File, which
@@ -983,6 +988,7 @@ function FileItem({
                                         variant="destructive"
                                         onSelect={() => {
                                             removed.current = false;
+                                            setAsked(true);
                                             setConfirming(true);
                                         }}
                                         data-test={test === undefined ? undefined : `${test}-remove`}
@@ -1002,31 +1008,23 @@ function FileItem({
                 </FieldError>
             ))}
 
-            <AlertDialog open={confirming} onOpenChange={setConfirming}>
-                <AlertDialogContent onCloseAutoFocus={returnFocus} className="material-modal gap-0 overflow-hidden border-0 p-0 text-start data-[size=default]:sm:max-w-md">
-                    <div className="grid gap-4 p-6">
-                        <AlertDialogHeader>
-                            <AlertDialogTitle className="text-heading-20 text-ink">{t('b2b::company.remove_title')}</AlertDialogTitle>
-                            <AlertDialogDescription className="text-copy-14 text-ink-muted">{t('b2b::company.remove_confirm', { name: title })}</AlertDialogDescription>
-                        </AlertDialogHeader>
-                    </div>
-                    <AlertDialogFooter className="border-t border-line bg-surface-sunken px-6 py-4">
-                        <AlertDialogCancel data-test="modal-cancel">{t('ui.cancel')}</AlertDialogCancel>
-                        <ActionButton
-                            variant="destructive"
-                            data-test={test === undefined ? undefined : `${test}-remove-confirm`}
-                            onClick={() => {
-                                // Queued with the other changes; its answer, a refusal included, is said under the row.
-                                removed.current = true;
-                                remove();
-                                setConfirming(false);
-                            }}
-                        >
-                            {t('b2b::company.remove')}
-                        </ActionButton>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            {asked ? (
+                <Suspense fallback={null}>
+                    <RemoveFileDialog
+                        open={confirming}
+                        onOpenChange={setConfirming}
+                        onCloseAutoFocus={returnFocus}
+                        title={title}
+                        test={test}
+                        onRemove={() => {
+                            // Queued with the other changes; its answer, a refusal included, is said under the row.
+                            removed.current = true;
+                            remove();
+                            setConfirming(false);
+                        }}
+                    />
+                </Suspense>
+            ) : null}
         </li>
     );
 }

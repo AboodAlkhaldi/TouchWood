@@ -336,6 +336,41 @@ it('opens the form\'s page on Start and brings the view back on Discard, on a ph
     'Arabic' => ['ar', 'rtl'],
 ]);
 
+/*
+| The form's two confirmations load on their first press (amendment 35): each still opens on Cancel,
+| closes on Escape, and gives focus back where it did - the Discard button; the paper's ⋯ button, or
+| Choose File once the paper is gone.
+*/
+it('opens each confirmation on Cancel, closes it on Escape, and gives focus back, on a phone', function (string $locale) {
+    $customerId = B2BFixtures::verifiedCompanyAccount();
+    $type = collect(B2BFixtures::documentTypes())->first(static fn ($type): bool => $type->isActive())->id();
+    $row = "document-{$type}";
+    $page = companyScreenSignIn($customerId, $locale);
+    $page->resize(375, 812);
+    $page->navigate("/sa/{$locale}/account/company")->click('[data-test="start"]')->assertPresent('[data-test="company-form"]');
+    companyScreenPapers($customerId);
+    $page->navigate("/sa/{$locale}/account/company")->assertPresent("[data-test=\"{$row}-menu\"]");
+
+    $page->click('[data-test="company-form"] [data-test="discard"]')->assertVisible('[data-test="discard-confirmation"]');
+    expect(browserUntil($page, "document.activeElement?.dataset.test === 'modal-cancel'"))->toBeTrue();
+    $page->keys('[data-test="modal-cancel"]', 'Escape')->assertMissing('[data-test="discard-confirmation"]');
+    expect(browserUntil($page, "document.activeElement?.dataset.test === 'discard'"))->toBeTrue();
+
+    $page->click("[data-test=\"{$row}-menu\"]")->click("[data-test=\"{$row}-remove\"]")->assertVisible("[data-test=\"{$row}-remove-confirm\"]");
+    expect(browserUntil($page, "document.activeElement?.dataset.test === 'modal-cancel'"))->toBeTrue();
+    $page->keys('[data-test="modal-cancel"]', 'Escape')->assertMissing("[data-test=\"{$row}-remove-confirm\"]");
+    expect(browserUntil($page, "document.activeElement?.dataset.test === '{$row}-menu'"))->toBeTrue();
+
+    $page->click("[data-test=\"{$row}-menu\"]")->click("[data-test=\"{$row}-remove\"]")->click("[data-test=\"{$row}-remove-confirm\"]")
+        ->assertMissing("[data-test=\"{$row}-menu\"]")
+        ->assertNoJavaScriptErrors();
+    expect(browserUntil($page, "document.activeElement?.closest('[data-test=\"{$row}\"]') !== null && document.activeElement?.tagName === 'BUTTON'"))->toBeTrue()
+        ->and($page->script('document.documentElement.scrollWidth <= document.documentElement.clientWidth'))->toBeTrue();
+})->with([
+    'English' => ['en'],
+    'Arabic' => ['ar'],
+]);
+
 it('lets a suspended company discard its frozen draft from the view page', function () {
     $customerId = B2BFixtures::verifiedCompanyAccount();
     [$company] = B2BFixtures::approved($customerId);
