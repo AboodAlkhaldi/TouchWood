@@ -160,9 +160,29 @@ export default function Form(page: ThemeFormPageData) {
         return { part: spec.kind, textAr: part.textAr, textEn: part.textEn, link: part.link, extras: part.promises.filter((each) => each.ar.trim() !== '' || each.en.trim() !== ''), images };
     });
 
+    // Once the form's save is answered, one the server took - the version moved from the one it sent, a Schedule refused
+    // after it included (§9.3e E19) - is what the form holds now: the boxes no longer read as changed, so Preview Theme
+    // and leaving stop asking (PR 8's second review).
+    const sentVersion = useRef<number | null>(null);
+    const [answered, setAnswered] = useState(0);
+    const savedVersion = theme?.version;
+    useEffect(() => {
+        if (sentVersion.current === null) {
+            return;
+        }
+
+        if (savedVersion !== sentVersion.current) {
+            form.setDefaults();
+            setTouched(false);
+        }
+
+        sentVersion.current = null;
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- only the form's own save, once answered, resets the defaults
+    }, [answered]);
     const save = (intent: 'draft' | 'schedule', read = false) => {
+        sentVersion.current = theme?.version ?? 0;
         form.transform((data) => ({ ...data, ...markFields(translation, read), version: theme?.version ?? 0, starts_at: sentMoment(starts), ends_at: sentMoment(ends), parts: sentParts, intent }));
-        form.post(theme === null ? LIST : `${LIST}/${theme.id}`, { preserveScroll: 'errors' });
+        form.post(theme === null ? LIST : `${LIST}/${theme.id}`, { preserveScroll: 'errors', onFinish: () => setAnswered((n) => n + 1) });
     };
     const post = (action: string) =>
         router.post(
@@ -425,7 +445,9 @@ export default function Form(page: ThemeFormPageData) {
 function PreviewTheme({ themeId, storeCode, name, previewing, dirty }: { themeId: string; storeCode: string | null; name: string; previewing: boolean; dirty: boolean }) {
     const t = useTranslator();
     const [busy, setBusy] = useState(false);
-    const start = () =>
+    const start = () => {
+        let opening = false;
+
         router.post(
             `${LIST}/${themeId}/preview`,
             {},
@@ -433,10 +455,22 @@ function PreviewTheme({ themeId, storeCode, name, previewing, dirty }: { themeId
                 preserveScroll: true,
                 onStart: () => setBusy(true),
                 // The cookie is this browser's now: open the staff view, which goes to the shop.
-                onSuccess: () => (storeCode === null ? setBusy(false) : router.post('/admin/staff-view', { store: storeCode }, { onFinish: () => setBusy(false) })),
-                onError: () => setBusy(false),
+                onSuccess: () => {
+                    if (storeCode !== null) {
+                        opening = true;
+                        router.post('/admin/staff-view', { store: storeCode }, { onFinish: () => setBusy(false) });
+                    }
+                },
+                // However the visit ends - answered, refused, cancelled or lost - the button is free again, unless the
+                // staff view is opening, whose own end frees it (PR 8's second review).
+                onFinish: () => {
+                    if (!opening) {
+                        setBusy(false);
+                    }
+                },
             },
         );
+    };
 
     return (
         <div className="flex flex-wrap items-center gap-3" data-test="preview-theme">

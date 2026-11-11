@@ -134,20 +134,33 @@ export default function Form({ stores, campaign, runs, linkedTheme, themes, mayO
     const leave = useLeaveGuard(dirty || unsaved.size > 0, { description: t('content::admin_shared.leave') });
     const scheduleReason = unsaved.size > 0 && (campaign === null || drafts.length > 0) ? t('content::admin_campaigns.prices.save_first', { stores: runs.filter((run) => unsaved.has(run.id)).map((run) => run.store.name).join(' · ') }) : undefined;
 
-    // A save the server took - its version moved - is what the form holds now, a Schedule refused after it included: the
-    // boxes no longer read as changed.
+    // Once the form's own save is answered, a save the server took - the version moved from the one it sent, a Schedule
+    // refused after it included - is what the form holds now: the boxes no longer read as changed. Only that save: a
+    // store's prices or notice saved raises the version too, and leaves a date typed meanwhile a change (PR 8's second
+    // review).
+    const sentVersion = useRef<number | null>(null);
+    const [answered, setAnswered] = useState(0);
     const savedVersion = campaign?.version;
     useEffect(() => {
-        form.setDefaults();
-        setTouched(false);
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new version resets the defaults
-    }, [savedVersion]);
+        if (sentVersion.current === null) {
+            return;
+        }
+
+        if (savedVersion !== sentVersion.current) {
+            form.setDefaults();
+            setTouched(false);
+        }
+
+        sentVersion.current = null;
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- only the form's own save, once answered, resets the defaults
+    }, [answered]);
     const storeName = (id: string) => stores.find((store) => store.id === id)?.name ?? runs.find((run) => run.store.id === id)?.store.name ?? id;
 
     const fields = (intent: 'draft' | 'schedule', read: boolean) => ({ ...form.data, ...markFields(translation, read), version: campaign?.version ?? 0, starts_at: sentMoment(starts), ends_at: sentMoment(ends), intent });
     const save = (intent: 'draft' | 'schedule', read = false) => {
+        sentVersion.current = campaign?.version ?? 0;
         form.transform(() => fields(intent, read));
-        form.post(campaign === null ? LIST : `${LIST}/${campaign.id}`, { preserveScroll: 'errors' });
+        form.post(campaign === null ? LIST : `${LIST}/${campaign.id}`, { preserveScroll: 'errors', onFinish: () => setAnswered((n) => n + 1) });
     };
     const post = (path: string, data: Record<string, string | number | boolean | null>) =>
         router.post(`${LIST}/${campaign?.id}/${path}`, data, {

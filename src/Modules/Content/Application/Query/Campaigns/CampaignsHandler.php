@@ -86,10 +86,11 @@ final readonly class CampaignsHandler
         $store = $this->access->authorize(self::PERMISSION, $storeId);
         // Only the campaigns the reader may open: every one of whose stores they hold the job in (§1.7 #5).
         $read = $this->reads->campaigns($store->id, $tab, $after, $this->access->storesHeld(self::PERMISSION));
-        // How many sizes each run prices, for every run listed in one read of Pricing's (W4's Offers).
+        // How many sizes each run prices, for every run listed in one read of Pricing's (W4's Offers): a draft's
+        // run, which Pricing holds nothing of, has no count; any other run Pricing names no size of prices 0.
         $runIds = array_merge([], ...array_map(static fn (array $row): array => array_map(static fn (array $run): string => (string) $run['runId'], (array) $row['runs']), $read['rows']));
         $offers = $runIds === [] ? [] : $this->prices->reachedSizes(array_values($runIds));
-        $read['rows'] = array_map(static fn (array $row): array => [...$row, 'runs' => array_map(static fn (array $run): array => [...$run, 'offers' => $offers[(string) $run['runId']] ?? null], (array) $row['runs'])], $read['rows']);
+        $read['rows'] = array_map(static fn (array $row): array => [...$row, 'runs' => array_map(static fn (array $run): array => [...$run, 'offers' => $offers[(string) $run['runId']] ?? ($run['state'] === RunState::Draft->value ? null : 0)], (array) $row['runs'])], $read['rows']);
         $notices = array_values(array_unique(array_filter(array_map(static fn (array $row): ?string => is_string($row['noticeId'] ?? null) ? $row['noticeId'] : null, $read['rows']))));
         $named = [];
 

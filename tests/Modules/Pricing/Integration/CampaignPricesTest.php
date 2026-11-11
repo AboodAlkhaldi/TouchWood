@@ -58,6 +58,7 @@ use Modules\Pricing\Public\Contracts\CampaignPrices;
 use Modules\Pricing\Public\Contracts\PricingApi;
 use Modules\Pricing\Public\Contracts\ProviderPrices;
 use Modules\Pricing\Public\Contracts\StoreWiring;
+use Modules\Pricing\Public\Dto\CampaignPreviewDto;
 use Modules\Pricing\Public\Dto\CampaignPreviewSizeDto;
 use Modules\Pricing\Public\Dto\CampaignPriceSetDto;
 use Modules\Pricing\Public\Dto\CampaignTargetDto;
@@ -915,6 +916,49 @@ describe('a wired store (§9.6 #5; sync.md §9.5 amendment 2)', function () {
 
         expect(campaignUnit($size))->toBe(6000)
             ->and(campaignPrices()->skippedSizes(campaignSa(), $run))->toBe([]);
+    });
+
+    it('judges past the ceiling by one rule in both kinds of store: the preview\'s sizes are the sizes refused, or skipped once wired (§9.6 #4-5)', function () {
+        $shop = campaignShop();
+        $deep = $shop['inTop']['variants'][0];
+        $fine = $shop['inChild']['variants'][0];
+        $targets = [campaignFixed($deep, 6000), campaignPercent(CampaignTargetKind::Size, $fine, 1000)];
+        $pastCeiling = static function (CampaignPreviewDto $preview): array {
+            $sizes = [];
+
+            foreach ($preview->products as $product) {
+                foreach ($product->sizes as $size) {
+                    if ($size->skipped === 'past_ceiling') {
+                        $sizes[] = $size->variantId;
+                    }
+                }
+            }
+
+            return $sizes;
+        };
+        $preview = static fn (): CampaignPreviewDto => campaignPrices()->preview(campaignSa(), campaignSet($targets), campaignAt('2026-11-11 00:00:00+00'), campaignAt('2026-11-20 00:00:00+00'));
+
+        // Not wired: the preview names the size, and saving is refused naming that size alone.
+        expect($pastCeiling($preview()))->toBe([$deep]);
+
+        try {
+            campaignSave(campaignRun(), $targets);
+            $refused = null;
+        } catch (OverCeiling $error) {
+            $refused = $error;
+        }
+
+        expect($refused)->toBeInstanceOf(OverCeiling::class)
+            ->and(DB::table('pricing.price_candidates')->where('kind', PriceKind::Campaign->value)->count())->toBe(0);
+
+        // Wired: the same size is named, and the saved run skips that size alone.
+        campaignWired();
+        $run = campaignRun();
+        campaignSave($run, $targets);
+
+        expect($pastCeiling($preview()))->toBe([$deep])
+            ->and(campaignPrices()->skippedSizes(campaignSa(), $run))->toBe([$deep])
+            ->and(campaignUnit($fine))->not->toBeNull();
     });
 
     it('reads the sizes a run skips in one query', function () {

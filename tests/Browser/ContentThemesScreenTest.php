@@ -84,6 +84,32 @@ it('refuses Schedule Theme over another theme of the store, the clash said under
     $page->assertNoJavaScriptErrors();
 })->with(['en', 'ar']);
 
+it('takes what a refused Schedule saved as the form\'s own, so Preview Theme opens again', function () {
+    $run = Cb::run();
+    $page = Cb::signInAs(contentThemesScreenAdmin('en'));
+    $page->resize(375, 812);
+    contentThemesScreenTheme("رمضان {$run}", "Ramadan {$run}", 30, 60, true);
+    $draft = contentThemesScreenTheme("العيد {$run}", "Eid {$run}", 50, 70, false);
+
+    $page->navigate("/admin/content/themes/{$draft}", BROWSER_SLOW_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"preview-start\"]') !== null && document.querySelector('[data-test=\"preview-start\"]').getAttribute('aria-disabled') !== 'true'"))->toBeTrue();
+
+    // A part's words changed: Preview waits for a save, as the shop draws what is saved.
+    $page->click('[data-test="part-BADGE-toggle"]');
+    expect(browserSoon($page, "document.querySelector('#part_badge_en') !== null"))->toBeTrue();
+    $page->type('#part_badge_en', "Gift {$run}");
+    expect(browserSoon($page, "document.querySelector('[data-test=\"preview-start\"]').getAttribute('aria-disabled') === 'true'"))->toBeTrue();
+
+    // Schedule saves, then is refused over the other theme: the save stands (9.3e E19), so the form holds no change
+    // now and Preview opens again (PR 8's second review).
+    $page->click('[data-test="schedule"]');
+    expect(browserSoon($page, "document.body.textContent.includes('Theme saved, not scheduled') && document.querySelector('[data-test=\"preview-start\"]').getAttribute('aria-disabled') !== 'true'"))->toBeTrue()
+        ->and(DB::table('content.theme_parts')->where('theme_id', $draft)->where('part', 'BADGE')->value('text_en'))->toBe("Gift {$run}")
+        ->and(DB::table('content.themes')->where('id', $draft)->value('is_scheduled'))->toBeFalse()
+        ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
+    $page->assertNoJavaScriptErrors();
+});
+
 it('switches Preview Theme on for this browser in a staff view of the shop, and off again', function () {
     $run = Cb::run();
     $page = Cb::signInAs(contentThemesScreenAdmin('ar'));

@@ -337,8 +337,8 @@ final readonly class DocumentWriter
      * Product searches with; PR 7b's review): never another store's, nor one switched off here, by its id typed in. **A
      * product linked before is kept whatever it is now** - archived, back to a draft, switched off here: the shop shows
      * only what it may (§1.1 rule 17: it "vanishes from the shop and stays listed in the panel"), so a save of the
-     * item's other fields is never refused for it. One deleted since is no longer listed in the panel, so the next save
-     * lets it go.
+     * item's other fields is never refused for it. One deleted since is no longer listed in the panel, and the next save
+     * drops it - only it, the rest kept in their order.
      *
      * @param  list<string>  $sent
      * @param  list<string>  $before
@@ -368,7 +368,17 @@ final readonly class DocumentWriter
             }
         }
 
-        return $ids;
+        // A product kept from before stays whatever it is now, unless Catalog no longer has it: deleted since, it
+        // goes on this save, and only it (PR 8's second review).
+        $kept = array_values(array_diff($ids, $added));
+
+        if ($kept === []) {
+            return $ids;
+        }
+
+        $known = array_map(strtolower(...), array_map('strval', array_keys($this->catalog->products($kept))));
+
+        return array_values(array_filter($ids, static fn (string $id): bool => in_array($id, $added, true) || in_array($id, $known, true)));
     }
 
     /**

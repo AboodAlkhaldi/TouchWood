@@ -170,6 +170,16 @@ describe('§1.12 the blog', function () {
 
         expect(DB::table('content.blog_post_products')->where('post_id', $post)->pluck('product_id')->all())->toBe([$ready])
             ->and((int) DB::table('content.blog_posts')->where('id', $post)->value('version'))->toBe(3);
+
+        // Deleted since (a draft may be): the next save drops it, and only it - the other kept, in its place.
+        $other = Px::ready()['product'];
+        Pf::switchOn('sa', productId: $other);
+        app(SavePostHandler::class)->handle(new SavePost(documentInput(['id' => $post, 'version' => 3, 'products' => [$ready, $other]])));
+        DB::table('catalog.products')->where('id', $ready)->delete();
+        app(SavePostHandler::class)->handle(new SavePost(documentInput(['id' => $post, 'version' => 4, 'products' => [$ready, $other]])));
+
+        expect(DB::table('content.blog_post_products')->where('post_id', $post)->orderBy('position')->pluck('product_id')->all())->toBe([$other])
+            ->and((int) DB::table('content.blog_posts')->where('id', $post)->value('version'))->toBe(5);
     });
 
     it('keeps a post to a category of its own store', function () {

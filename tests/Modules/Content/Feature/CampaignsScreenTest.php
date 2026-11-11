@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\FormErrors;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Database\Seeders\CatalogSeeder;
@@ -14,8 +15,10 @@ use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Content\Application\ContentPermissions;
+use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Public\Contracts\CampaignNotices;
 use Modules\Content\Public\Dto\NoticeChoiceDto;
+use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
@@ -394,6 +397,23 @@ it('shows per store on the list how many sizes each run prices, the count its pr
             && $stores->firstWhere('code', 'ae')['offers'] === null));
 });
 
+it('counts 0 for a scheduled run that prices no size, and keeps the dash for a draft\'s run alone (W4\'s Offers)', function () {
+    $product = Px::ready(['60 cm']);
+    Rx::set('sa', array_fill_keys($product['variants'], '100'));
+    Rx::switchOn('sa', $product['variants']);
+    $browser = Screen::as(campaignsScreenEditor(['sa']));
+    $campaign = campaignsScreenCreate($browser, ['sa']);
+    $run = campaignsScreenRun($campaign);
+    // A fixed price at the retail price is no campaign price (pricing.md §9.6 #7): the run prices nothing.
+    $browser->post(CAMPAIGNS_SCREEN."/runs/{$run}/prices", ['version' => campaignsScreenVersion($campaign), 'prices' => ['lines' => 'BOTH', 'targets' => [['kind' => 'SIZE', 'id' => $product['variants'][0], 'amountMinor' => 10000]], 'leftOut' => []]], Screen::fromPage(CAMPAIGNS_SCREEN."/{$campaign}"))->assertRedirect()->assertSessionHasNoErrors();
+    $browser->post(CAMPAIGNS_SCREEN."/{$campaign}/schedule", ['version' => campaignsScreenVersion($campaign), 'store' => Fx::storeId('sa')], Screen::fromPage(CAMPAIGNS_SCREEN."/{$campaign}"))->assertRedirect()->assertSessionHasNoErrors();
+
+    expect(DB::table('content.campaign_runs')->where('id', $run)->value('state'))->toBe('SCHEDULED');
+
+    $browser->get(CAMPAIGNS_SCREEN.'?store=sa')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+        ->where('campaigns.0.stores.0.offers', 0));
+});
+
 it('lists only the campaigns the reader may open: one with a store they hold no job in is left out', function () {
     $both = Screen::as(campaignsScreenEditor(['sa', 'ae']));
     campaignsScreenCreate($both, ['sa', 'ae']);
@@ -445,33 +465,43 @@ it('says a save stands when Pricing refuses the Schedule of the same press, mark
         ->and(DB::table('content.campaign_runs')->where('id', $run)->value('state'))->toBe('DRAFT');
 });
 
-it('refuses every change of another store\'s campaign to staff of one store, and changes nothing', function () {
+it('refuses every change of another store\'s campaign to staff of one store, for that alone, and changes nothing', function () {
     $owner = Screen::as(campaignsScreenEditor(['sa']));
-    $campaign = campaignsScreenCreate($owner);
-    $run = campaignsScreenRun($campaign);
-    $before = DB::table('content.campaigns')->where('id', $campaign)->first();
-    $runBefore = DB::table('content.campaign_runs')->where('id', $run)->first();
+    // Each in a state its own staff could act on, so only the store held can refuse (PR 8's second review): a
+    // draft for its edits, a scheduled run to cancel, a live run to end.
+    $draft = campaignsScreenCreate($owner, ['sa'], ['starts_at' => campaignsScreenTyped(10), 'ends_at' => campaignsScreenTyped(60 * 24)]);
+    $scheduled = campaignsScreenCreate($owner, ['sa'], ['starts_at' => campaignsScreenTyped(10), 'ends_at' => campaignsScreenTyped(60 * 24)]);
+    $live = campaignsScreenCreate($owner, ['sa'], ['starts_at' => campaignsScreenTyped(10), 'ends_at' => campaignsScreenTyped(60 * 24)]);
+
+    foreach ([$scheduled, $live] as $campaign) {
+        $owner->post(CAMPAIGNS_SCREEN."/{$campaign}/schedule", ['version' => campaignsScreenVersion($campaign)], Screen::fromPage(CAMPAIGNS_SCREEN."/{$campaign}"))->assertRedirect()->assertSessionHasNoErrors();
+    }
+
+    DB::table('content.campaign_runs')->where('id', campaignsScreenRun($live))->update(['state' => 'LIVE', 'went_live_at' => CarbonImmutable::now()]);
+    $before = DB::table('content.campaigns')->orderBy('id')->get()->all();
+    $runsBefore = DB::table('content.campaign_runs')->orderBy('id')->get()->all();
     $other = Screen::as(campaignsScreenEditor(['ae']));
-    $page = Screen::fromPage(CAMPAIGNS_SCREEN."/{$campaign}");
-    $version = campaignsScreenVersion($campaign);
+    $page = Screen::fromPage(CAMPAIGNS_SCREEN."/{$draft}");
+    $run = campaignsScreenRun($draft);
+    $version = campaignsScreenVersion($draft);
 
     $answers = [
         'prices' => $other->post(CAMPAIGNS_SCREEN."/runs/{$run}/prices", ['version' => $version, 'prices' => ['lines' => 'BOTH', 'targets' => [], 'leftOut' => []]], $page),
         'notice' => $other->post(CAMPAIGNS_SCREEN."/runs/{$run}/notice", ['version' => $version, 'notice' => ''], $page),
-        'cancel' => $other->post(CAMPAIGNS_SCREEN."/{$campaign}/cancel", ['store' => Fx::storeId('sa')], $page),
-        'end' => $other->post(CAMPAIGNS_SCREEN."/{$campaign}/end", ['store' => Fx::storeId('sa')], $page),
-        'schedule' => $other->post(CAMPAIGNS_SCREEN."/{$campaign}/schedule", ['version' => $version], $page),
-        'delete' => $other->post(CAMPAIGNS_SCREEN."/{$campaign}/delete", ['version' => $version], $page),
-        'theme-dates' => $other->post(CAMPAIGNS_SCREEN."/{$campaign}/theme-dates", ['version' => $version], $page),
-        'update' => $other->post(CAMPAIGNS_SCREEN."/{$campaign}", campaignsScreenFields(['ae'], ['version' => $version, 'name_ar' => 'ليست لك']), $page),
+        'cancel' => $other->post(CAMPAIGNS_SCREEN."/{$scheduled}/cancel", ['version' => campaignsScreenVersion($scheduled), 'store' => Fx::storeId('sa')], $page),
+        'end' => $other->post(CAMPAIGNS_SCREEN."/{$live}/end", ['version' => campaignsScreenVersion($live), 'store' => Fx::storeId('sa')], $page),
+        'schedule' => $other->post(CAMPAIGNS_SCREEN."/{$draft}/schedule", ['version' => $version, 'store' => Fx::storeId('sa')], $page),
+        'delete' => $other->post(CAMPAIGNS_SCREEN."/{$draft}/delete", ['version' => $version], $page),
+        'theme-dates' => $other->post(CAMPAIGNS_SCREEN."/{$draft}/theme-dates", ['version' => $version], $page),
+        'update' => $other->post(CAMPAIGNS_SCREEN."/{$draft}", campaignsScreenFields(['sa'], ['version' => $version, 'name_ar' => 'ليست لك']), $page),
     ];
+    $said = array_map(static fn ($answer): ?string => Screen::errors($answer)['form'] ?? null, $answers);
 
-    foreach ($answers as $route => $answer) {
-        expect(array_key_exists('form', Screen::errors($answer)))->toBeTrue("{$route} was not refused");
-    }
-
-    expect(DB::table('content.campaigns')->where('id', $campaign)->first())->toEqual($before)
-        ->and(DB::table('content.campaign_runs')->where('id', $run)->first())->toEqual($runBefore);
+    // Another store's campaign is no campaign of theirs (ContentAccess's item rule): the same words on every route
+    // but Use Campaign's Dates, a Super Admin's (content.theme.manage), which is no job of theirs in any store.
+    expect($said)->toBe([...array_fill_keys(array_keys($answers), FormErrors::message(new ContentNotFound)), 'theme-dates' => FormErrors::message(new Unauthorized(ContentPermissions::THEME_MANAGE))])
+        ->and(DB::table('content.campaigns')->orderBy('id')->get()->all())->toEqual($before)
+        ->and(DB::table('content.campaign_runs')->orderBy('id')->get()->all())->toEqual($runsBefore);
 });
 
 it('searches categories and brands as the other targets, 20 a page', function () {

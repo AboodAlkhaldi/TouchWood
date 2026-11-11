@@ -813,7 +813,7 @@ The build's picks where the text above leaves the detail open, marked so for the
 
 | # | As built | Where |
 |---|---|---|
-| E1 | W4's tabs are **All, Scheduled, Live, Ended**, a cancelled run counted with the ended; tab and count read the chosen store's run; newest first, 50 with Show More. **Offers** per store is Pricing's `reachedSizes` for every row in one query (owner, 2026-11-11, option (a)); a draft's run, which Pricing holds nothing of, shows a dash. The list and its counts hold only campaigns all of whose stores the reader holds the job in (§1.7 #5), so no row leads to a page refused | W4 |
+| E1 | W4's tabs are **All, Scheduled, Live, Ended**, a cancelled run counted with the ended; tab and count read the chosen store's run; newest first, 50 with Show More. **Offers** per store is Pricing's `reachedSizes` for every row in one query (owner, 2026-11-11, option (a)); a draft's run, which Pricing holds nothing of, shows a dash, and any other run Pricing prices no size of shows 0 (PR 8's second review). The count is what Pricing holds now: a run whose end has just passed counts its sizes until Pricing's task at its end has run and dropped them. The list and its counts hold only campaigns all of whose stores the reader holds the job in (§1.7 #5), so no row leads to a page refused | W4 |
 | E2 | A campaign's and a theme's start and end are typed once, with no Now and no No End (§9.3b C1); the fields name the first chosen store's zone, and a line under them says each store reads them on its own clock (Q1 (a)) | W4b, W5b |
 | E3 | **Schedule Campaign** from a form with unsaved changes saves them and schedules every draft run in one press; from a saved form its question offers All Stores or one store. End Campaign… and Cancel Campaign… ask the same, naming the stores reached as they are chosen | W4b |
 | E4 | Each store's Prices tab and the theme's search are drawn once the page is mounted (never on the server's render), so the page stays under 60 KB; every tab stays drawn, so prices typed in one survive opening another. **Save Prices** is per store; a refused save keeps what was typed, the sizes it names marked in the preview and on their rows | W4b |
@@ -831,10 +831,10 @@ The build's picks where the text above leaves the detail open, marked so for the
 | E16 | A theme part's artwork uploads as kind `theme`, under `content.theme.manage` in the form's first store | W5b |
 | E17 | Menu icons the panel already draws: Campaigns `pricing`, Themes `gifts` | §4.3 |
 | E18 | **Schedule waits for typed prices**: while a store's Prices tab holds prices typed and not saved, Schedule Campaign is out of reach with "Save the prices typed in … first.", and leaving asks first (PR 8's review) | W4b |
-| E19 | Save and Schedule in one press are two steps (Schedule writes each store in its own transaction, §1.7 #15): a Schedule refused after the save says "Campaign saved, not scheduled", the save standing, and the form takes what was saved as its own; the same for a theme | W4b, W5b |
+| E19 | Save and Schedule in one press are two steps (Schedule writes each store in its own transaction, §1.7 #15): a Schedule refused after the save says "Campaign saved, not scheduled", the save standing, and the form takes what was saved as its own; the same for a theme, whose Preview Theme then opens again. Only the form's own save does this: a store's prices or notice saved raises the campaign's version too, and leaves a date or name typed meanwhile a change for Schedule to save (PR 8's second review) | W4b, W5b |
 | E20 | A refusal naming sizes says whose store's they are (`errors.rows_store`), so only that store's Prices tab marks them | W4b |
 | E21 | Categories and brands as targets are searched and paged 20 at a time as products and sizes are | W4b |
-| E22 | A product linked to a post or project before is kept whatever it became - archived, a draft again, switched off - the shop showing only what it may (§1.1 rule 17) | W8, W9 |
+| E22 | A product linked to a post or project before is kept whatever it became - archived, a draft again, switched off - the shop showing only what it may (§1.1 rule 17); one deleted since is dropped on the next save, and only it (PR 8's second review) | W8, W9 |
 
 ### 9.4 Amendments other documents would need
 
