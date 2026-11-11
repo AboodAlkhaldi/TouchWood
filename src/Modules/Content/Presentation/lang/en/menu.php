@@ -7,6 +7,8 @@ return [
     'home_page' => 'Home Page',
     'bars' => 'Bars',
     'banners' => 'Banners',
+    'campaigns' => 'Campaigns',
+    'themes' => 'Themes',
     'popups' => 'Pop-Ups',
     'pages' => 'Pages',
     'blog' => 'Blog',

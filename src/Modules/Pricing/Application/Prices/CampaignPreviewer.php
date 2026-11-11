@@ -155,7 +155,7 @@ final readonly class CampaignPreviewer
 
         $skipped = match (true) {
             $priced['price']->compareTo($retail) >= 0 => 'not_below_retail',
-            // Refused on saving in a store not wired; skipped by the run in a wired one (§9.6 #4-5).
+            // Refused on saving in a store not wired; skipped by a run standing in any store (§9.6 #4-5, amendment 2).
             $priced['depth'] > $ceiling => 'past_ceiling',
             default => null,
         };

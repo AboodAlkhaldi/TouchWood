@@ -28,6 +28,8 @@ use Modules\Pricing\Public\Enums\CampaignLines;
 use Modules\Pricing\Public\Enums\CampaignTargetKind;
 use Modules\Sync\Application\Command\RunRead\RunRead;
 use Modules\Sync\Application\Command\RunRead\RunReadHandler;
+use Modules\Sync\Application\Command\UnwireStore\UnwireStore;
+use Modules\Sync\Application\Command\UnwireStore\UnwireStoreHandler;
 use Modules\Sync\Application\Command\WireStore\WireStore;
 use Modules\Sync\Application\Command\WireStore\WireStoreHandler;
 use Modules\Sync\Domain\Repository\Reads;
@@ -172,6 +174,28 @@ it('closes it when the run ends', function () {
     app(CampaignPrices::class)->endNow(StoreId::fromString(Fx::storeId('sa')), $run);
 
     expect(syncCampaignEntry($a)['closedBy'] ?? null)->toBe('PRICING');
+});
+
+it('closes it on unwiring, while the run keeps skipping the size in the store no longer wired (pricing.md §9.6 amendment 2)', function () {
+    ['sizes' => [$a], 'run' => $run] = syncCampaignSkipped();
+    $store = StoreId::fromString(Fx::storeId('sa'));
+
+    app(UnwireStoreHandler::class)->handle(new UnwireStore(Fx::storeId('sa')));
+
+    expect(syncCampaignEntry($a))->toBe(['open' => false, 'closedBy' => 'UNWIRED', 'runs' => [$run], 'told' => true]);
+
+    // Priced again, not wired: 75 of 120 is 37.5% off, past a ceiling raised to 35% - still skipped, and no entry
+    // opens again, there being no read to report it.
+    app(UpdateSettingHandler::class)->handle(new UpdateSetting(PricingSettings::MAX_DISCOUNT_PERCENT, 'sa', 35));
+
+    expect(app(CampaignPrices::class)->skippedSizes($store, $run))->toBe([$a])
+        ->and(DB::table('sync.report_entries')->where('kind', 'CAMPAIGN_SKIPPED')->whereNull('closed_at')->count())->toBe(0);
+
+    // Within a ceiling of 40%, the run takes the size back.
+    app(UpdateSettingHandler::class)->handle(new UpdateSetting(PricingSettings::MAX_DISCOUNT_PERCENT, 'sa', 40));
+
+    expect(app(CampaignPrices::class)->skippedSizes($store, $run))->toBe([])
+        ->and(syncCampaignEntry($a)['closedBy'] ?? null)->toBe('UNWIRED');
 });
 
 it('closes it when the run reaches its end - its timed task', function () {

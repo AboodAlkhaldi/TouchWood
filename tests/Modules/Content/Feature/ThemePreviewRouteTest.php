@@ -48,16 +48,22 @@ function themePreviewBrowser(string $staff): AdminBrowser
     return $browser;
 }
 
-it('gives a Super Admin\'s browser the signed cookie and opens the theme\'s first store, and refuses anyone else', function () {
+it('gives a Super Admin\'s browser the signed cookie and goes back, the staff view then opening the theme\'s first store, and refuses anyone else', function () {
     $super = Fx::staff(superAdmin: true);
     $theme = Fx::asSystem(fn (): string => app(SaveThemeHandler::class)->handle(new SaveTheme(null, 0, 'رمضان', 'Ramadan', '2027-02-18 00:00', '2027-03-19 00:00', [Fx::storeId('ae'), Fx::storeId('sa')])));
     $first = min(Fx::storeId('ae'), Fx::storeId('sa')) === Fx::storeId('sa') ? 'sa' : 'ae';
+    $page = "/admin/content/themes/{$theme}";
 
     $browser = themePreviewBrowser($super);
-    $browser->post("/admin/content/themes/{$theme}/preview")->assertRedirect("/{$first}/ar");
+    // Back to the theme's page: the shop shows a preview only in a staff view (content.md 9.3d D5), which W5b opens
+    // next through Access's own route - a redirect straight to the shop opened none (PR 9's review).
+    $browser->post("{$page}/preview", [], ['HTTP_REFERER' => url($page)])->assertRedirect($page);
     $value = (string) $browser->cookie(ThemePreviewCookie::NAME);
 
     expect(app(ThemePreviewCookie::class)->themeFor(Request::create("/{$first}/ar", cookies: [ThemePreviewCookie::NAME => $value]), $super))->toBe($theme);
+
+    $opened = $browser->post('/admin/staff-view', ['store' => $first], ['HTTP_REFERER' => url($page)]);
+    expect((string) ($opened->headers->get('X-Inertia-Location') ?? $opened->headers->get('Location')))->toContain("/{$first}/");
 
     $other = Fx::staffWith([ContentPermissions::CAMPAIGN_MANAGE, ContentPermissions::BANNER_MANAGE], ['sa', 'ae']);
     $refused = themePreviewBrowser($other);

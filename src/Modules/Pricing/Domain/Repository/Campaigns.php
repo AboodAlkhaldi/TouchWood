@@ -57,6 +57,14 @@ interface Campaigns
     public function skippedSizes(StoreId $store, string $runId): array;
 
     /**
+     * How many sizes each run's `CAMPAIGN` candidates name, in one query; a run with none left out.
+     *
+     * @param  list<string>  $runIds
+     * @return array<string, int>
+     */
+    public function reachedSizes(array $runIds): array;
+
+    /**
      * @param  list<string>  $variantIds
      * @return array<string, list<string>> size id => the runs skipping it now, in id order
      */

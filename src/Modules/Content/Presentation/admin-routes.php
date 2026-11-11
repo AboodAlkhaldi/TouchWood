@@ -8,12 +8,14 @@ use Modules\Content\Presentation\Http\Controller\BannersController;
 use Modules\Content\Presentation\Http\Controller\BarsController;
 use Modules\Content\Presentation\Http\Controller\BlogCategoriesController;
 use Modules\Content\Presentation\Http\Controller\CampaignRunController;
+use Modules\Content\Presentation\Http\Controller\CampaignsController;
 use Modules\Content\Presentation\Http\Controller\DocumentsController;
 use Modules\Content\Presentation\Http\Controller\HomePageController;
 use Modules\Content\Presentation\Http\Controller\PopupsController;
 use Modules\Content\Presentation\Http\Controller\RedirectsController;
 use Modules\Content\Presentation\Http\Controller\SeoController;
 use Modules\Content\Presentation\Http\Controller\ThemePreviewController;
+use Modules\Content\Presentation\Http\Controller\ThemesController;
 use Modules\Content\Presentation\Http\Controller\TranslateController;
 use Modules\Content\Presentation\Http\Controller\UploadsController;
 
@@ -102,6 +104,33 @@ Route::prefix(AdminArea::PREFIX)
         Route::post('content/redirects/sheets', [RedirectsController::class, 'upload'])->name('content.admin.redirects.upload');
         Route::get('content/redirects/sheets/{upload}', [RedirectsController::class, 'sheet'])->name('content.admin.redirects.sheet');
         Route::post('content/redirects/sheets/{upload}/apply', [RedirectsController::class, 'apply'])->name('content.admin.redirects.apply');
+
+        // W4 · Campaigns and W4b, a campaign's page. The searches and the preview come first: `targets`, `preview` and
+        // `new` are no campaign's id. A run's prices and notice are named by the run (`runs/{run}`, as S8's link).
+        Route::get('content/campaigns', [CampaignsController::class, 'index'])->name('content.admin.campaigns');
+        Route::get('content/campaigns/new', [CampaignsController::class, 'create'])->name('content.admin.campaigns.create');
+        Route::get('content/campaigns/targets', [CampaignsController::class, 'targets'])->name('content.admin.campaigns.targets');
+        Route::get('content/campaigns/preview', [CampaignsController::class, 'preview'])->name('content.admin.campaigns.preview');
+        Route::post('content/campaigns', [CampaignsController::class, 'store'])->name('content.admin.campaigns.store');
+        Route::post('content/campaigns/runs/{run}/prices', [CampaignsController::class, 'prices'])->name('content.admin.campaigns.prices');
+        Route::post('content/campaigns/runs/{run}/notice', [CampaignsController::class, 'notice'])->name('content.admin.campaigns.notice');
+        Route::get('content/campaigns/{campaign}', [CampaignsController::class, 'edit'])->name('content.admin.campaigns.edit');
+        Route::post('content/campaigns/{campaign}', [CampaignsController::class, 'update'])->name('content.admin.campaigns.update');
+        Route::post('content/campaigns/{campaign}/schedule', [CampaignsController::class, 'schedule'])->name('content.admin.campaigns.schedule');
+        Route::post('content/campaigns/{campaign}/cancel', [CampaignsController::class, 'cancel'])->name('content.admin.campaigns.cancel');
+        Route::post('content/campaigns/{campaign}/end', [CampaignsController::class, 'end'])->name('content.admin.campaigns.end');
+        Route::post('content/campaigns/{campaign}/theme-dates', [CampaignsController::class, 'themeDates'])->name('content.admin.campaigns.theme-dates');
+        Route::post('content/campaigns/{campaign}/delete', [CampaignsController::class, 'delete'])->name('content.admin.campaigns.delete');
+
+        // W5 · Themes and W5b, a theme's page; Preview Theme's two routes are above.
+        Route::get('content/themes', [ThemesController::class, 'index'])->name('content.admin.themes');
+        Route::get('content/themes/new', [ThemesController::class, 'create'])->name('content.admin.themes.create');
+        Route::post('content/themes', [ThemesController::class, 'store'])->name('content.admin.themes.store');
+        Route::get('content/themes/{theme}', [ThemesController::class, 'edit'])->name('content.admin.themes.edit');
+        Route::post('content/themes/{theme}', [ThemesController::class, 'update'])->name('content.admin.themes.update');
+        Route::post('content/themes/{theme}/end', [ThemesController::class, 'end'])->name('content.admin.themes.end');
+        Route::post('content/themes/{theme}/draft', [ThemesController::class, 'draft'])->name('content.admin.themes.draft');
+        Route::post('content/themes/{theme}/delete', [ThemesController::class, 'delete'])->name('content.admin.themes.delete');
 
         // W6 · Pop-Ups.
         Route::get('content/popups', [PopupsController::class, 'index'])->name('content.admin.popups');

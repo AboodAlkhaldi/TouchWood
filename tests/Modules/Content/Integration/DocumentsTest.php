@@ -43,6 +43,7 @@ use Modules\Content\Domain\Model\Publication;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Content\Support\ContentFixtures as Cx;
+use Tests\Modules\Pricing\Support\PricingFixtures as Pf;
 
 use function Pest\Laravel\seed;
 
@@ -146,9 +147,14 @@ describe('§1.12 the blog', function () {
     it('links up to 8 ready products, each once, and keeps one archived since it was linked', function () {
         Cx::editor([ContentPermissions::BLOG_MANAGE]);
         $ready = Px::ready()['product'];
+        // Sold in the store: a product newly linked is one the store's search offers (the #386 review).
+        Pf::switchOn('sa', productId: $ready);
         $draft = Px::product();
+        $elsewhere = Px::ready()['product'];
+        Pf::switchOn('ae', productId: $elsewhere);
 
         expect(documentRefusal(fn () => app(SavePostHandler::class)->handle(new SavePost(documentInput(['products' => [$draft]])))))->toBe('products:product')
+            ->and(documentRefusal(fn () => app(SavePostHandler::class)->handle(new SavePost(documentInput(['products' => [$elsewhere]])))))->toBe('products:product')
             ->and(documentRefusal(fn () => app(SavePostHandler::class)->handle(new SavePost(documentInput(['products' => [$ready, $ready]])))))->toBe('products:duplicate')
             ->and(documentRefusal(fn () => app(SavePostHandler::class)->handle(new SavePost(documentInput(['products' => array_fill(0, 9, $ready)])))))->toBe('products:too_many');
 
@@ -157,6 +163,23 @@ describe('§1.12 the blog', function () {
         app(SavePostHandler::class)->handle(new SavePost(documentInput(['id' => $post, 'version' => 1, 'products' => [$ready]])));
 
         expect(DB::table('content.blog_post_products')->where('post_id', $post)->pluck('product_id')->all())->toBe([$ready]);
+
+        // Back to a draft since: still kept, the post's other fields saved (PR 8's review; §1.1 rule 17).
+        DB::table('catalog.products')->where('id', $ready)->update(['stage' => 'DRAFT', 'archived_from' => null]);
+        app(SavePostHandler::class)->handle(new SavePost(documentInput(['id' => $post, 'version' => 2, 'products' => [$ready]])));
+
+        expect(DB::table('content.blog_post_products')->where('post_id', $post)->pluck('product_id')->all())->toBe([$ready])
+            ->and((int) DB::table('content.blog_posts')->where('id', $post)->value('version'))->toBe(3);
+
+        // Deleted since (a draft may be): the next save drops it, and only it - the other kept, in its place.
+        $other = Px::ready()['product'];
+        Pf::switchOn('sa', productId: $other);
+        app(SavePostHandler::class)->handle(new SavePost(documentInput(['id' => $post, 'version' => 3, 'products' => [$ready, $other]])));
+        DB::table('catalog.products')->where('id', $ready)->delete();
+        app(SavePostHandler::class)->handle(new SavePost(documentInput(['id' => $post, 'version' => 4, 'products' => [$ready, $other]])));
+
+        expect(DB::table('content.blog_post_products')->where('post_id', $post)->orderBy('position')->pluck('product_id')->all())->toBe([$other])
+            ->and((int) DB::table('content.blog_posts')->where('id', $post)->value('version'))->toBe(5);
     });
 
     it('keeps a post to a category of its own store', function () {

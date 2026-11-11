@@ -12,6 +12,7 @@ use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\EditCheck;
 use Modules\Content\Application\Moments;
 use Modules\Content\Application\RefusalWords;
+use Modules\Content\Application\TranslationMarks;
 use Modules\Content\Domain\Exception\CampaignPartlyScheduled;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Exception\ContentNotFound;
@@ -20,6 +21,7 @@ use Modules\Content\Domain\Model\Campaign;
 use Modules\Content\Domain\Model\CampaignRun;
 use Modules\Content\Domain\Model\RunState;
 use Modules\Content\Domain\Repository\Campaigns;
+use Modules\Content\Domain\Repository\UnreadTranslations;
 use Modules\Content\Domain\ValueObject\Words;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
@@ -39,7 +41,8 @@ use Throwable;
  * which is the record from then on (Content's copy is cleared). **If a store then refuses** (Pricing's ceiling, a
  * target no longer there), the runs done stay scheduled, the rest stay drafts, and the person is told which store
  * refused and which are scheduled already (`CampaignPartlyScheduled`, the store's own refusal kept beside it; the first
- * store's refusal alone, when none is done): the campaign reads Mixed until another press.
+ * store's refusal alone, when none is done): the campaign reads Mixed until another press. **Translate's mark** on the
+ * English name asks for the tick in each store's transaction, and the tick clears it (§1.3 #4, `TranslationUnread`).
  */
 final readonly class ScheduleCampaignHandler
 {
@@ -53,6 +56,7 @@ final readonly class ScheduleCampaignHandler
         private ConnectionInterface $db,
         private PlatformApi $platform,
         private RefusalWords $words,
+        private TranslationMarks $marks,
     ) {}
 
     /**
@@ -109,7 +113,7 @@ final readonly class ScheduleCampaignHandler
 
         foreach ($drafts as $run) {
             try {
-                $done = $this->scheduleOne($run->id, $stores[$run->storeId], $staffId, $version);
+                $done = $this->scheduleOne($run->id, $stores[$run->storeId], $staffId, $version, $command->read);
             } catch (Throwable $failure) {
                 throw $this->stopped($found->id, $run, $failure);
             }
@@ -152,6 +156,7 @@ final readonly class ScheduleCampaignHandler
             $refusal === null ? $this->words->unexpected() : $this->words->sentence($refusal),
             $refusal,
             $failure,
+            $refused->storeId,
         );
     }
 
@@ -163,9 +168,9 @@ final readonly class ScheduleCampaignHandler
      *
      * @throws ContentError
      */
-    private function scheduleOne(string $runId, StoreDto $store, ?string $staffId, int $version): bool
+    private function scheduleOne(string $runId, StoreDto $store, ?string $staffId, int $version, bool $read): bool
     {
-        return $this->db->transaction(function () use ($runId, $store, $staffId, $version): bool {
+        return $this->db->transaction(function () use ($runId, $store, $staffId, $version, $read): bool {
             $now = Moments::now();
             $run = $this->campaigns->findRun($runId) ?? throw new ContentNotFound;
             $campaign = $this->campaigns->lock($run->campaignId) ?? throw new ContentNotFound;
@@ -178,6 +183,10 @@ final readonly class ScheduleCampaignHandler
 
             $this->check->version($version, $campaign->version, $campaign->updatedBy, $campaign->updatedAt, $store);
             Words::requireEnglish('name', $campaign->nameAr, $campaign->nameEn);
+            // Translate's English name nobody has said they read asks for the tick (§1.3 #4), refused here before this
+            // store writes anything; the tick clears the mark with the first store scheduled. A campaign still marked
+            // has no run scheduled (its saves are refused once one is), so the first store refuses it whole.
+            $this->marks->showing(UnreadTranslations::CAMPAIGN, $campaign->id, $read);
 
             if ($run->endsAt <= $now) {
                 throw new InvalidContentInput('ends_at', InvalidContentInput::PAST);

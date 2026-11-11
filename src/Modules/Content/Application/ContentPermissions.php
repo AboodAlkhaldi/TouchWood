@@ -66,6 +66,12 @@ final class ContentPermissions
      */
     public const string PRICING_PRICE_EDIT = 'pricing.price.edit';
 
+    /**
+     * Ops' own, for Offer Notices' screen: a campaign's page links to it beside each store's notice for whoever holds it
+     * there (W4b's Notice card). Ops declares it; Content names it only to ask, and never checks a change by it.
+     */
+    public const string OPS_NOTICE_MANAGE = 'ops.notice.manage';
+
     /** `BuildSitemapsJob`. */
     public const string SITEMAP_BUILD = 'content.sitemap.build';
 

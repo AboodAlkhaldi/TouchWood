@@ -8,7 +8,7 @@ use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 use Modules\Catalog\Public\Contracts\CatalogApi;
-use Modules\Catalog\Public\Enums\ProductStage;
+use Modules\Catalog\Public\Dto\FoundProductDto;
 use Modules\Content\Application\ContentAudit;
 use Modules\Content\Application\ContentCache;
 use Modules\Content\Application\ContentImages;
@@ -34,6 +34,7 @@ use Modules\Content\Domain\ValueObject\Words;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\StoreDto;
+use Shared\Domain\ValueObject\StoreId;
 
 /**
  * Pages, blog posts and projects, written (content.md §1.11-§1.13, §4.1) - one set of rules for the three kinds, each
@@ -272,7 +273,7 @@ final readonly class DocumentWriter
             'share' => ['ar' => $share['share_image_ar'], 'en' => $share['share_image_en']],
             'category' => $kind === DocumentKind::Post ? $this->category($input->categoryId, $store) : null,
             'cover' => $kind === DocumentKind::Post ? $this->images->files(['cover' => $input->coverMediaId])['cover'] : null,
-            'products' => $this->products($kind, $input->products, $was->products ?? []),
+            'products' => $this->products($kind, $input->products, $was->products ?? [], $store),
             'photos' => $kind === DocumentKind::Project ? $this->photos($input->photos) : [],
         ];
     }
@@ -331,8 +332,13 @@ final readonly class DocumentWriter
     }
 
     /**
-     * Linked products: at most the kind's number, each a ready product of the catalog, each once. A product linked
-     * before and since archived stays, marked in the panel (§1.1 rule 17).
+     * Linked products: at most the kind's number, each once. **A product newly linked is one the store's search offers**
+     * (§1.12, §1.13: the store's ready products with a size switched on there - Catalog's `readySwitchedOn`, the read Add
+     * Product searches with; PR 7b's review): never another store's, nor one switched off here, by its id typed in. **A
+     * product linked before is kept whatever it is now** - archived, back to a draft, switched off here: the shop shows
+     * only what it may (§1.1 rule 17: it "vanishes from the shop and stays listed in the panel"), so a save of the
+     * item's other fields is never refused for it. One deleted since is no longer listed in the panel, and the next save
+     * drops it - only it, the rest kept in their order.
      *
      * @param  list<string>  $sent
      * @param  list<string>  $before
@@ -340,7 +346,7 @@ final readonly class DocumentWriter
      *
      * @throws InvalidContentInput
      */
-    private function products(DocumentKind $kind, array $sent, array $before): array
+    private function products(DocumentKind $kind, array $sent, array $before, StoreDto $store): array
     {
         $ids = array_map(static fn (string $id): string => strtolower(trim($id)), $sent);
 
@@ -352,17 +358,27 @@ final readonly class DocumentWriter
             throw new InvalidContentInput('products', InvalidContentInput::DUPLICATE);
         }
 
-        $found = $ids === [] ? [] : $this->catalog->products($ids);
+        $added = array_values(array_diff($ids, array_map(strtolower(...), $before)));
 
-        foreach ($ids as $id) {
-            $stage = ($found[$id] ?? null)?->stage;
+        if ($added !== []) {
+            $offered = array_map(static fn (FoundProductDto $product): string => strtolower($product->productId), $this->catalog->searchProducts(StoreId::fromString($store->id), null, true, $added, null, $kind->maxProducts())->rows);
 
-            if ($stage !== ProductStage::Ready && ! ($stage === ProductStage::Archived && in_array($id, $before, true))) {
+            if (array_diff($added, $offered) !== []) {
                 throw new InvalidContentInput('products', InvalidContentInput::PRODUCT);
             }
         }
 
-        return $ids;
+        // A product kept from before stays whatever it is now, unless Catalog no longer has it: deleted since, it
+        // goes on this save, and only it (PR 8's second review).
+        $kept = array_values(array_diff($ids, $added));
+
+        if ($kept === []) {
+            return $ids;
+        }
+
+        $known = array_map(strtolower(...), array_map('strval', array_keys($this->catalog->products($kept))));
+
+        return array_values(array_filter($ids, static fn (string $id): bool => in_array($id, $added, true) || in_array($id, $known, true)));
     }
 
     /**

@@ -18,6 +18,8 @@ const LOOKS: Record<string, Tone> = {
     PUBLISHED: 'green-subtle',
     ENDED: 'gray-subtle',
     CANCELLED: 'gray-subtle',
+    // A campaign or a theme whose stores do not agree (§4.1): each store's own state sits beside it.
+    MIXED: 'amber-subtle',
 };
 
 export function StateBadge({ state }: { state: string }) {
@@ -29,6 +31,7 @@ export function StateBadge({ state }: { state: string }) {
         ENDED: t('content::admin_shared.state.ENDED'),
         PUBLISHED: t('content::admin_shared.state.PUBLISHED'),
         CANCELLED: t('content::admin_shared.state.CANCELLED'),
+        MIXED: t('content::admin_shared.state.MIXED'),
     };
 
     return (

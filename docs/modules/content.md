@@ -350,7 +350,7 @@ Each row is an amendment to that module's spec; the module's builder is asked fi
 | `save(StoreId, string $runId, CampaignPriceSetDto, $start, $end): void` | Called only at Schedule (§1.7 #14). Writes or replaces the run's prices and their candidates of kind `CAMPAIGN`, inside the caller's transaction, under that one store's pricing lock (§1.7 #15), timed tasks at start and end |
 | `changeEnd(StoreId, string $runId, DateTimeImmutable $end): void` · `endNow(StoreId, string $runId): void` · `remove(StoreId, string $runId): void` | The run's life, §1.7 #8, #12 |
 | `read(StoreId, string $runId): ?CampaignPriceSetDto` · `productIds(StoreId, string $runId, ?string $after, int $limit)` | The page's form; the shop's campaign page (H7) |
-| `skippedSizes(StoreId, string $runId): list<string>` | The sizes the run skips now because a provider's price would take it past the ceiling (§1.7 #17), for W4b; one query (the build coordinator's pick, 2026-11-10) |
+| `skippedSizes(StoreId, string $runId): list<string>` | The sizes the run skips now because it would take them past the ceiling (§1.7 #17; in any store since pricing.md §9.6 amendment 2, §9.3e E24), for W4b; one query (the build coordinator's pick, 2026-11-10) |
 
 `CampaignPriceSetDto`: `lines` (`RETAIL`, `WHOLESALE`, `BOTH`; §1.7 #4) · `targets`: each `{kind: PRODUCT, SIZE, CATEGORY or BRAND, id, percentBp}` or `{kind: SIZE, id, amount: Money}` · `leftOut` product ids. **Pricing owes, in all:**
 
@@ -461,7 +461,7 @@ Tabs by placement with counts. Columns: thumbnail · Name · Shown On · State �
 
 #### W4 · Campaigns, `/admin/content/campaigns?store=&tab=all|scheduled|live|ended`
 
-Columns: Name · Stores (codes with each state) · Start · End · Theme ("—") · Offers (count of sizes reached) · Notice · State. **New Campaign**.
+Columns: Name · Stores (codes with each state) · Start · End · Theme ("—") · Offers (count of sizes reached, per store: "SA 412 · AE 380"; owner 2026-11-11, option (a), Pricing's `reachedSizes`) · Notice · State. **New Campaign**.
 
 **W4b, a campaign's page** (`/admin/content/campaigns/{id}`, `/runs/{run}` lands here): four cards on one page, one column on a phone.
 
@@ -787,7 +787,7 @@ The build's picks where the text above leaves the detail open, marked so for the
 | S1 | **A link typed by staff** is refused by the editors exactly as by the server: an `https://` address's authority (up to the first `/`, `?` or `#`) is a host with a port of digits at most, **with no user part** (`https://shop@evil.example`, `https://@x`) and never empty (`https:///x`); spaces are trimmed as PHP's `trim()` does, so a no-break space at an end is refused. One case table, read by both sides (`link-cases.json`) | §1.1 rule 16 |
 | S2 | The editor's preview reads the typed marks as `MarkText` does, from one case table read by both sides (`mark-cases.json`); a mark the server would refuse is drawn as best it can, and the save says why | §1.2 |
 | S3 | W7 and W9 list by tab (Published, Draft); W8's posts list both states with a State column under the Posts and Categories tabs, filtered by category. Unpublish and Delete sit in the ⋯ of the item's own page, not on the list's rows | W7-W9 |
-| S4 | Add Product searches the store's ready products with a size switched on there, 20 at a time | W8, W9 |
+| S4 | Add Product searches the store's ready products with a size switched on there, 20 at a time, with Show More (PR 8, from #386's review); a product newly linked must be one that search offers, so another store's is refused by its id; one linked before stays while ready, or archived since | W8, W9 |
 | S5 | The blog's categories are added and changed in a dialog with Translate; their order is saved as dropped or moved | W8 |
 | S6 | Content's dragged lists draw plain on the server's render and first paint and load their dragging after mount, Move to Top and Move to Bottom included (lessons 180, 395) | §4.2 |
 
@@ -806,6 +806,37 @@ The owner's answers of 2026-11-10/11 (plan §R): **the phone drawer is the desig
 | D7 | The phone's drawer holds, under Account & settings: the staff view's menu (staff only) or the greeting with the way in or the verify-email badge; My Orders; Track a Shipment (the orders list, where each order's tracking is); Company Account; the country; Sign Out for a signed-in shopper (the header's menu holds it from 641 px). Categories are Catalog's menu tree, **without counts** (parked: the menu carries none) | §1.5 |
 | D8 | The tab bar is drawn once the page is in the browser (its room kept from the first paint) and the drawer's insides load when it opens, so the shop pages stay inside 60 KB | §1.5 |
 | D9 | The flag (from the 200 px WebP) and ribbon (600 px WebP) are drawn on a card and on the product page's gallery when the price before is above the price now, the badge with the card's labels and under the product page's price. The listing banner is part 8 first, then the nearest category's, then every list's | §1.8, catalog.md 41(e) |
+
+### 9.3e As built: the admin screens W4 and W5 (PR 8, 2026-11-11)
+
+The build's picks where the text above leaves the detail open, marked so for the owner to reject; none changes a rule.
+
+| # | As built | Where |
+|---|---|---|
+| E1 | W4's tabs are **All, Scheduled, Live, Ended**, a cancelled run counted with the ended; tab and count read the chosen store's run; newest first, 50 with Show More. **Offers** per store is Pricing's `reachedSizes` for every row in one query (owner, 2026-11-11, option (a)); a draft's run, which Pricing holds nothing of, shows a dash, and any other run Pricing prices no size of shows 0 (PR 8's second review). The count is what Pricing holds now: a run whose end has just passed counts its sizes until Pricing's task at its end has run and dropped them. The list and its counts hold only campaigns all of whose stores the reader holds the job in (§1.7 #5), so no row leads to a page refused | W4 |
+| E2 | A campaign's and a theme's start and end are typed once, with no Now and no No End (§9.3b C1); the fields name the first chosen store's zone, and a line under them says each store reads them on its own clock (Q1 (a)) | W4b, W5b |
+| E3 | **Schedule Campaign** from a form with unsaved changes saves them and schedules every draft run in one press; from a saved form its question offers All Stores or one store. End Campaign… and Cancel Campaign… ask the same, naming the stores reached as they are chosen | W4b |
+| E4 | Each store's Prices tab and the theme's search are drawn once the page is mounted (never on the server's render), so the page stays under 60 KB; every tab stays drawn, so prices typed in one survive opening another. **Save Prices** is per store; a refused save keeps what was typed, the sizes it names marked in the preview and on their rows | W4b |
+| E5 | A run's prices may change while it is a draft, or scheduled with its start still to come; past its start they show fixed ("Prices are fixed while a campaign runs.") whatever Content's state says, as Pricing judges by the dates | W4b, §1.7 #8 |
+| E6 | The targets: products are the store's ready products with a size switched on, sizes those switched on and not archived, 20 a page with Show More; categories and brands those switched on, the whole list filtered as typed. A target since archived or switched off stays listed, marked Archived | W4b, §1.7 #4 |
+| E7 | The live preview shows Pricing's first page of 20 products with the totals for all; it has no Show More of its own | W4b |
+| E8 | **Save Notice** is per store. A notice no longer a draft is said in a red Note in its status's words (scheduled, being sent, sent, cancelled, failed, or deleted in Ops); **Offer Notices** links to `/admin/notices?store=` for whoever holds `ops.notice.manage` there | W4b, §1.7 #10 |
+| E9 | The theme card says Dates match or Dates differ for each store whose run is not over; **Use Campaign's Dates** is offered to a Super Admin while some differ and the theme has not ended | W4b, §1.7 #7 |
+| E10 | The Mixed badge reads **Mixed / مختلط**, amber, with each store's own badge beside it, on W4, W4b, W5 and W5b | §4.1 |
+| E11 | Translate's mark (§1.3 #4) on a campaign or a theme names its first store in store-id order; a campaign with a run scheduled or live, and a scheduled theme, refuse a save with unread English as their Schedule would | §1.3 #4 |
+| E12 | W5 shows the dates as typed with the first store's zone under them, and the parts as "9 of 11" | W5 |
+| E13 | A band's artwork (parts 3, 4, 5, 10) has no size in the spec (§9.3 #14), so its box says it covers the band, up to 2400 pixels wide; transparent parts say PNG or WebP | W5b, §1.8 |
+| E14 | The comparison draws the part last opened: the shop as it is, then with the theme, at phone and computer width (Tabs), from the uploads' small pictures | W5b |
+| E15 | Preview Theme sets the cookie, then opens **the staff view** of the theme's first store (Access's View Store post, in the panel's language), the only place the shop shows a preview (§9.3d D5); it waits while the form holds changes. While this browser's cookie names the theme, its page says "Previewing … in this browser" with Stop Preview. This replaces C11's "opens the theme's first store's Arabic home" | W5b |
+| E16 | A theme part's artwork uploads as kind `theme`, under `content.theme.manage` in the form's first store | W5b |
+| E17 | Menu icons the panel already draws: Campaigns `pricing`, Themes `gifts` | §4.3 |
+| E18 | **Schedule waits for typed prices**: while a store's Prices tab holds prices typed and not saved, Schedule Campaign is out of reach with "Save the prices typed in … first.", and leaving asks first (PR 8's review) | W4b |
+| E19 | Save and Schedule in one press are two steps (Schedule writes each store in its own transaction, §1.7 #15): a Schedule refused after the save says "Campaign saved, not scheduled", the save standing, and the form takes what was saved as its own; the same for a theme, whose Preview Theme then opens again. Only the form's own save does this: a store's prices or notice saved raises the campaign's version too, and leaves a date or name typed meanwhile a change for Schedule to save (PR 8's second review) | W4b, W5b |
+| E20 | A refusal naming sizes says whose store's they are (`errors.rows_store`), so only that store's Prices tab marks them | W4b |
+| E21 | Categories and brands as targets are searched and paged 20 at a time as products and sizes are | W4b |
+| E22 | A product linked to a post or project before is kept whatever it became - archived, a draft again, switched off - the shop showing only what it may (§1.1 rule 17); one deleted since is dropped on the next save, and only it (PR 8's second review) | W8, W9 |
+| E23 | W4's Offers count reads a **plain index** on Pricing's candidates (`source_id`, `kind`, `variant_id`), not a partial one: **the owner's choice (a), 2026-11-12** (pricing.md §9.6 amendment 1) | W4 |
+| E24 | **A run skips a size it would take past the ceiling in every store, wired or not** (owner, 2026-11-12, option (b); pricing.md §9.6 amendment 2): a run left past it in a store no longer wired skips the size rather than selling past the ceiling, and W4b lists the size as skipped there too; saving still refuses such a run in a store not wired (§1.7 Q2 (a)) | W4b |
 
 ### 9.4 Amendments other documents would need
 
