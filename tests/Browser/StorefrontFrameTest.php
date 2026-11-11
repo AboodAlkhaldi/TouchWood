@@ -49,17 +49,20 @@ it('reads the language from the address, not from the last one this browser used
     expect($page->script('document.documentElement.lang'))->toBe('en')
         ->and($page->script('document.documentElement.dir'))->toBe('ltr');
 
-    $page->assertSee('Saudi Arabia')->assertNoJavaScriptErrors();
+    // The store's home is Content's now (no placeholder naming the store): the header's country switch says which.
+    expect($page->script("document.querySelector('[data-test=\"country-switch\"] option:checked').textContent"))->toBe('Saudi Arabia');
+    $page->assertNoJavaScriptErrors();
 });
 
 it('moves to another country and keeps the language it was being read in', function () {
     // Another country is another shop - other prices, stock and delivery - so it lands on that
     // store's home rather than on the same page under a different code.
-    visit('/sa/en')
+    $page = visit('/sa/en')
         ->select('[data-test="country-switch"]', 'eg')
-        ->assertPathIs('/eg/en')
-        ->assertSee('Egypt')
-        ->assertNoJavaScriptErrors();
+        ->assertPathIs('/eg/en');
+
+    expect(browserSoon($page, "document.querySelector('[data-test=\"country-switch\"] option:checked')?.textContent === 'Egypt'"))->toBeTrue();
+    $page->assertNoJavaScriptErrors();
 });
 
 it('fits the shop\'s header on a phone, both ways round', function () {

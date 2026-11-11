@@ -25,9 +25,13 @@ export function CategoryTree({ menu, words }: { menu: ShopMenuItemData[]; words:
     );
 }
 
-/** How many products a category's page lists, quiet beside its name. */
+/** How many products a category's page lists, quiet beside its name; none from a menu kept before the counts were. */
 function Count({ products }: { products: number }) {
     const locale = usePage<SharedProps>().props.locale;
+
+    if (products === 0) {
+        return <span className="ms-auto" />;
+    }
 
     return (
         <span className="tw-figure ms-auto ps-2 text-copy-13 text-ink-muted" data-test="category-count">

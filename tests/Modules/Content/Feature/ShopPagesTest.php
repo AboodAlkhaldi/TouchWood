@@ -397,7 +397,9 @@ describe('H1 the home\'s sections (§1.4)', function () {
         expect(array_column($home['sections'], 'type'))->toBe(['CATEGORIES', 'BEST_SELLERS'])
             ->and(array_column($home['bestSellers'], 'productId'))->toBe([$p['product']])
             ->and($home['categoryTiles'])->toBe([['name' => (string) DB::table('catalog.categories')->value('name_en'), 'slug' => (string) DB::table('catalog.category_slugs')->where('locale', 'en')->value('slug'), 'photo' => null]])
-            ->and($home['points'])->toBeNull();
+            ->and($home['points'])->toBeNull()
+            // The phone drawer's counts (catalog.md amendment 46(a)): what the category's page lists for this viewer.
+            ->and($home['frame']['catalog']['menu'][0]['products'])->toBe(1);
 
         Fx::actAsStaff(Fx::staff(superAdmin: true));
         app(UpdateSettingHandler::class)->handle(new UpdateSetting('loyalty.points.enabled', 'sa', true));

@@ -8,8 +8,8 @@ use Modules\Platform\Public\Dto\StoreDto;
 
 /**
  * **The home pages name each other across the stores that are on** (content.md §1.14, Q21 (a)): each by its language
- * and its store's country (`ar-SA`, `en-AE`...), the sitemap's and the home page's head alike, so the two never
- * disagree. A store's country is not unique (platform.stores holds no such rule), and one name may name one page: of
+ * and its store's country (the language, a hyphen, the country's code in capitals), the sitemap's and the home page's
+ * head alike, so the two never disagree. A store's country is not unique (platform.stores holds no such rule), and one name may name one page: of
  * two on stores in one country, the first in the stores' order is named for it, and a later one's home names only its
  * own two languages, plainly (the build's pick, PR 4 review, §9.3a B4).
  */
