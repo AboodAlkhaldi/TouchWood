@@ -231,7 +231,7 @@ export function StorefrontLayout({ title, children, address }: Props) {
                 {/* The phone's tab bar, once the page is in the browser: its room is kept above from the first paint. */}
                 {inStore && drawn ? (
                     <Suspense fallback={null}>
-                        <TabBar House={House} shop={shop.code} locale={locale} url={page.url} words={words} sales={staffView ? undefined : frame?.sales} />
+                        <TabBar House={House} shop={shop.code} locale={locale} url={page.url} words={words} sales={staffView ? undefined : frame?.sales} staffView={Boolean(staffView)} />
                     </Suspense>
                 ) : null}
             </div>

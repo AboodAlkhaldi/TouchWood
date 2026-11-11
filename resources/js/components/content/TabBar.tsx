@@ -18,9 +18,16 @@ import type { SharedProps } from '@/types/page';
 type Props = {
     /** The home tab's icon, the layout's: the panel's menu draws it too, and one copy is every page's already. */
     House: ComponentType<{ className?: string; 'aria-hidden'?: boolean | 'true' }>;
-    shop: string; locale: string; url: string; words: Record<string, string>; sales: NonNullable<SharedProps['frame']>['sales'] };
+    shop: string;
+    locale: string;
+    url: string;
+    words: Record<string, string>;
+    sales: NonNullable<SharedProps['frame']>['sales'];
+    /** A staff member looking: no cart and no favourites, as the header has none (it orders and saves nothing). */
+    staffView: boolean;
+};
 
-export default function TabBar({ House, shop, locale, url, words, sales }: Props) {
+export default function TabBar({ House, shop, locale, url, words, sales, staffView }: Props) {
     const link = useLink();
     const path = url.split('?')[0] ?? url;
     const base = `/${shop}/${locale}`;
@@ -61,10 +68,12 @@ export default function TabBar({ House, shop, locale, url, words, sales }: Props
                         {words.cart}
                     </Link>
                 ) : null}
-                <Link href={favourites} className={tab} aria-current={on(favourites) ? 'page' : undefined} data-test="tab-favourites">
-                    <Heart aria-hidden="true" className={icon(on(favourites))} />
-                    {words.favourites}
-                </Link>
+                {staffView ? null : (
+                    <Link href={favourites} className={tab} aria-current={on(favourites) ? 'page' : undefined} data-test="tab-favourites">
+                        <Heart aria-hidden="true" className={icon(on(favourites))} />
+                        {words.favourites}
+                    </Link>
+                )}
                 <Link href={account} className={tab} aria-current={inAccount ? 'page' : undefined} data-test="tab-account">
                     <UserRound aria-hidden="true" className={icon(inAccount)} />
                     {words.account}

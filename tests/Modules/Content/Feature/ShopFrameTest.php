@@ -4,14 +4,23 @@ declare(strict_types=1);
 
 use App\Http\StorefrontArea;
 use Carbon\CarbonImmutable;
+use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Sleep;
 use Inertia\Testing\AssertableInertia;
+use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
+use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
+use Modules\Content\Application\Command\AdvanceCampaigns\AdvanceCampaigns;
+use Modules\Content\Application\Command\AdvanceCampaigns\AdvanceCampaignsHandler;
+use Modules\Content\Application\Command\EndCampaign\EndCampaign;
+use Modules\Content\Application\Command\EndCampaign\EndCampaignHandler;
 use Modules\Content\Application\Command\SaveBar\SaveBar;
 use Modules\Content\Application\Command\SaveBar\SaveBarHandler;
+use Modules\Content\Application\Command\SaveCampaign\SaveCampaign;
+use Modules\Content\Application\Command\SaveCampaign\SaveCampaignHandler;
 use Modules\Content\Application\Command\SaveFooter\SaveFooter;
 use Modules\Content\Application\Command\SaveFooter\SaveFooterHandler;
 use Modules\Content\Application\Command\SaveSmartBar\SaveSmartBar;
@@ -20,6 +29,8 @@ use Modules\Content\Application\Command\SaveTheme\SaveTheme;
 use Modules\Content\Application\Command\SaveTheme\SaveThemeHandler;
 use Modules\Content\Application\Command\ScheduleBanner\ScheduleBanner;
 use Modules\Content\Application\Command\ScheduleBanner\ScheduleBannerHandler;
+use Modules\Content\Application\Command\ScheduleCampaign\ScheduleCampaign;
+use Modules\Content\Application\Command\ScheduleCampaign\ScheduleCampaignHandler;
 use Modules\Content\Application\Command\SchedulePopup\SchedulePopup;
 use Modules\Content\Application\Command\SchedulePopup\SchedulePopupHandler;
 use Modules\Content\Application\Command\ScheduleTheme\ScheduleTheme;
@@ -275,7 +286,7 @@ describe('Content\'s part of the frame (§1.5)', function () {
 });
 
 describe('above a product list (§1.9, §1.6 LISTING, §1.8 part 8; catalog.md amendment 41(a))', function () {
-    it('shows the nearest category\'s smart bar first, then a campaign\'s, and the theme\'s listing banner ahead of an ordinary one', function () {
+    it('shows the nearest category\'s smart bar first, and the theme\'s listing banner ahead of an ordinary one', function () {
         $top = Px::category('Kitchens');
         $under = Px::category('Cabinets', $top);
         Cx::editor([ContentPermissions::BAR_MANAGE, ContentPermissions::BANNER_MANAGE]);
@@ -385,5 +396,118 @@ describe('Preview Theme on the shop (W5b)', function () {
         post('/sa/en/theme-preview/stop', [], ['Referer' => url('/sa/en/search?q=Drawer')])
             ->assertRedirect(url('/sa/en/search?q=Drawer'))
             ->assertCookieExpired(ThemePreviewCookie::NAME);
+    });
+});
+
+/**
+ * A campaign of the store from a minute ahead for five days, scheduled, with a smart bar of its run, as an editor
+ * holding the campaign's and the bars' jobs.
+ *
+ * @return array{campaign: string, run: string}
+ */
+function shopFrameCampaign(): array
+{
+    Cx::editor([ContentPermissions::CAMPAIGN_MANAGE, ContentPermissions::BAR_MANAGE]);
+    $campaign = app(SaveCampaignHandler::class)->handle(new SaveCampaign(null, 0, 'عروض الحملة', 'Campaign Offers', Cx::typed(1), Cx::typed(60 * 24 * 5), [Fx::storeId('sa')]));
+    app(ScheduleCampaignHandler::class)->handle(new ScheduleCampaign($campaign, shopFrameCampaignVersion($campaign)));
+    $run = (string) DB::table('content.campaign_runs')->where('campaign_id', $campaign)->value('id');
+    app(SaveSmartBarHandler::class)->handle(new SaveSmartBar(null, Fx::storeId('sa'), 'CAMPAIGN', null, $run, 'خصم الحملة', 'Campaign sale', null));
+
+    return ['campaign' => $campaign, 'run' => $run];
+}
+
+function shopFrameCampaignVersion(string $campaign): int
+{
+    return (int) DB::table('content.campaigns')->where('id', $campaign)->value('version');
+}
+
+/** The campaign job's tick, as the system. */
+function shopFrameCampaignTick(): void
+{
+    Fx::asSystem(fn (): int => app(AdvanceCampaignsHandler::class)->handle(new AdvanceCampaigns));
+}
+
+/**
+ * The smart bar above a list of this path now, through the cached copy (warm after the first read).
+ *
+ * @param  list<string>  $path
+ */
+function shopFrameSmartBar(array $path = []): ?string
+{
+    return ContentFrame::listing(app(ContentFrame::class)->kept(Cx::store(), 'en'), 'en', $path, CarbonImmutable::now())['smartBar']['text'] ?? null;
+}
+
+describe('a campaign\'s smart bar (§1.9: while the run is live)', function () {
+    it('shows from the job\'s going live, not while the run is only scheduled, and a category\'s bar comes first', function () {
+        $category = Px::category('Kitchens');
+        shopFrameCampaign();
+        app(SaveSmartBarHandler::class)->handle(new SaveSmartBar(null, Fx::storeId('sa'), 'CATEGORY', $category, null, 'خصم المطابخ', 'Kitchens on sale', null));
+
+        expect(shopFrameSmartBar())->toBeNull();
+
+        // Its start has come, but the job has not made it live: still nothing (read warm here, so the copy is kept).
+        Cx::clockOn(2);
+        expect(shopFrameSmartBar())->toBeNull();
+
+        // Going live replaces the shop's copy.
+        shopFrameCampaignTick();
+
+        expect(shopFrameSmartBar())->toBe('Campaign sale')
+            // The nearest category's first; a list of no category (a brand's, a search's) gets the campaign's.
+            ->and(shopFrameSmartBar([$category]))->toBe('Kitchens on sale')
+            ->and(shopFrameSmartBar([Px::category('Lighting')]))->toBe('Campaign sale');
+    });
+
+    it('stops at once when the campaign is ended', function () {
+        ['campaign' => $campaign] = shopFrameCampaign();
+        Cx::clockOn(2);
+        shopFrameCampaignTick();
+        expect(shopFrameSmartBar())->toBe('Campaign sale');
+
+        app(EndCampaignHandler::class)->handle(new EndCampaign($campaign));
+
+        expect(shopFrameSmartBar())->toBeNull();
+    });
+
+    it('stops at the new end when a live campaign\'s end is moved earlier', function () {
+        ['campaign' => $campaign] = shopFrameCampaign();
+        Cx::clockOn(2);
+        shopFrameCampaignTick();
+        expect(shopFrameSmartBar())->toBe('Campaign sale');
+
+        $row = DB::table('content.campaigns')->where('id', $campaign)->first();
+        app(SaveCampaignHandler::class)->handle(new SaveCampaign($campaign, shopFrameCampaignVersion($campaign), 'عروض الحملة', 'Campaign Offers', substr((string) $row?->starts_at_local, 0, 16), Cx::typed(60), [Fx::storeId('sa')]));
+
+        // Still live until its new end, read warm from the new copy; gone after it, though the job has not ticked.
+        expect(shopFrameSmartBar())->toBe('Campaign sale');
+        Cx::clockOn(61);
+        expect(shopFrameSmartBar())->toBeNull();
+    });
+});
+
+describe('a category page\'s slots over HTTP (catalog.md amendment 41(a))', function () {
+    it('gives a sub-category its parent\'s smart bar, through the menu\'s path, and still once it is emptied', function () {
+        seed(CatalogSeeder::class);
+        $top = Px::category('Kitchens');
+        $sub = Px::category('Cabinets', $top);
+        $p = Px::ready(['60 cm'], $sub);
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $p['product'], true)));
+        Px::onSale('sa', $p['product']);
+        Fx::asSystem(fn () => app(SaveSmartBarHandler::class)->handle(new SaveSmartBar(null, Fx::storeId('sa'), 'CATEGORY', $top, null, 'خصم المطابخ', 'Kitchens on sale', null)));
+        $url = '/sa/en/categories/'.DB::table('catalog.category_slugs')->where('category_id', $sub)->where('locale', 'en')->where('is_current', true)->value('slug');
+
+        $listed = shopFramePage($url);
+
+        expect($listed['soldOut'])->toBeFalse()
+            ->and($listed['slots']['content']['smartBar'] ?? null)->toBe(['text' => 'Kitchens on sale', 'link' => null])
+            // The ids travel to the slots, never to the page.
+            ->and($listed)->not->toHaveKey('categoryPath');
+
+        // Emptied by stock alone it leaves the menu; its way up comes from its trail, and the parent's bar with it.
+        Px::onSale('sa', $p['product'], 0);
+        $emptied = shopFramePage($url);
+
+        expect($emptied['soldOut'])->toBeTrue()
+            ->and($emptied['slots']['content']['smartBar'] ?? null)->toBe(['text' => 'Kitchens on sale', 'link' => null]);
     });
 });

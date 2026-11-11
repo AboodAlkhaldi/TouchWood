@@ -43,8 +43,9 @@ final readonly class DatabaseShopReads implements ShopReads
              WHERE s.store_id = ? AND t.is_scheduled AND s.ends_at > ?::timestamptz ORDER BY s.starts_at, t.id',
             [$storeId, $now],
         );
-        // Smart bars (§1.9): a category's by its own optional dates, a campaign's while its run is scheduled or live, by
-        // the run's moments; newest first, as the nearest-first rule reads them.
+        // Smart bars (§1.9): a category's by its own optional dates, a campaign's **while its run is live** - the job's
+        // going live, End and a moved end replace this copy - until the run's end; newest first, as the nearest-first rule
+        // reads them.
         /** @var list<stdClass> $smartBars */
         $smartBars = $this->db->select(
             "SELECT b.id, b.scope, b.category_id, b.message_ar, b.message_en, b.link,
@@ -53,7 +54,7 @@ final readonly class DatabaseShopReads implements ShopReads
              FROM content.smart_bars b LEFT JOIN content.campaign_runs r ON r.id = b.run_id
              WHERE b.store_id = ? AND (
                  (b.scope = 'CATEGORY' AND (b.ends_at IS NULL OR b.ends_at > ?::timestamptz))
-                 OR (b.scope = 'CAMPAIGN' AND r.state IN ('SCHEDULED', 'LIVE') AND r.ends_at > ?::timestamptz))
+                 OR (b.scope = 'CAMPAIGN' AND r.state = 'LIVE' AND r.ends_at > ?::timestamptz))
              ORDER BY b.created_at DESC, b.id DESC",
             [$storeId, $now, $now],
         );

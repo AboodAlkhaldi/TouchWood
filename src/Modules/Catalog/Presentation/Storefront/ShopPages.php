@@ -85,7 +85,11 @@ final readonly class ShopPages
 
         $around = $this->visit->around($store, $locale, $page->categoryId);
         // Emptied by stock or prices it has left the menu; every category above it still answers, so it keeps the way up (amendment 40(d)).
-        $path = $page->soldOut ? array_map(static fn (ShopLink $link): ShopLinkData => new ShopLinkData($link->name, $link->slug), $this->catalog->trail($locale, $page->categoryId)) : $around['path'];
+        $trail = $page->soldOut ? $this->catalog->trail($locale, $page->categoryId) : null;
+        $path = $trail === null ? $around['path'] : array_map(static fn (ShopLink $link): ShopLinkData => new ShopLinkData($link->name, $link->slug), $trail);
+        // The slots above its list are asked with its way up (amendment 41(a)): the menu's, or for an emptied one its trail's
+        // ids, read by the same query, so a parent's smart bar and banner still reach it.
+        $ids = $trail === null ? $around['ids'] : [...array_values(array_filter(array_map(static fn (ShopLink $link): ?string => $link->id, $trail))), $page->categoryId];
         // Marked chosen: what the page applied - the choices it still offers (P14).
         $filters = $page->chosen ?? $filters->forViewer($viewer);
 
@@ -100,7 +104,7 @@ final readonly class ShopPages
             self::address('storefront.catalog.category', $locale, ['slug' => $page->slug], $page->otherSlug === null ? null : ['slug' => $page->otherSlug], false),
             $this->facts($store, $page->products->cards),
             $page->soldOut,
-            $around['ids'],
+            $ids,
         );
     }
 
