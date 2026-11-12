@@ -229,7 +229,7 @@ it('does not take a Host header for a developer\'s machine in production', funct
     'https' => ['https://shop.example.test/sa/en', true],
 ]);
 
-it('throws the key away on the country page, where leaving a view of a switched-off store lands', function () {
+it('throws the key away on the page brand.com/ sends a visitor to, where leaving a view of a switched-off store lands', function () {
     $browser = signedInStaff(['ae']);
     $browser->post(HISTORY_HOST.'/admin/staff-view', ['store' => 'ae'])->assertRedirect('/ae/en');
     expect(historyOf($browser->get(HISTORY_HOST.'/ae/en')))->toBe(['encryptHistory' => true]);
@@ -237,7 +237,10 @@ it('throws the key away on the country page, where leaving a view of a switched-
     Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('ae')));
 
     $browser->post(HISTORY_HOST.'/staff-view/leave', ['store' => 'ae'])->assertRedirect('/');
-    expect(historyOf($browser->get(HISTORY_HOST.'/')))->toBe(['clearHistory' => true]);
+    // brand.com/ sends a visitor whose store is off on to the base store's home, in the language read last (content.md
+    // Q20 (a)), which clears it.
+    $browser->get(HISTORY_HOST.'/')->assertRedirect('/sa/en');
+    expect(historyOf($browser->get(HISTORY_HOST.'/sa/en')))->toBe(['clearHistory' => true]);
 });
 
 it('sends the security headers on a response outside both areas', function () {

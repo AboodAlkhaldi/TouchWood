@@ -13,9 +13,9 @@ interface ShopReads
 {
     /**
      * The bar, the footer, the pop-ups, the themes (each with its parts' words and images), the smart bars and the
-     * listing banners (content.md §1.5, §1.6, §1.8, §1.9).
+     * listing banners (content.md §1.5, §1.6, §1.8, §1.9), and the store's SEO defaults (§1.14) for Content's own pages.
      *
-     * @return array{bar: array<string, mixed>|null, footer: array<string, mixed>|null, popups: list<array<string, mixed>>, themes: list<array<string, mixed>>, smartBars: list<array<string, mixed>>, listings: list<array<string, mixed>>}
+     * @return array{bar: array<string, mixed>|null, footer: array<string, mixed>|null, seo?: array<string, mixed>|null, popups: list<array<string, mixed>>, themes: list<array<string, mixed>>, smartBars: list<array<string, mixed>>, listings: list<array<string, mixed>>}
      */
     public function frame(string $storeId): array;
 

@@ -144,4 +144,9 @@ final class StaleCampaigns implements Campaigns
     {
         return $this->real->stampWarning($runId, $hours, $now);
     }
+
+    public function giveAddress(string $runId, string $storeId, string $slugAr, string $slugEn): void
+    {
+        $this->real->giveAddress($runId, $storeId, $slugAr, $slugEn);
+    }
 }

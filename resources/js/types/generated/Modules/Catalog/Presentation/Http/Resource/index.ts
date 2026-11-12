@@ -449,6 +449,7 @@ id: string,
 name: string,
 slug: string,
 children: ShopMenuItemData[],
+products: number,
 };
 export type ShopProductPage = {
 productId: string,
