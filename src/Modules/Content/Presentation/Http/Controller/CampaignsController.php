@@ -379,9 +379,9 @@ final readonly class CampaignsController
     }
 
     /**
-     * The campaign page's full web address in each language (the owner, 2026-11-12), as the shop's canonical tags write
-     * them: the site's root - APP_URL, whose host is the canonical one (content.md §1.14, L5; the sitemap's too) - and the
-     * shop's own route, never a typed domain. None while the run has no page that can answer.
+     * The campaign page's full web address in each language (the owner, 2026-11-12), as the sitemap writes them: the
+     * site's root - APP_URL, whose host is the canonical one (content.md §1.14, L5) - and the shop's own route, never a
+     * typed domain. None while the run has no page that can answer.
      *
      * @param  array<array-key, mixed>|null  $slugs
      * @return list<CampaignAddressData>

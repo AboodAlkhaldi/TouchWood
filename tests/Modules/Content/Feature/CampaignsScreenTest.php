@@ -554,6 +554,8 @@ function campaignsScreenAddresses(AdminBrowser $browser, string $campaign): arra
 }
 
 it('shows the campaign page\'s full web address in each language once a store\'s run is scheduled, at no query of its own (owner, 2026-11-12)', function () {
+    // A root of its own, so an address built from the request's host instead of APP_URL fails here.
+    config(['app.url' => 'https://shop.test']);
     $browser = Screen::as(campaignsScreenEditor(['sa', 'ae']));
     $campaign = campaignsScreenCreate($browser, ['sa', 'ae']);
 
@@ -561,8 +563,8 @@ it('shows the campaign page\'s full web address in each language once a store\'s
 
     $browser->post(CAMPAIGNS_SCREEN."/{$campaign}/schedule", ['version' => campaignsScreenVersion($campaign), 'store' => Fx::storeId('sa')], Screen::fromPage(CAMPAIGNS_SCREEN."/{$campaign}"))->assertRedirect();
     $slugs = (array) DB::table('content.campaign_runs')->where('id', campaignsScreenRun($campaign))->first(['slug_ar', 'slug_en']);
-    // On the site's root, APP_URL's (the canonical host, content.md §1.14), as the shop's own canonical tags: never a typed domain.
-    $root = rtrim((string) config('app.url'), '/');
+    // On the site's root, APP_URL's (the canonical host, content.md §1.14), as the sitemap writes it: never a typed domain.
+    $root = 'https://shop.test';
 
     expect($slugs['slug_en'])->not->toBe('')
         ->and(campaignsScreenAddresses($browser, $campaign))->toBe([
@@ -593,4 +595,19 @@ it('shows no address for a cancelled run nor for an ended one: their pages answe
 
     expect(DB::table('content.campaign_runs')->where('campaign_id', $campaign)->pluck('state', 'store_id')->sort()->values()->all())->toBe(['CANCELLED', 'ENDED'])
         ->and(campaignsScreenAddresses($browser, $campaign))->toBe(['sa' => [], 'ae' => []]);
+});
+
+it('shows no address for a run still live past its end: its page already answers 301 home while the end job is late', function () {
+    $browser = Screen::as(campaignsScreenEditor(['sa']));
+    $campaign = campaignsScreenCreate($browser, ['sa'], ['starts_at' => campaignsScreenTyped(10), 'ends_at' => campaignsScreenTyped(60 * 24)]);
+    $browser->post(CAMPAIGNS_SCREEN."/{$campaign}/schedule", ['version' => campaignsScreenVersion($campaign)], Screen::fromPage(CAMPAIGNS_SCREEN."/{$campaign}"))->assertRedirect();
+    expect(campaignsScreenAddresses($browser, $campaign)['sa'])->toHaveKeys(['ar', 'en']);
+
+    // Live, its end a minute gone, the end job not yet run (the job's going live stood in for by its row).
+    DB::table('content.campaign_runs')->where('id', campaignsScreenRun($campaign, 'sa'))->update([
+        'state' => 'LIVE', 'went_live_at' => CarbonImmutable::now()->subDay(),
+        'starts_at' => CarbonImmutable::now()->subDay(), 'ends_at' => CarbonImmutable::now()->subMinute(),
+    ]);
+
+    expect(campaignsScreenAddresses($browser, $campaign))->toBe(['sa' => []]);
 });

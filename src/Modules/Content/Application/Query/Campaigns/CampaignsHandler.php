@@ -331,8 +331,9 @@ final readonly class CampaignsHandler
             'startsAt' => $run->startsAt->format(DATE_ATOM),
             'endsAt' => $run->endsAt->format(DATE_ATOM),
             // The campaign's shop page (H7) once its run is scheduled, while it may still answer: its address in each
-            // language, from the run's own row (§9.3f F6; the owner, 2026-11-12: the full web address).
-            'slugs' => in_array($run->state, [RunState::Scheduled, RunState::Live], true) && $run->slugAr !== null && $run->slugEn !== null ? ['ar' => $run->slugAr, 'en' => $run->slugEn] : null,
+            // language, from the run's own row (§9.3f F6; the owner, 2026-11-12: the full web address). Not past its end:
+            // a live run whose end job is late already answers 301 to the home (H7).
+            'slugs' => in_array($run->state, [RunState::Scheduled, RunState::Live], true) && $run->endsAt > $now && $run->slugAr !== null && $run->slugEn !== null ? ['ar' => $run->slugAr, 'en' => $run->slugEn] : null,
             // Pricing judges "started" by the run's own dates (PR 5's review): past its start, a scheduled run's
             // prices are fixed whatever Content's state says.
             'pricesOpen' => $run->state === RunState::Draft || ($run->state === RunState::Scheduled && $run->startsAt > $now),
