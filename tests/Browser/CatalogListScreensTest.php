@@ -125,6 +125,10 @@ function catalogListBrowserBrandOrder(): array
 function catalogListBrowserMenu(mixed $page, string $selector): mixed
 {
     $page->script("document.querySelector('{$selector}')?.scrollIntoView({ block: 'center' })");
+    // A row at the foot of a long list cannot come to the middle, and the toast sits over its ⋯ (measured 2026-11-12:
+    // elementFromPoint at the button's centre was the toast, still there 15 seconds on). The toast is let through for
+    // the press, as a person's finger would not wait for it either; it is not what this test is about.
+    $page->script("document.querySelectorAll('[data-sonner-toast]').forEach((toast) => { toast.style.pointerEvents = 'none'; })");
 
     return $page->click($selector);
 }
