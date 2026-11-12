@@ -210,11 +210,6 @@ code: string,
 name: string,
 ours: boolean,
 };
-export type StoreHomePage = {
-name: string,
-currency: string,
-symbol: string,
-};
 export type StoreOption = {
 code: string,
 name: string,

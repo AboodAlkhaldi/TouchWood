@@ -413,6 +413,7 @@ final readonly class CampaignsController
             array_map(static fn (array $size): CampaignTargetData => self::target(['kind' => 'SIZE', ...$size]), $skipped),
             $notice === null ? null : new CampaignNoticeData($notice['id'], $notice['titleAr'], $notice['titleEn'], $notice['status']),
             array_map(static fn (array $draft): CampaignNoticeData => new CampaignNoticeData($draft['id'], $draft['titleAr'], $draft['titleEn'], 'DRAFT'), $drafts),
+            is_string($run['address'] ?? null) ? $run['address'] : null,
         );
     }
 

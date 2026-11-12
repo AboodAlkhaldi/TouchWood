@@ -64,6 +64,11 @@ it('schedules a two-store campaign from its page, the question naming both store
         ->and(DB::table('content.campaign_runs')->where('campaign_id', $campaign)->pluck('state')->unique()->values()->all())->toBe(['SCHEDULED'])
         ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
 
+    // Scheduled: the campaign page's address, a store a line with its Copy button (the owner, 2026-11-12), at phone width.
+    $slug = (string) DB::table('content.campaign_runs')->where('campaign_id', $campaign)->where('store_id', Fx::storeId('sa'))->value('slug_en');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"campaign-address-sa\"] code')?.textContent === '/campaigns/{$slug}' && document.querySelector('[data-test=\"campaign-address-ae\"] button') !== null"))->toBeTrue()
+        ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
+
     // The list names both stores with their states; on a phone each row is a card opening the campaign.
     $page->navigate('/admin/content/campaigns?store=sa', BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"campaign-card-{$campaign}\"]')?.textContent.includes('Offers {$run}') === true"))->toBeTrue()

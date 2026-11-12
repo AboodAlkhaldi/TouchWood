@@ -25,6 +25,7 @@ import { useLink } from '@/lib/routes';
 import { ContentLink } from '@/components/content/ContentLink';
 import { useTranslator } from '@/lib/t';
 import type { ShopAddressData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
+import type { ContentAlternateData, ContentHeadData } from '@/types/generated/Modules/Content/Presentation/Http/Resource';
 import type { ContentFrame, SharedProps, ShopperLine } from '@/types/page';
 
 const NewsletterBox = lazy(() => import('@/components/ops/NewsletterBox'));
@@ -60,14 +61,18 @@ type Props = {
     children: ReactNode;
     /**
      * A page's own address and the same page's in the other language (catalog.md §4.5, P19), and
-     * whether search engines are kept out of it. Pages without one keep the language switch's rule.
+     * whether search engines are kept out of it. Pages without one keep the language switch's rule. Content's pages
+     * (`ContentAddressData`) may name more: a home names every on store's home, by language and country (content.md
+     * §1.14, Q21 (a)), and then those are its alternates.
      */
-    address?: ShopAddressData;
+    address?: ShopAddressData & { alternates?: ContentAlternateData[] };
+    /** Content's pages: the description and share image search engines and shared links read (content.md §1.14). */
+    head?: ContentHeadData;
 };
 
 type PopupView = ComponentType<{ popup: NonNullable<ContentFrame['popup']> }>;
 
-export function StorefrontLayout({ title, children, address }: Props) {
+export function StorefrontLayout({ title, children, address, head }: Props) {
     const page = usePage<SharedProps>();
     const { shop, shopper, shopperLines, staffView, locale, frame, theme } = page.props;
     const link = useLink();
@@ -114,6 +119,12 @@ export function StorefrontLayout({ title, children, address }: Props) {
     }, [shown]);
 
     const home = inStore ? `/${shop.code}/${locale}` : '/';
+    // The page itself and its other language - or every version a Content page names (a home: each on store's, Q21 (a)).
+    const alternates: ContentAlternateData[] = address?.alternates?.length
+        ? address.alternates
+        : address
+          ? [{ hrefLang: locale, href: address.canonical }, ...(address.alternate ? [{ hrefLang: address.alternateLocale ?? '', href: address.alternate }] : [])]
+          : [];
     const dark = theme.mode === 'dark';
     const themeButton = (
         <Button
@@ -138,8 +149,13 @@ export function StorefrontLayout({ title, children, address }: Props) {
         <>
             <Head title={title}>
                 {address ? <link rel="canonical" href={address.canonical} /> : null}
-                {address ? <link rel="alternate" hrefLang={locale} href={address.canonical} /> : null}
-                {address?.alternate ? <link rel="alternate" hrefLang={address.alternateLocale ?? undefined} href={address.alternate} /> : null}
+                {alternates.map((alternate) => (
+                    <link key={alternate.hrefLang} rel="alternate" hrefLang={alternate.hrefLang} href={alternate.href} />
+                ))}
+                {head?.description ? <meta name="description" content={head.description} /> : null}
+                {head ? <meta property="og:title" content={head.title} /> : null}
+                {head?.description ? <meta property="og:description" content={head.description} /> : null}
+                {head?.image ? <meta property="og:image" content={head.image} /> : null}
                 {address?.noindex || content?.preview ? <meta name="robots" content="noindex" /> : null}
             </Head>
 

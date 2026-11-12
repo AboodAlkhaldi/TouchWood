@@ -15,8 +15,9 @@ type Props = {
     blocks: Block[];
     /** A body image's file, by its `ref`: none while it is not uploaded or not ready. */
     image: (ref: number) => BlockImage | null;
-    /** Where a shop link goes: the path with the store and language before it, a full address as it is. */
-    href: (link: string) => string;
+    /** Where a shop link goes: the path with the store and language before it, a full address as it is; null for one that
+     * is not a link the rules allow, drawn as its plain words (as ContentLink does). */
+    href: (link: string) => string | null;
     dir?: 'rtl' | 'ltr';
     lang?: string;
     className?: string;
@@ -98,20 +99,22 @@ export function ContentBlocks({ blocks, image, href, dir, lang, className }: Pro
     );
 }
 
-function Runs({ runs, href }: { runs: Run[]; href: (link: string) => string }) {
+function Runs({ runs, href }: { runs: Run[]; href: (link: string) => string | null }) {
     return (
         <>
             {runs.map((run, index) => {
                 const words = run.bold ? <strong>{run.text}</strong> : run.text;
 
-                if (run.link === undefined) {
+                const to = run.link === undefined ? null : href(run.link);
+
+                if (run.link === undefined || to === null) {
                     return <span key={index}>{words}</span>;
                 }
 
                 const away = run.link.toLowerCase().startsWith('https://');
 
                 return (
-                    <a key={index} href={href(run.link)} className="text-brand-strong underline" {...(away ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
+                    <a key={index} href={to} className="text-brand-strong underline" {...(away ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
                         {words}
                     </a>
                 );

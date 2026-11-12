@@ -330,6 +330,34 @@ final readonly class ShopCatalog
     }
 
     /**
+     * Chosen products' cards, in the order given, those this viewer can order here only (amendment 46(c)): a page
+     * another module draws - a post's or a project's products, a campaign's page. One read.
+     *
+     * @param  list<string>  $productIds
+     * @return list<ProductCard>
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function cardsOf(StoreId $store, string $locale, ShopperKind $viewer, array $productIds): array
+    {
+        return $this->reader->cardsOf($store->value, ShopLocale::of($locale), $viewer, array_map('strtolower', $productIds));
+    }
+
+    /**
+     * A page of chosen products' cards, those this viewer can order here, in id order after `after` (amendment 47): a
+     * campaign's page, whose products may be thousands across every store. One read.
+     *
+     * @param  list<string>  $productIds
+     * @return list<ProductCard>
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function cardsAmong(StoreId $store, string $locale, ShopperKind $viewer, array $productIds, ?string $after, int $limit): array
+    {
+        return $this->reader->cardsAmong($store->value, ShopLocale::of($locale), $viewer, $productIds, $after, self::limit($limit, self::PAGE_MAX + 1));
+    }
+
+    /**
      * What a product's page suggests (§1.10), only what a shopper can order here: the hand-picked
      * "Related" — or, when staff picked none, the same category's, then the same brand's, a secondary
      * brand's products only on its own products' pages (amendment 5(l)) — and the hand-picked "Goes
@@ -384,13 +412,13 @@ final readonly class ShopCatalog
     }
 
     /**
-     * @param  array<string, list<array{id: string, parent_id: string|null, name: string, slug: string, image_media_id: string|null}>>  $byParent
+     * @param  array<string, list<array{id: string, parent_id: string|null, name: string, slug: string, image_media_id: string|null, products: int}>>  $byParent
      * @return list<MenuCategory>
      */
     private static function branch(array $byParent, string $parentId): array
     {
         return array_map(
-            static fn (array $row): MenuCategory => new MenuCategory($row['id'], $row['name'], $row['slug'], $row['image_media_id'], self::branch($byParent, $row['id'])),
+            static fn (array $row): MenuCategory => new MenuCategory($row['id'], $row['name'], $row['slug'], $row['image_media_id'], self::branch($byParent, $row['id']), $row['products']),
             $byParent[$parentId] ?? [],
         );
     }

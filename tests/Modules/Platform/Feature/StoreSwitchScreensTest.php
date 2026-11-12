@@ -80,17 +80,10 @@ describe('the shop', function () {
         'the store without a language' => ['/eg', '/xx'],
     ]);
 
-    it('takes a remembered off store for no store, and shows the country page without it', function () {
+    it('takes a remembered off store for no store, and sends the visitor on to the base store (content.md Q20 (a))', function () {
         storeSwitchScreensTurnOff('eg');
 
-        withCookie('tw_store', 'eg')->get('/')
-            ->assertOk()
-            ->assertInertia(fn (AssertableInertia $page) => $page
-                ->component('Platform/Storefront/ChooseStore')
-                ->has('stores', 2)
-                ->where('stores.0.code', 'sa')
-                ->where('stores.1.code', 'ae')
-            );
+        withCookie('tw_store', 'eg')->get('/')->assertStatus(302)->assertRedirect('/sa/ar');
     });
 
     it('offers only the stores that are on in the shop\'s store switcher', function () {
@@ -109,7 +102,7 @@ describe('the shop', function () {
 
         Fx::asSystem(fn () => app(ActivateStoreHandler::class)->handle(new ActivateStore('eg')));
 
-        get('/eg/ar')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('name', 'مصر'));
+        get('/eg/ar')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('shop.name', 'مصر'));
     });
 });
 

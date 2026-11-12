@@ -278,6 +278,47 @@ final readonly class ShopPages
     }
 
     /**
+     * Chosen products as this viewer's cards, in the order given, those they can order here only, with what the modules
+     * add to them (amendment 46(c)).
+     *
+     * @param  list<string>  $productIds
+     * @return array{cards: list<array<string, mixed>>, cardFacts: array<string, array<string, array<string, mixed>>>}
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function cardsOf(StoreId $store, string $locale, array $productIds): array
+    {
+        $cards = $productIds === [] ? [] : $this->catalog->cardsOf($store, $locale, $this->visit->viewer(), $productIds);
+
+        return [
+            'cards' => array_map(static fn (ShopCardData $card): array => $card->toArray(), $this->cards($store, $locale, $cards)),
+            'cardFacts' => $cards === [] ? [] : $this->facts($store, $cards),
+        ];
+    }
+
+    /**
+     * A page of chosen products as this viewer's cards, in id order, only those they can order here, and where the next
+     * page goes on from - none when this one is the last (amendment 47).
+     *
+     * @param  list<string>  $productIds
+     * @return array{cards: list<array<string, mixed>>, cardFacts: array<string, array<string, array<string, mixed>>>, next: string|null}
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function cardsAmong(StoreId $store, string $locale, array $productIds, ?string $after, int $limit): array
+    {
+        $cards = $productIds === [] ? [] : $this->catalog->cardsAmong($store, $locale, $this->visit->viewer(), $productIds, $after, $limit + 1);
+        $next = count($cards) > $limit ? $cards[$limit - 1]->productId : null;
+        $cards = array_slice($cards, 0, $limit);
+
+        return [
+            'cards' => array_map(static fn (ShopCardData $card): array => $card->toArray(), $this->cards($store, $locale, $cards)),
+            'cardFacts' => $cards === [] ? [] : $this->facts($store, $cards),
+            'next' => $next,
+        ];
+    }
+
+    /**
      * @return list<ShopCardData>
      *
      * @throws InvalidCatalogAttribute

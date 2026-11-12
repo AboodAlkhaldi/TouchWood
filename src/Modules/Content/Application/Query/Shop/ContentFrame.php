@@ -185,12 +185,12 @@ final readonly class ContentFrame
 
     /**
      * A desktop and a phone image, each in the page's language or for any, by kind (`DESKTOP:ar`, `PHONE:any`): null
-     * while neither is ready.
+     * while neither is ready. The home's hero artwork is drawn the same way (H1).
      *
      * @param  array<string, mixed>  $images
      * @return array{link: string|null, alt: string|null, desktop: array<string, array<string, string>>, phone: array<string, array<string, string>>}|null
      */
-    private static function picture(array $images, string $locale, ?string $alt, mixed $link): ?array
+    public static function picture(array $images, string $locale, ?string $alt, mixed $link): ?array
     {
         $of = static function (string $kind) use ($images, $locale): array {
             $found = $images["{$kind}:{$locale}"] ?? $images["{$kind}:any"] ?? [];
@@ -219,6 +219,12 @@ final readonly class ContentFrame
         return [
             'bar' => $bar === null ? null : ['text' => (string) $bar["text_{$locale}"], 'link' => self::text($bar['link']), 'starts' => self::text($bar['starts']), 'ends' => self::text($bar['ends'])],
             'footer' => is_array($rows['footer'] ?? null) ? self::footer($rows['footer'], $locale) : null,
+            'seo' => is_array($rows['seo'] ?? null) ? [
+                'site' => self::text($rows['seo']["site_name_{$locale}"] ?? null),
+                'pattern' => self::text($rows['seo']["title_pattern_{$locale}"] ?? null),
+                'description' => self::text($rows['seo']["description_{$locale}"] ?? null),
+                'image' => is_array($rows['seo']['image'] ?? null) ? $rows['seo']['image'] : [],
+            ] : null,
             'popups' => array_map(static fn (array $popup): array => [
                 'id' => $popup['id'],
                 'title' => $popup["title_{$locale}"],
@@ -300,6 +306,22 @@ final readonly class ContentFrame
                 'links' => array_map(static fn (array $link): array => ['text' => $link['text'][$locale] ?? '', 'link' => $link['link'] ?? ''], is_array($column['links'] ?? null) ? $column['links'] : []),
             ], $columns),
         ];
+    }
+
+    /**
+     * The store's SEO defaults in the copy's language (§1.14): the site's name, the title pattern (`:title | :site`), the
+     * description and the share image's sizes; every one null (the image empty) while none is saved.
+     *
+     * @param  array<string, mixed>  $kept
+     * @return array{site: string|null, pattern: string|null, description: string|null, image: array<string, array<string, string>>}
+     */
+    public static function seo(array $kept): array
+    {
+        $seo = is_array($kept['seo'] ?? null) ? $kept['seo'] : [];
+        /** @var array<string, array<string, string>> $image */
+        $image = is_array($seo['image'] ?? null) ? $seo['image'] : [];
+
+        return ['site' => self::text($seo['site'] ?? null), 'pattern' => self::text($seo['pattern'] ?? null), 'description' => self::text($seo['description'] ?? null), 'image' => $image];
     }
 
     /**

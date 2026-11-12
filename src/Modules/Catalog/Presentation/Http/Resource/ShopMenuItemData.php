@@ -8,7 +8,8 @@ use Spatie\LaravelData\Data;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
 /**
- * A category in the shop's menu (catalog.md §4.5, P20), its sub-categories in the menu's order.
+ * A category in the shop's menu (catalog.md §4.5, P20), its sub-categories in the menu's order, and how many products its
+ * page lists for this viewer, those below it included (amendment 46(a): the phone drawer's counts).
  */
 #[TypeScript]
 final class ShopMenuItemData extends Data
@@ -21,5 +22,6 @@ final class ShopMenuItemData extends Data
         public string $name,
         public string $slug,
         public array $children,
+        public int $products = 0,
     ) {}
 }

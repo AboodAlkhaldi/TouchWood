@@ -48,6 +48,9 @@ final readonly class CampaignPricesImpl implements CampaignPrices
     /** Products a page of `productIds`, at most. */
     private const int MOST = 100;
 
+    /** Products `reachedProductIds` answers at most. */
+    public const int MOST_REACHED = 20000;
+
     public function __construct(
         private PlatformApi $platform,
         private CatalogApi $catalog,
@@ -200,6 +203,23 @@ final readonly class CampaignPricesImpl implements CampaignPrices
 
     public function productIds(StoreId $store, string $runId, ?string $after, int $limit): array
     {
+        $from = $after === null ? '' : strtolower(trim($after));
+
+        return array_slice(array_values(array_filter($this->reached($store, $runId), static fn (string $id): bool => strcmp($id, $from) > 0)), 0, max(1, min($limit, self::MOST)));
+    }
+
+    public function reachedProductIds(StoreId $store, string $runId): array
+    {
+        return array_slice($this->reached($store, $runId), 0, self::MOST_REACHED);
+    }
+
+    /**
+     * Every product the run reaches now, in id order: those of its targets (CampaignCoverage) and its sizes' products.
+     *
+     * @return list<string>
+     */
+    private function reached(StoreId $store, string $runId): array
+    {
         $campaign = $this->here($store, $runId);
 
         if ($campaign === null) {
@@ -215,9 +235,8 @@ final readonly class CampaignPricesImpl implements CampaignPrices
 
         $ids = array_map('strval', array_keys($products));
         sort($ids, SORT_STRING);
-        $from = $after === null ? '' : strtolower(trim($after));
 
-        return array_slice(array_values(array_filter($ids, static fn (string $id): bool => strcmp($id, $from) > 0)), 0, max(1, min($limit, self::MOST)));
+        return $ids;
     }
 
     public function skippedSizes(StoreId $store, string $runId): array
