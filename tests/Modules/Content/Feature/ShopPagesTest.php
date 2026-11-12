@@ -633,3 +633,34 @@ describe('H7 a campaign\'s address and its life (§4.5, §9.3f F2, F6)', functio
         expect(contentShopQueries('/sa/en/campaigns/winter-offers'))->toBe(12);
     });
 });
+
+describe('H7 for who is looking (catalog.md amendments 14, 47)', function () {
+    it('keeps a company-only product off an individual\'s campaign page, as a guest and a company see it', function () {
+        $companies = Px::category('Workshops');
+        $forCompanies = Px::ready(['60 cm'], $companies);
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $forCompanies['product'], true)));
+        Px::onSale('sa', $forCompanies['product']);
+        Fx::asSystem(fn () => app(SetCategoryAudiencesHandler::class)->handle(new SetCategoryAudiences(Fx::storeId('sa'), $companies, false)));
+        $everyone = contentShopProduct();
+        Cx::editor([ContentPermissions::CAMPAIGN_MANAGE, ContentPermissions::PRICING_PRICE_EDIT]);
+        $both = app(SaveCampaignHandler::class)->handle(new SaveCampaign(null, 0, 'عروض للجميع', 'Offers for All', Cx::typed(1), Cx::typed(60 * 24 * 5), [Fx::storeId('sa')]));
+        $run = (string) DB::table('content.campaign_runs')->where('campaign_id', $both)->value('id');
+        $version = static fn (): int => (int) DB::table('content.campaigns')->where('id', $both)->value('version');
+        app(SetRunPricesHandler::class)->handle(new SetRunPrices($run, $version(), ['lines' => 'BOTH', 'targets' => [['kind' => 'CATEGORY', 'id' => $companies, 'percentBp' => 1000], ['kind' => 'PRODUCT', 'id' => $everyone['product'], 'percentBp' => 1000]]]));
+        app(ScheduleCampaignHandler::class)->handle(new ScheduleCampaign($both, $version()));
+        Cx::clockOn(2);
+        contentShopTick();
+        $shown = static fn (): array => array_column(contentShopPage('/sa/en/campaigns/offers-for-all', 'Content/Storefront/Campaign')['products'], 'productId');
+        $expected = [$forCompanies['product'], $everyone['product']];
+        sort($expected, SORT_STRING);
+
+        contentShopViewer(ShopperKind::Guest);
+        expect($shown())->toBe($expected);
+
+        contentShopViewer(ShopperKind::Company);
+        expect($shown())->toBe($expected);
+
+        contentShopViewer(ShopperKind::Individual);
+        expect($shown())->toBe([$everyone['product']]);
+    });
+});

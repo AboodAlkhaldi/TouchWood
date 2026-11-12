@@ -77,6 +77,10 @@ slugAr: string,
 slugEn: string,
 posts: number,
 };
+export type CampaignAddressData = {
+locale: string,
+url: string,
+};
 export type CampaignData = {
 id: string,
 nameAr: string,
@@ -172,7 +176,7 @@ prices: CampaignPricesData | null,
 skipped: CampaignTargetData[],
 notice: CampaignNoticeData | null,
 drafts: CampaignNoticeData[],
-address: string | null,
+addresses: CampaignAddressData[],
 };
 export type CampaignTargetData = {
 kind: string,
