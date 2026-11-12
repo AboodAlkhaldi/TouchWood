@@ -6,19 +6,19 @@ use App\Http\StorefrontArea;
 use Illuminate\Support\Facades\Route;
 use Modules\Platform\Presentation\Http\Controller\ChooseStoreController;
 use Modules\Platform\Presentation\Http\Controller\ShopNotFoundController;
-use Modules\Platform\Presentation\Http\Controller\StoreHomeController;
 use Modules\Platform\Presentation\Http\Controller\StoreWithoutLanguageController;
 
 /*
-| The shop's front door: the country page, and the store home behind it.
+| The shop's front door: brand.com, brand.com/{store}, and the shop's own not-found page under a store. The store's home,
+| storefront.home, is Content's (content.md §2.3 row L4).
 |
 | Mounted into the area App\Http\StorefrontArea names, the same way Platform's panel screens are
 | mounted into the admin's. The shop's session cookie is set before "web" opens a session, so the
 | whole list is applied here rather than wrapped in "web" from outside (frontend.md 2.3).
 */
 
-// brand.com: the country page, which is the one shop page that belongs to no store - so it is the
-// one that must not ask which store its URL names.
+// brand.com: on to the remembered store, else the base store's Arabic home (content.md §1.14, Q20 (a)); the one shop
+// address that belongs to no store - so it is the one that must not ask which store its URL names.
 Route::middleware(StorefrontArea::MIDDLEWARE_WITHOUT_STORE)
     ->group(function (): void {
         Route::get('/', ChooseStoreController::class)->name('platform.choose-store');
@@ -36,8 +36,6 @@ Route::middleware([StorefrontArea::SESSION, 'web'])->group(function (): void {
 Route::prefix('{store}/{locale}')
     ->middleware(StorefrontArea::MIDDLEWARE)
     ->group(function (): void {
-        Route::get('/', StoreHomeController::class)->name('storefront.home');
-
         // An address under a store that no page answers, read: the shop's own not-found page (owner,
         // 2026-10-20; frontend.md §2.6) - after every other route, whichever module's. {store} never
         // matches a reserved path (/admin, /build, /api...), so this never catches one.

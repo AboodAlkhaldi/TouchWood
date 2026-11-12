@@ -7,6 +7,7 @@ namespace Modules\Content\Application\Command\SaveSeoDefaults;
 use Illuminate\Database\ConnectionInterface;
 use Modules\Content\Application\ContentAccess;
 use Modules\Content\Application\ContentAudit;
+use Modules\Content\Application\ContentCache;
 use Modules\Content\Application\ContentImages;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\Moments;
@@ -45,6 +46,7 @@ final readonly class SaveSeoDefaultsHandler
         private ContentImages $images,
         private ConnectionInterface $db,
         private PlatformApi $platform,
+        private ContentCache $cache,
     ) {}
 
     /**
@@ -73,6 +75,8 @@ final readonly class SaveSeoDefaultsHandler
             $before = $this->seo->defaults($store->id, lock: true);
             $saved = new SeoDefaults($store->id, $siteName['ar'], $siteName['en'], $pattern['ar'], $pattern['en'], $description['ar'], $description['en'], $image['share_image'], $robots, $staffId, Moments::now());
             $this->seo->saveDefaults($saved);
+            // The shop's pages read the defaults from the frame's cached copy (H1-H7's heads).
+            $this->cache->invalidate();
             $this->platform->recordAudit(ContentAudit::entry('content.seo.saved', 'content.seo', $store->id, $store->id, ContentAudit::diff($before?->fields() ?? [], $saved->fields())));
         }, 3);
     }

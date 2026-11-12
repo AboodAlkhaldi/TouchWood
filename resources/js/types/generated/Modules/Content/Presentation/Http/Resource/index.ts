@@ -172,6 +172,7 @@ prices: CampaignPricesData | null,
 skipped: CampaignTargetData[],
 notice: CampaignNoticeData | null,
 drafts: CampaignNoticeData[],
+address: string | null,
 };
 export type CampaignTargetData = {
 kind: string,
@@ -206,6 +207,22 @@ export type CategoryChoiceData = {
 id: string,
 pathAr: string,
 pathEn: string,
+};
+export type ContentAddressData = {
+canonical: string,
+alternate: string | null,
+alternateLocale: string | null,
+noindex: boolean,
+alternates: ContentAlternateData[],
+};
+export type ContentAlternateData = {
+hrefLang: string,
+href: string,
+};
+export type ContentHeadData = {
+title: string,
+description: string | null,
+image: string | null,
 };
 export type ContentImageData = {
 id: string,
@@ -430,6 +447,80 @@ old: string,
 new: string,
 result: string,
 reason: string | null,
+};
+export type ShopBlogPageData = {
+posts: Record<string, any>[],
+next: string | null,
+categories: {
+name: string,
+slug: string,
+}[],
+categorySlug: string | null,
+categoryName: string | null,
+address: ContentAddressData,
+head: ContentHeadData,
+};
+export type ShopCampaignPageData = {
+name: string,
+endsAt: string,
+products: Record<string, any>[],
+next: string | null,
+cardFacts: Record<string, any>,
+address: ContentAddressData,
+head: ContentHeadData,
+};
+export type ShopDocumentPageData = {
+kind: string,
+title: string,
+blocks: Record<string, any>[],
+images: {
+src: string | null,
+width: number | null,
+height: number | null,
+}[],
+publishedAt: string | null,
+summary: string | null,
+cover: Record<string, Record<string, string>> | null,
+coverAlt: string | null,
+city: string | null,
+category: {
+name: string,
+slug: string,
+} | null,
+photos: Record<string, Record<string, string>>[],
+products: Record<string, any>[],
+cardFacts: Record<string, any>,
+address: ContentAddressData,
+head: ContentHeadData,
+};
+export type ShopHomePageData = {
+sections: Record<string, any>[],
+heroBanner: Record<string, any> | null,
+phoneBanners: Record<string, any>[],
+bestSellers: Record<string, any>[],
+cardFacts: Record<string, any>,
+categoryTiles: Record<string, any>[],
+points: {
+earn: number,
+off: number,
+currency: string,
+} | null,
+themeParts: {
+promises: Record<string, string>,
+promisesArt: boolean,
+pointsHeading: string | null,
+pointsArt: boolean,
+logosHeading: string | null,
+logosArt: boolean,
+},
+address: ContentAddressData,
+head: ContentHeadData,
+};
+export type ShopProjectsPageData = {
+projects: Record<string, any>[],
+next: string | null,
+address: ContentAddressData,
+head: ContentHeadData,
 };
 export type SmartBarData = {
 id: string,

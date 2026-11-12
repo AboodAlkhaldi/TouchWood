@@ -15,6 +15,7 @@ use Modules\Content\Domain\Model\CampaignRun;
 use Modules\Content\Domain\Model\RunState;
 use Modules\Content\Domain\Repository\Campaigns;
 use Modules\Content\Domain\ValueObject\PriceChoices;
+use Modules\Content\Domain\ValueObject\Slug;
 use stdClass;
 
 /** `Campaigns` in SQL (content.md §5: `content.campaigns`, `content.campaign_runs`, `content.campaign_run_targets`). */
@@ -22,7 +23,7 @@ final readonly class DatabaseCampaigns implements Campaigns
 {
     private const string COLUMNS = 'id, name_ar, name_en, starts_at_local, ends_at_local, theme_id, version, updated_by, updated_at';
 
-    private const string RUN_COLUMNS = 'id, campaign_id, store_id, state, starts_at, ends_at, price_choices, notice_id, went_live_at, ended_at, cancelled_at, warned_72_at, warned_24_at';
+    private const string RUN_COLUMNS = 'id, campaign_id, store_id, state, starts_at, ends_at, price_choices, notice_id, went_live_at, ended_at, cancelled_at, warned_72_at, warned_24_at, slug_ar, slug_en';
 
     public function __construct(
         private ConnectionInterface $db,
@@ -312,6 +313,30 @@ final readonly class DatabaseCampaigns implements Campaigns
             Rows::moment($row->cancelled_at),
             Rows::moment($row->warned_72_at),
             Rows::moment($row->warned_24_at),
+            Rows::text($row->slug_ar ?? null),
+            Rows::text($row->slug_en ?? null),
         );
+    }
+
+    public function giveAddress(string $runId, string $storeId, string $slugAr, string $slugEn): void
+    {
+        $runId = strtolower($runId);
+        $storeId = strtolower($storeId);
+        $free = function (string $column, string $slug) use ($storeId, $runId): string {
+            /** @var list<string> $taken */
+            $taken = $this->db->table('content.campaign_runs')->where('store_id', $storeId)->where('id', '<>', $runId)
+                ->where(static fn ($query) => $query->where($column, $slug)->orWhere($column, 'like', str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $slug).'-%'))
+                ->pluck($column)->map(static fn (mixed $value): string => (string) $value)->all();
+            $candidate = $slug;
+
+            // At most as many tries as addresses taken, plus one: the loop has its end.
+            for ($n = 2; in_array($candidate, $taken, true) && $n <= count($taken) + 2; $n++) {
+                $candidate = mb_substr($slug, 0, Slug::MAX - 6)."-{$n}";
+            }
+
+            return $candidate;
+        };
+
+        $this->db->table('content.campaign_runs')->where('id', $runId)->whereNull('slug_ar')->update(['slug_ar' => $free('slug_ar', $slugAr), 'slug_en' => $free('slug_en', $slugEn)]);
     }
 }

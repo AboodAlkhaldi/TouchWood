@@ -28,6 +28,8 @@ final readonly class DatabaseShopReads implements ShopReads
         $now = Rows::at(Moments::now());
         $bar = $this->db->selectOne('SELECT text_ar, text_en, link, starts_at, ends_at FROM content.bars WHERE store_id = ? AND is_on', [$storeId]);
         $footer = $this->db->selectOne('SELECT about_ar, about_en, phone, email, address_ar, address_en, copyright_ar, copyright_en, columns FROM content.footers WHERE store_id = ?', [$storeId]);
+        // The SEO defaults (§1.14) Content's own pages name in their heads (H1-H7), kept with the frame.
+        $seo = $this->db->selectOne('SELECT site_name_ar, site_name_en, title_pattern_ar, title_pattern_en, description_ar, description_en, share_media_id FROM content.seo_defaults WHERE store_id = ?', [$storeId]);
 
         /** @var list<stdClass> $popups */
         $popups = $this->db->select(
@@ -72,6 +74,7 @@ final readonly class DatabaseShopReads implements ShopReads
         $urls = $this->urls([
             ...array_map(static fn (stdClass $popup): ?string => Rows::text($popup->media_id), $popups),
             ...array_map(static fn (stdClass $image): string => (string) $image->media_id, $listingImages),
+            $seo instanceof stdClass ? Rows::text($seo->share_media_id) : null,
         ]);
 
         $bannerImages = [];
@@ -103,6 +106,7 @@ final readonly class DatabaseShopReads implements ShopReads
             ], $listings),
             'bar' => $bar instanceof stdClass ? ['text_ar' => (string) $bar->text_ar, 'text_en' => (string) $bar->text_en, 'link' => Rows::text($bar->link), 'starts' => self::iso($bar->starts_at), 'ends' => self::iso($bar->ends_at)] : null,
             'footer' => $footer instanceof stdClass ? [...array_map(Rows::text(...), (array) $footer), 'columns' => Rows::decode($footer->columns)] : null,
+            'seo' => $seo instanceof stdClass ? [...array_map(Rows::text(...), array_diff_key((array) $seo, ['share_media_id' => true])), 'image' => $urls[(string) $seo->share_media_id] ?? []] : null,
             'popups' => array_map(static fn (stdClass $popup): array => [
                 'id' => (string) $popup->id,
                 'title_ar' => (string) $popup->title_ar,

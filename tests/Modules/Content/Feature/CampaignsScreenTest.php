@@ -548,3 +548,27 @@ it('costs few queries of its own', function () {
     // the prices are typed, a store at a time.
     expect([Screen::queries($browser, CAMPAIGNS_SCREEN.'?store=sa'), Screen::queries($browser, CAMPAIGNS_SCREEN."/{$campaign}")])->toBe([23, 23]);
 });
+
+it('shows the campaign page\'s address once a store\'s run is scheduled, a store a line, at no query of its own (owner, 2026-11-12)', function () {
+    $browser = Screen::as(campaignsScreenEditor(['sa', 'ae']));
+    $campaign = campaignsScreenCreate($browser, ['sa', 'ae']);
+
+    $browser->get(CAMPAIGNS_SCREEN."/{$campaign}")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('runs.0.address', null)->where('runs.1.address', null));
+
+    $browser->post(CAMPAIGNS_SCREEN."/{$campaign}/schedule", ['version' => campaignsScreenVersion($campaign), 'store' => Fx::storeId('sa')], Screen::fromPage(CAMPAIGNS_SCREEN."/{$campaign}"))->assertRedirect();
+    $slug = (string) DB::table('content.campaign_runs')->where('id', campaignsScreenRun($campaign))->value('slug_en');
+    $byStore = [];
+
+    $browser->get(CAMPAIGNS_SCREEN."/{$campaign}")->assertOk()->assertInertia(function (AssertableInertia $page) use (&$byStore): void {
+        foreach ($page->toArray()['props']['runs'] as $run) {
+            $byStore[$run['store']['code']] = $run['address'];
+        }
+    });
+
+    expect($slug)->not->toBe('')
+        ->and($byStore)->toBe(['sa' => "/campaigns/{$slug}", 'ae' => null])
+        // The address rides on the run's own row, read already: no query of its own. Measured 2026-11-12, the page with
+        // one store's run scheduled is 25 - the draft's 23 (the test above) and Pricing's two reads of a scheduled run, its
+        // saved prices and the sizes it skips (PR 8's).
+        ->and(Screen::queries($browser, CAMPAIGNS_SCREEN."/{$campaign}"))->toBe(25);
+});

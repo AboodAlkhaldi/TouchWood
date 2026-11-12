@@ -8,6 +8,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Inertia\Testing\AssertableInertia;
+use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Application\Routing\InMemoryReservedPaths;
 use Modules\Platform\Domain\Exception\StoreNotFound;
 
@@ -32,15 +33,16 @@ describe('a store and its language', function () {
             ->assertOk()
             ->assertSee('lang="ar"', false)
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->component('Platform/Storefront/Home')
-                ->where('name', 'السعودية')
-                ->where('symbol', "\u{20C1}")
+                // The store's home is Content's (content.md §2.3 row L4).
+                ->component('Content/Storefront/Home')
+                ->where('shop.name', 'السعودية')
+                ->where('shop.symbol', "\u{20C1}")
             );
 
         get('/sa/en')
             ->assertOk()
             ->assertSee('lang="en"', false)
-            ->assertInertia(fn (AssertableInertia $page) => $page->where('name', 'Saudi Arabia'));
+            ->assertInertia(fn (AssertableInertia $page) => $page->where('shop.name', 'Saudi Arabia'));
     });
 
     it('carries the words its own header reads', function () {
@@ -54,15 +56,15 @@ describe('a store and its language', function () {
 
             expect($words)->toHaveKey('access::auth.sign_in')
                 ->and($words)->toHaveKey('admin.theme.dark')
-                ->and($words)->toHaveKey('platform::stores.placeholder')
+                ->and($words)->toHaveKey('content::shop.home.guides')
                 // Still only the files the page named, never the system's whole dictionary.
                 ->and($words)->not->toHaveKey('access::permissions.access.staff.invite');
         });
     });
 
     it('shows the letters for a currency that has no sign, in the page language', function () {
-        get('/eg/ar')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('symbol', 'ج.م'));
-        get('/eg/en')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('symbol', 'EGP'));
+        get('/eg/ar')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('shop.symbol', 'ج.م'));
+        get('/eg/en')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('shop.symbol', 'EGP'));
     });
 
     it('remembers the store and the language in cookies', function () {
@@ -129,9 +131,9 @@ describe('a store without a language', function () {
     });
 });
 
-describe('the country page at brand.com/', function () {
+describe('brand.com/ (content.md §1.14, Q20 (a))', function () {
     it('sends a visitor back to their store and language', function () {
-        withCookies(['tw_store' => 'eg', 'tw_locale' => 'en'])->get('/')->assertRedirect('/eg/en');
+        withCookies(['tw_store' => 'eg', 'tw_locale' => 'en'])->get('/')->assertStatus(302)->assertRedirect('/eg/en');
     });
 
     it('uses Arabic for a remembered store when no language is remembered', function () {
@@ -142,37 +144,24 @@ describe('the country page at brand.com/', function () {
         withCookie('tw_store', 'eg')->get('/?utm_campaign=eid')->assertRedirect('/eg/ar?utm_campaign=eid');
     });
 
-    it('shows the country page in Arabic to a new visitor, linking to the Arabic stores', function () {
-        get('/')
-            ->assertOk()
-            ->assertInertia(fn (AssertableInertia $page) => $page
-                ->component('Platform/Storefront/ChooseStore')
-                // In Platform's own order, which is the order a visitor chooses from.
-                ->where('stores.0.name', 'السعودية')
-                ->where('stores.1.name', 'مصر')
-                ->where('stores.2.name', 'الإمارات')
-                ->where('stores.0.href', '/sa/ar')
-            );
+    it('sends a first visit - and Google - on to the base store\'s Arabic home with a 302, the query kept', function () {
+        get('/')->assertStatus(302)->assertRedirect('/sa/ar');
+        get('/?utm_source=google&gclid=abc123')->assertStatus(302)->assertRedirect('/sa/ar?utm_source=google&gclid=abc123');
     });
 
-    it('shows the country page in the remembered language', function () {
-        withCookie('tw_locale', 'en')->get('/')
-            ->assertOk()
-            ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('stores.0.name', 'Saudi Arabia')
-                ->where('stores.1.name', 'Egypt')
-                ->where('stores.2.name', 'United Arab Emirates')
-                ->where('stores.0.href', '/sa/en')
-            );
+    it('takes the base store from the stores, not their order, and the remembered language with it', function () {
+        DB::table('platform.stores')->update(['is_base' => false]);
+        DB::table('platform.stores')->where('code', 'ae')->update(['is_base' => true]);
+        app(StoreDirectory::class)->invalidate();
+
+        get('/')->assertRedirect('/ae/ar');
+        withCookie('tw_locale', 'en')->get('/')->assertRedirect('/ae/en');
     });
 
-    it('shows the country page when the remembered store no longer exists', function () {
-        withCookie('tw_store', 'zz')->get('/')
-            ->assertOk()
-            ->assertInertia(fn (AssertableInertia $page) => $page->component('Platform/Storefront/ChooseStore'));
+    it('sends a visitor whose remembered store no longer exists to the base store', function () {
+        withCookie('tw_store', 'zz')->get('/')->assertStatus(302)->assertRedirect('/sa/ar');
     });
 });
-
 describe('reserved paths', function () {
     it('does not treat reserved paths as store codes', function () {
         get('/up')->assertOk();
@@ -228,7 +217,8 @@ it('resolves the store from the cache alone once warm: tiny cache reads, never t
     $queries = array_column(DB::getQueryLog(), 'query');
 
     // Content's frame, 2 more since 2026-11-11 (content.md §1.5, plan PR 9): its one cached read, the cache's version and copy.
-    expect($queries)->toHaveCount(6);
+    // The store's home is Content's since plan PR 10 (content.md H1): its cached copy, 2 more - the cache's version and copy.
+    expect($queries)->toHaveCount(8);
 
     foreach ($queries as $query) {
         expect($query)->toContain('"cache"');

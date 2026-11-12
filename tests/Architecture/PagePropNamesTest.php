@@ -13,13 +13,13 @@ declare(strict_types=1);
 |
 | The shared names come from the four places that share them: app/Http/Middleware/HandleInertiaRequests
 | (with Inertia's own `errors`), Access's ShareAdminPage and ShareStorefrontPage, and Platform's
-| ShareStorefront. A name added there belongs here too.
+| ShareStorefront (with `frame`, the shop's parts, and `staffView`). A name added there belongs here too.
 */
 
 const SHARED_PAGE_PROPS = [
     'errors', 'locale', 'direction', 'theme', 'translations', 'flash', 'csrfToken',
     'viewer', 'menu', 'sidebarOpen', 'sidebarSections', 'viewStores', 'panelTimezone', 'routes',
-    'shop', 'shopper', 'accountMenu', 'shopperLines',
+    'shop', 'shopper', 'accountMenu', 'shopperLines', 'staffView', 'frame', 'panelFrame',
 ];
 
 /**
@@ -53,6 +53,8 @@ it('finds the page resources to check', function () {
         ->toContain('Modules\\Access\\Presentation\\Http\\Resource\\CustomerDetailsPage')
         ->toContain('Modules\\Access\\Presentation\\Http\\Resource\\StaffMemberPage')
         ->toContain('Modules\\Access\\Presentation\\Http\\Resource\\InviteStaffPage')
+        // Content names its page resources `...PageData` (plan PR 10's trap).
+        ->toContain('Modules\\Content\\Presentation\\Http\\Resource\\BannersPageData')
         ->toContain('Modules\\Content\\Presentation\\Http\\Resource\\CampaignFormPageData')
         ->toContain('Modules\\Content\\Presentation\\Http\\Resource\\ThemeFormPageData');
 });

@@ -203,8 +203,8 @@ describe('the addresses', function () {
         shopPagesProduct($category);
 
         get('/sa/en/sign-in')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('frame.catalog.menu.0.id', $category));
-        // The country page belongs to no store, and has no frame of a store's.
-        get('/')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('frame', []));
+        // brand.com/ belongs to no store: it sends a first visit on to the base store's home (content.md Q20 (a)).
+        get('/')->assertRedirect('/sa/ar');
     });
 });
 

@@ -106,7 +106,8 @@ it('opens the drawer of option C3: categories, then account and settings with th
 
     $page->click('[data-test="drawer-account"]');
     expect(browserSoon($page, "document.querySelector('[data-test=\"drawer-country\"]') !== null && document.querySelector('[data-test=\"drawer-sign-in\"]') !== null"))->toBeTrue()
-        ->and($page->script("document.querySelector('[data-test=\"drawer-language-en\"]')?.getAttribute('href')"))->toBe('/ae/en')
+        // The home's other language from its own address (Content's H1 since PR 10: a full address, as Catalog's pages give).
+        ->and($page->script("document.querySelector('[data-test=\"drawer-language-en\"]')?.getAttribute('href')"))->toEndWith('/ae/en')
         ->and($page->script("document.querySelector('[data-test=\"drawer-theme\"]')?.textContent"))->toContain('داكن')
         ->and(browserUntil($page, "(() => { const r = document.querySelector('[data-test=\"category-sheet\"]').getBoundingClientRect(); return r.left >= 0 && r.right <= window.innerWidth; })()"))->toBeTrue();
 

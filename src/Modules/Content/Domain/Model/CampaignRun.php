@@ -28,6 +28,10 @@ final readonly class CampaignRun
         public ?DateTimeImmutable $cancelledAt = null,
         public ?DateTimeImmutable $warned72At = null,
         public ?DateTimeImmutable $warned24At = null,
+        // Its shop page's address per language (H7), given once at Schedule (CampaignRules::giveAddress) and never
+        // written through the run: read only.
+        public ?string $slugAr = null,
+        public ?string $slugEn = null,
     ) {}
 
     /** The same run with these fields changed. */
@@ -59,6 +63,8 @@ final readonly class CampaignRun
             $cancelledAt ?? $this->cancelledAt,
             $warnings ? $warned72At : $this->warned72At,
             $warnings ? $warned24At : $this->warned24At,
+            $this->slugAr,
+            $this->slugEn,
         );
     }
 
