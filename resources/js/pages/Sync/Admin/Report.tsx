@@ -1,4 +1,4 @@
-import { type RefObject, useRef, useState } from 'react';
+import { type ReactNode, type RefObject, useRef, useState } from 'react';
 import { Link, router } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
@@ -7,6 +7,7 @@ import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { Note } from '@/components/Note';
 import { PanelDialog } from '@/components/PanelDialog';
+import { PhoneCards } from '@/components/PhoneCards';
 import { Guarded, MoreButton } from '@/components/RowMenu';
 import { Time } from '@/components/Time';
 import { Button } from '@/components/ui/button';
@@ -19,8 +20,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { figure } from '@/lib/digits';
 import { useKeptDepth } from '@/lib/kept-depth';
 import { useLoadMore } from '@/lib/use-load-more';
-import type { ProblemsData, ReadRowData, ReadsData, ReportEntryData, SyncFrameData, SyncReportPage, SyncStatusData } from '@/types/generated/Modules/Sync/Presentation/Http/Resource';
-import { Detail, EmptyState, FailureText, KindBadge, type Links, MARK, Phrase, R, ReadStateBadge, Showing, StoreFrame, StoreStateBadge, took, useLocale, useT, What } from './parts';
+import type { ProblemsData, ReadRowData, ReadsData, ReportedData, ReportEntryData, SyncFrameData, SyncReportPage, SyncStatusData } from '@/types/generated/Modules/Sync/Presentation/Http/Resource';
+import { Detail, EmptyState, FailureText, KindBadge, type Links, type Locale, MARK, nameIn, Phrase, R, ReadStateBadge, Showing, StoreFrame, StoreStateBadge, took, type Translate, useLocale, useT, What } from './parts';
 
 /*
 | **The Sync Report** (sync.md §4.1 Y1, `?store=&tab=problems|reads&kind=`): the status line above the tabs -
@@ -191,6 +192,20 @@ function ProblemsList({ problems, kind, frame, links }: { problems: ProblemsData
     const [dismissOpen, setDismissOpen] = useState(false);
     const [busy, setBusy] = useState<number | null>(null);
     const opener = useRef<HTMLElement | null>(null);
+    const menu = (entry: ReportEntryData, test: string) => (
+        <EntryMenu
+            entry={entry}
+            frame={frame}
+            busy={busy === entry.id}
+            onRetry={() => router.post(`/admin/sync/entries/${entry.id}/retry`, {}, { preserveScroll: true, onStart: () => setBusy(entry.id), onFinish: () => setBusy(null) })}
+            onDismiss={(trigger) => {
+                opener.current = trigger;
+                setDismissing(entry);
+                setDismissOpen(true);
+            }}
+            test={test}
+        />
+    );
 
     return (
         <>
@@ -217,7 +232,7 @@ function ProblemsList({ problems, kind, frame, links }: { problems: ProblemsData
             ) : (
                 <>
                     <Showing shown={list.rows.length} total={problems.total} />
-                    <div className="material-base overflow-x-auto">
+                    <div className="material-base hidden overflow-x-auto sm:block">
                         <Table>
                             <TableCaption className="sr-only">{t(`${R}.tabs.problems`)}</TableCaption>
                             <TableHeader className="bg-surface-sunken">
@@ -252,28 +267,29 @@ function ProblemsList({ problems, kind, frame, links }: { problems: ProblemsData
                                         <TableCell>
                                             <Time value={entry.lastSeenAt} />
                                         </TableCell>
-                                        {frame.mayRun ? (
-                                            <TableCell className="text-end">
-                                                <EntryMenu
-                                                    entry={entry}
-                                                    frame={frame}
-                                                    busy={busy === entry.id}
-                                                    onRetry={() =>
-                                                        router.post(`/admin/sync/entries/${entry.id}/retry`, {}, { preserveScroll: true, onStart: () => setBusy(entry.id), onFinish: () => setBusy(null) })
-                                                    }
-                                                    onDismiss={(trigger) => {
-                                                        opener.current = trigger;
-                                                        setDismissing(entry);
-                                                        setDismissOpen(true);
-                                                    }}
-                                                />
-                                            </TableCell>
-                                        ) : null}
+                                        {frame.mayRun ? <TableCell className="text-end">{menu(entry, `entry-actions-${entry.id}`)}</TableCell> : null}
                                     </TableRow>
                                 ))}
                             </TableBody>
                         </Table>
                     </div>
+                    {/* On a phone each entry a card (round 3 #15): what it is about, its kind, its detail, its ⋯ at the end. */}
+                    <PhoneCards
+                        test="entry"
+                        cards={list.rows.map((entry) => ({
+                            id: String(entry.id),
+                            title: aboutTitle(entry.about, t, locale),
+                            badge: <KindBadge kind={entry.about.kind} />,
+                            lines: [
+                                <Detail key="detail" about={entry.about} links={links} />,
+                                <span key="seen">
+                                    {`${t(`${R}.problems.columns.last_seen`)}: `}
+                                    <Time value={entry.lastSeenAt} />
+                                </span>,
+                            ],
+                            menu: frame.mayRun ? menu(entry, `entry-card-actions-${entry.id}`) : undefined,
+                        }))}
+                    />
                 </>
             )}
 
@@ -286,10 +302,15 @@ function ProblemsList({ problems, kind, frame, links }: { problems: ProblemsData
                     open={dismissOpen}
                     onOpenChange={setDismissOpen}
                     onDismissed={() => {
-                        // Its row is gone: the focus goes to the next row's ⋯, else the one before, else the kind filter.
+                        // Its row is gone: the focus goes to the next row's ⋯, else the one before, else the kind filter - the ⋯ shown,
+                        // the row's or, on a phone, its card's.
                         const at = list.rows.findIndex((row) => row.id === dismissing.id);
                         const near = [list.rows[at + 1], list.rows[at - 1]].find((row) => row !== undefined && row.id !== dismissing.id);
-                        opener.current = (near === undefined ? null : document.querySelector<HTMLElement>(`[data-test="entry-actions-${near.id}"]`)) ?? document.getElementById('kind-filter');
+                        opener.current =
+                            (near === undefined
+                                ? null
+                                : [...document.querySelectorAll<HTMLElement>(`[data-test="entry-actions-${near.id}"], [data-test="entry-card-actions-${near.id}"]`)].find((each) => each.getClientRects().length > 0)) ??
+                            document.getElementById('kind-filter');
                         setDismissOpen(false);
                     }}
                     returnFocusTo={opener}
@@ -304,7 +325,21 @@ function ProblemsList({ problems, kind, frame, links }: { problems: ProblemsData
  * read never closes and which offer **Open Offer** / **Open Product** instead (Q27); a size deleted since
  * has it out of reach -; then **Dismiss Entry…** (Q28), out of reach on a failed read's entry.
  */
-function EntryMenu({ entry, frame, busy, onRetry, onDismiss }: { entry: ReportEntryData; frame: SyncFrameData; busy: boolean; onRetry: () => void; onDismiss: (trigger: HTMLElement | null) => void }) {
+function EntryMenu({
+    entry,
+    frame,
+    busy,
+    onRetry,
+    onDismiss,
+    test,
+}: {
+    entry: ReportEntryData;
+    frame: SyncFrameData;
+    busy: boolean;
+    onRetry: () => void;
+    onDismiss: (trigger: HTMLElement | null) => void;
+    test: string;
+}) {
     const t = useT();
     const more = useRef<HTMLButtonElement>(null);
     const { about } = entry;
@@ -317,7 +352,7 @@ function EntryMenu({ entry, frame, busy, onRetry, onDismiss }: { entry: ReportEn
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <MoreButton ref={more} name={name} busy={busy} data-test={`entry-actions-${entry.id}`} />
+                <MoreButton ref={more} name={name} busy={busy} data-test={test} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-56">
                 {!neverRead ? <Guarded label={t(`${M}.retry`)} reason={about.sizeExists === false ? frame.reasons.sizeGone : null} onSelect={onRetry} test="retry-entry" /> : null}
@@ -328,6 +363,15 @@ function EntryMenu({ entry, frame, busy, onRetry, onDismiss }: { entry: ReportEn
             </DropdownMenuContent>
         </DropdownMenu>
     );
+}
+
+/** An entry's card title (round 3 #15): its product's name, a size deleted since, or the provider's code - What's first line. */
+function aboutTitle(about: ReportedData, t: Translate, locale: Locale): ReactNode {
+    if (about.variantId === null) {
+        return about.code === null ? '—' : <bdi dir="ltr" className="font-mono">{about.code}</bdi>;
+    }
+
+    return about.sizeExists !== true || about.productId === null ? t(`${R}.problems.size_gone`) : nameIn(locale, about.productNameAr, about.productNameEn);
 }
 
 /** Dismiss Entry: asked first; it leaves the report, and comes back if a read finds it again. */
@@ -392,7 +436,7 @@ function ReadsList({ reads, frame }: { reads: ReadsData; frame: SyncFrameData })
     return (
         <div className="grid gap-4">
             <Showing shown={list.rows.length} total={reads.total} />
-            <div className="material-base overflow-x-auto">
+            <div className="material-base hidden overflow-x-auto sm:block">
                 <Table>
                     <TableCaption className="sr-only">{t(`${R}.tabs.reads`)}</TableCaption>
                     <TableHeader className="bg-surface-sunken">
@@ -432,6 +476,26 @@ function ReadsList({ reads, frame }: { reads: ReadsData; frame: SyncFrameData })
                     </TableBody>
                 </Table>
             </div>
+            {/* On a phone each read a card (round 3 #15), opening its page as the row does. */}
+            <PhoneCards
+                test="read"
+                cards={list.rows.map((read) => ({
+                    id: read.id,
+                    title: t(`${R}.read_kinds.${read.kind}`),
+                    href: `/admin/sync/reads/${read.id}`,
+                    badge: <ReadStateBadge state={read.state} />,
+                    lines: [
+                        <span key="asked">
+                            {`${read.askedBySystem ? t(`${R}.the_system`) : read.askedBy} · `}
+                            {read.startedAt === null ? none : <Time value={read.startedAt} focusable={false} />}
+                        </span>,
+                        <span key="counts" className="tw-figure">
+                            {`${t(`${C}.prices`)}: ${figure(locale, read.pricesChanged)} · ${t(`${C}.stock`)}: ${figure(locale, read.stockChanged)} · ${t(`${C}.skipped`)}: ${figure(locale, read.skipped)}`}
+                        </span>,
+                        <span key="took" className="tw-figure">{`${t(`${C}.took`)}: ${took(t, locale, read.tookSeconds)}`}</span>,
+                    ],
+                }))}
+            />
             {reads.next !== null ? <LoadMoreButton loading={list.loading || restoring} onClick={() => more(reads.next ?? '')} /> : null}
         </div>
     );

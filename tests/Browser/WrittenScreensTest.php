@@ -141,6 +141,7 @@ it('sends to one customer at once, after the search asks for three characters, a
 
     $page->resize(375, 812);
     writtenBrowserFits($page);
+    expect(browserRowIsCard($page, '[data-test="message-card-'.$id.'"]', '[data-test="message-'.$id.'"]'))->toBeTrue();
 });
 
 it('saves digits typed in Arabic as 0-9', function () {
@@ -312,7 +313,7 @@ it('shows Refresh only while something sends, and a Refresh after Show More show
     $page->navigate('/admin/messages?store=ae', BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"refresh\"]') !== null"))->toBeTrue();
 
-    $rows = "document.querySelectorAll('[data-test^=\"message-\"]')";
+    $rows = "document.querySelectorAll('tr[data-test^=\"message-\"]')";
     $before = (int) $page->script("{$rows}.length");
     $page->click('[data-test="more"]');
     expect(browserSoon($page, "{$rows}.length > {$before}"))->toBeTrue();
@@ -387,7 +388,7 @@ it('keeps a row reached with Show More in the list when it is cancelled, saying 
     $run = writtenBrowserRun();
     $ids = array_map(static fn (int $i): string => writtenBrowserNotice("Deep {$i} {$run}"), range(1, 25));
     $page = writtenBrowser(['ops.notice.manage']);
-    $rows = "document.querySelectorAll('[data-test^=\"notice-\"]')";
+    $rows = "document.querySelectorAll('tr[data-test^=\"notice-\"]')";
     // The first written is the last of the newest 25: on the second page.
     $deep = $ids[0];
 
@@ -505,7 +506,8 @@ it('fits a phone in Arabic with a picker and a row open', function () {
     $page->resize(375, 812);
 
     $page->navigate('/admin/messages?store=ae', BROWSER_SLOW_PAGE_LOAD);
-    expect(browserSoon($page, "document.querySelector('[data-test=\"message-{$id}\"]') !== null"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"message-{$id}\"]') !== null"))->toBeTrue()
+        ->and(browserRowIsCard($page, '[data-test="message-card-'.$id.'"]', '[data-test="message-'.$id.'"]'))->toBeTrue();
     $page->script("(() => { document.querySelector('[data-test=\"message-{$id}\"] [data-test=\"open\"]').click(); })()");
     expect(browserSoon($page, "document.querySelector('[data-test=\"failed-note\"]') !== null"))->toBeTrue();
     writtenBrowserFits($page);
@@ -540,7 +542,8 @@ it('saves a draft With a Campaign on a phone, without asking, and lists it as Dr
     $id = (string) DB::table('ops.notices')->where('title_en', "Draft {$run}")->value('id');
     expect(DB::table('ops.notices')->where('id', $id)->value('status'))->toBe('DRAFT')
         ->and(DB::table('ops.notices')->where('id', $id)->value('send_at'))->toBeNull()
-        ->and(browserSoon($page, "document.querySelector('[data-test=\"notice-{$id}\"] [data-test=\"status\"]')?.textContent === 'Draft' && document.querySelector('[data-test=\"notice-{$id}\"] [data-test=\"with-campaign\"]') !== null"))->toBeTrue();
+        ->and(browserSoon($page, "document.querySelector('[data-test=\"notice-{$id}\"] [data-test=\"status\"]')?.textContent === 'Draft' && document.querySelector('[data-test=\"notice-{$id}\"] [data-test=\"with-campaign\"]') !== null"))->toBeTrue()
+        ->and(browserRowIsCard($page, '[data-test="notice-card-'.$id.'"]', '[data-test="notice-'.$id.'"]'))->toBeTrue();
     writtenBrowserFits($page);
 
     // Edit opens on With a Campaign, and keeps it a draft.
@@ -565,5 +568,7 @@ it('draws all four pages right to left in Arabic, in Latin digits, and fits a ph
         writtenBrowserFits($page);
     }
 
+    $page->navigate('/admin/notices?store=ae', BROWSER_SLOW_PAGE_LOAD);
+    expect(browserRowIsCard($page, '[data-test="notice-card-'.$notice.'"]', '[data-test="notice-'.$notice.'"]'))->toBeTrue();
     $page->assertNoJavaScriptErrors();
 });

@@ -4,6 +4,7 @@ import { ActionButton } from '@/components/ActionButton';
 import { DateRangeField } from '@/components/DateRangeField';
 import { SelectField } from '@/components/Fields';
 import { Note } from '@/components/Note';
+import { PhoneCards } from '@/components/PhoneCards';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
@@ -266,7 +267,7 @@ function Sheet({ sheet, locale, pageLocale, index }: { sheet: ReportSheetData; l
                 </Empty>
             ) : (
                 <>
-                    <div tabIndex={0} className="material-base max-w-full min-w-0 overflow-x-auto" data-test="table">
+                    <div tabIndex={0} className="material-base hidden max-w-full min-w-0 overflow-x-auto sm:block" data-test="table">
                         <Table>
                             <TableCaption className="sr-only">{sheet.name}</TableCaption>
                             <TableHeader className="bg-surface-sunken">
@@ -305,6 +306,20 @@ function Sheet({ sheet, locale, pageLocale, index }: { sheet: ReportSheetData; l
                             ) : null}
                         </Table>
                     </div>
+                    {/* On a phone each line a card (round 3 #15): its first value, then its figures first; the totals last. It opens nothing. */}
+                    <PhoneCards
+                        test="row"
+                        cards={[...sheet.rows.map((row, at) => ({ id: String(at), row })), ...sheet.totals.map((row, at) => ({ id: `total-${at}`, row }))].map(({ id, row }) => ({
+                            id,
+                            title: <Value value={row[0] ?? null} column={sheet.columns[0] as ReportColumnData} locale={locale} />,
+                            lines: keyColumns(sheet.columns).map((place) => (
+                                <span key={place}>
+                                    {`${sheet.columns[place]?.label}: `}
+                                    <Value value={row[place] ?? null} column={sheet.columns[place] as ReportColumnData} locale={locale} />
+                                </span>
+                            )),
+                        }))}
+                    />
                     {sheet.more ? (
                         <p className="text-copy-13 text-ink-muted" data-test="more-rows" {...own}>
                             {t('ops::admin_reports.more')}
@@ -314,6 +329,14 @@ function Sheet({ sheet, locale, pageLocale, index }: { sheet: ReportSheetData; l
             )}
         </div>
     );
+}
+
+/** A line's card shows up to three columns after its first: the counts and amounts first, then the rest. */
+function keyColumns(columns: ReportColumnData[]): number[] {
+    const rest = columns.map((_, place) => place).slice(1);
+    const figures = rest.filter((place) => figureColumn(columns[place] as ReportColumnData));
+
+    return [...figures, ...rest.filter((place) => !figures.includes(place))].slice(0, 3);
 }
 
 /** Counts and amounts line up at the end of their cells. */

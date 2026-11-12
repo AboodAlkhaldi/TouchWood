@@ -4,6 +4,7 @@ import { ActionButton } from '@/components/ActionButton';
 import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { PanelDialog } from '@/components/PanelDialog';
+import { PhoneCards } from '@/components/PhoneCards';
 import { MoreButton } from '@/components/RowMenu';
 import { StoreFilter } from '@/components/StoreFilter';
 import { Time } from '@/components/Time';
@@ -50,7 +51,7 @@ export default function Subscribers({ subscribers, next, stores, storeCode }: Su
                     </Empty>
                 ) : (
                     <>
-                        <div ref={table} tabIndex={-1} className="material-base max-w-full overflow-x-auto">
+                        <div ref={table} tabIndex={-1} className="material-base hidden max-w-full overflow-x-auto sm:block">
                             <Table>
                                 <TableCaption className="sr-only">{t('ops::admin_subscribers.title')}</TableCaption>
                                 <TableHeader className="bg-surface-sunken">
@@ -70,21 +71,7 @@ export default function Subscribers({ subscribers, next, stores, storeCode }: Su
                                     {list.rows.map((subscriber) => (
                                         <TableRow key={subscriber.id} data-test={`subscriber-${subscriber.id}`}>
                                             <TableCell className="text-ink" data-test="email">
-                                                {subscriber.email === null ? (
-                                                    // A Popover, not a tooltip: a tap opens it on a phone, Enter or Space by keyboard, Escape closes it.
-                                                    <Popover>
-                                                        <PopoverTrigger asChild>
-                                                            <button type="button" className="rounded-sm text-ink-muted underline decoration-dotted" data-test="hidden-email">
-                                                                {t('ops::admin_subscribers.hidden')}
-                                                            </button>
-                                                        </PopoverTrigger>
-                                                        <PopoverContent className="w-auto max-w-64 p-2 text-copy-13" align="start" data-test="hidden-why">
-                                                            {t('ops::admin_subscribers.hidden_why')}
-                                                        </PopoverContent>
-                                                    </Popover>
-                                                ) : (
-                                                    <bdi dir="ltr">{subscriber.email}</bdi>
-                                                )}
+                                                <Email email={subscriber.email} test="hidden-email" />
                                             </TableCell>
                                             <TableCell className="text-ink-muted">{t(`ops::admin_subscribers.language.${subscriber.locale}`)}</TableCell>
                                             <TableCell className="text-ink-muted" data-test="kind">
@@ -105,6 +92,7 @@ export default function Subscribers({ subscribers, next, stores, storeCode }: Su
                                                             opener.current = from;
                                                             setRemoving(subscriber);
                                                         }}
+                                                        test={`more-${subscriber.id}`}
                                                     />
                                                 ) : null}
                                             </TableCell>
@@ -113,6 +101,33 @@ export default function Subscribers({ subscribers, next, stores, storeCode }: Su
                                 </TableBody>
                             </Table>
                         </div>
+                        {/* On a phone each subscriber a card (round 3 #15); only a guest's has a menu. */}
+                        <PhoneCards
+                            test="subscriber"
+                            cards={list.rows.map((subscriber) => ({
+                                id: subscriber.id,
+                                title: <Email email={subscriber.email} test="hidden-email-card" />,
+                                lines: [
+                                    <span key="kind">{`${t('ops::admin_subscribers.columns.kind')}: ${t(`ops::admin_subscribers.kind.${subscriber.kind}`)}`}</span>,
+                                    <span key="state">{`${t('ops::admin_subscribers.columns.state')}: ${subscriber.confirmed ? t('ops::admin_subscribers.state.confirmed') : t('ops::admin_subscribers.state.waiting')}`}</span>,
+                                    <span key="joined">
+                                        {`${t('ops::admin_subscribers.columns.joined')}: `}
+                                        <Time value={subscriber.createdAt} />
+                                    </span>,
+                                ],
+                                menu:
+                                    subscriber.kind === 'GUEST' ? (
+                                        <RowActions
+                                            subscriber={subscriber}
+                                            onRemove={(from) => {
+                                                opener.current = from;
+                                                setRemoving(subscriber);
+                                            }}
+                                            test={`more-card-${subscriber.id}`}
+                                        />
+                                    ) : undefined,
+                            }))}
+                        />
                         {next !== null ? <LoadMoreButton loading={list.loading || restoring} onClick={() => more(next)} /> : null}
                     </>
                 )}
@@ -163,14 +178,36 @@ export default function Subscribers({ subscribers, next, stores, storeCode }: Su
     );
 }
 
-function RowActions({ subscriber, onRemove }: { subscriber: SubscriberData; onRemove: (from: HTMLElement | null) => void }) {
+/** A subscriber's email, or Hidden with its reason: the row's, and the same on its phone card under its own test name. */
+function Email({ email, test }: { email: string | null; test: string }) {
+    const t = useTranslator();
+
+    return email === null ? (
+        // A Popover, not a tooltip: a tap opens it on a phone, Enter or Space by keyboard, Escape closes it.
+        <Popover>
+            <PopoverTrigger asChild>
+                <button type="button" className="rounded-sm text-ink-muted underline decoration-dotted" data-test={test}>
+                    {t('ops::admin_subscribers.hidden')}
+                </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto max-w-64 p-2 text-copy-13" align="start" data-test="hidden-why">
+                {t('ops::admin_subscribers.hidden_why')}
+            </PopoverContent>
+        </Popover>
+    ) : (
+        <bdi dir="ltr">{email}</bdi>
+    );
+}
+
+/** A guest's ⋯ menu: the row's, and the same on its phone card under its own test name. */
+function RowActions({ subscriber, onRemove, test }: { subscriber: SubscriberData; onRemove: (from: HTMLElement | null) => void; test: string }) {
     const t = useTranslator();
     const more = useRef<HTMLButtonElement>(null);
 
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <MoreButton ref={more} name={subscriber.email ?? ''} data-test={`more-${subscriber.id}`} />
+                <MoreButton ref={more} name={subscriber.email ?? ''} data-test={test} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-40">
                 <DropdownMenuItem variant="destructive" onSelect={() => onRemove(more.current)} data-test="remove">{`${t('ops::admin_subscribers.remove.menu')}…`}</DropdownMenuItem>

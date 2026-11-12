@@ -85,6 +85,7 @@ it('makes today\'s report, on top with its Download, and says Report ready', fun
 
     $page->resize(375, 812);
     dailyReportsFits($page);
+    expect(browserRowIsCard($page, '[data-test="report-card-'.$today->id.'"]', '[data-test="report-'.$today->id.'"]'))->toBeTrue();
 });
 
 it('makes a past day\'s report, opening on yesterday, and marks it Past day', function () {
@@ -260,8 +261,10 @@ it('draws right to left in Arabic, in Latin digits, and fits a phone', function 
     expect(browserSoon($page, "/[0-9]/.test(document.querySelector('[data-test=\"{$row}-next\"]')?.textContent ?? '')"))->toBeTrue();
 
     $page->resize(375, 812);
+    $made = dailyReportsRow($staff);
 
-    expect(browserSoon($page, "document.documentElement.dir === 'rtl'"))->toBeTrue()
+    expect(browserRowIsCard($page, '[data-test="report-card-'.$made->id.'"]', '[data-test="report-'.$made->id.'"]'))->toBeTrue()
+        ->and(browserSoon($page, "document.documentElement.dir === 'rtl'"))->toBeTrue()
         ->and((bool) $page->script('/[٠-٩]/.test(document.body.textContent)'))->toBeFalse();
     dailyReportsFits($page);
     $page->assertNoJavaScriptErrors();

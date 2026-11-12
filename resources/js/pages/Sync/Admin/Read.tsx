@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 import { Link, router } from '@inertiajs/react';
 import { ArrowRight } from 'lucide-react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
+import { type PhoneCard, PhoneCards } from '@/components/PhoneCards';
 import { Time, useMoments } from '@/components/Time';
 import { Description, type DescriptionItem } from '@/components/geist-only/Description';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { figure } from '@/lib/digits';
 import { useLoadMore } from '@/lib/use-load-more';
 import type { ReadLineData, ReportedData, SyncReadPage } from '@/types/generated/Modules/Sync/Presentation/Http/Resource';
-import { Detail, EmptyState, FailureText, KindBadge, type Links, nameIn, R, ReadStateBadge, sizeName, took, useLocale, useT, What } from './parts';
+import { Detail, EmptyState, FailureText, KindBadge, type Links, type Locale, nameIn, R, ReadStateBadge, sizeName, took, type Translate, useLocale, useT, What } from './parts';
 
 /*
 | **A read** (sync.md §4.1 Y2, `/admin/sync/reads/{id}?section=&page=`): its header - kind, state, who asked,
@@ -61,6 +62,52 @@ export default function Read(page: SyncReadPage) {
 
     const choose = (value: string) =>
         router.get(url, { section: value.toLowerCase() }, { preserveScroll: true, replace: true, onStart: () => setSwitching(true), onFinish: () => setSwitching(false) });
+
+    // On a phone each row a card (round 3 #15): a line's product - a link, as its name is in the row -, size, code and
+    // from → to; a reported entry's kind and detail; a code.
+    const card = ({ key, line, reported, code }: Row): PhoneCard => {
+        if (line !== undefined) {
+            const named = line.sizeExists && line.productId !== null;
+            const base = {
+                id: key,
+                title: named ? nameIn(locale, line.productNameAr, line.productNameEn) : t(`${R}.problems.size_gone`),
+                lines: [
+                    <span key="size">
+                        {`${line.sizeExists ? sizeName(t, line.values) : '—'} · `}
+                        <bdi dir="ltr" className="tw-figure font-mono">
+                            {line.code ?? '—'}
+                        </bdi>
+                    </span>,
+                    <span key="from-to" className="inline-flex items-center gap-1.5">
+                        <bdi dir="ltr" className="tw-figure">
+                            {line.before ?? '—'}
+                        </bdi>
+                        <ArrowRight aria-hidden="true" className="inline size-3.5 rtl:rotate-180" />
+                        <span className="sr-only">{t(`${R}.read.columns.to`)}</span>
+                        <bdi dir="ltr" className="tw-figure">
+                            {line.after}
+                        </bdi>
+                    </span>,
+                ],
+            };
+
+            return named && links.mayViewProducts ? { ...base, href: `/admin/products/${line.productId}?tab=stores` } : base;
+        }
+
+        if (reported !== undefined) {
+            return { id: key, title: aboutTitle(reported, t, locale), badge: <KindBadge kind={reported.kind} />, lines: [<Detail key="detail" about={reported} links={links} />] };
+        }
+
+        return {
+            id: key,
+            title: (
+                <bdi dir="ltr" className="tw-figure font-mono">
+                    {code}
+                </bdi>
+            ),
+            lines: [],
+        };
+    };
 
     const none = t(`${R}.reads.none`);
     const H = `${R}.read.header`;
@@ -124,12 +171,15 @@ export default function Read(page: SyncReadPage) {
                             {list.rows.length === 0 ? (
                                 <EmptyState title={t(`${R}.read.sections.${section}`)} body={t(`${R}.read.empty`)} test="section-empty" />
                             ) : (
-                                <div className="material-base overflow-x-auto">
-                                    <Table>
-                                        <TableCaption className="sr-only">{t(`${R}.read.sections.${section}`)}</TableCaption>
-                                        {section === 'CODES' ? <CodesRows rows={list.rows} /> : section === 'REPORTED' ? <ReportedRows rows={list.rows} links={links} /> : <LineRows rows={list.rows} links={links} />}
-                                    </Table>
-                                </div>
+                                <>
+                                    <div className="material-base hidden overflow-x-auto sm:block">
+                                        <Table>
+                                            <TableCaption className="sr-only">{t(`${R}.read.sections.${section}`)}</TableCaption>
+                                            {section === 'CODES' ? <CodesRows rows={list.rows} /> : section === 'REPORTED' ? <ReportedRows rows={list.rows} links={links} /> : <LineRows rows={list.rows} links={links} />}
+                                        </Table>
+                                    </div>
+                                    <PhoneCards test={section === 'CODES' ? 'code' : section === 'REPORTED' ? 'reported' : 'line'} cards={list.rows.map(card)} />
+                                </>
                             )}
                             {page.more ? (
                                 <LoadMoreButton loading={list.loading} onClick={() => list.more(url, { section: section.toLowerCase(), page: page.page + 1 }, ['lines', 'reported', 'codes', 'page', 'more'])} />
@@ -143,6 +193,15 @@ export default function Read(page: SyncReadPage) {
 }
 
 const C = `${R}.read.columns`;
+
+/** A reported entry's card title (round 3 #15): its product's name, a size deleted since, or the provider's code - What's first line. */
+function aboutTitle(about: ReportedData, t: Translate, locale: Locale): ReactNode {
+    if (about.variantId === null) {
+        return about.code === null ? '—' : <bdi dir="ltr" className="font-mono">{about.code}</bdi>;
+    }
+
+    return about.sizeExists !== true || about.productId === null ? t(`${R}.problems.size_gone`) : nameIn(locale, about.productNameAr, about.productNameEn);
+}
 
 /** Prices Changed and Stock Changed: Product · Size · Code · From → To, each already written by the server. */
 function LineRows({ rows, links }: { rows: Row[]; links: Links }) {

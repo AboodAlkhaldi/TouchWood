@@ -5,6 +5,7 @@ import { ActionButton } from '@/components/ActionButton';
 import { SelectField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
+import { PhoneCards } from '@/components/PhoneCards';
 import { StoreOffBadge } from '@/components/StoreOffBadge';
 import { formatMoment, Time } from '@/components/Time';
 import { Badge } from '@/components/ui/badge';
@@ -79,7 +80,7 @@ export default function DailyReports({ reports, next, emails, stores, emailStore
                         </Empty>
                     ) : (
                         <>
-                            <div className="material-base max-w-full overflow-x-auto">
+                            <div className="material-base hidden max-w-full overflow-x-auto sm:block">
                                 <Table>
                                     <TableCaption className="sr-only">{t('ops::admin_daily_reports.list.title')}</TableCaption>
                                     <TableHeader className="bg-surface-sunken">
@@ -140,6 +141,34 @@ export default function DailyReports({ reports, next, emails, stores, emailStore
                                     </TableBody>
                                 </Table>
                             </div>
+                            {/* On a phone each report a card (round 3 #15), its Download at the end. */}
+                            <PhoneCards
+                                test="report"
+                                cards={list.rows.map((report) => ({
+                                    id: report.id,
+                                    title: report.storeName,
+                                    badge: report.pastDay ? (
+                                        <Badge variant="outline" data-test="past-day-card">
+                                            {t('ops::admin_daily_reports.list.past_day')}
+                                        </Badge>
+                                    ) : undefined,
+                                    lines: [
+                                        <span key="day" className="tw-figure">{`${t('ops::admin_daily_reports.list.columns.day')}: ${day.format(new Date(`${report.day}T00:00:00Z`))}`}</span>,
+                                        <span key="made">
+                                            {`${report.madeBy} · `}
+                                            <Time value={report.madeAt} />
+                                        </span>,
+                                        <span key="size" className="tw-figure">{`${t(`ops::admin_daily_reports.language.${report.language}`)} · ${fileSize(report.bytes, locale)}`}</span>,
+                                    ],
+                                    menu: (
+                                        <Button asChild variant="outline" size="sm">
+                                            <a href={report.downloadUrl} className="whitespace-nowrap" data-test="download-card">
+                                                {t('ops::admin_daily_reports.list.download')}
+                                            </a>
+                                        </Button>
+                                    ),
+                                }))}
+                            />
                             {next !== null ? <LoadMoreButton loading={list.loading || restoring} onClick={() => more(next)} /> : null}
                         </>
                     )}

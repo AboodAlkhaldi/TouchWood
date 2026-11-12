@@ -3,6 +3,7 @@ import { Link, router } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
+import { PhoneCards } from '@/components/PhoneCards';
 import { SearchField } from '@/components/SearchField';
 import { StoreFilter } from '@/components/StoreFilter';
 import { TabCount } from '@/components/TabCount';
@@ -29,6 +30,8 @@ const STATES = ['ACTIVE', 'SCHEDULED', 'ENDED', 'INACTIVE'] as const;
 
 export default function Index({ coupons, nextAt, nextId, state, code, mayManage, storeCode, stores, counts }: CouponsListPage) {
     const t = useTranslator();
+    const locale = useLocale();
+    const discount = useDiscountWords();
     const [text, setText] = useState(code ?? '');
     const list = useLoadMore(coupons, (row) => row.id);
     const first = useRef(true);
@@ -133,27 +136,51 @@ export default function Index({ coupons, nextAt, nextId, state, code, mayManage,
                         ) : null}
                     </Empty>
                 ) : (
-                    <div className="material-base max-w-full overflow-x-auto">
-                        <Table>
-                            <TableCaption className="sr-only">{t('promotions::admin_coupons.list.title')}</TableCaption>
-                            <TableHeader className="bg-surface-sunken">
-                                <TableRow>
-                                    <TableHead>{t('promotions::admin_coupons.columns.code')}</TableHead>
-                                    <TableHead>{t('promotions::admin_coupons.columns.name')}</TableHead>
-                                    <TableHead>{t('promotions::admin_coupons.columns.discount')}</TableHead>
-                                    <TableHead>{t('promotions::admin_coupons.columns.who')}</TableHead>
-                                    <TableHead>{t('promotions::admin_coupons.columns.dates')}</TableHead>
-                                    <TableHead className="text-end">{t('promotions::admin_coupons.columns.uses')}</TableHead>
-                                    <TableHead>{t('promotions::admin_coupons.columns.state')}</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {list.rows.map((coupon) => (
-                                    <Row key={coupon.id} coupon={coupon} />
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
+                    <>
+                        <div className="material-base hidden max-w-full overflow-x-auto sm:block">
+                            <Table>
+                                <TableCaption className="sr-only">{t('promotions::admin_coupons.list.title')}</TableCaption>
+                                <TableHeader className="bg-surface-sunken">
+                                    <TableRow>
+                                        <TableHead>{t('promotions::admin_coupons.columns.code')}</TableHead>
+                                        <TableHead>{t('promotions::admin_coupons.columns.name')}</TableHead>
+                                        <TableHead>{t('promotions::admin_coupons.columns.discount')}</TableHead>
+                                        <TableHead>{t('promotions::admin_coupons.columns.who')}</TableHead>
+                                        <TableHead>{t('promotions::admin_coupons.columns.dates')}</TableHead>
+                                        <TableHead className="text-end">{t('promotions::admin_coupons.columns.uses')}</TableHead>
+                                        <TableHead>{t('promotions::admin_coupons.columns.state')}</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {list.rows.map((coupon) => (
+                                        <Row key={coupon.id} coupon={coupon} />
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                        {/* On a phone each coupon a card (round 3 #15), opening the coupon as the row does. */}
+                        <PhoneCards
+                            test="coupon"
+                            cards={list.rows.map((coupon) => ({
+                                id: coupon.code,
+                                title: (
+                                    <bdi dir="ltr" className="font-mono">
+                                        {coupon.code}
+                                    </bdi>
+                                ),
+                                href: `${LIST}/${coupon.id}`,
+                                badge: <CouponStateBadge state={coupon.state} />,
+                                lines: [
+                                    <span key="n">{coupon.name}</span>,
+                                    <span key="d">{`${discount(coupon.discountKind, coupon.percent, coupon.amount, coupon.cap)} · ${t(`promotions::admin_coupons.who.${coupon.eligibility}`)}`}</span>,
+                                    <span key="u" className="tw-figure">
+                                        {`${t('promotions::admin_coupons.columns.uses')}: `}
+                                        <bdi dir="ltr">{coupon.maxUsesTotal === null ? figure(locale, coupon.usesTotal) : `${figure(locale, coupon.usesTotal)} / ${figure(locale, coupon.maxUsesTotal)}`}</bdi>
+                                    </span>,
+                                ],
+                            }))}
+                        />
+                    </>
                 )}
 
                 {nextAt !== null && nextId !== null ? (

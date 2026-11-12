@@ -6,6 +6,7 @@ import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
 import { FormError } from '@/components/FormError';
 import { Note } from '@/components/Note';
+import { PhoneCards } from '@/components/PhoneCards';
 import { StoreFilter } from '@/components/StoreFilter';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -111,44 +112,81 @@ export default function Index({ kind: listed, storeName, storeCode, stores, copi
                     ) : null}
                 </Empty>
             ) : (
-                <div className="material-base overflow-hidden">
-                    <Table>
-                        <TableCaption className="sr-only">{t(`b2b::admin_types.title.${kind}`)}</TableCaption>
-                        <TableHeader className="bg-surface-sunken">
-                            <TableRow>
-                                {/* The position, a narrow column of its own: aligned to its far edge
-                                    it read as part of the name beside it (b2b.md amendment 25). */}
-                                <TableHead className="w-12" data-test="column-position">
-                                    <span aria-hidden="true">#</span>
-                                    <span className="sr-only">{t('b2b::admin_types.column.position')}</span>
-                                </TableHead>
-                                {/* The two names, the page's language first (amendment 25). */}
-                                {locale === 'ar' ? (
-                                    <>
-                                        <TableHead data-test="column-name-first">{t('b2b::admin_types.column.name_ar')}</TableHead>
-                                        <TableHead>{t('b2b::admin_types.column.name_en')}</TableHead>
-                                    </>
-                                ) : (
-                                    <>
-                                        <TableHead data-test="column-name-first">{t('b2b::admin_types.column.name_en')}</TableHead>
-                                        <TableHead>{t('b2b::admin_types.column.name_ar')}</TableHead>
-                                    </>
-                                )}
-                                <TableHead>{t('b2b::admin_types.column.status')}</TableHead>
-                                {kind === 'company' ? (
-                                    <TableHead className="text-end">{t('b2b::admin_types.column.holders')}</TableHead>
-                                ) : (
-                                    <TableHead>{t('b2b::admin_types.column.required')}</TableHead>
-                                )}
-                                <TableHead className="w-12">
-                                    <span className="sr-only">{t('b2b::admin_types.column.actions')}</span>
-                                </TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {types.map((type) => (
-                                <Row
-                                    key={type.id}
+                <>
+                    <div className="material-base hidden overflow-hidden sm:block">
+                        <Table>
+                            <TableCaption className="sr-only">{t(`b2b::admin_types.title.${kind}`)}</TableCaption>
+                            <TableHeader className="bg-surface-sunken">
+                                <TableRow>
+                                    {/* The position, a narrow column of its own: aligned to its far edge
+                                        it read as part of the name beside it (b2b.md amendment 25). */}
+                                    <TableHead className="w-12" data-test="column-position">
+                                        <span aria-hidden="true">#</span>
+                                        <span className="sr-only">{t('b2b::admin_types.column.position')}</span>
+                                    </TableHead>
+                                    {/* The two names, the page's language first (amendment 25). */}
+                                    {locale === 'ar' ? (
+                                        <>
+                                            <TableHead data-test="column-name-first">{t('b2b::admin_types.column.name_ar')}</TableHead>
+                                            <TableHead>{t('b2b::admin_types.column.name_en')}</TableHead>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <TableHead data-test="column-name-first">{t('b2b::admin_types.column.name_en')}</TableHead>
+                                            <TableHead>{t('b2b::admin_types.column.name_ar')}</TableHead>
+                                        </>
+                                    )}
+                                    <TableHead>{t('b2b::admin_types.column.status')}</TableHead>
+                                    {kind === 'company' ? (
+                                        <TableHead className="text-end">{t('b2b::admin_types.column.holders')}</TableHead>
+                                    ) : (
+                                        <TableHead>{t('b2b::admin_types.column.required')}</TableHead>
+                                    )}
+                                    <TableHead className="w-12">
+                                        <span className="sr-only">{t('b2b::admin_types.column.actions')}</span>
+                                    </TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {types.map((type) => (
+                                    <Row
+                                        key={type.id}
+                                        kind={kind}
+                                        type={type}
+                                        actions={actions}
+                                        open={(action, trigger) => {
+                                            opener.current = trigger;
+                                            setDialog({ action, type });
+                                        }}
+                                    />
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                    {/* On a phone each type a card (round 3 #15), its menu the row's. */}
+                    <PhoneCards
+                        test="type"
+                        cards={types.map((type) => ({
+                            id: type.id,
+                            title: nameIn(locale, type.nameAr, type.nameEn),
+                            badge: (
+                                <Badge className={tone(type.active ? 'green-subtle' : 'gray-subtle')}>
+                                    {type.active ? t('b2b::admin_types.state.active') : t(`b2b::admin_types.state.${type.inactiveDisplay ?? 'HIDDEN'}`)}
+                                </Badge>
+                            ),
+                            lines: [
+                                <span key="n" dir={locale === 'ar' ? 'ltr' : 'rtl'}>
+                                    {locale === 'ar' ? type.nameEn : type.nameAr}
+                                </span>,
+                                <span key="p" className="tw-figure">
+                                    {`${t('b2b::admin_types.column.position')}: ${figure(locale, type.position)} · `}
+                                    {kind === 'company'
+                                        ? `${t('b2b::admin_types.column.holders')}: ${figure(locale, type.holders ?? 0)}`
+                                        : `${t('b2b::admin_types.column.required')}: ${type.required ? t('b2b::admin_types.required.yes') : t('b2b::admin_types.required.no')}`}
+                                </span>,
+                            ],
+                            menu: (
+                                <TypeMenu
                                     kind={kind}
                                     type={type}
                                     actions={actions}
@@ -156,11 +194,12 @@ export default function Index({ kind: listed, storeName, storeCode, stores, copi
                                         opener.current = trigger;
                                         setDialog({ action, type });
                                     }}
+                                    test={`type-card-actions-${type.id}`}
                                 />
-                            ))}
-                        </TableBody>
-                    </Table>
-                </div>
+                            ),
+                        }))}
+                    />
+                </>
             )}
         </div>
     );
@@ -239,21 +278,6 @@ function Row({
 }) {
     const t = useTranslator();
     const locale = useLocale();
-    const url = `${HREF[kind]}/${type.id}`;
-    const name = nameIn(locale, type.nameAr, type.nameEn);
-    const transfer = kind === 'company' && actions.mayTransfer && type.active;
-    const nobodyToMove = (type.holders ?? 0) === 0;
-    const require = kind === 'document' && actions.mayUpdate && type.required !== null;
-    const activate = actions.mayDeactivate && !type.active;
-    const deactivate = actions.mayDeactivate && type.active;
-    const anything = actions.mayUpdate || transfer || activate || deactivate;
-    // An action taken at once from the menu says it is under way on the row's own trigger.
-    const [busy, setBusy] = useState(false);
-    const more = useRef<HTMLButtonElement>(null);
-    const show = (action: 'rename' | 'move' | 'deactivate' | 'transfer') => open(action, more.current);
-
-    const at = (path: string, data: Record<string, boolean> = {}) =>
-        router.post(`${url}/${path}`, data, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) });
 
     return (
         <TableRow data-test={`type-${type.id}`}>
@@ -292,80 +316,115 @@ function Row({
                 <TableCell data-test="type-required">{type.required ? t('b2b::admin_types.required.yes') : t('b2b::admin_types.required.no')}</TableCell>
             )}
             <TableCell className="text-end">
-                {anything ? (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button
-                                ref={more}
-                                type="button"
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label={`${t('ui.more_actions')}: ${name}`}
-                                aria-busy={busy || undefined}
-                                title={t('ui.more_actions')}
-                                data-test={`type-actions-${type.id}`}
-                            >
-                                {/* Busy, the spinner stands in for the dots, as Geist's loading button does. */}
-                                {busy ? <Spinner aria-hidden="true" role={undefined} aria-label={undefined} /> : <MoreHorizontal aria-hidden="true" />}
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-56">
-                            {actions.mayUpdate ? (
-                                <>
-                                    <DropdownMenuItem onSelect={() => show('rename')} data-test="rename-type">
-                                        {t(`b2b::admin_types.list.${kind}.rename`)}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onSelect={() => show('move')} data-test="move-type">
-                                        {t(`b2b::admin_types.list.${kind}.move`)}
-                                    </DropdownMenuItem>
-                                </>
-                            ) : null}
-                            {require ? (
-                                <DropdownMenuItem disabled={busy} onSelect={() => at('require', { required: !type.required })} data-test="require-type">
-                                    {type.required ? t('b2b::admin_types.list.document.make_optional') : t('b2b::admin_types.list.document.make_required')}
-                                </DropdownMenuItem>
-                            ) : null}
-                            {transfer ? (
-                                // Out of reach while no company holds the type, its reason written
-                                // under it: still in the menu, so nobody wonders where it went.
-                                <DropdownMenuItem
-                                    aria-disabled={nobodyToMove || undefined}
-                                    className={cn(nobodyToMove && 'cursor-not-allowed')}
-                                    onSelect={(event) => {
-                                        if (nobodyToMove) {
-                                            event.preventDefault();
-
-                                            return;
-                                        }
-                                        show('transfer');
-                                    }}
-                                    data-test="transfer-type"
-                                >
-                                    <span className="grid gap-0.5">
-                                        {/* The name dimmed; the reason in full ink, as on the roles page. */}
-                                        <span className={nobodyToMove ? 'opacity-60' : undefined}>{t('b2b::admin_types.list.company.transfer')}</span>
-                                        {nobodyToMove ? <span className="text-copy-13 text-ink-muted">{t('b2b::admin_types.list.company.transfer_none')}</span> : null}
-                                    </span>
-                                </DropdownMenuItem>
-                            ) : null}
-                            {activate ? (
-                                <DropdownMenuItem disabled={busy} onSelect={() => at('activate')} data-test="activate-type">
-                                    {t(`b2b::admin_types.list.${kind}.activate`)}
-                                </DropdownMenuItem>
-                            ) : null}
-                            {/* The destructive item last, after a divider (Geist's menu rules). */}
-                            {deactivate ? (
-                                <>
-                                    {actions.mayUpdate || transfer ? <DropdownMenuSeparator /> : null}
-                                    <DropdownMenuItem variant="destructive" onSelect={() => show('deactivate')} data-test="deactivate-type">
-                                        {t(`b2b::admin_types.list.${kind}.deactivate`)}
-                                    </DropdownMenuItem>
-                                </>
-                            ) : null}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                ) : null}
+                <TypeMenu kind={kind} type={type} actions={actions} open={open} test={`type-actions-${type.id}`} />
             </TableCell>
         </TableRow>
     );
+}
+
+/** A type's ⋯ menu: the row's, and the same on its phone card under its own test name. */
+function TypeMenu({
+    kind,
+    type,
+    actions,
+    open,
+    test,
+}: {
+    kind: Kind;
+    type: StaffTypeRowData;
+    actions: StaffTypeListPage['actions'];
+    open: (action: 'rename' | 'move' | 'deactivate' | 'transfer', trigger: HTMLElement | null) => void;
+    test: string;
+}) {
+    const t = useTranslator();
+    const locale = useLocale();
+    const url = `${HREF[kind]}/${type.id}`;
+    const name = nameIn(locale, type.nameAr, type.nameEn);
+    const transfer = kind === 'company' && actions.mayTransfer && type.active;
+    const nobodyToMove = (type.holders ?? 0) === 0;
+    const require = kind === 'document' && actions.mayUpdate && type.required !== null;
+    const activate = actions.mayDeactivate && !type.active;
+    const deactivate = actions.mayDeactivate && type.active;
+    const anything = actions.mayUpdate || transfer || activate || deactivate;
+    // An action taken at once from the menu says it is under way on the row's own trigger.
+    const [busy, setBusy] = useState(false);
+    const more = useRef<HTMLButtonElement>(null);
+    const show = (action: 'rename' | 'move' | 'deactivate' | 'transfer') => open(action, more.current);
+
+    const at = (path: string, data: Record<string, boolean> = {}) =>
+        router.post(`${url}/${path}`, data, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) });
+
+    return anything ? (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button
+                    ref={more}
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`${t('ui.more_actions')}: ${name}`}
+                    aria-busy={busy || undefined}
+                    title={t('ui.more_actions')}
+                    data-test={test}
+                >
+                    {/* Busy, the spinner stands in for the dots, as Geist's loading button does. */}
+                    {busy ? <Spinner aria-hidden="true" role={undefined} aria-label={undefined} /> : <MoreHorizontal aria-hidden="true" />}
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-56">
+                {actions.mayUpdate ? (
+                    <>
+                        <DropdownMenuItem onSelect={() => show('rename')} data-test="rename-type">
+                            {t(`b2b::admin_types.list.${kind}.rename`)}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => show('move')} data-test="move-type">
+                            {t(`b2b::admin_types.list.${kind}.move`)}
+                        </DropdownMenuItem>
+                    </>
+                ) : null}
+                {require ? (
+                    <DropdownMenuItem disabled={busy} onSelect={() => at('require', { required: !type.required })} data-test="require-type">
+                        {type.required ? t('b2b::admin_types.list.document.make_optional') : t('b2b::admin_types.list.document.make_required')}
+                    </DropdownMenuItem>
+                ) : null}
+                {transfer ? (
+                    // Out of reach while no company holds the type, its reason written
+                    // under it: still in the menu, so nobody wonders where it went.
+                    <DropdownMenuItem
+                        aria-disabled={nobodyToMove || undefined}
+                        className={cn(nobodyToMove && 'cursor-not-allowed')}
+                        onSelect={(event) => {
+                            if (nobodyToMove) {
+                                event.preventDefault();
+
+                                return;
+                            }
+                            show('transfer');
+                        }}
+                        data-test="transfer-type"
+                    >
+                        <span className="grid gap-0.5">
+                            {/* The name dimmed; the reason in full ink, as on the roles page. */}
+                            <span className={nobodyToMove ? 'opacity-60' : undefined}>{t('b2b::admin_types.list.company.transfer')}</span>
+                            {nobodyToMove ? <span className="text-copy-13 text-ink-muted">{t('b2b::admin_types.list.company.transfer_none')}</span> : null}
+                        </span>
+                    </DropdownMenuItem>
+                ) : null}
+                {activate ? (
+                    <DropdownMenuItem disabled={busy} onSelect={() => at('activate')} data-test="activate-type">
+                        {t(`b2b::admin_types.list.${kind}.activate`)}
+                    </DropdownMenuItem>
+                ) : null}
+                {/* The destructive item last, after a divider (Geist's menu rules). */}
+                {deactivate ? (
+                    <>
+                        {actions.mayUpdate || transfer ? <DropdownMenuSeparator /> : null}
+                        <DropdownMenuItem variant="destructive" onSelect={() => show('deactivate')} data-test="deactivate-type">
+                            {t(`b2b::admin_types.list.${kind}.deactivate`)}
+                        </DropdownMenuItem>
+                    </>
+                ) : null}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    ) : null;
 }

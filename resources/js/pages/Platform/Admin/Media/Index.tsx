@@ -7,6 +7,7 @@ import { ActionButton } from '@/components/ActionButton';
 import { SelectField, TextField } from '@/components/Fields';
 import { DialogError, FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
+import { PhoneCards } from '@/components/PhoneCards';
 import { Time } from '@/components/Time';
 import { MiddleTruncate } from '@/components/geist-only/MiddleTruncate';
 import {
@@ -127,28 +128,59 @@ export default function Index({ media, nextCreatedAt, nextId, mayUpload, mayUpda
                         ))}
                     </ul>
                 ) : (
-                    <div className="material-base overflow-hidden">
-                        <Table>
-                            <TableCaption className="sr-only">{t('platform::admin_media.title')}</TableCaption>
-                            <TableHeader className="bg-surface-sunken">
-                                <TableRow>
-                                    <TableHead>{t('platform::admin_media.file')}</TableHead>
-                                    <TableHead>{t('platform::admin_media.type')}</TableHead>
-                                    <TableHead className="text-end">{t('platform::admin_media.size')}</TableHead>
-                                    <TableHead>{t('platform::admin_media.used_in')}</TableHead>
-                                    <TableHead>{t('platform::admin_media.uploaded')}</TableHead>
-                                    <TableHead>
-                                        <span className="sr-only">{t('platform::admin_media.actions')}</span>
-                                    </TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {list.rows.map((file) => (
-                                    <Row key={file.id} file={file} mayUpdate={mayUpdate} mayDelete={mayDelete} listTop={top} />
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
+                    <>
+                        <div className="material-base hidden overflow-hidden sm:block">
+                            <Table>
+                                <TableCaption className="sr-only">{t('platform::admin_media.title')}</TableCaption>
+                                <TableHeader className="bg-surface-sunken">
+                                    <TableRow>
+                                        <TableHead>{t('platform::admin_media.file')}</TableHead>
+                                        <TableHead>{t('platform::admin_media.type')}</TableHead>
+                                        <TableHead className="text-end">{t('platform::admin_media.size')}</TableHead>
+                                        <TableHead>{t('platform::admin_media.used_in')}</TableHead>
+                                        <TableHead>{t('platform::admin_media.uploaded')}</TableHead>
+                                        <TableHead>
+                                            <span className="sr-only">{t('platform::admin_media.actions')}</span>
+                                        </TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {list.rows.map((file) => (
+                                        <Row key={file.id} file={file} mayUpdate={mayUpdate} mayDelete={mayDelete} listTop={top} />
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                        {/* On a phone each file a card (round 3 #15): a private one its name, use and date only (amendment 6). */}
+                        <PhoneCards
+                            test="file"
+                            cards={list.rows.map((file) => ({
+                                id: file.id,
+                                title: file.filename,
+                                badge: <SizesBadge file={file} />,
+                                lines: [
+                                    ...(isPrivate(file)
+                                        ? []
+                                        : [
+                                              <span key="kind" className="tw-figure">
+                                                  {file.mime === null ? <Unknown /> : <bdi dir="ltr">{file.mime}</bdi>}
+                                                  {' · '}
+                                                  <Size bytes={file.bytes} />
+                                              </span>,
+                                          ]),
+                                    <span key="used">
+                                        {`${t('platform::admin_media.used_in')}: `}
+                                        <UsedIn file={file} />
+                                    </span>,
+                                    <span key="uploaded">
+                                        {`${t('platform::admin_media.uploaded')}: `}
+                                        <Time value={file.uploadedAt} />
+                                    </span>,
+                                ],
+                                menu: file.retryable || mayUpdate || mayDelete ? <FileMenu file={file} mayUpdate={mayUpdate} mayDelete={mayDelete} listTop={top} test={`file-card-menu-${file.id}`} /> : undefined,
+                            }))}
+                        />
+                    </>
                 )}
 
                 {nextCreatedAt !== null && nextId !== null ? (
@@ -258,6 +290,58 @@ function UsedIn({ file }: { file: MediaFileRow }) {
 }
 
 function Row({ file, mayUpdate, mayDelete, listTop }: { file: MediaFileRow; mayUpdate: boolean; mayDelete: boolean; listTop: RefObject<HTMLDivElement | null> }) {
+    return (
+        <TableRow>
+            <TableCell>
+                {/* The picture belongs in the table too, not only in the grid (owner, 2026-09-24):
+                    the one question somebody has about a file is what it looks like. A private file
+                    is the exception: its name only (amendment 6). */}
+                {/* The width is capped here, not on the cell, which a table's layout ignores: past
+                    it, the name is cut in the middle (the review of batch D). */}
+                <div className="flex w-72 max-w-72 min-w-0 items-center gap-3">
+                    {isPrivate(file) ? null : (
+                        <ItemMedia variant={file.thumbnailUrl === null ? 'icon' : 'image'} className="size-12 border-line bg-surface-sunken text-ink-muted [&_svg:not([class*='size-'])]:size-5">
+                            <Picture file={file} />
+                        </ItemMedia>
+                    )}
+                    <span className="grid min-w-0 gap-1">
+                        <MiddleTruncate value={file.filename} className="text-ink" />
+                        <span>
+                            <SizesBadge file={file} />
+                        </span>
+                    </span>
+                </div>
+            </TableCell>
+            {/* What a private file is stays with those who may see it: an em dash, Geist's unknown. */}
+            <TableCell className="text-copy-13 text-ink-muted">{isPrivate(file) || file.mime === null ? <Unknown /> : <bdi dir="ltr">{file.mime}</bdi>}</TableCell>
+            <TableCell className="tw-figure text-end text-copy-13 text-ink-muted">{isPrivate(file) ? <Unknown /> : <Size bytes={file.bytes} />}</TableCell>
+            <TableCell className="max-w-56 whitespace-normal text-copy-13 text-ink-muted">
+                <UsedIn file={file} />
+            </TableCell>
+            <TableCell className="text-copy-13 text-ink-muted">
+                <Time value={file.uploadedAt} />
+            </TableCell>
+            <TableCell className="text-end">
+                <FileMenu file={file} mayUpdate={mayUpdate} mayDelete={mayDelete} listTop={listTop} test={`file-menu-${file.id}`} />
+            </TableCell>
+        </TableRow>
+    );
+}
+
+/** A file's ⋯ menu and its Describe and Delete dialogs: the row's, and the same on its phone card under its own test name. */
+function FileMenu({
+    file,
+    mayUpdate,
+    mayDelete,
+    listTop,
+    test,
+}: {
+    file: MediaFileRow;
+    mayUpdate: boolean;
+    mayDelete: boolean;
+    listTop: RefObject<HTMLDivElement | null>;
+    test: string;
+}) {
     const t = useTranslator();
     const [describing, setDescribing] = useState(false);
     const [confirming, setConfirming] = useState(false);
@@ -293,180 +377,149 @@ function Row({ file, mayUpdate, mayDelete, listTop }: { file: MediaFileRow; mayU
     }
 
     return (
-        <TableRow>
-            <TableCell>
-                {/* The picture belongs in the table too, not only in the grid (owner, 2026-09-24):
-                    the one question somebody has about a file is what it looks like. A private file
-                    is the exception: its name only (amendment 6). */}
-                {/* The width is capped here, not on the cell, which a table's layout ignores: past
-                    it, the name is cut in the middle (the review of batch D). */}
-                <div className="flex w-72 max-w-72 min-w-0 items-center gap-3">
-                    {isPrivate(file) ? null : (
-                        <ItemMedia variant={file.thumbnailUrl === null ? 'icon' : 'image'} className="size-12 border-line bg-surface-sunken text-ink-muted [&_svg:not([class*='size-'])]:size-5">
-                            <Picture file={file} />
-                        </ItemMedia>
-                    )}
-                    <span className="grid min-w-0 gap-1">
-                        <MiddleTruncate value={file.filename} className="text-ink" />
-                        <span>
-                            <SizesBadge file={file} />
-                        </span>
-                    </span>
-                </div>
-            </TableCell>
-            {/* What a private file is stays with those who may see it: an em dash, Geist's unknown. */}
-            <TableCell className="text-copy-13 text-ink-muted">{isPrivate(file) || file.mime === null ? <Unknown /> : <bdi dir="ltr">{file.mime}</bdi>}</TableCell>
-            <TableCell className="tw-figure text-end text-copy-13 text-ink-muted">{isPrivate(file) ? <Unknown /> : <Size bytes={file.bytes} />}</TableCell>
-            <TableCell className="max-w-56 whitespace-normal text-copy-13 text-ink-muted">
-                <UsedIn file={file} />
-            </TableCell>
-            <TableCell className="text-copy-13 text-ink-muted">
-                <Time value={file.uploadedAt} />
-            </TableCell>
-            <TableCell className="text-end">
-                {hasMenu ? (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button
-                                ref={more}
-                                type="button"
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label={`${t('ui.more_actions')}: ${file.filename}`}
-                                aria-busy={retrying || undefined}
-                                title={t('ui.more_actions')}
-                                data-test={`file-menu-${file.id}`}
-                            >
-                                <MoreHorizontal aria-hidden="true" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-56">
-                            {file.retryable ? (
-                                <DropdownMenuItem
-                                    disabled={retrying}
-                                    data-test={`retry-${file.id}`}
-                                    onSelect={() => router.post(`/admin/media/${file.id}/retry`, {}, { preserveScroll: true, onStart: () => setRetrying(true), onFinish: () => setRetrying(false) })}
-                                >
-                                    {t('platform::admin_media.retry')}
-                                </DropdownMenuItem>
-                            ) : null}
-                            {mayUpdate ? (
-                                <DropdownMenuItem data-test={`describe-${file.id}`} onSelect={() => setDescribing(true)}>
-                                    {t('platform::admin_media.describe_open')}
-                                </DropdownMenuItem>
-                            ) : null}
-                            {mayDelete ? (
-                                <>
-                                    {file.retryable || mayUpdate ? <DropdownMenuSeparator /> : null}
-                                    {/* Out of reach while a use keeps the file, its reason written
-                                        under it: still in the menu, so nobody wonders where it went. */}
-                                    <DropdownMenuItem
-                                        variant="destructive"
-                                        aria-disabled={file.deleteBlocked || undefined}
-                                        data-test={`delete-${file.id}`}
-                                        className={cn(file.deleteBlocked && 'cursor-not-allowed')}
-                                        onSelect={(event) => {
-                                            if (file.deleteBlocked) {
-                                                event.preventDefault();
-
-                                                return;
-                                            }
-                                            setConfirming(true);
-                                        }}
-                                    >
-                                        <span className="grid gap-0.5">
-                                            {/* The name dimmed; the reason in full ink, as on the roles page. */}
-                                            <span className={file.deleteBlocked ? 'opacity-60' : undefined}>{t('platform::admin_media.delete_open')}</span>
-                                            {file.deleteBlocked ? <span className="text-copy-13 text-ink-muted">{t('platform::admin_media.delete_blocked')}</span> : null}
-                                        </span>
-                                    </DropdownMenuItem>
-                                </>
-                            ) : null}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                ) : null}
-
-                {/* Describing: a Dialog with the two fields (owner's #9, 2026-10-02). */}
-                <Dialog open={describing} onOpenChange={(open) => (alt.processing ? undefined : setDescribing(open))}>
-                    <DialogContent showCloseButton={false} onCloseAutoFocus={describeFocus} className="material-modal gap-0 overflow-hidden border-0 p-0 text-start sm:max-w-md">
-                        <form
-                            onSubmit={(event) => {
-                                event.preventDefault();
-                                checks.submit(() => alt.post(`/admin/media/${file.id}/alt`, { preserveScroll: true, onSuccess: () => setDescribing(false) }));
-                            }}
+        <>
+            {hasMenu ? (
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button
+                            ref={more}
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`${t('ui.more_actions')}: ${file.filename}`}
+                            aria-busy={retrying || undefined}
+                            title={t('ui.more_actions')}
+                            data-test={test}
                         >
-                            <div className="grid gap-4 p-6">
-                                <DialogHeader>
-                                    <DialogTitle className="text-heading-20 text-ink">{t('platform::admin_media.describe')}</DialogTitle>
-                                    <DialogDescription className="text-copy-14 text-ink-muted">{t('platform::admin_media.alt_hint')}</DialogDescription>
-                                </DialogHeader>
-                                <DialogError open={describing} />
-                                <TextField
-                                    id={`${file.id}-alt_ar`}
-                                    label={t('platform::admin_media.alt_ar')}
-                                    check={checks.box(`${file.id}-alt_ar`, alt.errors.alt_ar)}
-                                    lang="ar"
-                                    dir="rtl"
-                                    value={alt.data.alt_ar}
-                                    onChange={(event) => alt.setData('alt_ar', event.target.value)}
-                                />
-                                <TextField
-                                    id={`${file.id}-alt_en`}
-                                    label={t('platform::admin_media.alt_en')}
-                                    check={checks.box(`${file.id}-alt_en`, alt.errors.alt_en)}
-                                    lang="en"
-                                    dir="ltr"
-                                    value={alt.data.alt_en}
-                                    onChange={(event) => alt.setData('alt_en', event.target.value)}
-                                />
-                            </div>
-                            <DialogFooter className="border-t border-line bg-surface-sunken px-6 py-4">
-                                <Button type="button" variant="outline" disabled={alt.processing} onClick={() => setDescribing(false)}>
-                                    {t('ui.cancel')}
-                                </Button>
-                                <ActionButton type="submit" loading={alt.processing} disabledReason={checks.reason} data-test={`save-description-${file.id}`}>
-                                    {t('platform::admin_media.save')}
-                                </ActionButton>
-                            </DialogFooter>
-                        </form>
-                    </DialogContent>
-                </Dialog>
+                            <MoreHorizontal aria-hidden="true" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-56">
+                        {file.retryable ? (
+                            <DropdownMenuItem
+                                disabled={retrying}
+                                data-test={`retry-${file.id}`}
+                                onSelect={() => router.post(`/admin/media/${file.id}/retry`, {}, { preserveScroll: true, onStart: () => setRetrying(true), onFinish: () => setRetrying(false) })}
+                            >
+                                {t('platform::admin_media.retry')}
+                            </DropdownMenuItem>
+                        ) : null}
+                        {mayUpdate ? (
+                            <DropdownMenuItem data-test={`describe-${file.id}`} onSelect={() => setDescribing(true)}>
+                                {t('platform::admin_media.describe_open')}
+                            </DropdownMenuItem>
+                        ) : null}
+                        {mayDelete ? (
+                            <>
+                                {file.retryable || mayUpdate ? <DropdownMenuSeparator /> : null}
+                                {/* Out of reach while a use keeps the file, its reason written
+                                    under it: still in the menu, so nobody wonders where it went. */}
+                                <DropdownMenuItem
+                                    variant="destructive"
+                                    aria-disabled={file.deleteBlocked || undefined}
+                                    data-test={`delete-${file.id}`}
+                                    className={cn(file.deleteBlocked && 'cursor-not-allowed')}
+                                    onSelect={(event) => {
+                                        if (file.deleteBlocked) {
+                                            event.preventDefault();
 
-                {/* Asked before deleting rather than with the browser's own confirm box (owner,
-                    2026-09-24). The spec asks a delete to say where the file is used first, and a
-                    native box can only carry a sentence - it cannot list them. */}
-                <AlertDialog open={confirming} onOpenChange={(open) => (open || deleting ? undefined : setConfirming(false))}>
-                    <AlertDialogContent onCloseAutoFocus={deleteFocus} className="material-modal gap-0 overflow-hidden border-0 p-0 text-start data-[size=default]:sm:max-w-md">
+                                            return;
+                                        }
+                                        setConfirming(true);
+                                    }}
+                                >
+                                    <span className="grid gap-0.5">
+                                        {/* The name dimmed; the reason in full ink, as on the roles page. */}
+                                        <span className={file.deleteBlocked ? 'opacity-60' : undefined}>{t('platform::admin_media.delete_open')}</span>
+                                        {file.deleteBlocked ? <span className="text-copy-13 text-ink-muted">{t('platform::admin_media.delete_blocked')}</span> : null}
+                                    </span>
+                                </DropdownMenuItem>
+                            </>
+                        ) : null}
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            ) : null}
+
+            {/* Describing: a Dialog with the two fields (owner's #9, 2026-10-02). */}
+            <Dialog open={describing} onOpenChange={(open) => (alt.processing ? undefined : setDescribing(open))}>
+                <DialogContent showCloseButton={false} onCloseAutoFocus={describeFocus} className="material-modal gap-0 overflow-hidden border-0 p-0 text-start sm:max-w-md">
+                    <form
+                        onSubmit={(event) => {
+                            event.preventDefault();
+                            checks.submit(() => alt.post(`/admin/media/${file.id}/alt`, { preserveScroll: true, onSuccess: () => setDescribing(false) }));
+                        }}
+                    >
                         <div className="grid gap-4 p-6">
-                            <AlertDialogHeader>
-                                <AlertDialogTitle className="text-heading-20 text-ink">{t('platform::admin_media.delete_title')}</AlertDialogTitle>
-                                <AlertDialogDescription className="text-copy-14 text-ink-muted">
-                                    {file.usedIn.length === 0 ? t('platform::admin_media.delete_confirm_unused') : t('platform::admin_media.delete_confirm', { count: file.usedIn.length })}
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            {file.usedIn.length === 0 ? null : (
-                                <ul className="grid gap-0.5 text-copy-13 text-ink-muted">
-                                    {file.usedIn.map((use) => (
-                                        <li key={use}>
-                                            <bdi>{use}</bdi>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                            <DialogError open={confirming} />
+                            <DialogHeader>
+                                <DialogTitle className="text-heading-20 text-ink">{t('platform::admin_media.describe')}</DialogTitle>
+                                <DialogDescription className="text-copy-14 text-ink-muted">{t('platform::admin_media.alt_hint')}</DialogDescription>
+                            </DialogHeader>
+                            <DialogError open={describing} />
+                            <TextField
+                                id={`${file.id}-alt_ar`}
+                                label={t('platform::admin_media.alt_ar')}
+                                check={checks.box(`${file.id}-alt_ar`, alt.errors.alt_ar)}
+                                lang="ar"
+                                dir="rtl"
+                                value={alt.data.alt_ar}
+                                onChange={(event) => alt.setData('alt_ar', event.target.value)}
+                            />
+                            <TextField
+                                id={`${file.id}-alt_en`}
+                                label={t('platform::admin_media.alt_en')}
+                                check={checks.box(`${file.id}-alt_en`, alt.errors.alt_en)}
+                                lang="en"
+                                dir="ltr"
+                                value={alt.data.alt_en}
+                                onChange={(event) => alt.setData('alt_en', event.target.value)}
+                            />
                         </div>
-                        <AlertDialogFooter className="border-t border-line bg-surface-sunken px-6 py-4">
-                            <AlertDialogCancel disabled={deleting} data-test="modal-cancel">
+                        <DialogFooter className="border-t border-line bg-surface-sunken px-6 py-4">
+                            <Button type="button" variant="outline" disabled={alt.processing} onClick={() => setDescribing(false)}>
                                 {t('ui.cancel')}
-                            </AlertDialogCancel>
-                            <ActionButton variant="destructive" loading={deleting} data-test={`delete-confirm-${file.id}`} onClick={remove}>
-                                {t('platform::admin_media.delete_title')}
+                            </Button>
+                            <ActionButton type="submit" loading={alt.processing} disabledReason={checks.reason} data-test={`save-description-${file.id}`}>
+                                {t('platform::admin_media.save')}
                             </ActionButton>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            </TableCell>
-        </TableRow>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            {/* Asked before deleting rather than with the browser's own confirm box (owner,
+                2026-09-24). The spec asks a delete to say where the file is used first, and a
+                native box can only carry a sentence - it cannot list them. */}
+            <AlertDialog open={confirming} onOpenChange={(open) => (open || deleting ? undefined : setConfirming(false))}>
+                <AlertDialogContent onCloseAutoFocus={deleteFocus} className="material-modal gap-0 overflow-hidden border-0 p-0 text-start data-[size=default]:sm:max-w-md">
+                    <div className="grid gap-4 p-6">
+                        <AlertDialogHeader>
+                            <AlertDialogTitle className="text-heading-20 text-ink">{t('platform::admin_media.delete_title')}</AlertDialogTitle>
+                            <AlertDialogDescription className="text-copy-14 text-ink-muted">
+                                {file.usedIn.length === 0 ? t('platform::admin_media.delete_confirm_unused') : t('platform::admin_media.delete_confirm', { count: file.usedIn.length })}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        {file.usedIn.length === 0 ? null : (
+                            <ul className="grid gap-0.5 text-copy-13 text-ink-muted">
+                                {file.usedIn.map((use) => (
+                                    <li key={use}>
+                                        <bdi>{use}</bdi>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                        <DialogError open={confirming} />
+                    </div>
+                    <AlertDialogFooter className="border-t border-line bg-surface-sunken px-6 py-4">
+                        <AlertDialogCancel disabled={deleting} data-test="modal-cancel">
+                            {t('ui.cancel')}
+                        </AlertDialogCancel>
+                        <ActionButton variant="destructive" loading={deleting} data-test={`delete-confirm-${file.id}`} onClick={remove}>
+                            {t('platform::admin_media.delete_title')}
+                        </ActionButton>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
     );
 }
 

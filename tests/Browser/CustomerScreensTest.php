@@ -95,4 +95,15 @@ it('draws the list, opens a customer, and blocks them with a reason', function (
     expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the customer page scrolls sideways');
     $page->navigate('/admin/customers', BROWSER_PAGE_LOAD)->assertPresent("[data-test=\"customer-{$customerId}\"]");
     expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the customers list scrolls sideways');
+
+    // Under 640 px each customer reads as a card and the table's row is not drawn, in both languages
+    // (round 3 #15).
+    foreach (['ar', 'en'] as $locale) {
+        browserPanelLanguage($page, $locale);
+        $page->navigate('/admin/customers', BROWSER_PAGE_LOAD);
+
+        expect(browserSoon($page, "document.documentElement.lang === '{$locale}'"))->toBeTrue()
+            ->and(browserRowIsCard($page, '[data-test="customer-card-'.$customerId.'"]', '[data-test="customer-row-'.$customerId.'"]'))->toBeTrue("{$locale}: the customer is not a card")
+            ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue("{$locale}: the customers list scrolls sideways");
+    }
 });

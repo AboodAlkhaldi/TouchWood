@@ -5,6 +5,7 @@ import { useFreshRefusal } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { Note } from '@/components/Note';
 import { PanelDialog } from '@/components/PanelDialog';
+import { PhoneCards } from '@/components/PhoneCards';
 import { Time } from '@/components/Time';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription, EmptyHeader } from '@/components/ui/empty';
@@ -46,7 +47,7 @@ export function Uses({ page, coupon }: { page: CouponPage; coupon: CouponFormDat
 
     return (
         <div className="grid gap-4">
-            <div className="material-base max-w-full overflow-x-auto">
+            <div className="material-base hidden max-w-full overflow-x-auto sm:block">
                 <Table>
                     <TableCaption className="sr-only">{t('promotions::admin_coupons.show.tab_uses')}</TableCaption>
                     <TableHeader className="bg-surface-sunken">
@@ -79,6 +80,28 @@ export function Uses({ page, coupon }: { page: CouponPage; coupon: CouponFormDat
                     </TableBody>
                 </Table>
             </div>
+            {/* On a phone each use a card (round 3 #15); a use opens nothing, as its row. */}
+            <PhoneCards
+                test="use"
+                cards={list.rows.map((use) => ({
+                    id: String(use.id),
+                    title: (
+                        <bdi dir="ltr" className="font-mono">
+                            {use.orderNumber}
+                        </bdi>
+                    ),
+                    lines: [
+                        <Time key="d" value={use.usedAt} focusable={false} />,
+                        <span key="c">
+                            <Name customer={use.customer} />
+                        </span>,
+                        <span key="a">
+                            {`${t('promotions::admin_coupons.show.col_discount')}: `}
+                            <Amount value={use.discount} />
+                        </span>,
+                    ],
+                }))}
+            />
             {page.usesNextAt !== null && page.usesNextId !== null ? (
                 <LoadMoreButton loading={list.loading} onClick={() => list.more(`${LIST}/${coupon.id}`, { tab: 'uses', uses_before_at: page.usesNextAt ?? '', uses_before_id: String(page.usesNextId) }, ['uses', 'usesNextAt', 'usesNextId'])} />
             ) : null}
@@ -96,6 +119,12 @@ export function Customers({ page, coupon }: { page: CouponPage; coupon: CouponFo
     // Where the focus goes once a removed customer's own button is gone with its row.
     const giveButton = useRef<HTMLButtonElement>(null);
     const removeRefusal = useFreshRefusal(removing !== null);
+    // A customer's Remove…, in their row and on their phone card under its own test name.
+    const remove = (row: AssignmentData, test: string) => (
+        <ActionButton type="button" size="sm" variant="outline" disabledReason={row.uses > 0 ? t('promotions::admin_coupons.show.remove_used') : undefined} onClick={() => setRemoving(row)} data-test={test}>
+            {`${t('promotions::admin_coupons.show.remove')}…`}
+        </ActionButton>
+    );
 
     return (
         <div className="grid gap-4">
@@ -114,45 +143,61 @@ export function Customers({ page, coupon }: { page: CouponPage; coupon: CouponFo
                     </EmptyHeader>
                 </Empty>
             ) : (
-                <div className="material-base max-w-full overflow-x-auto">
-                    <Table>
-                        <TableCaption className="sr-only">{t('promotions::admin_coupons.show.tab_customers')}</TableCaption>
-                        <TableHeader className="bg-surface-sunken">
-                            <TableRow>
-                                <TableHead>{t('promotions::admin_coupons.show.col_customer')}</TableHead>
-                                <TableHead>{t('promotions::admin_coupons.show.col_given')}</TableHead>
-                                <TableHead>{t('promotions::admin_coupons.show.col_segment')}</TableHead>
-                                <TableHead className="text-end">{t('promotions::admin_coupons.show.col_uses')}</TableHead>
-                                {page.mayManage ? <TableHead className="text-end">{t('promotions::admin_coupons.show.col_actions')}</TableHead> : null}
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {list.rows.map((row) => (
-                                <TableRow key={row.customer.id} data-test={`assignment-${row.customer.id}`}>
-                                    <TableCell>
-                                        <Name customer={row.customer} />
-                                    </TableCell>
-                                    <TableCell className="whitespace-nowrap text-copy-13 text-ink-muted">
-                                        <Time value={row.assignedAt} />
-                                    </TableCell>
-                                    <TableCell>{row.segment ?? <Unknown />}</TableCell>
-                                    <TableCell className="text-end">
-                                        <bdi dir="ltr" className="tw-figure">
-                                            {figure(locale, row.uses)}
-                                        </bdi>
-                                    </TableCell>
-                                    {page.mayManage ? (
-                                        <TableCell className="text-end">
-                                            <ActionButton type="button" size="sm" variant="outline" disabledReason={row.uses > 0 ? t('promotions::admin_coupons.show.remove_used') : undefined} onClick={() => setRemoving(row)} data-test={`remove-${row.customer.id}`}>
-                                                {`${t('promotions::admin_coupons.show.remove')}…`}
-                                            </ActionButton>
-                                        </TableCell>
-                                    ) : null}
+                <>
+                    <div className="material-base hidden max-w-full overflow-x-auto sm:block">
+                        <Table>
+                            <TableCaption className="sr-only">{t('promotions::admin_coupons.show.tab_customers')}</TableCaption>
+                            <TableHeader className="bg-surface-sunken">
+                                <TableRow>
+                                    <TableHead>{t('promotions::admin_coupons.show.col_customer')}</TableHead>
+                                    <TableHead>{t('promotions::admin_coupons.show.col_given')}</TableHead>
+                                    <TableHead>{t('promotions::admin_coupons.show.col_segment')}</TableHead>
+                                    <TableHead className="text-end">{t('promotions::admin_coupons.show.col_uses')}</TableHead>
+                                    {page.mayManage ? <TableHead className="text-end">{t('promotions::admin_coupons.show.col_actions')}</TableHead> : null}
                                 </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </div>
+                            </TableHeader>
+                            <TableBody>
+                                {list.rows.map((row) => (
+                                    <TableRow key={row.customer.id} data-test={`assignment-${row.customer.id}`}>
+                                        <TableCell>
+                                            <Name customer={row.customer} />
+                                        </TableCell>
+                                        <TableCell className="whitespace-nowrap text-copy-13 text-ink-muted">
+                                            <Time value={row.assignedAt} />
+                                        </TableCell>
+                                        <TableCell>{row.segment ?? <Unknown />}</TableCell>
+                                        <TableCell className="text-end">
+                                            <bdi dir="ltr" className="tw-figure">
+                                                {figure(locale, row.uses)}
+                                            </bdi>
+                                        </TableCell>
+                                        {page.mayManage ? <TableCell className="text-end">{remove(row, `remove-${row.customer.id}`)}</TableCell> : null}
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                    {/* On a phone each customer given the coupon a card (round 3 #15), Remove… at its end. */}
+                    <PhoneCards
+                        test="assignment"
+                        cards={list.rows.map((row) => ({
+                            id: row.customer.id,
+                            title: <Name customer={row.customer} />,
+                            lines: [
+                                <span key="g">
+                                    {`${t('promotions::admin_coupons.show.col_given')}: `}
+                                    <Time value={row.assignedAt} focusable={false} />
+                                </span>,
+                                <span key="s">
+                                    {`${t('promotions::admin_coupons.show.col_segment')}: `}
+                                    {row.segment ?? <Unknown />}
+                                </span>,
+                                <span key="u" className="tw-figure">{`${t('promotions::admin_coupons.show.col_uses')}: ${figure(locale, row.uses)}`}</span>,
+                            ],
+                            menu: page.mayManage ? remove(row, `remove-card-${row.customer.id}`) : undefined,
+                        }))}
+                    />
+                </>
             )}
 
             {page.customersNextAt !== null && page.customersNextId !== null ? (

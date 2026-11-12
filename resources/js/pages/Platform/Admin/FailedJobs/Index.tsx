@@ -4,6 +4,7 @@ import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
 import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
+import { PhoneCards } from '@/components/PhoneCards';
 import { Time } from '@/components/Time';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
@@ -49,28 +50,50 @@ export default function Index({ jobs, nextFailedAt, nextId }: FailedJobsPage) {
                         </EmptyHeader>
                     </Empty>
                 ) : (
-                    <div className="material-base overflow-hidden">
-                        <Table>
-                            {/* The table's name, for a screen reader (Geist's Table). */}
-                            <TableCaption className="sr-only">{t('platform::admin_failed_jobs.title')}</TableCaption>
-                            <TableHeader className="bg-surface-sunken">
-                                <TableRow>
-                                    <TableHead>{t('platform::admin_failed_jobs.job')}</TableHead>
-                                    <TableHead>{t('platform::admin_failed_jobs.failed_at')}</TableHead>
-                                    <TableHead>{t('platform::admin_failed_jobs.tries')}</TableHead>
-                                    <TableHead>{t('platform::admin_failed_jobs.error')}</TableHead>
-                                    <TableHead>
-                                        <span className="sr-only">{t('platform::admin_failed_jobs.actions')}</span>
-                                    </TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {list.rows.map((job) => (
-                                    <Row key={job.id} job={job} onDelete={() => setConfirming(job.id)} />
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
+                    <>
+                        <div className="material-base hidden overflow-hidden sm:block">
+                            <Table>
+                                {/* The table's name, for a screen reader (Geist's Table). */}
+                                <TableCaption className="sr-only">{t('platform::admin_failed_jobs.title')}</TableCaption>
+                                <TableHeader className="bg-surface-sunken">
+                                    <TableRow>
+                                        <TableHead>{t('platform::admin_failed_jobs.job')}</TableHead>
+                                        <TableHead>{t('platform::admin_failed_jobs.failed_at')}</TableHead>
+                                        <TableHead>{t('platform::admin_failed_jobs.tries')}</TableHead>
+                                        <TableHead>{t('platform::admin_failed_jobs.error')}</TableHead>
+                                        <TableHead>
+                                            <span className="sr-only">{t('platform::admin_failed_jobs.actions')}</span>
+                                        </TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {list.rows.map((job) => (
+                                        <Row key={job.id} job={job} onDelete={() => setConfirming(job.id)} />
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                        {/* On a phone each job a card (round 3 #15), opening its page; Retry and Delete Job… at the end. */}
+                        <PhoneCards
+                            test="job"
+                            cards={list.rows.map((job) => ({
+                                id: job.id,
+                                title: job.name,
+                                href: `/admin/failed-jobs/${job.id}`,
+                                lines: [
+                                    <span key="failed">
+                                        {`${t('platform::admin_failed_jobs.failed_at')}: `}
+                                        <Time value={job.failedAt} focusable={false} />
+                                    </span>,
+                                    <span key="tries" className="tw-figure">{`${t('platform::admin_failed_jobs.tries')}: ${triesLabel(job.triesAllowed, t)}`}</span>,
+                                    <bdi key="error" dir="ltr">
+                                        {job.errorLine}
+                                    </bdi>,
+                                ],
+                                menu: <JobActions job={job} onDelete={() => setConfirming(job.id)} card />,
+                            }))}
+                        />
+                    </>
                 )}
 
                 {nextFailedAt !== null && nextId !== null ? (
@@ -88,8 +111,6 @@ export default function Index({ jobs, nextFailedAt, nextId }: FailedJobsPage) {
 
 function Row({ job, onDelete }: { job: FailedJobRowData; onDelete: () => void }) {
     const t = useTranslator();
-    // Busy while the retry is on its way (Geist's Button: loading, not a second press).
-    const [retrying, setRetrying] = useState(false);
 
     return (
         <TableRow>
@@ -108,24 +129,36 @@ function Row({ job, onDelete }: { job: FailedJobRowData; onDelete: () => void })
                 </bdi>
             </TableCell>
             <TableCell>
-                <div className="flex flex-wrap justify-end gap-2">
-                    {job.retryable ? (
-                        <ActionButton
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            loading={retrying}
-                            data-test={`retry-${job.id}`}
-                            onClick={() => router.post(`/admin/failed-jobs/${job.id}/retry`, {}, { onStart: () => setRetrying(true), onFinish: () => setRetrying(false) })}
-                        >
-                            {t('platform::admin_failed_jobs.retry')}
-                        </ActionButton>
-                    ) : null}
-                    <Button type="button" variant="outline" size="sm" data-test={`delete-${job.id}`} onClick={onDelete}>
-                        {t('platform::admin_failed_jobs.delete_open')}
-                    </Button>
-                </div>
+                <JobActions job={job} onDelete={onDelete} />
             </TableCell>
         </TableRow>
+    );
+}
+
+/** A job's Retry and Delete Job…: the row's, and the same on its phone card under its own test names. */
+function JobActions({ job, onDelete, card = false }: { job: FailedJobRowData; onDelete: () => void; card?: boolean }) {
+    const t = useTranslator();
+    // Busy while the retry is on its way (Geist's Button: loading, not a second press).
+    const [retrying, setRetrying] = useState(false);
+    const where = card ? 'card-' : '';
+
+    return (
+        <div className="flex flex-wrap justify-end gap-2">
+            {job.retryable ? (
+                <ActionButton
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    loading={retrying}
+                    data-test={`retry-${where}${job.id}`}
+                    onClick={() => router.post(`/admin/failed-jobs/${job.id}/retry`, {}, { onStart: () => setRetrying(true), onFinish: () => setRetrying(false) })}
+                >
+                    {t('platform::admin_failed_jobs.retry')}
+                </ActionButton>
+            ) : null}
+            <Button type="button" variant="outline" size="sm" data-test={`delete-${where}${job.id}`} onClick={onDelete}>
+                {t('platform::admin_failed_jobs.delete_open')}
+            </Button>
+        </div>
     );
 }

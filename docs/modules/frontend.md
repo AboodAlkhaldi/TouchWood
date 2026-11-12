@@ -1424,7 +1424,8 @@ Pest, as the rest of the project (§1.1). Browser tests run with the suite (`com
 - The theme and display-language toggles survive a reload, and the pages come back in that theme
   with no flash.
 - Arabic mirrors the layout, the sidebar sits on the right, and figures show Latin digits (§1.8).
-- Phone width: the sidebar becomes a slide-in menu; tables scroll inside their card; nothing scrolls
+- Phone width: the sidebar becomes a slide-in menu; under 640 px a list's rows are cards (round 3 #15,
+  `components/PhoneCards`), and a table that is not a list scrolls inside its card; nothing scrolls
   the page sideways (`scrollWidth <= innerWidth` at 375×812, in every browser test file - `innerWidth`
   because headless Chromium keeps a 10 px scrollbar gutter a phone does not have, so it lets an
   overflow of up to 10 px through); the shop's

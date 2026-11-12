@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Loyalty\Application\Command\AddPoints\AddPoints;
 use Modules\Loyalty\Application\Command\AddPoints\AddPointsHandler;
+use Modules\Loyalty\Public\Enums\EntryKind;
 use Shared\Application\ActorContext;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
@@ -82,10 +83,10 @@ function loyaltyScreenOverflow(mixed $page): string
         JS);
 }
 
-/** Signed in to the panel as a new Super Admin. */
-function loyaltyScreenPanel(): mixed
+/** Signed in to the panel as a new Super Admin, or as the one given (a test that changes their language). */
+function loyaltyScreenPanel(?string $staffId = null): mixed
 {
-    $email = (string) DB::table('access.staff_users')->where('id', Fx::staff(superAdmin: true))->value('email');
+    $email = (string) DB::table('access.staff_users')->where('id', $staffId ?? Fx::staff(superAdmin: true))->value('email');
 
     $page = visit('/admin/sign-in')
         ->type('#email', $email)
@@ -137,8 +138,20 @@ it('keeps Remove out of reach past the balance, saying why', function () {
 });
 
 it('shows the customer\'s points on their own page, and every Points page fits a phone', function () {
-    [$customer] = loyaltyScreenCustomer(1_234);
-    $page = loyaltyScreenPanel();
+    [$customer, , $name] = loyaltyScreenCustomer(1_234);
+    // A redemption of 100 of them, so the redemptions list and the history have a line of this customer's.
+    $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
+
+    try {
+        $order = Lx::place($customer, Lx::quote($customer, 100, 100_000), 100_000);
+    } finally {
+        app()->scoped(ActorContext::class, $previous);
+        app()->forgetScopedInstances();
+    }
+
+    $entry = (int) DB::table('loyalty.entries')->where('order_id', $order)->where('kind', EntryKind::Redeemed->value)->value('id');
+    $staffId = Fx::staff(superAdmin: true);
+    $page = loyaltyScreenPanel($staffId);
 
     $page->navigate("/admin/customers/{$customer}", BROWSER_PAGE_LOAD)
         ->assertPresent('[data-test="points-section"]')
@@ -150,6 +163,27 @@ it('shows the customer\'s points on their own page, and every Points page fits a
         $page->navigate($uri, BROWSER_PAGE_LOAD);
 
         expect(loyaltyScreenOverflow($page))->toBe('', "{$uri} scrolls sideways on a phone");
+    }
+
+    // Under 640 px each row reads as a card and the table's row is not drawn (round 3 #15), in both
+    // languages: the holder (found by name, the list keeps every run's), the redemption's line of
+    // their history, and the redemption in the store's list (newest first).
+    $cards = [
+        '/admin/points/customers?store=sa&search='.rawurlencode(explode(' ', $name)[0]) => ["holder-card-{$customer}", "holder-{$customer}"],
+        "/admin/points/customers/{$customer}?store=sa" => ["history-card-{$entry}", "history-{$entry}"],
+        '/admin/points/redemptions?store=sa' => ["redemption-card-{$entry}", "redemption-{$entry}"],
+    ];
+
+    foreach (['ar', 'en'] as $locale) {
+        browserPanelLanguage($page, $locale);
+
+        foreach ($cards as $uri => [$card, $row]) {
+            $page->navigate($uri, BROWSER_PAGE_LOAD);
+
+            expect(browserSoon($page, "document.documentElement.lang === '{$locale}'"))->toBeTrue()
+                ->and(browserRowIsCard($page, '[data-test="'.$card.'"]', '[data-test="'.$row.'"]'))->toBeTrue("{$locale}: {$uri} draws no card for {$card}")
+                ->and(loyaltyScreenOverflow($page))->toBe('', "{$locale}: {$uri} scrolls sideways on a phone");
+        }
     }
 });
 
