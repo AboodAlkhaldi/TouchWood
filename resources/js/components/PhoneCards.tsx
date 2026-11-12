@@ -20,7 +20,10 @@ export type PhoneCard = {
     badge?: ReactNode;
     lines: ReactNode[];
     menu?: ReactNode;
-} & ({ href: string; onOpen?: never } | { href?: never; onOpen: (from: HTMLElement) => void } | { href?: never; onOpen?: never });
+    /** Its own page; it wins over `onOpen`. */
+    href?: string;
+    onOpen?: (from: HTMLElement) => void;
+};
 
 export function PhoneCards({ cards, test }: { cards: PhoneCard[]; test: string }) {
     // Stretched over the card (`after:inset-0`): a press anywhere on it is a press on the title.

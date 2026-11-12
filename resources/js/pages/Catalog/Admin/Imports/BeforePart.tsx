@@ -3,6 +3,7 @@ import { Link, router, useForm } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { TextField, TextareaField } from '@/components/Fields';
 import { PanelDialog } from '@/components/PanelDialog';
+import { PhoneCards } from '@/components/PhoneCards';
 import { SearchCombobox, type SearchOption } from '@/components/SearchCombobox';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -178,7 +179,7 @@ function Before({ page }: { page: ImportPage }) {
                 )}
             </section>
 
-            <div className="material-base overflow-x-auto">
+            <div className="material-base hidden overflow-x-auto sm:block">
                 <Table>
                     <TableCaption className="sr-only">{t('catalog::admin_imports.part.before')}</TableCaption>
                     <TableHeader className="bg-surface-sunken">
@@ -217,6 +218,27 @@ function Before({ page }: { page: ImportPage }) {
                     </TableBody>
                 </Table>
             </div>
+            {/* On a phone each product a card (round 3 #15), its tick beside it while deciding. */}
+            <PhoneCards
+                test="before-row"
+                cards={rows.map((row) => {
+                    const name = nameIn(locale, row.nameAr, row.nameEn);
+
+                    return {
+                        id: String(row.number),
+                        title: <bdi>{name}</bdi>,
+                        lines: [
+                            <span key="c" className="tw-figure">
+                                {`${t('catalog::admin_imports.products.column.number')}: ${figure(locale, row.number)} · ${t('catalog::admin_imports.before.column.codes')}: `}
+                                <bdi dir="ltr" className="font-mono">
+                                    {row.codes.join(' · ')}
+                                </bdi>
+                            </span>,
+                        ],
+                        menu: deciding ? <Checkbox checked={selection.has(row.id)} onCheckedChange={(on) => selection.set(row.id, on === true)} aria-label={t('catalog::admin_imports.select_row', { name })} data-test={`select-card-${row.number}`} /> : undefined,
+                    };
+                })}
+            />
 
             {own !== null ? <OwnAddressDialog importId={page.import.id} row={own} onOpenChange={(next) => (next ? undefined : setOwn(null))} returnFocusTo={opener} /> : null}
         </div>

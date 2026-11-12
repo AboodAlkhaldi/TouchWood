@@ -7,6 +7,7 @@ import { TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { PanelDialog } from '@/components/PanelDialog';
+import { PhoneCards } from '@/components/PhoneCards';
 import { StoreFilter } from '@/components/StoreFilter';
 import { Time } from '@/components/Time';
 import { Button } from '@/components/ui/button';
@@ -74,44 +75,71 @@ export default function Index({ pairs, mayChange, searches, page, more, storeCod
                             </EmptyContent>
                         </Empty>
                     ) : (
-                        <div className="material-base overflow-x-auto">
-                            <Table>
-                                <TableCaption className="sr-only">{t('catalog::admin_search_words.pairs.title')}</TableCaption>
-                                <TableHeader className="bg-surface-sunken">
-                                    <TableRow>
-                                        <TableHead>{t('catalog::admin_search_words.pairs.column')}</TableHead>
-                                        <TableHead className="w-32">
-                                            <span className="sr-only">{t('catalog::admin.column.actions')}</span>
-                                        </TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {pairs.map((pair) => (
-                                        <TableRow key={pair.id} data-test={`pair-${pair.id}`}>
-                                            <TableCell>
-                                                <span className="flex items-center gap-2">
-                                                    <bdi>{pair.wordA}</bdi>
-                                                    <ArrowLeftRight aria-label={t('catalog::admin_search_words.pairs.means')} className="size-4 text-ink-muted" />
-                                                    <bdi>{pair.wordB}</bdi>
-                                                </span>
-                                            </TableCell>
-                                            <TableCell className="text-end">
-                                                <ActionButton
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    disabledReason={reason}
-                                                    onClick={(event) => ((opener.current = event.currentTarget), setDialog({ action: 'delete', pair }))}
-                                                    data-test="delete-pair"
-                                                >
-                                                    {t('catalog::admin_search_words.delete')}
-                                                </ActionButton>
-                                            </TableCell>
+                        <>
+                            <div className="material-base hidden overflow-x-auto sm:block">
+                                <Table>
+                                    <TableCaption className="sr-only">{t('catalog::admin_search_words.pairs.title')}</TableCaption>
+                                    <TableHeader className="bg-surface-sunken">
+                                        <TableRow>
+                                            <TableHead>{t('catalog::admin_search_words.pairs.column')}</TableHead>
+                                            <TableHead className="w-32">
+                                                <span className="sr-only">{t('catalog::admin.column.actions')}</span>
+                                            </TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </div>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {pairs.map((pair) => (
+                                            <TableRow key={pair.id} data-test={`pair-${pair.id}`}>
+                                                <TableCell>
+                                                    <span className="flex items-center gap-2">
+                                                        <bdi>{pair.wordA}</bdi>
+                                                        <ArrowLeftRight aria-label={t('catalog::admin_search_words.pairs.means')} className="size-4 text-ink-muted" />
+                                                        <bdi>{pair.wordB}</bdi>
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="text-end">
+                                                    <ActionButton
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        disabledReason={reason}
+                                                        onClick={(event) => ((opener.current = event.currentTarget), setDialog({ action: 'delete', pair }))}
+                                                        data-test="delete-pair"
+                                                    >
+                                                        {t('catalog::admin_search_words.delete')}
+                                                    </ActionButton>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                            {/* On a phone each pair a card (round 3 #15), its Delete beside it. */}
+                            <PhoneCards
+                                test="pair"
+                                cards={pairs.map((pair) => ({
+                                    id: pair.id,
+                                    title: (
+                                        <>
+                                            <bdi>{pair.wordA}</bdi> <ArrowLeftRight aria-label={t('catalog::admin_search_words.pairs.means')} className="inline size-4 text-ink-muted" /> <bdi>{pair.wordB}</bdi>
+                                        </>
+                                    ),
+                                    lines: [],
+                                    menu: (
+                                        <ActionButton
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            disabledReason={reason}
+                                            onClick={(event) => ((opener.current = event.currentTarget), setDialog({ action: 'delete', pair }))}
+                                            data-test="delete-pair-card"
+                                        >
+                                            {t('catalog::admin_search_words.delete')}
+                                        </ActionButton>
+                                    ),
+                                }))}
+                            />
+                        </>
                     )}
                 </section>
 
@@ -132,51 +160,79 @@ export default function Index({ pairs, mayChange, searches, page, more, storeCod
                                 </EmptyHeader>
                             </Empty>
                         ) : (
-                            <div className="material-base overflow-x-auto">
-                                <Table>
-                                    <TableCaption className="sr-only">{t('catalog::admin_search_words.searches.title')}</TableCaption>
-                                    <TableHeader className="bg-surface-sunken">
-                                        <TableRow>
-                                            <TableHead>{t('catalog::admin_search_words.searches.column.words')}</TableHead>
-                                            <TableHead>{t('catalog::admin_search_words.searches.column.store')}</TableHead>
-                                            <TableHead>{t('catalog::admin_search_words.searches.column.language')}</TableHead>
-                                            <TableHead className="text-end">{t('catalog::admin_search_words.searches.column.times')}</TableHead>
-                                            <TableHead>{t('catalog::admin_search_words.searches.column.last')}</TableHead>
-                                            <TableHead className="w-40">
-                                                <span className="sr-only">{t('catalog::admin.column.actions')}</span>
-                                            </TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {list.rows.map((search) => (
-                                            <TableRow key={searchKey(search)} data-test="search-row">
-                                                <TableCell>
-                                                    <bdi>{search.query}</bdi>
-                                                </TableCell>
-                                                <TableCell>{search.storeName}</TableCell>
-                                                <TableCell>{search.locale === 'ar' ? 'العربية' : 'English'}</TableCell>
-                                                <TableCell className="tw-figure text-end">{figure(locale, search.times)}</TableCell>
-                                                <TableCell>
-                                                    <Time value={search.lastSearchedAt} />
-                                                </TableCell>
-                                                <TableCell className="text-end">
-                                                    {mayChange ? (
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={(event) => ((opener.current = event.currentTarget), setDialog({ action: 'add', words: search.query }))}
-                                                            data-test="pair-from-search"
-                                                        >
-                                                            {t('catalog::admin_search_words.add_from')}
-                                                        </Button>
-                                                    ) : null}
-                                                </TableCell>
+                            <>
+                                <div className="material-base hidden overflow-x-auto sm:block">
+                                    <Table>
+                                        <TableCaption className="sr-only">{t('catalog::admin_search_words.searches.title')}</TableCaption>
+                                        <TableHeader className="bg-surface-sunken">
+                                            <TableRow>
+                                                <TableHead>{t('catalog::admin_search_words.searches.column.words')}</TableHead>
+                                                <TableHead>{t('catalog::admin_search_words.searches.column.store')}</TableHead>
+                                                <TableHead>{t('catalog::admin_search_words.searches.column.language')}</TableHead>
+                                                <TableHead className="text-end">{t('catalog::admin_search_words.searches.column.times')}</TableHead>
+                                                <TableHead>{t('catalog::admin_search_words.searches.column.last')}</TableHead>
+                                                <TableHead className="w-40">
+                                                    <span className="sr-only">{t('catalog::admin.column.actions')}</span>
+                                                </TableHead>
                                             </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </div>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {list.rows.map((search) => (
+                                                <TableRow key={searchKey(search)} data-test="search-row">
+                                                    <TableCell>
+                                                        <bdi>{search.query}</bdi>
+                                                    </TableCell>
+                                                    <TableCell>{search.storeName}</TableCell>
+                                                    <TableCell>{search.locale === 'ar' ? 'العربية' : 'English'}</TableCell>
+                                                    <TableCell className="tw-figure text-end">{figure(locale, search.times)}</TableCell>
+                                                    <TableCell>
+                                                        <Time value={search.lastSearchedAt} />
+                                                    </TableCell>
+                                                    <TableCell className="text-end">
+                                                        {mayChange ? (
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={(event) => ((opener.current = event.currentTarget), setDialog({ action: 'add', words: search.query }))}
+                                                                data-test="pair-from-search"
+                                                            >
+                                                                {t('catalog::admin_search_words.add_from')}
+                                                            </Button>
+                                                        ) : null}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                                {/* On a phone each search a card (round 3 #15), its Add Word Pair beside it. */}
+                                <PhoneCards
+                                    test="search"
+                                    cards={list.rows.map((search) => ({
+                                        id: searchKey(search),
+                                        title: <bdi>{search.query}</bdi>,
+                                        lines: [
+                                            <span key="s">{`${search.storeName} · ${search.locale === 'ar' ? 'العربية' : 'English'}`}</span>,
+                                            <span key="t" className="tw-figure">
+                                                {`${t('catalog::admin_search_words.searches.column.times')}: ${figure(locale, search.times)} · ${t('catalog::admin_search_words.searches.column.last')}: `}
+                                                <Time value={search.lastSearchedAt} />
+                                            </span>,
+                                        ],
+                                        menu: mayChange ? (
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={(event) => ((opener.current = event.currentTarget), setDialog({ action: 'add', words: search.query }))}
+                                                data-test="pair-from-search-card"
+                                            >
+                                                {t('catalog::admin_search_words.add_from')}
+                                            </Button>
+                                        ) : undefined,
+                                    }))}
+                                />
+                            </>
                         )}
                         {more ? (
                             <LoadMoreButton

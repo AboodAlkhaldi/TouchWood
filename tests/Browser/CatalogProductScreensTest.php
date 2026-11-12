@@ -385,5 +385,16 @@ it('reads right to left in Arabic, at a phone\'s width, with nothing wider than 
 
     expect(browserUntil($page, "document.querySelector('[data-test=\"product-search\"]') !== null"))->toBeTrue()
         ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+
+    // Under 640 px each product reads as a card and the table's row is not drawn (round 3 #15), in
+    // Arabic and in English: the draft made above is the newest, the list's first.
+    foreach (['ar', 'en'] as $locale) {
+        browserPanelLanguage($page, $locale);
+        $page->navigate('/admin/products', BROWSER_PAGE_LOAD);
+
+        expect(browserSoon($page, "document.documentElement.lang === '{$locale}'"))->toBeTrue()
+            ->and(browserRowIsCard($page, '[data-test="product-card-'.$product.'"]', '[data-test="product-'.$product.'"]'))->toBeTrue("{$locale}: the product is not a card");
+    }
+
     $page->assertNoJavaScriptErrors();
 });

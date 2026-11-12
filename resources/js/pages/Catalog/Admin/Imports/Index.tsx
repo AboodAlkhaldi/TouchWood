@@ -5,6 +5,7 @@ import { ActionButton } from '@/components/ActionButton';
 import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { PanelDialog } from '@/components/PanelDialog';
+import { PhoneCards } from '@/components/PhoneCards';
 import { Time } from '@/components/Time';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
@@ -64,7 +65,7 @@ export default function Index({ files, page, more, problems, problemsTotal }: Im
                     </Empty>
                 ) : (
                     <div className="grid gap-3">
-                        <div className="material-base overflow-x-auto">
+                        <div className="material-base hidden overflow-x-auto sm:block">
                             <Table>
                                 <TableCaption className="sr-only">{t('catalog::admin_imports.title')}</TableCaption>
                                 <TableHeader className="bg-surface-sunken">
@@ -97,6 +98,23 @@ export default function Index({ files, page, more, problems, problemsTotal }: Im
                                 </TableBody>
                             </Table>
                         </div>
+                        {/* On a phone each file a card (round 3 #15) that opens the file, as its row does. */}
+                        <PhoneCards
+                            test="import"
+                            cards={list.rows.map((file) => ({
+                                id: file.id,
+                                title: <bdi>{file.fileName}</bdi>,
+                                badge: <ImportStateBadge state={file.state} />,
+                                href: `/admin/imports/${file.id}`,
+                                lines: [
+                                    <span key="u">
+                                        {`${t('catalog::admin_imports.column.uploaded_by')}: ${file.uploadedBy ?? '—'} · `}
+                                        <Time value={file.uploadedAt} focusable={false} />
+                                    </span>,
+                                    <span key="p" className="tw-figure">{`${t('catalog::admin_imports.column.products')}: ${figure(locale, file.products)}`}</span>,
+                                ],
+                            }))}
+                        />
                         {more ? <LoadMoreButton loading={list.loading} onClick={() => list.more(window.location.pathname, { page: page + 1 }, ['files', 'page', 'more'])} /> : null}
                     </div>
                 )}

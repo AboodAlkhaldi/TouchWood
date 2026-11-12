@@ -117,6 +117,7 @@ it('refuses a name from its row, brings the products in once nothing waits, and 
 
 it('reads right to left in Arabic, at a phone\'s width, with nothing wider than the screen', function () {
     ['import' => $import] = catalogImportBrowserFile();
+    $nameId = (string) DB::table('catalog.import_names')->where('import_id', $import)->value('id');
     $page = catalogImportBrowser('ar');
     $page->resize(375, 812);
 
@@ -130,6 +131,28 @@ it('reads right to left in Arabic, at a phone\'s width, with nothing wider than 
         expect(browserUntil($page, "document.querySelector('[data-test=\"{$shown}\"]') !== null"))->toBeTrue()
             ->and($page->script('document.documentElement.dir'))->toBe('rtl')
             ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    }
+
+    // Under 640 px the files, the names, the products before bringing in and the products each read
+    // as cards and the table's row is not drawn (round 3 #15), in Arabic and in English.
+    $cards = [
+        '/admin/imports' => ["import-card-{$import}", "import-{$import}"],
+        "/admin/imports/{$import}" => ["name-card-{$nameId}", "name-{$nameId}"],
+        "/admin/imports/{$import}?part=before" => ['before-row-card-1', 'before-row-1'],
+        "/admin/imports/{$import}?part=products" => ['product-row-card-1', 'product-row-1'],
+    ];
+
+    foreach (['ar', 'en'] as $locale) {
+        browserPanelLanguage($page, $locale);
+
+        foreach ($cards as $address => [$card, $row]) {
+            // The page before settled first, as above.
+            expect(browserUntil($page, "document.readyState === 'complete' && (performance.getEntriesByType('navigation')[0]?.loadEventEnd ?? 1) > 0 && document.querySelector('[data-loading], #nprogress') === null"))->toBeTrue();
+            $page->navigate($address, BROWSER_PAGE_LOAD);
+
+            expect(browserSoon($page, "document.documentElement.lang === '{$locale}'"))->toBeTrue()
+                ->and(browserRowIsCard($page, '[data-test="'.$card.'"]', '[data-test="'.$row.'"]'))->toBeTrue("{$locale}: {$address} draws no card for {$card}");
+        }
     }
 
     $page->assertNoJavaScriptErrors();

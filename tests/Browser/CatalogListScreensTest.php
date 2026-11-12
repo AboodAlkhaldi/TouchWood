@@ -5,12 +5,18 @@ declare(strict_types=1);
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Application\CatalogPermissions as P;
+use Modules\Catalog\Application\Command\AddAttribute\AddAttribute;
+use Modules\Catalog\Application\Command\AddAttribute\AddAttributeHandler;
+use Modules\Catalog\Application\Command\AddAttributeValue\AddAttributeValue;
+use Modules\Catalog\Application\Command\AddAttributeValue\AddAttributeValueHandler;
 use Modules\Catalog\Application\Command\AddBrand\AddBrand;
 use Modules\Catalog\Application\Command\AddBrand\AddBrandHandler;
 use Modules\Catalog\Application\Command\AddCategory\AddCategory;
 use Modules\Catalog\Application\Command\AddCategory\AddCategoryHandler;
 use Modules\Catalog\Application\Command\AddLabel\AddLabel;
 use Modules\Catalog\Application\Command\AddLabel\AddLabelHandler;
+use Modules\Catalog\Application\Command\AddWarranty\AddWarranty;
+use Modules\Catalog\Application\Command\AddWarranty\AddWarrantyHandler;
 use Modules\Catalog\Application\Command\AddWordPair\AddWordPair;
 use Modules\Catalog\Application\Command\AddWordPair\AddWordPairHandler;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProduct;
@@ -523,3 +529,42 @@ it('reads right to left in Arabic, at a phone\'s width, with nothing wider than 
 
     $page->assertNoJavaScriptErrors();
 });
+
+/*
+| Under 640 px each row of a list reads as a card and the table's row is not drawn (round 3 #15): a
+| word pair, an attribute's value, and a brand, a label, a warranty and an attribute on their lists, in each language.
+*/
+it('draws a word pair, an attribute\'s value and each list\'s rows as cards at a phone\'s width', function (string $locale) {
+    $n = catalogListBrowserFresh();
+    $pair = Fx::asSystem(fn (): string => app(AddWordPairHandler::class)->handle(new AddWordPair("shelf{$n}", "rack{$n}")));
+    ['attribute' => $attribute, 'value' => $value] = Fx::asSystem(function () use ($n): array {
+        $attribute = app(AddAttributeHandler::class)->handle(new AddAttribute("لون {$n}", "Colour {$n}", 'VARIANT'));
+
+        return ['attribute' => $attribute, 'value' => app(AddAttributeValueHandler::class)->handle(new AddAttributeValue($attribute, "أزرق {$n}", "Blue {$n}"))];
+    });
+    $brand = catalogListBrowserBrand($n, 'Card');
+    $label = Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel("شارة {$n}", "Card {$n}", 'blue')));
+    $terms = ['blocks' => [['type' => 'paragraph', 'runs' => [['text' => 'Terms']]]]];
+    $warranty = Fx::asSystem(fn (): string => app(AddWarrantyHandler::class)->handle(new AddWarranty("ضمان {$n}", "Card {$n}", $terms, $terms, 12)));
+    $page = catalogListBrowser([P::SEARCH_WORD_MANAGE, P::ATTRIBUTE_MANAGE, P::BRAND_MANAGE, P::LABEL_MANAGE, P::WARRANTY_MANAGE], $locale);
+    // Signed in at desktop size first: a phone-sized sign-in types before React takes the form over
+    // (lesson 118).
+    $page->resize(375, 812);
+
+    foreach ([
+        '/admin/search-words' => ["pair-card-{$pair}", "pair-{$pair}"],
+        "/admin/attributes/{$attribute}" => ["value-card-{$value}", "value-{$value}"],
+        '/admin/attributes' => ["attribute-card-{$attribute}", "attribute-{$attribute}"],
+        '/admin/brands' => ["brand-card-{$brand}", "brand-{$brand}"],
+        '/admin/labels' => ["label-card-{$label}", "label-{$label}"],
+        '/admin/warranties' => ["warranty-card-{$warranty}", "warranty-{$warranty}"],
+    ] as $address => [$card, $row]) {
+        $page->navigate($address, BROWSER_PAGE_LOAD);
+
+        expect(browserSoon($page, "document.documentElement.lang === '{$locale}'"))->toBeTrue()
+            ->and(browserRowIsCard($page, '[data-test="'.$card.'"]', '[data-test="'.$row.'"]'))->toBeTrue("{$locale}: {$address} draws no card for {$card}")
+            ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue("{$locale}: {$address} scrolls sideways");
+    }
+
+    $page->assertNoJavaScriptErrors();
+})->with(['ar', 'en']);

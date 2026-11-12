@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react';
+import { lazy, Suspense, useRef, useState } from 'react';
 import { Link } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { FormError } from '@/components/FormError';
 import { ActionButton } from '@/components/ActionButton';
+import { PhoneCards } from '@/components/PhoneCards';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { figure } from '@/lib/digits';
@@ -10,9 +11,12 @@ import { useTranslator } from '@/lib/t';
 import type { AttributeData, AttributesPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
 import { DragHandle, SortableGroup, SortableGroups, useSavedOrder, useSortableRow } from '../SortableList';
-import { AddAttributeDialog } from './AddAttributeDialog';
 import { AttributeMenu } from './AttributeDialog';
-import { DeleteAttributeDialog } from './DeleteAttributeDialog';
+
+// Adding and deleting load when first opened, as the brands' dialog does, which leaves the page room for its phone cards
+// (frontend.md §5, the page budget).
+const AddAttributeDialog = lazy(() => import('./AddAttributeDialog').then((module) => ({ default: module.AddAttributeDialog })));
+const DeleteAttributeDialog = lazy(() => import('./DeleteAttributeDialog').then((module) => ({ default: module.DeleteAttributeDialog })));
 
 /*
 | The attributes screen (catalog.md §1.7, §4.4 S3): one shared library - its name, its job, its unit,
@@ -67,7 +71,7 @@ export default function Index({ attributes, mayChange }: AttributesPage) {
                     </Empty>
                 ) : (
                     <SortableGroups groups={{ attributes: order }} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={(_, ids) => move(ids)}>
-                        <div className="material-base overflow-x-auto">
+                        <div className="material-base hidden overflow-x-auto sm:block">
                             <Table>
                                 <TableCaption className="sr-only">{t('catalog::admin_attributes.title')}</TableCaption>
                                 <TableHeader className="bg-surface-sunken">
@@ -107,13 +111,54 @@ export default function Index({ attributes, mayChange }: AttributesPage) {
                                 </TableBody>
                             </Table>
                         </div>
+                        {/* On a phone each attribute a card that opens it (round 3 #15); its place moves from its menu. */}
+                        <PhoneCards
+                            test="attribute"
+                            cards={rows.map((attribute, index) => {
+                                const name = nameIn(locale, attribute.nameAr, attribute.nameEn);
+
+                                return {
+                                    id: attribute.id,
+                                    title: name,
+                                    href: `/admin/attributes/${attribute.id}`,
+                                    badge: <StateBadge active={attribute.active} />,
+                                    lines: [
+                                        <span key="k" className="tw-figure">
+                                            {t(`catalog::admin_attributes.kind.${attribute.kind}`)}
+                                            {attribute.kind === 'INFORMATIONAL' ? '' : ` · ${t('catalog::admin_attributes.column.values')}: ${figure(locale, attribute.values)}`}
+                                        </span>,
+                                    ],
+                                    menu:
+                                        reason !== undefined ? (
+                                            <MoreButtonOff name={name} reason={reason} />
+                                        ) : (
+                                            <AttributeMenu
+                                                attribute={attribute}
+                                                name={name}
+                                                open={(action, trigger) => {
+                                                    opener.current = trigger;
+                                                    setDialog({ action, attribute });
+                                                }}
+                                                order={{ first: index === 0, last: index === rows.length - 1, toTop: () => toTop(attribute.id), toBottom: () => toBottom(attribute.id) }}
+                                                test={`attribute-card-actions-${attribute.id}`}
+                                            />
+                                        ),
+                                };
+                            })}
+                        />
                     </SortableGroups>
                 )}
             </div>
 
-            {dialog !== null && dialog.action === 'add' ? <AddAttributeDialog open onOpenChange={close} returnFocusTo={opener} /> : null}
+            {dialog !== null && dialog.action === 'add' ? (
+                <Suspense fallback={null}>
+                    <AddAttributeDialog open onOpenChange={close} returnFocusTo={opener} />
+                </Suspense>
+            ) : null}
             {dialog !== null && dialog.action === 'delete' && dialog.attribute !== null ? (
-                <DeleteAttributeDialog attribute={dialog.attribute} open onOpenChange={close} returnFocusTo={opener} />
+                <Suspense fallback={null}>
+                    <DeleteAttributeDialog attribute={dialog.attribute} open onOpenChange={close} returnFocusTo={opener} />
+                </Suspense>
             ) : null}
         </AdminLayout>
     );

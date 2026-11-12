@@ -128,11 +128,14 @@ export function AttributeMenu({
     name,
     open,
     order,
+    test,
 }: {
     attribute: AttributeData;
     name: string;
     open: (action: 'delete', trigger: HTMLElement | null) => void;
     order?: { first: boolean; last: boolean; toTop: () => void; toBottom: () => void };
+    /** The ⋯ button's test name: a phone card's has its own (round 3 #15). */
+    test?: string;
 }) {
     const t = useTranslator();
     const [busy, setBusy] = useState(false);
@@ -143,7 +146,7 @@ export function AttributeMenu({
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <MoreButton ref={more} name={name} busy={busy} data-test={`attribute-actions-${attribute.id}`} />
+                <MoreButton ref={more} name={name} busy={busy} data-test={test ?? `attribute-actions-${attribute.id}`} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-56">
                 {order !== undefined ? <MoveItems first={order.first} last={order.last} onTop={order.toTop} onBottom={order.toBottom} /> : null}

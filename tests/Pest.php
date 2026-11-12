@@ -111,6 +111,19 @@ function browserRowIsCard(mixed $page, string $card, ?string $row = null): bool
 }
 
 /**
+ * The panel's language chosen as its one-press button chooses it (the `tw_locale` cookie, which wins over the account's
+ * saved language), from the page itself: at a phone's width the button sits in the closed menu. The account's language
+ * changed in the database does not do it mid-test - the panel's shell is read once and kept by the application this
+ * same process serves.
+ */
+function browserPanelLanguage(mixed $page, string $locale): void
+{
+    $localeJs = json_encode($locale, JSON_THROW_ON_ERROR);
+
+    $page->script("async () => { const token = document.querySelector('meta[name=\"csrf-token\"]')?.getAttribute('content') ?? ''; await fetch('/admin/preferences', { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': token }, body: new URLSearchParams({ preference: 'locale', value: {$localeJs} }) }); return true; }");
+}
+
+/**
  * Whether the staff member has landed in the panel. The code's submit only starts the sign-in, and
  * a page opened before its answer lands is the sign-in screen again (it raced, and lost, in CI on
  * 2026-10-04) - so every sign-in waits for this before it opens the screen under test.

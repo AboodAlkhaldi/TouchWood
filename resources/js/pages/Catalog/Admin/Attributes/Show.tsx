@@ -4,6 +4,7 @@ import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
 import { FormError } from '@/components/FormError';
 import { Note } from '@/components/Note';
+import { PhoneCards } from '@/components/PhoneCards';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
@@ -124,7 +125,7 @@ export default function Show({ attribute, values, mayChange }: AttributePage) {
                     </Empty>
                 ) : (
                     <SortableGroups groups={{ values: order }} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={(_, ids) => move(ids)}>
-                        <div className="material-base overflow-x-auto">
+                        <div className="material-base hidden overflow-x-auto sm:block">
                             <Table>
                                 <TableCaption className="sr-only">{t('catalog::admin_attributes.value.title')}</TableCaption>
                                 <TableHeader className="bg-surface-sunken">
@@ -162,6 +163,46 @@ export default function Show({ attribute, values, mayChange }: AttributePage) {
                                 </TableBody>
                             </Table>
                         </div>
+                        {/* On a phone each value a card (round 3 #15); its place moves from its menu, Move to Top or Bottom. */}
+                        <PhoneCards
+                            test="value"
+                            cards={rows.map((value, index) => ({
+                                id: value.id,
+                                title: nameIn(locale, value.nameAr, value.nameEn),
+                                badge: <StateBadge active={value.active} />,
+                                lines: [
+                                    <span key="o">
+                                        {`${t(locale === 'ar' ? 'catalog::admin.column.name_en' : 'catalog::admin.column.name_ar')}: `}
+                                        <bdi dir={locale === 'ar' ? 'ltr' : 'rtl'}>{locale === 'ar' ? value.nameEn : value.nameAr}</bdi>
+                                    </span>,
+                                    ...(attribute.isColour
+                                        ? [
+                                              <span key="s">
+                                                  {`${t('catalog::admin_attributes.value.swatch')}: `}
+                                                  <bdi dir="ltr" className="tw-figure">
+                                                      {value.swatch ?? '—'}
+                                                  </bdi>
+                                              </span>,
+                                          ]
+                                        : []),
+                                ],
+                                menu: (
+                                    <ValueMenu
+                                        value={value}
+                                        reason={reason}
+                                        first={index === 0}
+                                        last={index === rows.length - 1}
+                                        toTop={() => toTop(value.id)}
+                                        toBottom={() => toBottom(value.id)}
+                                        open={(action, trigger) => {
+                                            opener.current = trigger;
+                                            setDialog({ action, value });
+                                        }}
+                                        test={`value-card-actions-${value.id}`}
+                                    />
+                                ),
+                            }))}
+                        />
                     </SortableGroups>
                 )}
             </div>
@@ -204,11 +245,7 @@ function ValueRow({
     toBottom: () => void;
     open: (action: 'edit-value' | 'delete-value', trigger: HTMLElement | null) => void;
 }) {
-    const t = useTranslator();
     const locale = useLocale();
-    const [busy, setBusy] = useState(false);
-    const more = useRef<HTMLButtonElement>(null);
-    const deleteReason = value.inUse ? t('catalog::admin_attributes.reason.value_in_use') : null;
     const row = useSortableRow(value.id, reason !== undefined);
 
     return (
@@ -242,53 +279,82 @@ function ValueRow({
                 <StateBadge active={value.active} />
             </TableCell>
             <TableCell className="text-end">
-                {reason !== undefined ? (
-                    <MoreButtonOff name={nameIn(locale, value.nameAr, value.nameEn)} reason={reason} />
-                ) : (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <MoreButton ref={more} name={nameIn(locale, value.nameAr, value.nameEn)} busy={busy} data-test={`value-actions-${value.id}`} />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-56">
-                            <DropdownMenuItem onSelect={() => open('edit-value', more.current)} data-test="edit-value">
-                                {t('catalog::admin_attributes.value.edit')}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                                disabled={busy}
-                                onSelect={() =>
-                                    router.post(`/admin/attribute-values/${value.id}/${value.active ? 'deactivate' : 'activate'}`, {}, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) })
-                                }
-                                data-test={value.active ? 'deactivate-value' : 'activate-value'}
-                            >
-                                {value.active ? t('catalog::admin_attributes.value.deactivate') : t('catalog::admin_attributes.value.activate')}
-                            </DropdownMenuItem>
-                            {/* S3: Edit…, Activate or Deactivate, Move to Top, Move to Bottom, Delete…. */}
-                            <MoveItems first={first} last={last} onTop={toTop} onBottom={toBottom} />
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                                variant="destructive"
-                                aria-disabled={deleteReason !== null || undefined}
-                                className={deleteReason !== null ? 'cursor-not-allowed' : undefined}
-                                onSelect={(event) => {
-                                    if (deleteReason !== null) {
-                                        event.preventDefault();
-
-                                        return;
-                                    }
-
-                                    open('delete-value', more.current);
-                                }}
-                                data-test="delete-value"
-                            >
-                                <span className="grid gap-0.5">
-                                    <span className={deleteReason !== null ? 'opacity-60' : undefined}>{t('catalog::admin_attributes.value.delete')}</span>
-                                    {deleteReason !== null ? <span className="text-copy-13 text-ink-muted">{deleteReason}</span> : null}
-                                </span>
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                )}
+                <ValueMenu value={value} reason={reason} first={first} last={last} toTop={toTop} toBottom={toBottom} open={open} test={`value-actions-${value.id}`} />
             </TableCell>
         </TableRow>
+    );
+}
+
+/** A value's ⋯ menu: the row's, and the same on its phone card under its own test name. */
+function ValueMenu({
+    value,
+    reason,
+    first,
+    last,
+    toTop,
+    toBottom,
+    open,
+    test,
+}: {
+    value: ValueData;
+    reason: string | undefined;
+    first: boolean;
+    last: boolean;
+    toTop: () => void;
+    toBottom: () => void;
+    open: (action: 'edit-value' | 'delete-value', trigger: HTMLElement | null) => void;
+    test: string;
+}) {
+    const t = useTranslator();
+    const locale = useLocale();
+    const [busy, setBusy] = useState(false);
+    const more = useRef<HTMLButtonElement>(null);
+    const deleteReason = value.inUse ? t('catalog::admin_attributes.reason.value_in_use') : null;
+
+    return reason !== undefined ? (
+        <MoreButtonOff name={nameIn(locale, value.nameAr, value.nameEn)} reason={reason} />
+    ) : (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <MoreButton ref={more} name={nameIn(locale, value.nameAr, value.nameEn)} busy={busy} data-test={test} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-56">
+                <DropdownMenuItem onSelect={() => open('edit-value', more.current)} data-test="edit-value">
+                    {t('catalog::admin_attributes.value.edit')}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                    disabled={busy}
+                    onSelect={() =>
+                        router.post(`/admin/attribute-values/${value.id}/${value.active ? 'deactivate' : 'activate'}`, {}, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) })
+                    }
+                    data-test={value.active ? 'deactivate-value' : 'activate-value'}
+                >
+                    {value.active ? t('catalog::admin_attributes.value.deactivate') : t('catalog::admin_attributes.value.activate')}
+                </DropdownMenuItem>
+                {/* S3: Edit…, Activate or Deactivate, Move to Top, Move to Bottom, Delete…. */}
+                <MoveItems first={first} last={last} onTop={toTop} onBottom={toBottom} />
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                    variant="destructive"
+                    aria-disabled={deleteReason !== null || undefined}
+                    className={deleteReason !== null ? 'cursor-not-allowed' : undefined}
+                    onSelect={(event) => {
+                        if (deleteReason !== null) {
+                            event.preventDefault();
+
+                            return;
+                        }
+
+                        open('delete-value', more.current);
+                    }}
+                    data-test="delete-value"
+                >
+                    <span className="grid gap-0.5">
+                        <span className={deleteReason !== null ? 'opacity-60' : undefined}>{t('catalog::admin_attributes.value.delete')}</span>
+                        {deleteReason !== null ? <span className="text-copy-13 text-ink-muted">{deleteReason}</span> : null}
+                    </span>
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
     );
 }

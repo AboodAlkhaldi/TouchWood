@@ -3,6 +3,7 @@ import { router } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
 import { FormError } from '@/components/FormError';
+import { PhoneCards } from '@/components/PhoneCards';
 import { PanelDialog } from '@/components/PanelDialog';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -12,13 +13,14 @@ import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import type { BrandData, BrandsPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
-import { FatesDialog } from '../FatesDialog';
 import { MoreButton, MoreButtonOff, NameCells, NameHeads, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
 import { DragHandle, MoveItems, SortableGroup, SortableGroups, useSavedOrder, useSortableRow } from '../SortableList';
 
 // The add and edit dialog - its form, its checks as typed, the country picker - loads when it is first
 // opened, not with the page, which the drag handles' code shares (frontend.md §5, the page budget).
 const BrandDialog = lazy(() => import('./BrandDialog').then((module) => ({ default: module.BrandDialog })));
+// Deactivating's fates dialog likewise, as the categories' page already loads it, which leaves room for the phone cards.
+const FatesDialog = lazy(() => import('../FatesDialog').then((module) => ({ default: module.FatesDialog })));
 
 /*
 | The brands screen (catalog.md §1.6, §4.4 S1), on shadcn's parts with Geist's rules (frontend.md
@@ -80,7 +82,7 @@ export default function Index({ brands, mayChange, reached, reachedFor, countrie
                     </Empty>
                 ) : (
                     <SortableGroups groups={{ brands: order }} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={(_, ids) => move(ids)}>
-                        <div className="material-base overflow-x-auto">
+                        <div className="material-base hidden overflow-x-auto sm:block">
                             <Table>
                                 <TableCaption className="sr-only">{t('catalog::admin_brands.title')}</TableCaption>
                                 <TableHeader className="bg-surface-sunken">
@@ -120,6 +122,37 @@ export default function Index({ brands, mayChange, reached, reachedFor, countrie
                                 </TableBody>
                             </Table>
                         </div>
+                        {/* On a phone each brand a card (round 3 #15); its place moves from its menu, Move to Top or Bottom. */}
+                        <PhoneCards
+                            test="brand"
+                            cards={rows.map((brand, index) => ({
+                                id: brand.id,
+                                title: nameIn(locale, brand.nameAr, brand.nameEn),
+                                badge: <StateBadge active={brand.active} />,
+                                lines: [
+                                    <span key="n" className="tw-figure">
+                                        {figure(locale, brand.number)} · {t(`catalog::admin_brands.agency.${brand.agencyType}`)}
+                                        {brand.isDefault ? ` · ${t('catalog::admin_brands.default')}` : ''}
+                                    </span>,
+                                    <span key="p" className="tw-figure">{`${t('catalog::admin.column.products')}: ${figure(locale, brand.products)}`}</span>,
+                                ],
+                                menu: (
+                                    <BrandMenu
+                                        brand={brand}
+                                        reason={reason}
+                                        first={index === 0}
+                                        last={index === rows.length - 1}
+                                        toTop={() => toTop(brand.id)}
+                                        toBottom={() => toBottom(brand.id)}
+                                        open={(action, trigger) => {
+                                            opener.current = trigger;
+                                            setDialog({ action, brand });
+                                        }}
+                                        test={`brand-card-actions-${brand.id}`}
+                                    />
+                                ),
+                            }))}
+                        />
                     </SortableGroups>
                 )}
             </div>
@@ -130,17 +163,19 @@ export default function Index({ brands, mayChange, reached, reachedFor, countrie
                 </Suspense>
             ) : null}
             {dialog !== null && dialog.action === 'deactivate' && dialog.brand !== null ? (
-                <FatesDialog
-                    kind="brand"
-                    target={{ id: dialog.brand.id, name: nameIn(locale, dialog.brand.nameAr, dialog.brand.nameEn) }}
-                    reached={reachedFor === dialog.brand.id ? reached : null}
-                    moveTargets={brands
-                        .filter((brand) => brand.active && brand.id !== dialog.brand?.id)
-                        .map((brand) => ({ id: brand.id, name: nameIn(locale, brand.nameAr, brand.nameEn) }))}
-                    open
-                    onOpenChange={close}
-                    returnFocusTo={opener}
-                />
+                <Suspense fallback={null}>
+                    <FatesDialog
+                        kind="brand"
+                        target={{ id: dialog.brand.id, name: nameIn(locale, dialog.brand.nameAr, dialog.brand.nameEn) }}
+                        reached={reachedFor === dialog.brand.id ? reached : null}
+                        moveTargets={brands
+                            .filter((brand) => brand.active && brand.id !== dialog.brand?.id)
+                            .map((brand) => ({ id: brand.id, name: nameIn(locale, brand.nameAr, brand.nameEn) }))}
+                        open
+                        onOpenChange={close}
+                        returnFocusTo={opener}
+                    />
+                </Suspense>
             ) : null}
             {dialog !== null && dialog.action === 'delete' && dialog.brand !== null ? (
                 <DeleteBrandDialog brand={dialog.brand} open onOpenChange={close} returnFocusTo={opener} />
@@ -168,14 +203,8 @@ function Row({
 }) {
     const t = useTranslator();
     const locale = useLocale();
-    const [busy, setBusy] = useState(false);
-    const more = useRef<HTMLButtonElement>(null);
     const name = nameIn(locale, brand.nameAr, brand.nameEn);
     const row = useSortableRow(brand.id, reason !== undefined);
-    const post = (path: string) => router.post(`/admin/brands/${brand.id}/${path}`, {}, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) });
-    // Why an item cannot be used, written under it: the default brand stays, a used brand stays.
-    const deactivateReason = brand.isDefault ? t('catalog::admin_brands.reason.default') : null;
-    const deleteReason = brand.isDefault ? t('catalog::admin_brands.reason.default') : brand.products > 0 ? t('catalog::admin_brands.reason.in_use') : null;
 
     return (
         <TableRow
@@ -213,37 +242,70 @@ function Row({
                 <StateBadge active={brand.active} />
             </TableCell>
             <TableCell className="text-end">
-                {reason !== undefined ? (
-                    <MoreButtonOff name={name} reason={reason} />
-                ) : (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <MoreButton ref={more} name={name} busy={busy} data-test={`brand-actions-${brand.id}`} />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-56">
-                            <DropdownMenuItem onSelect={() => open('edit', more.current)} data-test="edit-brand">
-                                {t('catalog::admin_brands.edit')}
-                            </DropdownMenuItem>
-                            {brand.active && !brand.isDefault ? (
-                                <DropdownMenuItem disabled={busy} onSelect={() => post('default')} data-test="default-brand">
-                                    {t('catalog::admin_brands.make_default')}
-                                </DropdownMenuItem>
-                            ) : null}
-                            <MoveItems first={first} last={last} onTop={toTop} onBottom={toBottom} />
-                            {!brand.active ? (
-                                <DropdownMenuItem disabled={busy} onSelect={() => post('activate')} data-test="activate-brand">
-                                    {t('catalog::admin_brands.activate')}
-                                </DropdownMenuItem>
-                            ) : null}
-                            {/* Destructive items last, after a divider (Geist's Menu). */}
-                            <DropdownMenuSeparator />
-                            {brand.active ? <Guarded label={t('catalog::admin_brands.deactivate')} reason={deactivateReason} onSelect={() => open('deactivate', more.current)} test="deactivate-brand" /> : null}
-                            <Guarded label={t('catalog::admin_brands.delete')} reason={deleteReason} onSelect={() => open('delete', more.current)} test="delete-brand" />
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                )}
+                <BrandMenu brand={brand} reason={reason} first={first} last={last} toTop={toTop} toBottom={toBottom} open={open} test={`brand-actions-${brand.id}`} />
             </TableCell>
         </TableRow>
+    );
+}
+
+/** A brand's ⋯ menu: the row's, and the same on its phone card under its own test name. */
+function BrandMenu({
+    brand,
+    reason,
+    first,
+    last,
+    toTop,
+    toBottom,
+    open,
+    test,
+}: {
+    brand: BrandData;
+    reason: string | undefined;
+    first: boolean;
+    last: boolean;
+    toTop: () => void;
+    toBottom: () => void;
+    open: (action: 'edit' | 'deactivate' | 'delete', trigger: HTMLElement | null) => void;
+    test: string;
+}) {
+    const t = useTranslator();
+    const locale = useLocale();
+    const [busy, setBusy] = useState(false);
+    const more = useRef<HTMLButtonElement>(null);
+    const name = nameIn(locale, brand.nameAr, brand.nameEn);
+    const post = (path: string) => router.post(`/admin/brands/${brand.id}/${path}`, {}, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) });
+    // Why an item cannot be used, written under it: the default brand stays, a used brand stays.
+    const deactivateReason = brand.isDefault ? t('catalog::admin_brands.reason.default') : null;
+    const deleteReason = brand.isDefault ? t('catalog::admin_brands.reason.default') : brand.products > 0 ? t('catalog::admin_brands.reason.in_use') : null;
+
+    return reason !== undefined ? (
+        <MoreButtonOff name={name} reason={reason} />
+    ) : (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <MoreButton ref={more} name={name} busy={busy} data-test={test} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-56">
+                <DropdownMenuItem onSelect={() => open('edit', more.current)} data-test="edit-brand">
+                    {t('catalog::admin_brands.edit')}
+                </DropdownMenuItem>
+                {brand.active && !brand.isDefault ? (
+                    <DropdownMenuItem disabled={busy} onSelect={() => post('default')} data-test="default-brand">
+                        {t('catalog::admin_brands.make_default')}
+                    </DropdownMenuItem>
+                ) : null}
+                <MoveItems first={first} last={last} onTop={toTop} onBottom={toBottom} />
+                {!brand.active ? (
+                    <DropdownMenuItem disabled={busy} onSelect={() => post('activate')} data-test="activate-brand">
+                        {t('catalog::admin_brands.activate')}
+                    </DropdownMenuItem>
+                ) : null}
+                {/* Destructive items last, after a divider (Geist's Menu). */}
+                <DropdownMenuSeparator />
+                {brand.active ? <Guarded label={t('catalog::admin_brands.deactivate')} reason={deactivateReason} onSelect={() => open('deactivate', more.current)} test="deactivate-brand" /> : null}
+                <Guarded label={t('catalog::admin_brands.delete')} reason={deleteReason} onSelect={() => open('delete', more.current)} test="delete-brand" />
+            </DropdownMenuContent>
+        </DropdownMenu>
     );
 }
 

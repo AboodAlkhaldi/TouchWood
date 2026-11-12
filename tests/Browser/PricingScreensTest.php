@@ -31,6 +31,8 @@ use Modules\Catalog\Application\Command\SetProductGallery\SetProductGallery;
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGalleryHandler;
 use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTerms;
 use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTermsHandler;
+use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscount;
+use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscountHandler;
 use Modules\Pricing\Application\Command\AddSale\AddSale;
 use Modules\Pricing\Application\Command\AddSale\AddSaleHandler;
 use Modules\Pricing\Application\Command\SetRetailPrice\SetRetailPrice;
@@ -442,6 +444,38 @@ it('prices a size off Needs a Price, which then leaves the list', function () {
     $page->resize(375, 812);
     expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 });
+
+// Round 3 #15 (content.md §4.2): under 640 px each row of Offers, Category Discounts and Wholesale Prices is a card,
+// in both languages. Each list is opened on this run's own rows: an offer of its product, a size searched by its
+// code; the discounts have no search, so Show More until this one is drawn.
+it('draws the rows of Offers, Category Discounts and Wholesale Prices as cards on a phone', function (string $locale) {
+    $offered = pricingBrowserProduct();
+    pricingBrowserPrice('sa', [$offered['sizes'][0] => '120.00']);
+    $sale = Fx::asSystem(fn (): string => app(AddSaleHandler::class)->handle(new AddSale(Fx::storeId('sa'), null, [$offered['sizes'][0]], '10', null, null, null)));
+    $discounted = pricingBrowserProduct();
+    $discount = Fx::asSystem(fn (): string => app(AddCategoryDiscountHandler::class)->handle(new AddCategoryDiscount(Fx::storeId('sa'), $discounted['category'], '10', null, 'BOTH', null, null)));
+    $banded = pricingBrowserProduct();
+    [$size] = $banded['sizes'];
+    pricingBrowserPrice('sa', [$size => '120.00']);
+    Fx::asSystem(fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms(Fx::storeId('sa'), $banded['product'], [$size => ['retail' => true, 'wholesale' => true]], 1, null, 5, null)));
+    Fx::asSystem(fn () => app(SetWholesalePricesHandler::class)->handle(new SetWholesalePrices(Fx::storeId('sa'), $size, [5 => '100.00'])));
+    $page = pricingBrowser($locale);
+    $page->resize(375, 812);
+
+    $page->navigate("/admin/offers?product={$offered['product']}", BROWSER_SLOW_PAGE_LOAD);
+    expect(browserRowIsCard($page, '[data-test="offer-card-'.$sale.'"]', '[data-test="offer-'.$sale.'"]'))->toBeTrue('the offer is not a card');
+
+    $page->navigate('/admin/category-discounts', BROWSER_SLOW_PAGE_LOAD);
+
+    for ($tries = 0, $found = false; $tries < 10 && ! $found; $tries++) {
+        $found = browserSoon($page, "document.querySelector('[data-test=\"discount-card-{$discount}\"]') !== null || (document.querySelector('[data-test=\"more\"]:not([disabled])')?.click(), false)");
+    }
+
+    expect(browserRowIsCard($page, '[data-test="discount-card-'.$discount.'"]', '[data-test="discount-'.$discount.'"]'))->toBeTrue('the discount is not a card');
+
+    $page->navigate("/admin/wholesale-prices?q={$banded['codes'][0]}", BROWSER_SLOW_PAGE_LOAD);
+    expect(browserRowIsCard($page, '[data-test="wholesale-row-card-'.$size.'"]', '[data-test="wholesale-row-'.$size.'"]'))->toBeTrue('the wholesale size is not a card');
+})->with(['ar', 'en']);
 
 it('draws the product page\'s Pricing section in two store cards, each with boxes of its own', function () {
     $ready = pricingBrowserProduct(['sa', 'eg']);

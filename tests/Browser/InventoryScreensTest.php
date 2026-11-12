@@ -336,11 +336,11 @@ it('opens a size\'s side panel from its row, with its History, and closes it wit
     expect(browserSoon($page, "document.querySelector('[data-test=\"drawer-body\"]') === null"))->toBeTrue();
 });
 
-it('lists a low size on Low Stock, which opens it on Stock', function () {
+it('lists a low size on Low Stock, which opens it on Stock', function (string $locale) {
     $ready = inventoryBrowserProduct();
     [$low, $plenty] = $ready['sizes'];
     inventoryBrowserCount('sa', [$low => 1, $plenty => 50]);
-    $page = inventoryBrowser();
+    $page = inventoryBrowser($locale);
     $page->navigate('/admin/low-stock', BROWSER_SLOW_PAGE_LOAD);
 
     // The rows other runs left are low too: Show More until this one is drawn.
@@ -357,12 +357,19 @@ it('lists a low size on Low Stock, which opens it on Stock', function () {
 
     expect(browserSoon($page, "window.location.pathname === '/admin/stock' && document.querySelector('[data-test=\"drawer-body\"]') !== null"))->toBeTrue();
 
-    // A phone (frontend.md §2.1): Low Stock fits, its table scrolling inside its card.
+    // A phone (frontend.md §2.1): Low Stock fits, each size a card instead of its row (round 3 #15) - this
+    // size's, Show More until it is drawn, as above.
     $page->resize(375, 812);
     $page->navigate('/admin/low-stock', BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test^=\"low-row-\"]') !== null"))->toBeTrue()
         ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
-});
+
+    for ($tries = 0, $found = false; $tries < 10 && ! $found; $tries++) {
+        $found = browserSoon($page, "document.querySelector('[data-test=\"low-row-card-{$low}\"]') !== null || (document.querySelector('[data-test=\"more\"]:not([disabled])')?.click(), false)");
+    }
+
+    expect(browserRowIsCard($page, '[data-test="low-row-card-'.$low.'"]', '[data-test="low-row-'.$low.'"]'))->toBeTrue();
+})->with(['ar', 'en']);
 
 it('draws the product page\'s Inventory section in two store cards, each with boxes of its own', function () {
     $ready = inventoryBrowserProduct(['sa', 'eg']);
