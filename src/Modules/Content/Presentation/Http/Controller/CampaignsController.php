@@ -33,6 +33,7 @@ use Modules\Content\Application\Query\PreviewRunPrices\PreviewRunPricesHandler;
 use Modules\Content\Application\Query\ScreenReads;
 use Modules\Content\Domain\Exception\CampaignPartlyScheduled;
 use Modules\Content\Domain\Exception\InvalidContentInput;
+use Modules\Content\Presentation\Http\Resource\CampaignAddressData;
 use Modules\Content\Presentation\Http\Resource\CampaignData;
 use Modules\Content\Presentation\Http\Resource\CampaignFormPageData;
 use Modules\Content\Presentation\Http\Resource\CampaignNoticeData;
@@ -378,6 +379,32 @@ final readonly class CampaignsController
     }
 
     /**
+     * The campaign page's full web address in each language (the owner, 2026-11-12), as the sitemap writes them: the
+     * site's root - APP_URL, whose host is the canonical one (content.md §1.14, L5) - and the shop's own route, never a
+     * typed domain. None while the run has no page that can answer.
+     *
+     * @param  array<array-key, mixed>|null  $slugs
+     * @return list<CampaignAddressData>
+     */
+    private static function addresses(StoreDto $store, ?array $slugs): array
+    {
+        if ($slugs === null) {
+            return [];
+        }
+
+        $root = rtrim((string) config('app.url'), '/');
+        $addresses = [];
+
+        foreach (['ar', 'en'] as $locale) {
+            if (is_string($slugs[$locale] ?? null)) {
+                $addresses[] = new CampaignAddressData($locale, $root.route('storefront.content.campaign', ['store' => $store->code, 'locale' => $locale, 'slug' => $slugs[$locale]], false));
+            }
+        }
+
+        return $addresses;
+    }
+
+    /**
      * @param  array<string, mixed>  $run  CampaignsHandler::page()'s
      */
     private static function runData(array $run): CampaignRunData
@@ -413,7 +440,7 @@ final readonly class CampaignsController
             array_map(static fn (array $size): CampaignTargetData => self::target(['kind' => 'SIZE', ...$size]), $skipped),
             $notice === null ? null : new CampaignNoticeData($notice['id'], $notice['titleAr'], $notice['titleEn'], $notice['status']),
             array_map(static fn (array $draft): CampaignNoticeData => new CampaignNoticeData($draft['id'], $draft['titleAr'], $draft['titleEn'], 'DRAFT'), $drafts),
-            is_string($run['address'] ?? null) ? $run['address'] : null,
+            self::addresses($store, is_array($run['slugs'] ?? null) ? $run['slugs'] : null),
         );
     }
 

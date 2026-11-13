@@ -239,25 +239,35 @@ export default function Form({ stores, campaign, runs, linkedTheme, themes, mayO
                     </div>
                 )}
 
-                {/* The campaign's shop page (H7), once a store's run is scheduled: its address to link a banner or an ad to (the
-                    owner, 2026-11-12), one line a store. A shop path, as staff type links; the Arabic page forwards it to its own. */}
-                {runs.some((run) => run.address !== null) ? (
+                {/* The campaign's shop page (H7), once a store's run is scheduled: its full web address to link a banner or an ad
+                    to (the owner, 2026-11-12), a store and a language a line, on the site's canonical host. Shown decoded, copied
+                    as the browser sends it. */}
+                {runs.some((run) => run.addresses.length > 0) ? (
                     <div className="grid min-w-0 gap-1" data-test="campaign-addresses">
                         <span className="text-label-14 text-ink">{t('content::admin_campaigns.details.page_address')}</span>
                         <span className="text-copy-13 text-ink-muted">{t('content::admin_campaigns.details.page_address_helper')}</span>
                         <ul className="grid gap-1">
-                            {runs.map((run) =>
-                                run.address === null ? null : (
-                                    <li key={run.id} className="flex min-w-0 items-center gap-2" data-test={`campaign-address-${run.store.code}`}>
-                                        <span className="shrink-0 text-copy-13 text-ink-muted">{run.store.name}</span>
-                                        <code dir="ltr" className="min-w-0 truncate text-label-13-mono text-ink">
-                                            {run.address}
-                                        </code>
-                                        <CopyButton text={run.address} label={t('content::admin_campaigns.details.page_address_copy', { store: run.store.name })} />
-                                    </li>
-                                ),
+                            {runs.flatMap((run) =>
+                                run.addresses.map((address) => {
+                                    const language = address.locale === 'ar' ? t('content::admin_campaigns.details.page_address_ar') : t('content::admin_campaigns.details.page_address_en');
+
+                                    return (
+                                        <li key={`${run.id}-${address.locale}`} className="flex min-w-0 items-center gap-2" data-test={`campaign-address-${run.store.code}-${address.locale}`}>
+                                            <span className="shrink-0 text-copy-13 text-ink-muted">
+                                                {run.store.name} · {language}
+                                            </span>
+                                            <code dir="ltr" className="min-w-0 truncate text-label-13-mono text-ink">
+                                                {decodeURI(address.url)}
+                                            </code>
+                                            <CopyButton text={address.url} label={t('content::admin_campaigns.details.page_address_copy', { store: run.store.name, language })} />
+                                        </li>
+                                    );
+                                }),
                             )}
                         </ul>
+                        <span className="text-copy-13 text-ink-muted" data-test="campaign-address-note">
+                            {t('content::admin_campaigns.details.page_address_note')}
+                        </span>
                     </div>
                 ) : null}
 

@@ -64,9 +64,10 @@ it('schedules a two-store campaign from its page, the question naming both store
         ->and(DB::table('content.campaign_runs')->where('campaign_id', $campaign)->pluck('state')->unique()->values()->all())->toBe(['SCHEDULED'])
         ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
 
-    // Scheduled: the campaign page's address, a store a line with its Copy button (the owner, 2026-11-12), at phone width.
+    // Scheduled: the campaign page's full web address, a store and a language a line with its Copy button, and the note that
+    // the page opens from the start date (the owner, 2026-11-12), at phone width.
     $slug = (string) DB::table('content.campaign_runs')->where('campaign_id', $campaign)->where('store_id', Fx::storeId('sa'))->value('slug_en');
-    expect(browserSoon($page, "document.querySelector('[data-test=\"campaign-address-sa\"] code')?.textContent === '/campaigns/{$slug}' && document.querySelector('[data-test=\"campaign-address-ae\"] button') !== null"))->toBeTrue()
+    expect(browserSoon($page, "document.querySelector('[data-test=\"campaign-address-sa-en\"] code')?.textContent.endsWith('/sa/en/campaigns/{$slug}') === true && document.querySelector('[data-test=\"campaign-address-ae-ar\"] button') !== null && document.querySelector('[data-test=\"campaign-address-note\"]') !== null"))->toBeTrue()
         ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
 
     // The list names both stores with their states; on a phone each row is a card opening the campaign.
