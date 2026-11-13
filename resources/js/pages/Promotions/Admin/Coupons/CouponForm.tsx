@@ -292,7 +292,7 @@ export function CouponForm({ page }: { page: CouponPage }) {
                                                 {rule.path ?? rule.name ?? t('promotions::admin_coupons.form.gone')}
                                                 {/* Still on the list, matching nothing (answer 22): said beside its name. */}
                                                 {rule.sold ? null : (
-                                                    <span className="text-copy-12 text-warn" data-test="not-sold">
+                                                    <span className="text-copy-13 text-warn" data-test="not-sold">
                                                         {t('promotions::admin_coupons.form.not_sold')}
                                                     </span>
                                                 )}

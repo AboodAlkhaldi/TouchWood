@@ -1424,8 +1424,18 @@ Pest, as the rest of the project (§1.1). Browser tests run with the suite (`com
 - The theme and display-language toggles survive a reload, and the pages come back in that theme
   with no flash.
 - Arabic mirrors the layout, the sidebar sits on the right, and figures show Latin digits (§1.8).
-- Phone width: the sidebar becomes a slide-in menu; tables scroll inside their card; nothing scrolls
-  the page sideways (`scrollWidth <= innerWidth` at 375×812, in every browser test file - `innerWidth`
+- Phone width: the sidebar becomes a slide-in menu; under 640 px a list's rows are cards (round 3 #15,
+  `components/PhoneCards`), and a table that is not a list scrolls inside its card. **Not yet cards** (PR 12,
+  2026-11-13), each still a table scrolling inside its card:
+  - Inventory's Stock, Pricing's Prices and Needs a Price, and a product's stock and prices sections: each row holds a
+    count or price box saved with the others from the save bar, which a second copy in a card would split (follow-up).
+  - Catalog's Categories: a tree of folding branches with two audience switches per row, about 1.2 KB from the page
+    budget (follow-up). A product's Variants tab, 0.5 KB from it, and Stores tab, switches per variant (follow-up).
+  - Platform's Places, Index and Level: their columns already fold into the first cell on a phone (stage 7's).
+  - With phone cards of their own markup, not `PhoneCards`: Sales' Orders and Returns (under 768 px), Payments,
+    Shipping's Boxes and Carriers (stage 7's; Carriers is 0.1 KB from the budget).
+  - Not lists: the roles' permissions grid (read across roles), an order's or a return's lines, a dialog's table.
+- Phone width, everywhere: nothing scrolls the page sideways (`scrollWidth <= innerWidth` at 375×812, in every browser test file - `innerWidth`
   because headless Chromium keeps a 10 px scrollbar gutter a phone does not have, so it lets an
   overflow of up to 10 px through); the shop's
   account list folds behind Account Menu (owner, 2026-10-29).

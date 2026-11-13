@@ -316,7 +316,7 @@ function MoveItem({ label, reason, onSelect, test }: { label: string; reason: st
         >
             <span className="grid gap-0.5">
                 <span className={reason !== null ? 'opacity-60' : undefined}>{label}</span>
-                {reason !== null ? <span className="text-copy-12 text-ink-muted">{reason}</span> : null}
+                {reason !== null ? <span className="text-copy-13 text-ink-muted">{reason}</span> : null}
             </span>
         </DropdownMenuItem>
     );

@@ -4,6 +4,7 @@ import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
 import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
+import { PhoneCards } from '@/components/PhoneCards';
 import { Time } from '@/components/Time';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -118,7 +119,7 @@ export default function CategoryDiscounts(page: DiscountsPage) {
                 ) : (
                     <>
                         <Showing shown={list.rows.length} total={total} />
-                        <div className="material-base overflow-x-auto">
+                        <div className="material-base hidden overflow-x-auto sm:block">
                             <Table>
                                 <TableCaption className="sr-only">{t('pricing::admin_discounts.title')}</TableCaption>
                                 <TableHeader className="bg-surface-sunken">
@@ -171,6 +172,29 @@ export default function CategoryDiscounts(page: DiscountsPage) {
                                 </TableBody>
                             </Table>
                         </div>
+                        {/* On a phone each discount a card (round 3 #15), opening its page as the row does. */}
+                        <PhoneCards
+                            test="discount"
+                            cards={list.rows.map((discount) => ({
+                                id: discount.id,
+                                title: discount.categoryPath.join(' › '),
+                                href: `/admin/category-discounts/${discount.id}`,
+                                badge: <StateBadge state={discount.state} />,
+                                lines: [
+                                    <span key="o">
+                                        {`${t('pricing::admin_discounts.column.off')}: `}
+                                        <DiscountOff discount={discount} />
+                                        {` · ${t(`pricing::admin.lines.${discount.lines}`)}`}
+                                    </span>,
+                                    <span key="d">
+                                        {`${t('pricing::admin.column.starts')}: `}
+                                        <Time value={discount.startsAt} focusable={false} />
+                                        {` · ${t('pricing::admin.column.ends')}: `}
+                                        {discount.endsAt === null ? t('pricing::admin.no_end') : <Time value={discount.endsAt} focusable={false} />}
+                                    </span>,
+                                ],
+                            }))}
+                        />
                     </>
                 )}
 

@@ -106,7 +106,7 @@ export function SearchCombobox({ id, label, options, value, onChange, words, hel
                                     ) : (
                                         <span className="grid min-w-0 gap-0.5">
                                             <span className="truncate">{text(option.label)}</span>
-                                            <span className="text-copy-12 whitespace-pre-line text-ink-muted">{option.description}</span>
+                                            <span className="text-copy-13 whitespace-pre-line text-ink-muted">{option.description}</span>
                                         </span>
                                     )}
                                     <Check aria-hidden="true" className={cn('ms-auto shrink-0', value === option.value ? 'opacity-100' : 'opacity-0')} />

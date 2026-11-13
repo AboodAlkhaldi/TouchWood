@@ -53,7 +53,12 @@ afterEach(function () {
  */
 function companyStaffBrowserSignIn(array $permissions, array $stores = ['sa']): mixed
 {
-    $staffId = Fx::staffWith($permissions, $stores);
+    return companyStaffBrowserSignInAs(Fx::staffWith($permissions, $stores));
+}
+
+/** The same, for a staff member made beforehand: a test that changes their language needs their id. */
+function companyStaffBrowserSignInAs(string $staffId): mixed
+{
     $email = (string) DB::table('access.staff_users')->where('id', $staffId)->value('email');
 
     return visit('/admin/sign-in')
@@ -88,7 +93,8 @@ function companyStaffBrowserText(string $selector): string
 it('finds a waiting company in the list and approves it with a note', function () {
     $company = companyStaffBrowserWaiting();
     $name = (string) DB::table('b2b.companies')->where('id', $company->id())->value('name');
-    $page = companyStaffBrowserSignIn([B2BPermissions::COMPANY_VIEW, B2BPermissions::COMPANY_REVIEW]);
+    $staffId = Fx::staffWith([B2BPermissions::COMPANY_VIEW, B2BPermissions::COMPANY_REVIEW], ['sa']);
+    $page = companyStaffBrowserSignInAs($staffId);
 
     // The list, searched for this company: the suite keeps every company the other tests made.
     $page->navigate('/admin/companies?search='.urlencode($name))
@@ -122,6 +128,17 @@ it('finds a waiting company in the list and approves it with a note', function (
     expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the company page scrolls sideways');
     $page->navigate('/admin/companies', BROWSER_PAGE_LOAD)->assertPresent('nav[aria-label="Pages"]');
     expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the companies list scrolls sideways');
+
+    // Under 640 px the company reads as a card and the table's row is not drawn, in both languages
+    // (round 3 #15); searched for, since the list fills up over runs.
+    foreach (['ar', 'en'] as $locale) {
+        browserPanelLanguage($page, $locale);
+        $page->navigate('/admin/companies?search='.urlencode($name), BROWSER_PAGE_LOAD);
+
+        expect(browserSoon($page, "document.documentElement.lang === '{$locale}'"))->toBeTrue()
+            ->and(browserRowIsCard($page, '[data-test="company-card-'.$company->id().'"]', '[data-test="company-row-'.$company->id().'"]'))->toBeTrue("{$locale}: the company is not a card")
+            ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue("{$locale}: the companies list scrolls sideways");
+    }
 });
 
 it('rejects with a marked item and a request, then suspends from the menu and reinstates', function () {
@@ -317,6 +334,17 @@ it('lays a type list out in the page\'s language, and keeps it right to left aft
     // A phone, right to left (frontend.md §2.1): the list fits, with nothing scrolling sideways.
     $page->resize(375, 812);
     expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+
+    // Under 640 px each type reads as a card and the table's row is not drawn (round 3 #15): in
+    // Arabic, then in English, chosen as the panel's language button chooses it.
+    $paper = B2BFixtures::documentTypes()[0]->id();
+    expect(browserRowIsCard($page, '[data-test="type-card-'.$paper.'"]', '[data-test="type-'.$paper.'"]'))->toBeTrue('ar: the type is not a card');
+
+    browserPanelLanguage($page, 'en');
+    $page->navigate('/admin/document-types', BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "document.documentElement.lang === 'en'"))->toBeTrue()
+        ->and(browserRowIsCard($page, '[data-test="type-card-'.$paper.'"]', '[data-test="type-'.$paper.'"]'))->toBeTrue('en: the type is not a card')
+        ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('en: the types list scrolls sideways');
 
     $page->assertNoJavaScriptErrors();
 });

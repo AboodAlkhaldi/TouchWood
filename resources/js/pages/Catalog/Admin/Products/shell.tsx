@@ -155,7 +155,7 @@ export function ProductShell({ page, children }: { page: ProductPage; children: 
                         {TABS.map((tab) => (
                             <TabsTrigger key={tab} value={tab} data-test={`tab-${tab}`} className="flex-none gap-2 px-3 text-label-14">
                                 {t(`catalog::admin_products.tab.${tab}`)}
-                                {counts[tab] !== null && (counts[tab] ?? 0) > 0 ? <span className="tw-figure text-copy-12 text-ink-muted">{figure(locale, counts[tab] ?? 0)}</span> : null}
+                                {counts[tab] !== null && (counts[tab] ?? 0) > 0 ? <span className="tw-figure text-label-12 text-ink-muted">{figure(locale, counts[tab] ?? 0)}</span> : null}
                             </TabsTrigger>
                         ))}
                     </TabsList>

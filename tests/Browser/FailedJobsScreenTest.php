@@ -96,7 +96,8 @@ it('tells the admin on the home page, counts in the menu, and retries one job an
 
     // A phone (frontend.md §2.1): the list and one job's page fit, with nothing scrolling sideways.
     $page->resize(375, 812);
-    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the failed jobs scroll sideways');
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the failed jobs scroll sideways')
+        ->and(browserRowIsCard($page, '[data-test="job-card-'.$retried.'"]', '[data-test="open-'.$retried.'"]'))->toBeTrue();
     $page->navigate("/admin/failed-jobs/{$retried}", BROWSER_PAGE_LOAD)->assertSee('RuntimeException: The disk did not answer.');
     expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('a failed job scrolls sideways');
     $page->resize(1280, 800);
@@ -119,4 +120,32 @@ it('tells the admin on the home page, counts in the menu, and retries one job an
         ->and(DB::table('jobs')->count())->toBe(1);
 
     DB::table('jobs')->delete();
+});
+
+it('draws a failed job as a card on a phone in Arabic (round 3 #15)', function () {
+    DB::table('failed_jobs')->delete();
+    $job = failedJobsBrowserFailed();
+    $staffId = Fx::staffWith([PlatformPermissions::JOBS_MANAGE], ['sa'], RoleLevel::Admin);
+    DB::table('access.staff_users')->where('id', $staffId)->update(['locale' => 'ar']);
+    $email = (string) DB::table('access.staff_users')->where('id', $staffId)->value('email');
+
+    try {
+        $page = visit('/admin/sign-in')
+            ->type('#email', $email)
+            ->type('#password', Fx::STAFF_PASSWORD)
+            ->click('button[type="submit"]')
+            ->assertPathIs('/admin/sign-in/code')
+            ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+            ->click('button[type="submit"]')
+            ->assertPathIs('/admin');
+
+        $page->resize(375, 812);
+        $page->navigate('/admin/failed-jobs', BROWSER_PAGE_LOAD);
+        expect(browserSoon($page, "document.documentElement.dir === 'rtl'"))->toBeTrue()
+            ->and(browserRowIsCard($page, '[data-test="job-card-'.$job.'"]', '[data-test="open-'.$job.'"]'))->toBeTrue()
+            ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+        $page->assertNoJavaScriptErrors();
+    } finally {
+        DB::table('failed_jobs')->delete();
+    }
 });

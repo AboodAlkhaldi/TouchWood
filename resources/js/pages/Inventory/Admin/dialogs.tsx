@@ -291,7 +291,7 @@ export function AddSizeDialog({ store, onOpenChange, returnFocusTo }: { store: s
                                         <RowPhoto src={size.photo} />
                                         <span className="grid min-w-0">
                                             <span className="truncate text-copy-14 text-ink">{label(size)}</span>
-                                            <span className="tw-figure font-mono text-copy-12 text-ink-muted" dir="ltr">
+                                            <span className="tw-figure text-label-12-mono text-ink-muted" dir="ltr">
                                                 {size.code}
                                             </span>
                                         </span>
@@ -314,7 +314,7 @@ export function AddSizeDialog({ store, onOpenChange, returnFocusTo }: { store: s
                                         <RowPhoto src={size.photo} />
                                         <span className="grid min-w-0">
                                             <span className="truncate text-copy-14 text-ink">{label(size)}</span>
-                                            <span className="tw-figure font-mono text-copy-12 text-ink-muted" dir="ltr">
+                                            <span className="tw-figure text-label-12-mono text-ink-muted" dir="ltr">
                                                 {size.code}
                                             </span>
                                         </span>
@@ -330,7 +330,7 @@ export function AddSizeDialog({ store, onOpenChange, returnFocusTo }: { store: s
                             <RowPhoto src={chosen.photo} />
                             <span className="grid">
                                 <span className="text-copy-14 text-ink">{label(chosen)}</span>
-                                <span className="tw-figure font-mono text-copy-12 text-ink-muted" dir="ltr">
+                                <span className="tw-figure text-label-12-mono text-ink-muted" dir="ltr">
                                     {chosen.code}
                                 </span>
                             </span>

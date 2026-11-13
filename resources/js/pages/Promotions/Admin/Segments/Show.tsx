@@ -7,6 +7,7 @@ import { DestructiveActionDialog } from '@/components/DestructiveActionDialog';
 import { FormError, useFreshRefusal } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { PanelDialog } from '@/components/PanelDialog';
+import { PhoneCards } from '@/components/PhoneCards';
 import { useLeaveGuard } from '@/components/SaveBar';
 import { SearchField } from '@/components/SearchField';
 import { StoreOffBadge } from '@/components/StoreOffBadge';
@@ -172,49 +173,76 @@ function Members({ page }: { page: SegmentPage }) {
 
 function MembersTable({ rows, removed, onToggle }: { rows: MemberData[]; removed?: Set<string>; onToggle?: (row: MemberData) => void }) {
     const t = useTranslator();
+    // A member's Remove / Keep, in their row and on their phone card under its own test name: either one
+    // marks the same member, sent with the rest by Save Members.
+    const toggle = (row: MemberData, out: boolean, test: string) =>
+        onToggle === undefined ? undefined : (
+            <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                aria-pressed={out}
+                aria-label={t('promotions::admin_segments.show.remove_named', { name: row.customer.name ?? t('promotions::admin_segments.show.deleted_customer') })}
+                onClick={() => onToggle(row)}
+                data-test={test}
+            >
+                {out ? t('promotions::admin_segments.show.keep') : t('promotions::admin_segments.show.remove')}
+            </Button>
+        );
 
     return (
-        <div className="material-base max-w-full overflow-x-auto">
-            <Table>
-                <TableCaption className="sr-only">{t('promotions::admin_segments.show.members')}</TableCaption>
-                <TableHeader className="bg-surface-sunken">
-                    <TableRow>
-                        <TableHead>{t('promotions::admin_segments.show.col_customer')}</TableHead>
-                        <TableHead>{t('promotions::admin_segments.show.col_added')}</TableHead>
-                        {onToggle === undefined ? null : <TableHead className="text-end">{t('promotions::admin_segments.show.col_actions')}</TableHead>}
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {rows.map((row) => {
-                        const out = removed?.has(row.customer.id) ?? false;
+        <>
+            <div className="material-base hidden max-w-full overflow-x-auto sm:block">
+                <Table>
+                    <TableCaption className="sr-only">{t('promotions::admin_segments.show.members')}</TableCaption>
+                    <TableHeader className="bg-surface-sunken">
+                        <TableRow>
+                            <TableHead>{t('promotions::admin_segments.show.col_customer')}</TableHead>
+                            <TableHead>{t('promotions::admin_segments.show.col_added')}</TableHead>
+                            {onToggle === undefined ? null : <TableHead className="text-end">{t('promotions::admin_segments.show.col_actions')}</TableHead>}
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {rows.map((row) => {
+                            const out = removed?.has(row.customer.id) ?? false;
 
-                        return (
-                            <TableRow key={row.customer.id} data-test={`member-${row.customer.id}`}>
-                                <TableCell className={out ? 'text-ink-muted line-through' : undefined}>
-                                    <Name customer={row.customer} />
-                                </TableCell>
-                                <TableCell className="text-copy-13 whitespace-nowrap text-ink-muted">{row.addedAt === null ? <Unknown /> : <Time value={row.addedAt} />}</TableCell>
-                                {onToggle === undefined ? null : (
-                                    <TableCell className="text-end">
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            variant="outline"
-                                            aria-pressed={out}
-                                            aria-label={t('promotions::admin_segments.show.remove_named', { name: row.customer.name ?? t('promotions::admin_segments.show.deleted_customer') })}
-                                            onClick={() => onToggle(row)}
-                                            data-test={`toggle-${row.customer.id}`}
-                                        >
-                                            {out ? t('promotions::admin_segments.show.keep') : t('promotions::admin_segments.show.remove')}
-                                        </Button>
+                            return (
+                                <TableRow key={row.customer.id} data-test={`member-${row.customer.id}`}>
+                                    <TableCell className={out ? 'text-ink-muted line-through' : undefined}>
+                                        <Name customer={row.customer} />
                                     </TableCell>
-                                )}
-                            </TableRow>
-                        );
-                    })}
-                </TableBody>
-            </Table>
-        </div>
+                                    <TableCell className="text-copy-13 whitespace-nowrap text-ink-muted">{row.addedAt === null ? <Unknown /> : <Time value={row.addedAt} />}</TableCell>
+                                    {onToggle === undefined ? null : <TableCell className="text-end">{toggle(row, out, `toggle-${row.customer.id}`)}</TableCell>}
+                                </TableRow>
+                            );
+                        })}
+                    </TableBody>
+                </Table>
+            </div>
+            {/* On a phone each member a card (round 3 #15), a member marked to go struck through as in the row. */}
+            <PhoneCards
+                test="member"
+                cards={rows.map((row) => {
+                    const out = removed?.has(row.customer.id) ?? false;
+
+                    return {
+                        id: row.customer.id,
+                        title: (
+                            <span className={out ? 'text-ink-muted line-through' : undefined}>
+                                <Name customer={row.customer} />
+                            </span>
+                        ),
+                        lines: [
+                            <span key="a">
+                                {`${t('promotions::admin_segments.show.col_added')}: `}
+                                {row.addedAt === null ? <Unknown /> : <Time value={row.addedAt} focusable={false} />}
+                            </span>,
+                        ],
+                        menu: toggle(row, out, `toggle-card-${row.customer.id}`),
+                    };
+                })}
+            />
+        </>
     );
 }
 

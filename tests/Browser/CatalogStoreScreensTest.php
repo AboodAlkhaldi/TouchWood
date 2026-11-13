@@ -183,5 +183,24 @@ it('reads right to left in Arabic, at a phone\'s width, with nothing wider than 
             ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
     }
 
+    // Under 640 px a file's item and a store's file each read as a card and the table's row is not
+    // drawn (round 3 #15), in Arabic and in English.
+    foreach (['ar', 'en'] as $locale) {
+        browserPanelLanguage($page, $locale);
+
+        foreach (["/admin/store-files/{$file}" => ['item-card-1', 'item-1'], '/admin/store-files?store=sa' => ["store-file-card-{$file}", "store-file-{$file}"]] as $address => [$card, $row]) {
+            $page->navigate($address, BROWSER_PAGE_LOAD);
+
+            expect(browserSoon($page, "document.documentElement.lang === '{$locale}'"))->toBeTrue()
+                ->and(browserRowIsCard($page, '[data-test="'.$card.'"]', '[data-test="'.$row.'"]'))->toBeTrue("{$locale}: {$address} draws no card for {$card}");
+        }
+    }
+
+    // The table head's tick for every open item is hidden on a phone: the same choice sits above the cards.
+    $page->navigate("/admin/store-files/{$file}", BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"select-open-card\"]')?.getClientRects().length > 0"))->toBeTrue();
+    $page->click('[data-test="select-open-card"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"select-open-card\"]').getAttribute('data-state') === 'checked' && document.querySelector('[data-test=\"select-card-1\"]')?.getAttribute('data-state') === 'checked'"))->toBeTrue();
+
     $page->assertNoJavaScriptErrors();
 });

@@ -117,7 +117,7 @@ export function InStock({ figures, wired }: { figures: StockFiguresData; wired: 
         <span className="grid gap-1">
             <span className="tw-figure">{figure(locale, figures.inStock)}</span>
             {wired ? (
-                <span className="text-copy-12 text-ink-muted">
+                <span className="text-label-12 text-ink-muted">
                     {t('inventory::admin_stock.from_provider')}
                     {figures.providerChangedAt !== null ? (
                         <>

@@ -6,6 +6,7 @@ import { ActionButton } from '@/components/ActionButton';
 import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { Note } from '@/components/Note';
+import { PhoneCards } from '@/components/PhoneCards';
 import { Time } from '@/components/Time';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -102,7 +103,7 @@ export default function Offers(page: OffersPage) {
                                             <RowPhoto src={item.photo} />
                                             <span className="grid min-w-0">
                                                 <span className="truncate">{nameIn(locale, item.nameAr, item.nameEn)}</span>
-                                                <span className="tw-figure truncate font-mono text-copy-12 text-ink-muted" dir="ltr">
+                                                <span className="tw-figure truncate text-label-12-mono text-ink-muted" dir="ltr">
                                                     {item.codes.join(' · ')}
                                                 </span>
                                             </span>
@@ -150,7 +151,7 @@ export default function Offers(page: OffersPage) {
                 ) : (
                     <>
                         <Showing shown={list.rows.length} total={total} />
-                        <div className="material-base overflow-x-auto">
+                        <div className="material-base hidden overflow-x-auto sm:block">
                             <Table>
                                 <TableCaption className="sr-only">{t('pricing::admin_offers.title')}</TableCaption>
                                 <TableHeader className="bg-surface-sunken">
@@ -219,6 +220,35 @@ export default function Offers(page: OffersPage) {
                                 </TableBody>
                             </Table>
                         </div>
+                        {/* On a phone each offer a card (round 3 #15): its product's page when the row links it, its ⋯ as the row's. */}
+                        <PhoneCards
+                            test="offer"
+                            cards={list.rows.map((sale) => {
+                                const name = nameIn(locale, sale.productNameAr, sale.productNameEn);
+
+                                return {
+                                    id: sale.id,
+                                    title: name,
+                                    ...(frame.mayViewProducts ? { href: `/admin/products/${sale.productId}` } : {}),
+                                    badge: <StateBadge state={sale.state} />,
+                                    lines: [
+                                        <span key="p" className="tw-figure">
+                                            {`${t('pricing::admin.column.price')}: `}
+                                            <Off percentBasisPoints={sale.percentBasisPoints} money={sale.salePrice} />
+                                            {` · ${sale.allSizes ? t('pricing::admin.offer.all_sizes') : t('pricing::admin.offer.of_sizes', { count: figure(locale, sale.sizesOn), total: figure(locale, sale.productSizesOn) })}`}
+                                        </span>,
+                                        <span key="d">
+                                            {`${t('pricing::admin.column.starts')}: `}
+                                            <Time value={sale.startsAt} focusable={false} />
+                                            {` · ${t('pricing::admin.column.ends')}: `}
+                                            {sale.endsAt === null ? t('pricing::admin.no_end') : <Time value={sale.endsAt} focusable={false} />}
+                                        </span>,
+                                    ],
+                                    // OfferMenu draws nothing when the reader may do nothing to the offer: no empty corner then.
+                                    menu: !frame.mayEditPrices && sale.state !== 'ENDED' ? undefined : <OfferMenu sale={sale} mayEdit={frame.mayEditPrices} name={name} onOpen={(mode, trigger) => offers.open({ mode, sale }, trigger)} test={`offer-card-actions-${sale.id}`} />,
+                                };
+                            })}
+                        />
                     </>
                 )}
 

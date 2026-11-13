@@ -1,6 +1,7 @@
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
+import { PhoneCards } from '@/components/PhoneCards';
 import { StoreFilter } from '@/components/StoreFilter';
 import { ProductCell } from '@/components/feedback/parts';
 import { useLocale } from '@/components/promotions/parts';
@@ -42,31 +43,52 @@ export default function Favourites(page: SupportListPage) {
                         </EmptyHeader>
                     </Empty>
                 ) : (
-                    <div className="material-base max-w-full overflow-x-auto">
-                        <Table>
-                            <TableCaption className="sr-only">{t(`${W}.favourites.title`)}</TableCaption>
-                            <TableHeader className="bg-surface-sunken">
-                                <TableRow>
-                                    <TableHead>{t(`${W}.favourites.product`)}</TableHead>
-                                    <TableHead className="text-end">{t(`${W}.favourites.saved_by`)}</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {list.rows.map((row) => (
-                                    <TableRow key={row.product.id} data-test={`favourite-${row.product.id}`}>
-                                        <TableCell>
-                                            <ProductCell product={row.product} />
-                                        </TableCell>
-                                        <TableCell className="text-end">
-                                            <bdi dir="ltr" className="tw-figure">
-                                                {figure(locale, row.savedBy)}
-                                            </bdi>
-                                        </TableCell>
+                    <>
+                        <div className="material-base hidden max-w-full overflow-x-auto sm:block">
+                            <Table>
+                                <TableCaption className="sr-only">{t(`${W}.favourites.title`)}</TableCaption>
+                                <TableHeader className="bg-surface-sunken">
+                                    <TableRow>
+                                        <TableHead>{t(`${W}.favourites.product`)}</TableHead>
+                                        <TableHead className="text-end">{t(`${W}.favourites.saved_by`)}</TableHead>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
+                                </TableHeader>
+                                <TableBody>
+                                    {list.rows.map((row) => (
+                                        <TableRow key={row.product.id} data-test={`favourite-${row.product.id}`}>
+                                            <TableCell>
+                                                <ProductCell product={row.product} />
+                                            </TableCell>
+                                            <TableCell className="text-end">
+                                                <bdi dir="ltr" className="tw-figure">
+                                                    {figure(locale, row.savedBy)}
+                                                </bdi>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                        {/* On a phone each product a card (round 3 #15): its name a link to its shop page, as in the row. */}
+                        <PhoneCards
+                            test="favourite"
+                            cards={list.rows.map((row) => ({
+                                id: row.product.id,
+                                title:
+                                    row.product.href === null ? (
+                                        row.product.name
+                                    ) : (
+                                        <a href={row.product.href} target="_blank" rel="noreferrer" className="underline-offset-2 hover:underline">
+                                            {row.product.name}
+                                        </a>
+                                    ),
+                                lines: [
+                                    <span key="saved" className="tw-figure">{`${t(`${W}.favourites.saved_by`)}: ${figure(locale, row.savedBy)}`}</span>,
+                                    ...(row.product.removed ? [<span key="state">{t(`${W}.item.removed`)}</span>] : row.product.archived ? [<span key="state">{t(`${W}.item.archived`)}</span>] : !row.product.sold ? [<span key="state">{t(`${W}.item.not_sold`)}</span>] : []),
+                                ],
+                            }))}
+                        />
+                    </>
                 )}
 
                 {page.next !== null ? <LoadMoreButton loading={list.loading} onClick={() => list.more(LIST, { store: page.storeCode, after: page.next ?? '' }, ['favourites', 'next'])} /> : null}

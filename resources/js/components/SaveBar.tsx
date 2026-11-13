@@ -81,7 +81,7 @@ export function ChangedMark({ id }: { id?: string }) {
     const t = useTranslator();
 
     return (
-        <span id={id} className="inline-flex items-center gap-1 text-copy-12 text-ink-muted" data-test="changed">
+        <span id={id} className="inline-flex items-center gap-1 text-label-12 text-ink-muted" data-test="changed">
             <span aria-hidden="true" className="size-1.5 rounded-full bg-info" />
             {t('ui.changed')}
         </span>

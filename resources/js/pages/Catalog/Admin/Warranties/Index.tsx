@@ -5,6 +5,7 @@ import { ActionButton } from '@/components/ActionButton';
 import { TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { PanelDialog } from '@/components/PanelDialog';
+import { PhoneCards } from '@/components/PhoneCards';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
@@ -69,7 +70,7 @@ export default function Index({ warranties, mayChange }: WarrantiesPage) {
                     </Empty>
                 ) : (
                     <SortableGroups groups={{ warranties: order }} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={(_, ids) => move(ids)}>
-                        <div className="material-base overflow-x-auto">
+                        <div className="material-base hidden overflow-x-auto sm:block">
                             <Table>
                                 <TableCaption className="sr-only">{t('catalog::admin_warranties.title')}</TableCaption>
                                 <TableHeader className="bg-surface-sunken">
@@ -107,6 +108,35 @@ export default function Index({ warranties, mayChange }: WarrantiesPage) {
                                 </TableBody>
                             </Table>
                         </div>
+                        {/* On a phone each warranty a card (round 3 #15); its place moves from its menu, Move to Top or Bottom. */}
+                        <PhoneCards
+                            test="warranty"
+                            cards={rows.map((warranty, index) => ({
+                                id: warranty.id,
+                                title: nameIn(locale, warranty.nameAr, warranty.nameEn),
+                                badge: <StateBadge active={warranty.active} />,
+                                lines: [
+                                    <span key="p" className="tw-figure">
+                                        <Period warranty={warranty} /> · {`${t('catalog::admin.column.products')}: ${figure(locale, warranty.products)}`}
+                                    </span>,
+                                ],
+                                menu: (
+                                    <WarrantyMenu
+                                        warranty={warranty}
+                                        reason={reason}
+                                        first={index === 0}
+                                        last={index === rows.length - 1}
+                                        toTop={() => toTop(warranty.id)}
+                                        toBottom={() => toBottom(warranty.id)}
+                                        open={(action, trigger) => {
+                                            opener.current = trigger;
+                                            setDialog({ action, warranty });
+                                        }}
+                                        test={`warranty-card-actions-${warranty.id}`}
+                                    />
+                                ),
+                            }))}
+                        />
                     </SortableGroups>
                 )}
             </div>
@@ -134,11 +164,7 @@ function Row({
     toBottom: () => void;
     open: (action: 'edit' | 'delete', trigger: HTMLElement | null) => void;
 }) {
-    const t = useTranslator();
     const locale = useLocale();
-    const [busy, setBusy] = useState(false);
-    const more = useRef<HTMLButtonElement>(null);
-    const deleteReason = warranty.products > 0 ? t('catalog::admin_warranties.reason.in_use') : null;
     const row = useSortableRow(warranty.id, reason !== undefined);
 
     return (
@@ -153,59 +179,98 @@ function Row({
                 <DragHandle handle={row.handle} label={nameIn(locale, warranty.nameAr, warranty.nameEn)} reason={reason} test={`drag-warranty-${warranty.id}`} />
             </TableCell>
             <NameCells locale={locale} ar={warranty.nameAr} en={warranty.nameEn} />
-            <TableCell data-test="warranty-period">{warranty.periodMonths === null ? t('catalog::admin_warranties.lifetime') : t(`catalog::admin_warranties.months.${new Intl.PluralRules(locale).select(warranty.periodMonths)}`, { count: figure(locale, warranty.periodMonths) })}</TableCell>
+            <TableCell data-test="warranty-period">
+                <Period warranty={warranty} />
+            </TableCell>
             <TableCell className="tw-figure text-end">{figure(locale, warranty.products)}</TableCell>
             <TableCell>
                 <StateBadge active={warranty.active} />
             </TableCell>
             <TableCell className="text-end">
-                {reason !== undefined ? (
-                    <MoreButtonOff name={nameIn(locale, warranty.nameAr, warranty.nameEn)} reason={reason} />
-                ) : (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <MoreButton ref={more} name={nameIn(locale, warranty.nameAr, warranty.nameEn)} busy={busy} data-test={`warranty-actions-${warranty.id}`} />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-56">
-                            <DropdownMenuItem onSelect={() => open('edit', more.current)} data-test="edit-warranty">
-                                {t('catalog::admin_warranties.edit')}
-                            </DropdownMenuItem>
-                            <MoveItems first={first} last={last} onTop={toTop} onBottom={toBottom} />
-                            <DropdownMenuItem
-                                disabled={busy}
-                                onSelect={() =>
-                                    router.post(`/admin/warranties/${warranty.id}/${warranty.active ? 'deactivate' : 'activate'}`, {}, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) })
-                                }
-                                data-test={warranty.active ? 'deactivate-warranty' : 'activate-warranty'}
-                            >
-                                {warranty.active ? t('catalog::admin_warranties.deactivate') : t('catalog::admin_warranties.activate')}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                                variant="destructive"
-                                aria-disabled={deleteReason !== null || undefined}
-                                className={deleteReason !== null ? 'cursor-not-allowed' : undefined}
-                                onSelect={(event) => {
-                                    if (deleteReason !== null) {
-                                        event.preventDefault();
-
-                                        return;
-                                    }
-
-                                    open('delete', more.current);
-                                }}
-                                data-test="delete-warranty"
-                            >
-                                <span className="grid gap-0.5">
-                                    <span className={deleteReason !== null ? 'opacity-60' : undefined}>{t('catalog::admin_warranties.delete')}</span>
-                                    {deleteReason !== null ? <span className="text-copy-12 text-ink-muted">{deleteReason}</span> : null}
-                                </span>
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                )}
+                <WarrantyMenu warranty={warranty} reason={reason} first={first} last={last} toTop={toTop} toBottom={toBottom} open={open} test={`warranty-actions-${warranty.id}`} />
             </TableCell>
         </TableRow>
+    );
+}
+
+/** A warranty's period in words: for life, or its months. */
+function Period({ warranty }: { warranty: WarrantyData }) {
+    const t = useTranslator();
+    const locale = useLocale();
+
+    return <>{warranty.periodMonths === null ? t('catalog::admin_warranties.lifetime') : t(`catalog::admin_warranties.months.${new Intl.PluralRules(locale).select(warranty.periodMonths)}`, { count: figure(locale, warranty.periodMonths) })}</>;
+}
+
+/** A warranty's ⋯ menu: the row's, and the same on its phone card under its own test name. */
+function WarrantyMenu({
+    warranty,
+    reason,
+    first,
+    last,
+    toTop,
+    toBottom,
+    open,
+    test,
+}: {
+    warranty: WarrantyData;
+    reason: string | undefined;
+    first: boolean;
+    last: boolean;
+    toTop: () => void;
+    toBottom: () => void;
+    open: (action: 'edit' | 'delete', trigger: HTMLElement | null) => void;
+    test: string;
+}) {
+    const t = useTranslator();
+    const locale = useLocale();
+    const [busy, setBusy] = useState(false);
+    const more = useRef<HTMLButtonElement>(null);
+    const deleteReason = warranty.products > 0 ? t('catalog::admin_warranties.reason.in_use') : null;
+
+    return reason !== undefined ? (
+        <MoreButtonOff name={nameIn(locale, warranty.nameAr, warranty.nameEn)} reason={reason} />
+    ) : (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <MoreButton ref={more} name={nameIn(locale, warranty.nameAr, warranty.nameEn)} busy={busy} data-test={test} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-56">
+                <DropdownMenuItem onSelect={() => open('edit', more.current)} data-test="edit-warranty">
+                    {t('catalog::admin_warranties.edit')}
+                </DropdownMenuItem>
+                <MoveItems first={first} last={last} onTop={toTop} onBottom={toBottom} />
+                <DropdownMenuItem
+                    disabled={busy}
+                    onSelect={() =>
+                        router.post(`/admin/warranties/${warranty.id}/${warranty.active ? 'deactivate' : 'activate'}`, {}, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) })
+                    }
+                    data-test={warranty.active ? 'deactivate-warranty' : 'activate-warranty'}
+                >
+                    {warranty.active ? t('catalog::admin_warranties.deactivate') : t('catalog::admin_warranties.activate')}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                    variant="destructive"
+                    aria-disabled={deleteReason !== null || undefined}
+                    className={deleteReason !== null ? 'cursor-not-allowed' : undefined}
+                    onSelect={(event) => {
+                        if (deleteReason !== null) {
+                            event.preventDefault();
+
+                            return;
+                        }
+
+                        open('delete', more.current);
+                    }}
+                    data-test="delete-warranty"
+                >
+                    <span className="grid gap-0.5">
+                        <span className={deleteReason !== null ? 'opacity-60' : undefined}>{t('catalog::admin_warranties.delete')}</span>
+                        {deleteReason !== null ? <span className="text-copy-13 text-ink-muted">{deleteReason}</span> : null}
+                    </span>
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
     );
 }
 

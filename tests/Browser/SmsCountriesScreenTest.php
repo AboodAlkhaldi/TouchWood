@@ -83,7 +83,8 @@ it('adds a country, changes its calling code, removes it, and fits a phone', fun
 
         // A phone: nothing scrolls sideways.
         $page->resize(375, 812);
-        expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+        expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue()
+            ->and(browserRowIsCard($page, '[data-test="country-card-AE"]', '[data-test="country-AE"]'))->toBeTrue();
         $page->resize(1280, 800);
 
         // Change Provider saves through its dialog.
@@ -117,7 +118,8 @@ it('adds a country, changes its calling code, removes it, and fits a phone', fun
         expect($page->script('document.documentElement.dir'))->toBe('rtl')
             ->and($page->script("document.querySelector('[data-test=\"country-SA\"] [data-test=\"calling-code\"]').textContent"))->toBe('+966');
         $page->resize(375, 812);
-        expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+        expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue()
+            ->and(browserRowIsCard($page, '[data-test="country-card-SA"]', '[data-test="country-SA"]'))->toBeTrue();
         $page->assertNoJavaScriptErrors();
     } finally {
         DB::table('ops.sms_countries')->where('country_code', 'AE')->delete();

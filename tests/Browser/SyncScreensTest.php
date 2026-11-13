@@ -222,7 +222,8 @@ it('shows the status line and Problems, dismisses an entry, and queues Sync Now'
 
     // A phone (frontend.md §2.1): the status line and Problems fit, with nothing scrolling sideways.
     $page->resize(375, 812);
-    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the Sync Report scrolls sideways');
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the Sync Report scrolls sideways')
+        ->and(browserRowIsCard($page, '[data-test="entry-card-'.$entry.'"]', '[data-test="entry-'.$entry.'"]'))->toBeTrue();
     $page->resize(1280, 800);
 
     $page->click("[data-test=\"entry-actions-{$entry}\"]")->click('[data-test="dismiss-entry"]');
@@ -274,7 +275,7 @@ function syncBrowserReadState(mixed $page, array $about): string
                 h1: document.querySelector('h1')?.textContent ?? null,
                 state: document.querySelector('[data-test="read-state"]')?.textContent ?? null,
                 header: document.querySelector('[data-test="read-header"]')?.textContent ?? null,
-                lines: [...document.querySelectorAll('[data-test^="line-"]')].map((row) => row.getAttribute('data-test') + ' ' + row.textContent),
+                lines: [...document.querySelectorAll('tr[data-test^="line-"]')].map((row) => row.getAttribute('data-test') + ' ' + row.textContent),
                 fromTo: [...document.querySelectorAll('[data-test="from-to"]')].map((cell) => cell.textContent),
                 empty: document.querySelector('[data-test="section-empty"]')?.textContent ?? null,
             })
@@ -326,7 +327,12 @@ it('opens a read from the Reads tab, with its header and its sections as tabs; a
 
     // A phone (frontend.md §2.1): the read and its sections fit, with nothing scrolling sideways.
     $page->resize(375, 812);
-    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the read scrolls sideways');
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the read scrolls sideways')
+        ->and(browserRowIsCard($page, '[data-test="reported-cards"] [data-test^="reported-card-"]', '[data-test="reported-row"]'))->toBeTrue();
+
+    // And the Reads tab: each read a card.
+    $page->navigate('/admin/sync?store=ae&tab=reads', BROWSER_SLOW_PAGE_LOAD);
+    expect(browserRowIsCard($page, '[data-test="read-card-'.$read.'"]', '[data-test="read-'.$read.'"]'))->toBeTrue();
     $page->resize(1280, 800);
 
     $page->navigate('/admin/sync/reads/01jbzzzzzzzzzzzzzzzzzzzzzz', BROWSER_SLOW_PAGE_LOAD);
@@ -452,7 +458,7 @@ it('refuses a new address with the key left empty, under the Key box, and tests 
 
 it('draws the Sync Report right to left in Arabic, its digits Latin', function () {
     $wired = syncBrowserWired();
-    syncBrowserDiscountGone($wired['size']);
+    $gone = syncBrowserDiscountGone($wired['size']);
     $page = syncBrowserReader('ar');
     $page->navigate('/admin/sync?store=ae', BROWSER_SLOW_PAGE_LOAD);
 
@@ -461,6 +467,14 @@ it('draws the Sync Report right to left in Arabic, its digits Latin', function (
         ->and(browserSoon($page, "document.querySelector('[data-test=\"store-state\"]')?.textContent.includes('يعمل')"))->toBeTrue()
         ->and(browserSoon($page, "document.querySelector('[data-test=\"discount-removed\"]')?.textContent === 'الخصم محذوف'"))->toBeTrue()
         ->and(browserSoon($page, "!/[\u{0660}-\u{0669}]/.test(document.body.textContent ?? '')"))->toBeTrue();
+
+    // On a phone each row is a card (round 3 #15): a Problems entry, a read on the Reads tab, a read's Reported entry.
+    $page->resize(375, 812);
+    expect(browserRowIsCard($page, '[data-test="entry-card-'.$gone.'"]', '[data-test="entry-'.$gone.'"]'))->toBeTrue();
+    $page->navigate('/admin/sync?store=ae&tab=reads', BROWSER_SLOW_PAGE_LOAD);
+    expect(browserRowIsCard($page, '[data-test="read-card-'.$wired['read'].'"]', '[data-test="read-'.$wired['read'].'"]'))->toBeTrue();
+    $page->navigate("/admin/sync/reads/{$wired['read']}?section=reported", BROWSER_SLOW_PAGE_LOAD);
+    expect(browserRowIsCard($page, '[data-test="reported-cards"] [data-test^="reported-card-"]', '[data-test="reported-row"]'))->toBeTrue();
 
     // A read that is not there: the panel's not-found page in Arabic, right to left.
     $page->navigate('/admin/sync/reads/01jbzzzzzzzzzzzzzzzzzzzzzz', BROWSER_SLOW_PAGE_LOAD);

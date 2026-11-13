@@ -183,7 +183,7 @@ export function BandsDialog({ store, size, facts: given = null, adding = false, 
                                                     data-test={`band-${index}-from`}
                                                 />
                                                 {fromError ? (
-                                                    <FieldError id={`band-${row.key}-from-error`} className="mt-1 max-w-56 text-copy-12">
+                                                    <FieldError id={`band-${row.key}-from-error`} className="mt-1 max-w-56 text-copy-13">
                                                         {fromError}
                                                     </FieldError>
                                                 ) : null}
@@ -208,7 +208,7 @@ export function BandsDialog({ store, size, facts: given = null, adding = false, 
                                                     </InputGroupAddon>
                                                 </InputGroup>
                                                 {priceError ? (
-                                                    <FieldError id={`band-${row.key}-price-error`} className="mt-1 max-w-56 text-copy-12">
+                                                    <FieldError id={`band-${row.key}-price-error`} className="mt-1 max-w-56 text-copy-13">
                                                         {priceError}
                                                     </FieldError>
                                                 ) : null}

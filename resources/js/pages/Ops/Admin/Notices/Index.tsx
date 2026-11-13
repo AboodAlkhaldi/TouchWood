@@ -5,6 +5,7 @@ import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { channelWords, Reached, ReadBackDialog, ReadBackLine, RefreshWhileSending, SentAt, WrittenStatus, type ReadBack } from '@/components/ops/written-list';
 import { PanelDialog } from '@/components/PanelDialog';
+import { PhoneCards } from '@/components/PhoneCards';
 import { MoreButton } from '@/components/RowMenu';
 import { StoreFilter } from '@/components/StoreFilter';
 import { Button } from '@/components/ui/button';
@@ -112,7 +113,7 @@ export default function Index({ notices, next, stores, storeCode, storeTimezone 
                     </Empty>
                 ) : (
                     <>
-                        <div ref={table} tabIndex={-1} className="material-base max-w-full overflow-x-auto">
+                        <div ref={table} tabIndex={-1} className="material-base hidden max-w-full overflow-x-auto sm:block">
                             <Table>
                                 <TableCaption className="sr-only">{t('ops::admin_written.notices.title')}</TableCaption>
                                 <TableHeader className="bg-surface-sunken">
@@ -169,6 +170,7 @@ export default function Index({ notices, next, stores, storeCode, storeTimezone 
                                                             opener.current = from;
                                                             setCancelling(notice);
                                                         }}
+                                                        test={`more-${notice.id}`}
                                                     />
                                                 ) : null}
                                             </TableCell>
@@ -177,6 +179,43 @@ export default function Index({ notices, next, stores, storeCode, storeTimezone 
                                 </TableBody>
                             </Table>
                         </div>
+                        {/* On a phone each notice a card (round 3 #15); pressing it reads it back, its menu at the end. */}
+                        <PhoneCards
+                            test="notice"
+                            cards={list.rows.map((notice) => ({
+                                id: notice.id,
+                                title: inLanguage(notice.titleAr, notice.titleEn),
+                                badge: <WrittenStatus status={notice.status} />,
+                                lines: [
+                                    <span key="audience">{`${t('ops::admin_written.notices.columns.audience')}: ${audience(notice)}`}</span>,
+                                    <span key="sends">
+                                        {`${t('ops::admin_written.notices.columns.sends')}: `}
+                                        {notice.status === 'SENT' ? (
+                                            t('ops::admin_written.notices.sent')
+                                        ) : notice.sendAtLocal === null ? (
+                                            t('ops::admin_written.notices.with_campaign')
+                                        ) : (
+                                            <bdi dir="ltr" className="tw-figure">
+                                                {notice.sendAtLocal}
+                                            </bdi>
+                                        )}
+                                    </span>,
+                                    <span key="written">{`${t('ops::admin_written.notices.columns.written_by')}: ${notice.writtenBy}`}</span>,
+                                ],
+                                onOpen: () => setOpen(notice),
+                                menu: notice.changeable ? (
+                                    <RowActions
+                                        notice={notice}
+                                        name={inLanguage(notice.titleAr, notice.titleEn)}
+                                        onCancel={(from) => {
+                                            opener.current = from;
+                                            setCancelling(notice);
+                                        }}
+                                        test={`more-card-${notice.id}`}
+                                    />
+                                ) : undefined,
+                            }))}
+                        />
                         {next !== null ? <LoadMoreButton loading={list.loading || restoring} onClick={() => more(next)} /> : null}
                     </>
                 )}
@@ -229,14 +268,15 @@ export default function Index({ notices, next, stores, storeCode, storeTimezone 
     );
 }
 
-function RowActions({ notice, name, onCancel }: { notice: NoticeData; name: string; onCancel: (from: HTMLElement | null) => void }) {
+/** A waiting notice's ⋯ menu: the row's, and the same on its phone card under its own test name. */
+function RowActions({ notice, name, onCancel, test }: { notice: NoticeData; name: string; onCancel: (from: HTMLElement | null) => void; test: string }) {
     const t = useTranslator();
     const more = useRef<HTMLButtonElement>(null);
 
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <MoreButton ref={more} name={name} data-test={`more-${notice.id}`} />
+                <MoreButton ref={more} name={name} data-test={test} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-44">
                 <DropdownMenuItem asChild>

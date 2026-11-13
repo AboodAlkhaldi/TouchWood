@@ -2,12 +2,18 @@
 
 declare(strict_types=1);
 
+use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Promotions\Application\Command\CreateSegment\CreateSegment;
+use Modules\Promotions\Application\Command\CreateSegment\CreateSegmentHandler;
+use Modules\Promotions\Application\Command\SetSegmentMembers\SetSegmentMembers;
+use Modules\Promotions\Application\Command\SetSegmentMembers\SetSegmentMembersHandler;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
+use Tests\Modules\Catalog\Support\CatalogProducts;
 use Tests\Modules\Promotions\Support\PromotionsFixtures as Pr;
 
 use function Pest\Laravel\seed;
@@ -34,9 +40,10 @@ function marketingScreenTag(): string
     return substr((string) hrtime(true), -8);
 }
 
-function marketingScreenPanel(): mixed
+/** Signed in to the panel as a new Super Admin, or as the one given (a test that changes their language). */
+function marketingScreenPanel(?string $staffId = null): mixed
 {
-    $email = (string) DB::table('access.staff_users')->where('id', Fx::staff(superAdmin: true))->value('email');
+    $email = (string) DB::table('access.staff_users')->where('id', $staffId ?? Fx::staff(superAdmin: true))->value('email');
 
     $page = visit('/admin/sign-in')
         ->type('#email', $email)
@@ -74,7 +81,18 @@ it('makes a rule segment from its dialog and opens its page', function () {
 });
 
 it('draws Gift Levels and the shop\'s Coupons tab at a phone\'s width with nothing scrolling sideways', function () {
-    $page = marketingScreenPanel();
+    // A segment picked by hand with one member, and a gift level, so each list has a row of this run's;
+    // the level switched off, so no order of another test, in this database kept between runs, gets it.
+    $tag = marketingScreenTag();
+    $member = Fx::customer(strtolower((string) Str::ulid()).'@example.test', 'sa');
+    $segment = Fx::asSystem(fn (): string => app(CreateSegmentHandler::class)->handle(new CreateSegment(Fx::storeId('sa'), 'مختارون', "Picked {$tag}", 'STATIC', 'INDIVIDUAL')));
+    Fx::asSystem(fn () => app(SetSegmentMembersHandler::class)->handle(new SetSegmentMembers($segment, [$member])));
+    seed(CatalogSeeder::class);
+    CatalogProducts::numberFrom((int) $tag);
+    $level = Pr::giftLevel(CatalogProducts::ready()['variants'][0], 777_00, with: ['active' => false]);
+
+    $staffId = Fx::staff(superAdmin: true);
+    $page = marketingScreenPanel($staffId);
     $page->resize(375, 812);
 
     foreach (['/admin/segments?store=sa', '/admin/gift-levels?store=sa'] as $uri) {
@@ -82,6 +100,26 @@ it('draws Gift Levels and the shop\'s Coupons tab at a phone\'s width with nothi
         $wide = (string) $page->script('document.documentElement.scrollWidth > document.documentElement.clientWidth ? String(document.documentElement.scrollWidth) : ""');
 
         expect($wide)->toBe('', "{$uri} scrolls sideways");
+    }
+
+    // Under 640 px each row reads as a card and the table's row is not drawn (round 3 #15), in both
+    // languages: the segment in the list (newest first), its member on its page, and the gift level.
+    $cards = [
+        '/admin/segments?store=sa' => ["segment-card-{$segment}", "segment-{$segment}"],
+        "/admin/segments/{$segment}" => ["member-card-{$member}", "member-{$member}"],
+        '/admin/gift-levels?store=sa' => ["level-card-{$level}", "level-{$level}"],
+    ];
+
+    foreach (['ar', 'en'] as $locale) {
+        browserPanelLanguage($page, $locale);
+
+        foreach ($cards as $uri => [$card, $row]) {
+            $page->navigate($uri, BROWSER_PAGE_LOAD);
+
+            expect(browserSoon($page, "document.documentElement.lang === '{$locale}'"))->toBeTrue()
+                ->and(browserRowIsCard($page, '[data-test="'.$card.'"]', '[data-test="'.$row.'"]'))->toBeTrue("{$locale}: {$uri} draws no card for {$card}")
+                ->and((string) $page->script('document.documentElement.scrollWidth > document.documentElement.clientWidth ? "wide" : ""'))->toBe('', "{$locale}: {$uri} scrolls sideways");
+        }
     }
 
     $email = strtolower((string) Str::ulid()).'@example.test';

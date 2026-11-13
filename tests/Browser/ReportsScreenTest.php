@@ -84,6 +84,14 @@ function reportsBrowserFitsPhone(mixed $page): bool
     return browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth');
 }
 
+/** The report's line holding this run's text reads as a card on a phone, its table row hidden (round 3 #15). */
+function reportsBrowserLineIsCard(mixed $page, string $text): bool
+{
+    $at = (int) $page->script("[...document.querySelectorAll('[data-test=\"sheet-body-0\"] [data-test=\"row\"]')].findIndex((row) => row.textContent.includes('{$text}'))");
+
+    return $at >= 0 && browserRowIsCard($page, '[data-test="sheet-body-0"] [data-test="row-card-'.$at.'"]', '[data-test="sheet-body-0"] [data-test="row"]:nth-child('.($at + 1).')');
+}
+
 it('opens from the menu, shows a report with its download, and marks changed choices until shown again', function () {
     $run = substr((string) hrtime(true), -10);
     reportsBrowserSearch("oak{$run}");
@@ -108,7 +116,8 @@ it('opens from the menu, shows a report with its download, and marks changed cho
         ->and((string) $page->script("document.querySelector('a[data-test=\"download\"]').getAttribute('href')"))->toContain('/admin/reports/searches/download?store='.Fx::storeId('ae'));
 
     // A reload shows it again, from the address alone.
-    $page->navigate((string) $page->script('window.location.pathname + window.location.search'), BROWSER_SLOW_PAGE_LOAD);
+    $searches = (string) $page->script('window.location.pathname + window.location.search');
+    $page->navigate($searches, BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "[...document.querySelectorAll('[data-test=\"row\"]')].some((row) => row.textContent.includes('oak{$run}'))"))->toBeTrue();
 
     // A changed choice keeps the report, says so, and hides Download until it is shown again. By Month can never equal
@@ -123,6 +132,11 @@ it('opens from the menu, shows a report with its download, and marks changed cho
     expect(browserSoon($page, "new URLSearchParams(window.location.search).get('by') === 'month' && document.querySelector('[data-test=\"changed\"]') === null && document.querySelector('[data-test=\"download\"]') !== null"))->toBeTrue();
 
     expect(reportsBrowserFitsPhone($page))->toBeTrue();
+
+    // On a phone the Searches report's line is a card.
+    $page->navigate($searches, BROWSER_SLOW_PAGE_LOAD);
+    expect(browserSoon($page, "[...document.querySelectorAll('[data-test=\"row\"]')].some((row) => row.textContent.includes('oak{$run}'))"))->toBeTrue()
+        ->and(reportsBrowserLineIsCard($page, "oak{$run}"))->toBeTrue();
     $page->assertNoJavaScriptErrors();
 });
 
@@ -203,6 +217,7 @@ it('draws right to left in Arabic, in Latin digits, and fits a phone', function 
     $page->navigate("/admin/reports/searches?store=ae&from={$today->subDays(30)->format('Y-m-d')}&to={$today->format('Y-m-d')}", BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.documentElement.dir === 'rtl' && document.querySelector('[data-test=\"report\"]')?.getAttribute('dir') === 'rtl'"))->toBeTrue()
         ->and(browserSoon($page, "[...document.querySelectorAll('[data-test=\"row\"]')].some((row) => row.textContent.includes('{$run}'))"))->toBeTrue()
+        ->and(reportsBrowserLineIsCard($page, $run))->toBeTrue()
         ->and((bool) $page->script('/[٠-٩]/.test(document.body.textContent)'))->toBeFalse()
         ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
     $page->assertNoJavaScriptErrors();

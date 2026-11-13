@@ -3,6 +3,7 @@ import { router, useForm } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { TextField } from '@/components/Fields';
 import { PanelDialog } from '@/components/PanelDialog';
+import { PhoneCards } from '@/components/PhoneCards';
 import { SearchCombobox, type SearchOption } from '@/components/SearchCombobox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,7 +14,7 @@ import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import type { ImportNameData, ImportPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { nameIn, useLocale, type Locale } from '../parts';
-import { isDeciding, SelectAll, useSelection } from './parts';
+import { isDeciding, PhoneSelectAll, SelectAll, useSelection } from './parts';
 import { ImportShell } from './shell';
 
 /*
@@ -122,7 +123,7 @@ function Names({ page }: { page: ImportPage }) {
                 </div>
             ) : null}
 
-            <div className="material-base overflow-x-auto">
+            <div className="material-base hidden overflow-x-auto sm:block">
                 <Table>
                     <TableCaption className="sr-only">{t('catalog::admin_imports.part.names')}</TableCaption>
                     <TableHeader className="bg-surface-sunken">
@@ -213,6 +214,48 @@ function Names({ page }: { page: ImportPage }) {
                     })}
                 </Table>
             </div>
+            {/* On a phone each name a card (round 3 #15), in the table's order, its kind a line; its tick and buttons beside it while deciding. */}
+            {deciding ? <PhoneSelectAll selection={selection} offered={names.length} /> : null}
+            <PhoneCards
+                test="name"
+                cards={KINDS.flatMap((kind) => names.filter((name) => name.kind === kind)).map((name) => {
+                    const meaning = decided(page, name, locale);
+
+                    return {
+                        id: name.id,
+                        title: <bdi>{name.written}</bdi>,
+                        badge: <Badge className={tone(name.decision === null ? 'amber-subtle' : name.decision === 'REFUSE' ? 'red-subtle' : 'green-subtle')}>{t(`catalog::admin_imports.names.decision.${name.decision ?? 'none'}`)}</Badge>,
+                        lines: [
+                            <span key="k">{name.kind === 'VALUE' && name.attribute !== null ? `${t(`catalog::admin_imports.names.kind.${name.kind}`)} · ${t('catalog::admin_imports.names.of_attribute', { attribute: name.attribute })}` : t(`catalog::admin_imports.names.kind.${name.kind}`)}</span>,
+                            <span key="p" className="tw-figure">{`${t('catalog::admin_imports.names.column.products')}: ${figure(locale, name.products)}`}</span>,
+                            ...(meaning !== null ? [<bdi key="m">{meaning}</bdi>] : []),
+                        ],
+                        menu: deciding ? (
+                            <span className="flex flex-col items-end gap-1">
+                                <Checkbox checked={selection.has(name.id)} onCheckedChange={(on) => selection.set(name.id, on === true)} aria-label={t('catalog::admin_imports.select_row', { name: name.written })} data-test={`select-card-${name.id}`} />
+                                <Button type="button" variant="outline" size="sm" onClick={(event) => open({ action: 'means', ids: [name.id] }, event.currentTarget)} data-test="means-card">
+                                    {t('catalog::admin_imports.names.means')}
+                                </Button>
+                                {CREATED.includes(name.kind) ? (
+                                    <ActionButton
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabledReason={name.kind === 'VALUE' && name.valueAttributeId === null ? t('catalog::admin_imports.names.attribute_first') : undefined}
+                                        onClick={(event) => open({ action: 'create', ids: [name.id] }, event.currentTarget)}
+                                        data-test="create-card"
+                                    >
+                                        {t('catalog::admin_imports.names.create')}
+                                    </ActionButton>
+                                ) : null}
+                                <Button type="button" variant="ghost" size="sm" onClick={(event) => open({ action: 'refuse', ids: [name.id] }, event.currentTarget)} data-test="refuse-card">
+                                    {t('catalog::admin_imports.names.refuse')}
+                                </Button>
+                            </span>
+                        ) : undefined,
+                    };
+                })}
+            />
 
             {dialog?.action === 'means' && shown[0] !== undefined ? (
                 <MeansDialog importId={page.import.id} names={shown} options={choices(page, shown[0], locale, t)} onDone={selection.clear} onOpenChange={close} returnFocusTo={opener} />
