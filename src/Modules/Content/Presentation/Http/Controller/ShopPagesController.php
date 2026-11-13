@@ -51,8 +51,8 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  */
 final readonly class ShopPagesController
 {
-    /** @var list<string> */
-    private const array WORDS = [...StorefrontArea::WORDS, 'content::shop'];
+    /** Catalog's shop words too: the home, posts, projects and campaign pages draw Catalog's product cards and prices. @var list<string> */
+    private const array WORDS = [...StorefrontArea::WORDS, 'catalog::shop', 'content::shop'];
 
     /** Posts and projects on a page of their lists (H3, H5). */
     public const int LIST_PAGE = 12;
