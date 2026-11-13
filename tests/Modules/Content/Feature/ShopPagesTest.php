@@ -6,6 +6,7 @@ use Carbon\CarbonImmutable;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
@@ -181,6 +182,17 @@ function contentShopProduct(): array
 
     return $p;
 }
+
+it('sends Catalog\'s card words with every Content page, since its product cards are Catalog\'s', function () {
+    // Seen on a local site 2026-11-13: the home's best sellers drew "catalog::shop.price.from" and "catalog::shop.card_save.add".
+    contentShopPublishedPage();
+
+    foreach (['/sa/en', '/sa/en/pages/about-us'] as $url) {
+        get($url)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('translations', fn (Collection $words): bool => $words->has('catalog::shop.price.from')
+                && $words->has('catalog::shop.card_save.add')));
+    }
+});
 
 describe('H2 a page (§1.11, §1.1 rule 15)', function () {
     it('shows a published page with its canonical address, the other language\'s, and its head', function () {
