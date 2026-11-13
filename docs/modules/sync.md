@@ -65,6 +65,10 @@ shown again** — the page shows only that they are set and when; a new value re
   provider's prices replace the store's own, and its stock numbers replace ours through the ledger.
   Every size is stock-dependent by default (owner, 2026-10-28; inventory.md §9.2 #24), so until that
   read lands a size with no stock row shows 0 and cannot be ordered.
+- **A size a campaign run skips already** (pricing.md §9.6 #5, amendments 2 and 4) - a store wired before,
+  whose entries unwiring closed (§1.8) - gets its `CAMPAIGN_SKIPPED` entry again at that second, naming every
+  run skipping it (Pricing's `CampaignPrices::skipsInStore`); staff are told when the read just queued ends,
+  as for any entry (§9.3 #18). *As built (Content PR 8's third review, 2026-11-12).*
 - **Changing the key or the secret** is the same form, tested the same way. A key or a secret left empty is
   kept - **unless the address changes** (as stored, its closing slash trimmed): then **both are typed again**,
   each left empty refused under its own box ("Type the key again: the address changed." · "Type the secret

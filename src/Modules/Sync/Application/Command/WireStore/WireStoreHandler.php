@@ -9,6 +9,7 @@ use Modules\Inventory\Public\Contracts\ProviderStock;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
+use Modules\Pricing\Public\Contracts\CampaignPrices;
 use Modules\Sync\Application\Connections\ConnectionInput;
 use Modules\Sync\Application\Connections\ConnectionStore;
 use Modules\Sync\Application\SyncPermissions;
@@ -20,8 +21,10 @@ use Modules\Sync\Domain\Model\Connection;
 use Modules\Sync\Domain\Provider\ProviderAdapters;
 use Modules\Sync\Domain\Repository\Connections;
 use Modules\Sync\Domain\Repository\Reads;
+use Modules\Sync\Domain\Repository\ReportEntries;
 use Modules\Sync\Domain\ValueObject\ConnectionState;
 use Modules\Sync\Domain\ValueObject\ReadKind;
+use Modules\Sync\Domain\ValueObject\ReportKind;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
 use Shared\Application\Authorizer;
@@ -50,6 +53,8 @@ final readonly class WireStoreHandler
         private Reads $reads,
         private ProviderStock $stock,
         private ConnectionInterface $db,
+        private CampaignPrices $campaigns,
+        private ReportEntries $entries,
     ) {}
 
     /**
@@ -89,6 +94,19 @@ final readonly class WireStoreHandler
             }
 
             $this->reads->queue($store, ReadKind::Now);
+            // A size a run already skips (pricing.md §9.6 amendment 2: a store wired before, its entries closed
+            // on unwiring) is on the report again from this second, naming every run skipping it; staff are
+            // told when the read just queued ends, as for an entry any read opens (§9.3 #18).
+            $skips = $this->campaigns->skipsInStore($store);
+
+            if ($skips !== []) {
+                $this->entries->open($store, ReportKind::CampaignSkipped, array_map(
+                    static fn (string $size, array $runs): array => ['code' => null, 'variantId' => $size, 'saleId' => null, 'detail' => ['runs' => $runs]],
+                    array_map('strval', array_keys($skips)),
+                    array_values($skips),
+                ));
+            }
+
             $this->platform->recordAudit(new AuditEntryDto(
                 'sync.connection.wired',
                 'sync.connection',

@@ -124,7 +124,8 @@ final class PricingServiceProvider extends ServiceProvider
         Event::listen(ProductChanged::class, [RepriceForDiscounts::class, 'productChanged']);
         Event::listen(ProductMadeReady::class, [RepriceForDiscounts::class, 'productMadeReady']);
         Event::listen(CategoryMoved::class, [RepriceForDiscounts::class, 'categoryMoved']);
-        // In a wired store the ceiling decides what a fixed amount reaches (sync.md §9.3 #17).
+        // The ceiling decides what a fixed amount reaches in a wired store (sync.md §9.3 #17), and what a
+        // campaign's fixed price reaches in every store (§9.6 #5, amendment 2).
         Event::listen(SettingChanged::class, [RepriceForDiscounts::class, 'ceilingChanged']);
 
         // Its part of a store file (§1.8): the price each item sets, kept when the item is switched on.

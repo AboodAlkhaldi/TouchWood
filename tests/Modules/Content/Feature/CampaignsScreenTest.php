@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia;
 use Modules\Access\Domain\ValueObject\RoleLevel;
+use Modules\Content\Application\Command\SaveTheme\SaveTheme;
+use Modules\Content\Application\Command\SaveTheme\SaveThemeHandler;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Public\Contracts\CampaignNotices;
@@ -469,7 +471,9 @@ it('refuses every change of another store\'s campaign to staff of one store, for
     $owner = Screen::as(campaignsScreenEditor(['sa']));
     // Each in a state its own staff could act on, so only the store held can refuse (PR 8's second review): a
     // draft for its edits, a scheduled run to cancel, a live run to end.
-    $draft = campaignsScreenCreate($owner, ['sa'], ['starts_at' => campaignsScreenTyped(10), 'ends_at' => campaignsScreenTyped(60 * 24)]);
+    // The draft linked to a theme of its store, on other dates, so Use Campaign's Dates has something to change.
+    $theme = Fx::asSystem(fn (): string => app(SaveThemeHandler::class)->handle(new SaveTheme(null, 0, 'رمضان', 'Ramadan', campaignsScreenTyped(60 * 24 * 3), campaignsScreenTyped(60 * 24 * 5), [Fx::storeId('sa')], [])));
+    $draft = campaignsScreenCreate($owner, ['sa'], ['starts_at' => campaignsScreenTyped(10), 'ends_at' => campaignsScreenTyped(60 * 24), 'theme' => $theme]);
     $scheduled = campaignsScreenCreate($owner, ['sa'], ['starts_at' => campaignsScreenTyped(10), 'ends_at' => campaignsScreenTyped(60 * 24)]);
     $live = campaignsScreenCreate($owner, ['sa'], ['starts_at' => campaignsScreenTyped(10), 'ends_at' => campaignsScreenTyped(60 * 24)]);
 
@@ -501,7 +505,17 @@ it('refuses every change of another store\'s campaign to staff of one store, for
     // but Use Campaign's Dates, a Super Admin's (content.theme.manage), which is no job of theirs in any store.
     expect($said)->toBe([...array_fill_keys(array_keys($answers), FormErrors::message(new ContentNotFound)), 'theme-dates' => FormErrors::message(new Unauthorized(ContentPermissions::THEME_MANAGE))])
         ->and(DB::table('content.campaigns')->orderBy('id')->get()->all())->toEqual($before)
-        ->and(DB::table('content.campaign_runs')->orderBy('id')->get()->all())->toEqual($runsBefore);
+        ->and(DB::table('content.campaign_runs')->orderBy('id')->get()->all())->toEqual($runsBefore)
+        ->and(substr((string) DB::table('content.themes')->where('id', $theme)->value('starts_at_local'), 0, 16))->not->toBe(campaignsScreenTyped(10));
+
+    // A Super Admin holds the job in every store (there is no Super Admin of one store alone): the same press on
+    // the same campaign goes through, so the refusal above was the job alone (PR 8's third review).
+    $super = Screen::as(Fx::staff(superAdmin: true));
+    $used = $super->post(CAMPAIGNS_SCREEN."/{$draft}/theme-dates", ['version' => (int) DB::table('content.themes')->where('id', $theme)->value('version')], $page)->assertRedirect();
+
+    expect(Screen::errors($used))->toBe([])
+        ->and(AdminBrowser::flashed($used, 'status'))->toBe(__('content::admin_campaigns.dates_used'))
+        ->and(substr((string) DB::table('content.themes')->where('id', $theme)->value('starts_at_local'), 0, 16))->toBe(campaignsScreenTyped(10));
 });
 
 it('searches categories and brands as the other targets, 20 a page', function () {

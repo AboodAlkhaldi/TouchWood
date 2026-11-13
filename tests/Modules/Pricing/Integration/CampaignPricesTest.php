@@ -971,6 +971,38 @@ describe('a wired store (§9.6 #5; sync.md §9.5 amendment 2)', function () {
             ->and(campaignUnit($fine))->toBe(9000);
     });
 
+    it('writes again on a ceiling change only the sizes a run gives a fixed price, and none in a store not wired with nothing skipped', function () {
+        $shop = campaignShop();
+        $fixed = $shop['outside']['variants'][0];
+        // A category-wide 10% over three sizes, and one size at a fixed price, 70 of 100: within the 30% ceiling.
+        campaignSave(campaignRun(), [campaignPercent(CampaignTargetKind::Category, $shop['top'], 1000), campaignFixed($fixed, 7000)]);
+        $ids = static fn (): array => DB::table('pricing.price_candidates')->orderBy('id')->get(['id', 'variant_id'])->groupBy('variant_id')->map(static fn ($rows): array => $rows->pluck('id')->all())->all();
+        $rewritten = static fn (array $before): array => array_keys(array_filter($ids(), static fn (array $now, string $size): bool => $now !== ($before[$size] ?? null), ARRAY_FILTER_USE_BOTH));
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        $raise = static function (int $to): void {
+            app(UpdateSettingHandler::class)->handle(new UpdateSetting(PricingSettings::MAX_DISCOUNT_PERCENT, 'sa', $to));
+        };
+
+        // Not wired, nothing skipped: no size of the run can move, so none is written.
+        $before = $ids();
+        $raise(35);
+
+        expect($rewritten($before))->toBe([]);
+
+        // Wired: the one fixed size is written again (the run's category sizes never move with the ceiling).
+        campaignWired();
+        $before = $ids();
+        $queries = Cx::recordQueries();
+        $raise(40);
+        $count = count($queries);
+
+        expect($rewritten($before))->toBe([$fixed])
+            ->and(campaignUnit($fixed))->toBe(7000)
+            ->and(count($before))->toBe(4)
+            // The setting's own save and Pricing's work on one size, as measured (PR 8's third review).
+            ->and($count)->toBe(30);
+    });
+
     it('reads the sizes a run skips in one query', function () {
         $shop = campaignShop();
         campaignWired();
