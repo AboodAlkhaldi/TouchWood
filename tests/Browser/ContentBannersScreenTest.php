@@ -71,7 +71,7 @@ it('draws right to left in Arabic, in Latin digits, and fits a phone with its ro
         ->and(Cb::latinDigits($page))->toBeTrue()
         ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page))
         // A card opens from the keyboard too: its title is a real link to the banner's page.
-        ->and($page->script("document.querySelector('[data-test=\"banner-card-open\"]').tagName"))->toBe('A');
+        ->and($page->script("document.querySelector('[data-test=\"banner-open-card\"]').tagName"))->toBe('A');
 
     $page->navigate("/admin/content/banners/{$banner}", BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"banner-form\"]') !== null"))->toBeTrue()

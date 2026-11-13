@@ -103,7 +103,7 @@ export default function Offers(page: OffersPage) {
                                             <RowPhoto src={item.photo} />
                                             <span className="grid min-w-0">
                                                 <span className="truncate">{nameIn(locale, item.nameAr, item.nameEn)}</span>
-                                                <span className="tw-figure truncate font-mono text-label-12 text-ink-muted" dir="ltr">
+                                                <span className="tw-figure truncate text-label-12-mono text-ink-muted" dir="ltr">
                                                     {item.codes.join(' · ')}
                                                 </span>
                                             </span>
@@ -244,7 +244,8 @@ export default function Offers(page: OffersPage) {
                                             {sale.endsAt === null ? t('pricing::admin.no_end') : <Time value={sale.endsAt} focusable={false} />}
                                         </span>,
                                     ],
-                                    menu: <OfferMenu sale={sale} mayEdit={frame.mayEditPrices} name={name} onOpen={(mode, trigger) => offers.open({ mode, sale }, trigger)} test={`offer-card-actions-${sale.id}`} />,
+                                    // OfferMenu draws nothing when the reader may do nothing to the offer: no empty corner then.
+                                    menu: !frame.mayEditPrices && sale.state !== 'ENDED' ? undefined : <OfferMenu sale={sale} mayEdit={frame.mayEditPrices} name={name} onOpen={(mode, trigger) => offers.open({ mode, sale }, trigger)} test={`offer-card-actions-${sale.id}`} />,
                                 };
                             })}
                         />

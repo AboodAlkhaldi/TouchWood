@@ -20,6 +20,8 @@ export type PhoneCard = {
     badge?: ReactNode;
     lines: ReactNode[];
     menu?: ReactNode;
+    /** The row's own controls that take more room than the menu's corner (a choice that saves as it is made), under its lines. */
+    controls?: ReactNode;
     /** Its own page; it wins over `onOpen`. */
     href?: string;
     onOpen?: (from: HTMLElement) => void;
@@ -42,11 +44,11 @@ export function PhoneCards({ cards, test }: { cards: PhoneCard[]; test: string }
                     <ItemContent className="min-w-0 flex-1">
                         <ItemTitle className="w-full min-w-0">
                             {card.href !== undefined ? (
-                                <Link href={card.href} className={open} data-open="" data-test={`${test}-card-open`}>
+                                <Link href={card.href} className={open} data-open="" data-test={`${test}-open-card`}>
                                     {card.title}
                                 </Link>
                             ) : card.onOpen !== undefined ? (
-                                <button type="button" className={open} onClick={(event) => card.onOpen?.(event.currentTarget)} data-open="" data-test={`${test}-card-open`}>
+                                <button type="button" className={open} onClick={(event) => card.onOpen?.(event.currentTarget)} data-open="" data-test={`${test}-open-card`}>
                                     {card.title}
                                 </button>
                             ) : (
@@ -59,6 +61,7 @@ export function PhoneCards({ cards, test }: { cards: PhoneCard[]; test: string }
                                 {line}
                             </ItemDescription>
                         ))}
+                        {card.controls === undefined ? null : <div className="relative z-10 mt-1 grid gap-2">{card.controls}</div>}
                     </ItemContent>
                     {card.menu === undefined ? null : <ItemActions className="relative z-10">{card.menu}</ItemActions>}
                 </Item>

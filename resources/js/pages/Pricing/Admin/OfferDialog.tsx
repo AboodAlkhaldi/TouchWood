@@ -249,7 +249,7 @@ export function OfferDialog({ mode, store, sale = null, product: preset = null, 
                                                 <FieldContent>
                                                     <FieldLabel htmlFor={`offer-size-${size.variantId}`} className="font-normal">
                                                         <span>{size.name}</span>
-                                                        <span className="tw-figure font-mono text-label-12 text-ink-muted" dir="ltr">
+                                                        <span className="tw-figure text-label-12-mono text-ink-muted" dir="ltr">
                                                             {size.code}
                                                         </span>
                                                         {size.retail !== null ? <Money value={size.retail} className="text-copy-13 text-ink-muted" /> : null}
@@ -374,7 +374,7 @@ function ProductPicker({ store, product, onChoose, error }: { store: string; pro
                         <span className="text-copy-14 text-ink" data-test="offer-product-name">
                             {nameIn(locale, product.nameAr, product.nameEn)}
                         </span>
-                        <span className="tw-figure font-mono text-label-12 text-ink-muted" dir="ltr">
+                        <span className="tw-figure text-label-12-mono text-ink-muted" dir="ltr">
                             {product.codes.join(' · ')}
                         </span>
                     </span>
@@ -407,7 +407,7 @@ function ProductPicker({ store, product, onChoose, error }: { store: string; pro
                             <RowPhoto src={row.photo} />
                             <span className="grid min-w-0">
                                 <span className="truncate text-copy-14 text-ink">{nameIn(locale, row.nameAr, row.nameEn)}</span>
-                                <span className="tw-figure truncate font-mono text-label-12 text-ink-muted" dir="ltr">
+                                <span className="tw-figure truncate text-label-12-mono text-ink-muted" dir="ltr">
                                     {row.codes.join(' · ')}
                                 </span>
                             </span>

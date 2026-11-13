@@ -114,10 +114,10 @@ it('draws right to left in Arabic, in Latin digits, and fits a phone with its ro
         ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
 
     // A card opens from the keyboard (its title is a button), and the focus comes back to it when the dialog closes.
-    $page->keys('[data-test="smart-card-open"]', 'Enter');
+    $page->keys('[data-test="smart-open-card"]', 'Enter');
     expect(browserSoon($page, "document.querySelector('[data-test=\"smart-bar-form\"]') !== null"))->toBeTrue();
     $page->keys('#message_ar', 'Escape');
-    expect(browserSoon($page, "document.querySelector('[data-test=\"smart-bar-form\"]') === null && document.activeElement?.dataset.test === 'smart-card-open'"))->toBeTrue((string) $page->script('document.activeElement?.outerHTML.slice(0, 200)'));
+    expect(browserSoon($page, "document.querySelector('[data-test=\"smart-bar-form\"]') === null && document.activeElement?.dataset.test === 'smart-open-card'"))->toBeTrue((string) $page->script('document.activeElement?.outerHTML.slice(0, 200)'));
 
     $page->navigate('/admin/content/bars?store=ae', BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"bar-form\"]') !== null"))->toBeTrue()

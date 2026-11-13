@@ -93,7 +93,7 @@ export function DiscountPreview({ preview, loading = false, zone, more }: Props)
                                             {product.sizes.map((size) => (
                                                 <li key={size.variantId} className="flex flex-wrap items-center gap-x-2 text-copy-13" data-test={`preview-size-${size.variantId}`}>
                                                     <span className="text-ink">{size.name}</span>
-                                                    <span className="tw-figure font-mono text-label-12 text-ink-muted" dir="ltr">
+                                                    <span className="tw-figure text-label-12-mono text-ink-muted" dir="ltr">
                                                         {size.code}
                                                     </span>
                                                     <Money value={size.retail} className="text-ink-muted" />

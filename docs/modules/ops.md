@@ -1064,7 +1064,8 @@ need from the backend is in main (Q14, Q17, Q21, R1). How to carry on: `src/Modu
 - **Both languages, right to left in Arabic, Latin digits only** (typed digits go through `toLatinDigits`).
 - **Phones.** Every page fits 375 × 812 with no sideways page scroll. Under 640 px each row of a list is a card (round 3
   #15): shadcn `Item` through `components/PhoneCards`, its title, badge, two or three key fields and its row menu at the
-  end; above 640 the table as before. Every browser test checks this.
+  end; above 640 the table as before. Every browser test checks this. The exceptions, each a table scrolling inside its
+  card, are listed in frontend.md's phone rule (§ "Phone width").
 - **Who sees what.** A menu entry, button or store is offered only to someone who may use it; every handler still checks.
   Someone who loses a right while a page is open gets the refusal in words.
 - **Addresses (Q1).** The same address gives the page to a plain visit and today's JSON to `Accept: application/json`. A form

@@ -16,7 +16,7 @@ import { figure, toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import type { ImportPage, ImportProductData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { nameIn, useLocale } from '../parts';
-import { isDeciding, SelectAll, useSelection } from './parts';
+import { isDeciding, PhoneSelectAll, SelectAll, useSelection } from './parts';
 import { ImportShell } from './shell';
 
 /*
@@ -219,6 +219,7 @@ function Before({ page }: { page: ImportPage }) {
                 </Table>
             </div>
             {/* On a phone each product a card (round 3 #15), its tick beside it while deciding. */}
+            {deciding ? <PhoneSelectAll selection={selection} offered={rows.length} /> : null}
             <PhoneCards
                 test="before-row"
                 cards={rows.map((row) => {

@@ -124,7 +124,7 @@ function Section({ card, store }: { card: Card; store: { code: string; name: str
                                     <TableCell>
                                         <span className="grid">
                                             <span>{name}</span>
-                                            <span className="tw-figure font-mono text-label-12 text-ink-muted" dir="ltr">
+                                            <span className="tw-figure text-label-12-mono text-ink-muted" dir="ltr">
                                                 {variants.get(id)?.code ?? ''}
                                             </span>
                                         </span>

@@ -286,7 +286,7 @@ function PickSize({ frame, onChoose, onOpenChange, returnFocusTo }: { frame: Pri
                         <RowPhoto src={size.photo} />
                         <span className="grid min-w-0">
                             <span className="truncate">{label(size)}</span>
-                            <span className="tw-figure font-mono text-label-12 text-ink-muted" dir="ltr">
+                            <span className="tw-figure text-label-12-mono text-ink-muted" dir="ltr">
                                 {size.code}
                             </span>
                         </span>

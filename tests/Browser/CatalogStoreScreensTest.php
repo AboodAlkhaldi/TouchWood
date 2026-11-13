@@ -196,5 +196,11 @@ it('reads right to left in Arabic, at a phone\'s width, with nothing wider than 
         }
     }
 
+    // The table head's tick for every open item is hidden on a phone: the same choice sits above the cards.
+    $page->navigate("/admin/store-files/{$file}", BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"select-open-card\"]')?.getClientRects().length > 0"))->toBeTrue();
+    $page->click('[data-test="select-open-card"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"select-open-card\"]').getAttribute('data-state') === 'checked' && document.querySelector('[data-test=\"select-card-1\"]')?.getAttribute('data-state') === 'checked'"))->toBeTrue();
+
     $page->assertNoJavaScriptErrors();
 });

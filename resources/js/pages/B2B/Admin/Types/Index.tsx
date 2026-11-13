@@ -185,7 +185,7 @@ export default function Index({ kind: listed, storeName, storeCode, stores, copi
                                         : `${t('b2b::admin_types.column.required')}: ${type.required ? t('b2b::admin_types.required.yes') : t('b2b::admin_types.required.no')}`}
                                 </span>,
                             ],
-                            menu: (
+                            menu: !typeMenuShown(kind, type, actions) ? undefined : (
                                 <TypeMenu
                                     kind={kind}
                                     type={type}
@@ -323,6 +323,11 @@ function Row({
 }
 
 /** A type's ⋯ menu: the row's, and the same on its phone card under its own test name. */
+/** Whether a type's ⋯ menu has anything in it for this reader: none is drawn otherwise, on the row or the card. */
+function typeMenuShown(kind: Kind, type: StaffTypeRowData, actions: StaffTypeListPage['actions']): boolean {
+    return actions.mayUpdate || (kind === 'company' && actions.mayTransfer && type.active) || actions.mayDeactivate;
+}
+
 function TypeMenu({
     kind,
     type,
@@ -345,7 +350,7 @@ function TypeMenu({
     const require = kind === 'document' && actions.mayUpdate && type.required !== null;
     const activate = actions.mayDeactivate && !type.active;
     const deactivate = actions.mayDeactivate && type.active;
-    const anything = actions.mayUpdate || transfer || activate || deactivate;
+    const anything = typeMenuShown(kind, type, actions);
     // An action taken at once from the menu says it is under way on the row's own trigger.
     const [busy, setBusy] = useState(false);
     const more = useRef<HTMLButtonElement>(null);

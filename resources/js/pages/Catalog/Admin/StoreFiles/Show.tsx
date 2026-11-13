@@ -11,6 +11,7 @@ import { Time } from '@/components/Time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { figure, toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
@@ -138,7 +139,17 @@ export default function Show({ id, fileName, uploadedAt, storeCode, storeName, p
                         </TableBody>
                     </Table>
                 </div>
-                {/* On a phone each item a card (round 3 #15): opens its product when it has one; its tick and Correct Code… beside it. */}
+                {/* On a phone each item a card (round 3 #15): opens its product when it has one; its tick and Correct Code… beside it.
+                    The table head's tick for every open item is above the cards there, the same choice. */}
+                <Label className="flex w-fit items-center gap-2 text-label-14 text-ink sm:hidden">
+                    <Checkbox
+                        checked={every}
+                        disabled={open.length === 0 || busy}
+                        onCheckedChange={(on) => setSelected(on === true ? open.map((item) => item.id) : [])}
+                        data-test="select-open-card"
+                    />
+                    {t('catalog::admin_store_files.select_open')}
+                </Label>
                 <PhoneCards
                     test="item"
                     cards={items.map((item) => {

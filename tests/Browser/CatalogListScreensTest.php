@@ -126,9 +126,9 @@ function catalogListBrowserMenu(mixed $page, string $selector): mixed
 {
     $page->script("document.querySelector('{$selector}')?.scrollIntoView({ block: 'center' })");
     // A row at the foot of a long list cannot come to the middle, and the toast sits over its ⋯ (measured 2026-11-12:
-    // elementFromPoint at the button's centre was the toast, still there 15 seconds on). The toast is let through for
-    // the press, as a person's finger would not wait for it either; it is not what this test is about.
-    $page->script("document.querySelectorAll('[data-sonner-toast]').forEach((toast) => { toast.style.pointerEvents = 'none'; })");
+    // elementFromPoint at the button's centre was the toast). The toasts' place is the panel's frame (Toasts.tsx), so
+    // the test lets presses through them, once per page, by one rule - the toast is not what this test is about.
+    $page->script("(() => { if (document.getElementById('test-toasts-through') === null) { const rule = document.createElement('style'); rule.id = 'test-toasts-through'; rule.textContent = '[data-sonner-toaster], [data-sonner-toaster] * { pointer-events: none !important; }'; document.head.appendChild(rule); } })()");
 
     return $page->click($selector);
 }

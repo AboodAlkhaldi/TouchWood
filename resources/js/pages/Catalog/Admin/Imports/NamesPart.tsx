@@ -14,7 +14,7 @@ import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import type { ImportNameData, ImportPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { nameIn, useLocale, type Locale } from '../parts';
-import { isDeciding, SelectAll, useSelection } from './parts';
+import { isDeciding, PhoneSelectAll, SelectAll, useSelection } from './parts';
 import { ImportShell } from './shell';
 
 /*
@@ -215,6 +215,7 @@ function Names({ page }: { page: ImportPage }) {
                 </Table>
             </div>
             {/* On a phone each name a card (round 3 #15), in the table's order, its kind a line; its tick and buttons beside it while deciding. */}
+            {deciding ? <PhoneSelectAll selection={selection} offered={names.length} /> : null}
             <PhoneCards
                 test="name"
                 cards={KINDS.flatMap((kind) => names.filter((name) => name.kind === kind)).map((name) => {

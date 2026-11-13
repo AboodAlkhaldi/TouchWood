@@ -11,7 +11,7 @@ import { useTranslator } from '@/lib/t';
 import { useLoadMore } from '@/lib/use-load-more';
 import type { ImportPage, ImportProductData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { nameIn, useLocale } from '../parts';
-import { ConfirmByName, ProductStateBadge, SelectAll, useSelection } from './parts';
+import { ConfirmByName, PhoneSelectAll, ProductStateBadge, SelectAll, useSelection } from './parts';
 import { ImportShell } from './shell';
 
 /*
@@ -135,6 +135,7 @@ function Products({ page }: { page: ImportPage }) {
                 </Table>
             </div>
             {/* On a phone each product a card (round 3 #15): opens its product when it has one; its tick beside it. */}
+            {isIn ? <PhoneSelectAll selection={selection} offered={actionable.length} disabled={busy} /> : null}
             <PhoneCards
                 test="product-row"
                 cards={list.rows.map((row) => {
