@@ -111,4 +111,13 @@ interface CampaignPrices
      * @return array<string, list<string>> size id => run ids
      */
     public function skippingRuns(StoreId $store, array $variantIds): array;
+
+    /**
+     * Every size some run skips now in the store, with the runs skipping it, sizes and runs in id order; one
+     * query. For Sync on wiring a store: a run may skip sizes from before (a store wired, unwired, wired
+     * again - unwiring closed their entries), and the report names them again (PR 8's third review).
+     *
+     * @return array<string, list<string>> size id => run ids
+     */
+    public function skipsInStore(StoreId $store): array;
 }

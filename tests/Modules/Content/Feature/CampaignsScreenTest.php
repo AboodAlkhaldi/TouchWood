@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia;
 use Modules\Access\Domain\ValueObject\RoleLevel;
+use Modules\Content\Application\Command\SaveTheme\SaveTheme;
+use Modules\Content\Application\Command\SaveTheme\SaveThemeHandler;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Public\Contracts\CampaignNotices;
@@ -469,7 +471,9 @@ it('refuses every change of another store\'s campaign to staff of one store, for
     $owner = Screen::as(campaignsScreenEditor(['sa']));
     // Each in a state its own staff could act on, so only the store held can refuse (PR 8's second review): a
     // draft for its edits, a scheduled run to cancel, a live run to end.
-    $draft = campaignsScreenCreate($owner, ['sa'], ['starts_at' => campaignsScreenTyped(10), 'ends_at' => campaignsScreenTyped(60 * 24)]);
+    // The draft linked to a theme of its store, on other dates, so Use Campaign's Dates has something to change.
+    $theme = Fx::asSystem(fn (): string => app(SaveThemeHandler::class)->handle(new SaveTheme(null, 0, 'رمضان', 'Ramadan', campaignsScreenTyped(60 * 24 * 3), campaignsScreenTyped(60 * 24 * 5), [Fx::storeId('sa')], [])));
+    $draft = campaignsScreenCreate($owner, ['sa'], ['starts_at' => campaignsScreenTyped(10), 'ends_at' => campaignsScreenTyped(60 * 24), 'theme' => $theme]);
     $scheduled = campaignsScreenCreate($owner, ['sa'], ['starts_at' => campaignsScreenTyped(10), 'ends_at' => campaignsScreenTyped(60 * 24)]);
     $live = campaignsScreenCreate($owner, ['sa'], ['starts_at' => campaignsScreenTyped(10), 'ends_at' => campaignsScreenTyped(60 * 24)]);
 
@@ -501,7 +505,17 @@ it('refuses every change of another store\'s campaign to staff of one store, for
     // but Use Campaign's Dates, a Super Admin's (content.theme.manage), which is no job of theirs in any store.
     expect($said)->toBe([...array_fill_keys(array_keys($answers), FormErrors::message(new ContentNotFound)), 'theme-dates' => FormErrors::message(new Unauthorized(ContentPermissions::THEME_MANAGE))])
         ->and(DB::table('content.campaigns')->orderBy('id')->get()->all())->toEqual($before)
-        ->and(DB::table('content.campaign_runs')->orderBy('id')->get()->all())->toEqual($runsBefore);
+        ->and(DB::table('content.campaign_runs')->orderBy('id')->get()->all())->toEqual($runsBefore)
+        ->and(substr((string) DB::table('content.themes')->where('id', $theme)->value('starts_at_local'), 0, 16))->not->toBe(campaignsScreenTyped(10));
+
+    // A Super Admin holds the job in every store (there is no Super Admin of one store alone): the same press on
+    // the same campaign goes through, so the refusal above was the job alone (PR 8's third review).
+    $super = Screen::as(Fx::staff(superAdmin: true));
+    $used = $super->post(CAMPAIGNS_SCREEN."/{$draft}/theme-dates", ['version' => (int) DB::table('content.themes')->where('id', $theme)->value('version')], $page)->assertRedirect();
+
+    expect(Screen::errors($used))->toBe([])
+        ->and(AdminBrowser::flashed($used, 'status'))->toBe(__('content::admin_campaigns.dates_used'))
+        ->and(substr((string) DB::table('content.themes')->where('id', $theme)->value('starts_at_local'), 0, 16))->toBe(campaignsScreenTyped(10));
 });
 
 it('searches categories and brands as the other targets, 20 a page', function () {
@@ -535,26 +549,79 @@ it('costs few queries of its own', function () {
     expect([Screen::queries($browser, CAMPAIGNS_SCREEN.'?store=sa'), Screen::queries($browser, CAMPAIGNS_SCREEN."/{$campaign}")])->toBe([23, 23]);
 });
 
-it('shows the campaign page\'s address once a store\'s run is scheduled, a store a line, at no query of its own (owner, 2026-11-12)', function () {
-    $browser = Screen::as(campaignsScreenEditor(['sa', 'ae']));
-    $campaign = campaignsScreenCreate($browser, ['sa', 'ae']);
-
-    $browser->get(CAMPAIGNS_SCREEN."/{$campaign}")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('runs.0.address', null)->where('runs.1.address', null));
-
-    $browser->post(CAMPAIGNS_SCREEN."/{$campaign}/schedule", ['version' => campaignsScreenVersion($campaign), 'store' => Fx::storeId('sa')], Screen::fromPage(CAMPAIGNS_SCREEN."/{$campaign}"))->assertRedirect();
-    $slug = (string) DB::table('content.campaign_runs')->where('id', campaignsScreenRun($campaign))->value('slug_en');
+/**
+ * Each run's campaign page addresses on W4b, by store code: locale => the full web address.
+ *
+ * @return array<string, array<string, string>>
+ */
+function campaignsScreenAddresses(AdminBrowser $browser, string $campaign): array
+{
     $byStore = [];
 
     $browser->get(CAMPAIGNS_SCREEN."/{$campaign}")->assertOk()->assertInertia(function (AssertableInertia $page) use (&$byStore): void {
         foreach ($page->toArray()['props']['runs'] as $run) {
-            $byStore[$run['store']['code']] = $run['address'];
+            $byStore[$run['store']['code']] = array_column($run['addresses'], 'url', 'locale');
         }
     });
 
-    expect($slug)->not->toBe('')
-        ->and($byStore)->toBe(['sa' => "/campaigns/{$slug}", 'ae' => null])
-        // The address rides on the run's own row, read already: no query of its own. Measured 2026-11-12, the page with
+    return $byStore;
+}
+
+it('shows the campaign page\'s full web address in each language once a store\'s run is scheduled, at no query of its own (owner, 2026-11-12)', function () {
+    // A root of its own, so an address built from the request's host instead of APP_URL fails here.
+    config(['app.url' => 'https://shop.test']);
+    $browser = Screen::as(campaignsScreenEditor(['sa', 'ae']));
+    $campaign = campaignsScreenCreate($browser, ['sa', 'ae']);
+
+    expect(campaignsScreenAddresses($browser, $campaign))->toBe(['sa' => [], 'ae' => []]);
+
+    $browser->post(CAMPAIGNS_SCREEN."/{$campaign}/schedule", ['version' => campaignsScreenVersion($campaign), 'store' => Fx::storeId('sa')], Screen::fromPage(CAMPAIGNS_SCREEN."/{$campaign}"))->assertRedirect();
+    $slugs = (array) DB::table('content.campaign_runs')->where('id', campaignsScreenRun($campaign))->first(['slug_ar', 'slug_en']);
+    // On the site's root, APP_URL's (the canonical host, content.md §1.14), as the sitemap writes it: never a typed domain.
+    $root = 'https://shop.test';
+
+    expect($slugs['slug_en'])->not->toBe('')
+        ->and(campaignsScreenAddresses($browser, $campaign))->toBe([
+            'sa' => ['ar' => "{$root}/sa/ar/campaigns/".rawurlencode((string) $slugs['slug_ar']), 'en' => "{$root}/sa/en/campaigns/{$slugs['slug_en']}"],
+            'ae' => [],
+        ])
+        // The addresses ride on the run's own row, read already: no query of their own. Measured 2026-11-12, the page with
         // one store's run scheduled is 25 - the draft's 23 (the test above) and Pricing's two reads of a scheduled run, its
         // saved prices and the sizes it skips (PR 8's).
         ->and(Screen::queries($browser, CAMPAIGNS_SCREEN."/{$campaign}"))->toBe(25);
+});
+
+it('shows no address for a cancelled run nor for an ended one: their pages answer 404 and 301 home', function () {
+    $browser = Screen::as(campaignsScreenEditor(['sa', 'ae']));
+    $campaign = campaignsScreenCreate($browser, ['sa', 'ae'], ['starts_at' => campaignsScreenTyped(10), 'ends_at' => campaignsScreenTyped(60 * 24)]);
+    $browser->post(CAMPAIGNS_SCREEN."/{$campaign}/schedule", ['version' => campaignsScreenVersion($campaign)], Screen::fromPage(CAMPAIGNS_SCREEN."/{$campaign}"))->assertRedirect();
+
+    $both = campaignsScreenAddresses($browser, $campaign);
+    expect($both['sa'])->toHaveKeys(['ar', 'en'])->and($both['ae'])->toHaveKeys(['ar', 'en']);
+
+    $browser->post(CAMPAIGNS_SCREEN."/{$campaign}/cancel", ['store' => Fx::storeId('ae')], Screen::fromPage(CAMPAIGNS_SCREEN."/{$campaign}"))->assertRedirect();
+    // Live, then ended: as the run's own life goes (the job's going live stood in for by its row).
+    DB::table('content.campaign_runs')->where('id', campaignsScreenRun($campaign, 'sa'))->update(['state' => 'LIVE', 'went_live_at' => CarbonImmutable::now()]);
+
+    expect(campaignsScreenAddresses($browser, $campaign))->toBe(['sa' => $both['sa'], 'ae' => []]);
+
+    $browser->post(CAMPAIGNS_SCREEN."/{$campaign}/end", ['store' => Fx::storeId('sa')], Screen::fromPage(CAMPAIGNS_SCREEN."/{$campaign}"))->assertRedirect();
+
+    expect(DB::table('content.campaign_runs')->where('campaign_id', $campaign)->pluck('state', 'store_id')->sort()->values()->all())->toBe(['CANCELLED', 'ENDED'])
+        ->and(campaignsScreenAddresses($browser, $campaign))->toBe(['sa' => [], 'ae' => []]);
+});
+
+it('shows no address for a run still live past its end: its page already answers 301 home while the end job is late', function () {
+    $browser = Screen::as(campaignsScreenEditor(['sa']));
+    $campaign = campaignsScreenCreate($browser, ['sa'], ['starts_at' => campaignsScreenTyped(10), 'ends_at' => campaignsScreenTyped(60 * 24)]);
+    $browser->post(CAMPAIGNS_SCREEN."/{$campaign}/schedule", ['version' => campaignsScreenVersion($campaign)], Screen::fromPage(CAMPAIGNS_SCREEN."/{$campaign}"))->assertRedirect();
+    expect(campaignsScreenAddresses($browser, $campaign)['sa'])->toHaveKeys(['ar', 'en']);
+
+    // Live, its end a minute gone, the end job not yet run (the job's going live stood in for by its row).
+    DB::table('content.campaign_runs')->where('id', campaignsScreenRun($campaign, 'sa'))->update([
+        'state' => 'LIVE', 'went_live_at' => CarbonImmutable::now()->subDay(),
+        'starts_at' => CarbonImmutable::now()->subDay(), 'ends_at' => CarbonImmutable::now()->subMinute(),
+    ]);
+
+    expect(campaignsScreenAddresses($browser, $campaign))->toBe(['sa' => []]);
 });

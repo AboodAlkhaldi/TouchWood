@@ -198,6 +198,36 @@ it('closes it on unwiring, while the run keeps skipping the size in the store no
         ->and(syncCampaignEntry($a)['closedBy'] ?? null)->toBe('UNWIRED');
 });
 
+it('opens it again on wiring the store again, naming the run, and tells staff when the read queued ends', function () {
+    ['sizes' => [$a], 'run' => $run] = syncCampaignSkipped();
+    app(UnwireStoreHandler::class)->handle(new UnwireStore(Fx::storeId('sa')));
+    Event::fake([SyncNeedsAttention::class]);
+
+    // Wired again: the run still skips the size, so the report says so at once, before any read
+    // (PR 8's third review) - not only once the provider sends another price.
+    app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('sa'), 'ODOO', 'https://odoo.test/api', 'key', 'the-secret'));
+
+    expect(syncCampaignEntry($a))->toBe(['open' => true, 'closedBy' => null, 'runs' => [$run], 'told' => false]);
+
+    // The read wiring queued finds the same price, 120: the entry stays open, one entry, and staff are told.
+    syncCampaignRead([$a => '120']);
+
+    expect(syncCampaignEntry($a))->toBe(['open' => true, 'closedBy' => null, 'runs' => [$run], 'told' => true])
+        ->and(DB::table('sync.report_entries')->where('kind', 'CAMPAIGN_SKIPPED')->where('variant_id', $a)->whereNull('closed_at')->count())->toBe(1);
+
+    Event::assertDispatched(SyncNeedsAttention::class, static fn (SyncNeedsAttention $event): bool => ($event->opened['CAMPAIGN_SKIPPED'] ?? 0) === 1);
+});
+
+it('opens nothing on wiring a store whose runs skip no size', function () {
+    $ready = Px::ready(['60 cm'], Px::category('Kitchens'));
+    syncCampaignRun([$ready['variants'][0] => 9000]);
+    app(UnwireStoreHandler::class)->handle(new UnwireStore(Fx::storeId('sa')));
+
+    app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('sa'), 'ODOO', 'https://odoo.test/api', 'key', 'the-secret'));
+
+    expect(DB::table('sync.report_entries')->where('kind', 'CAMPAIGN_SKIPPED')->count())->toBe(0);
+});
+
 it('closes it when the run reaches its end - its timed task', function () {
     ['sizes' => [$a], 'run' => $run] = syncCampaignSkipped('2026-11-10 12:00:00+00');
     $queue = Queue::getFacadeRoot();

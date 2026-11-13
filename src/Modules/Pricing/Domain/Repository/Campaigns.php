@@ -69,4 +69,9 @@ interface Campaigns
      * @return array<string, list<string>> size id => the runs skipping it now, in id order
      */
     public function skipsOf(StoreId $store, array $variantIds): array;
+
+    /**
+     * @return array<string, list<string>> every size skipped in the store => the runs skipping it, in id order
+     */
+    public function skipsInStore(StoreId $store): array;
 }

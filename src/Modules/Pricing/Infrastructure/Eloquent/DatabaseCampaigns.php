@@ -187,6 +187,17 @@ final readonly class DatabaseCampaigns implements Campaigns
         return $found;
     }
 
+    public function skipsInStore(StoreId $store): array
+    {
+        $found = [];
+
+        foreach ($this->db->table(self::SKIPS)->where('store_id', $store->value)->orderBy('variant_id')->orderBy('run_id')->get(['variant_id', 'run_id']) as $row) {
+            $found[(string) $row->variant_id][] = (string) $row->run_id;
+        }
+
+        return $found;
+    }
+
     /**
      * @param  array<array-key, mixed>  $rows
      * @return list<Campaign>
