@@ -4,9 +4,9 @@ The job content.md §1.17 names: rebuilding the shop's existing pages to the des
 It changes no module's rules of business: what each module sells, prices, counts and checks stays as its
 spec says. It changes **how the shop looks**, and adds the few pieces of data the look needs (§10).
 
-**State:** written 2026-11-16 from the owner's answers of 2026-11-15 and 2026-11-16 (two rounds). Not built.
-Points marked **[PROPOSED Pn]** are the builder's picks, listed in §13 for the owner's review; every other
-point is the owner's answer. The three questions of §13b were answered on 2026-11-16, all as recommended.
+**State:** written 2026-11-16 from the owner's answers of 2026-11-15 and 2026-11-16 (two rounds). **Accepted by
+the owner, 2026-11-16, with all 27 picks** ("Accept picks, go"). Not built. Points marked **[PROPOSED Pn]** are
+the builder's picks, listed in §13, now accepted; every other point is the owner's answer. The three questions of §13b were answered on 2026-11-16, all as recommended.
 
 **Sources:**
 - **The design:** the owner's Claude Design project "TouchWood E-Commerce UI Design" (Home, Screens: the
@@ -444,7 +444,7 @@ as Content reads Loyalty's (content.md §1.4 POINTS).
 2. **The announcement bar in dark mode** is light blue with dark text. → The deep navy bar (§2.2).
 3. **On a phone with no banner, the hero shows only its title.** → The banners serve both widths (§3.1).
 
-## 13 · The builder's picks [PROPOSED], for the owner's review
+## 13 · The builder's picks: accepted by the owner, 2026-11-16, all 27
 
 | # | Pick |
 |---|---|
