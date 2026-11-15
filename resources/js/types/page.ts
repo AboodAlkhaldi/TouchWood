@@ -202,8 +202,6 @@ export type SharedProps = {
     panelFrame?: { ops?: { unread: number; manyStores: boolean; words: BellWords } };
     /** Whether the sidebar starts open or shut down to its rail; this browser's own choice. */
     sidebarOpen: boolean;
-    /** The sidebar's business areas this browser left open (group keys); several may be. */
-    sidebarSections: string[];
     /** Panel pages: the stores View Store may open (access.md amendment 64). */
     viewStores?: ViewStore[];
     /** Panel pages: the base store's zone, for a screen that shows no one store (frontend.md §1.10). */

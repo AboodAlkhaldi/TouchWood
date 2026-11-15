@@ -32,7 +32,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // before anything could read them. They are exempt rather than encrypted because they say
         // how a panel looks: they decide nothing, protect nothing, and are read back only to avoid
         // a flicker on load.
-        $middleware->encryptCookies(except: [HandleInertiaRequests::SIDEBAR_COOKIE, HandleInertiaRequests::SIDEBAR_SECTIONS_COOKIE]);
+        $middleware->encryptCookies(except: [HandleInertiaRequests::SIDEBAR_COOKIE]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         ProblemDetails::register($exceptions);

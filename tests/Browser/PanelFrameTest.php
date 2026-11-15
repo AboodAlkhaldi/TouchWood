@@ -152,7 +152,7 @@ it('never offers a staff member an off store they cover in View Store\'s menu', 
         ->assertMissing('[data-test="view-store-eg"]');
 });
 
-it('folds the menu into business areas, opens the one being read, lets several stay open and remembers them', function () {
+it('folds the menu into business areas, opens the one being read, keeps one open at a time and remembers none', function () {
     // Staff and roles, stores and address forms: two areas of two screens each, so both fold.
     $staffId = Fx::staffWith([AccessPermissions::STAFF_VIEW, AccessPermissions::ROLE_MANAGE, PlatformPermissions::STORE_VIEW, AccessPermissions::ADDRESS_FORMAT_UPDATE], ['sa'], RoleLevel::Admin);
     $page = panelFrameSignIn($staffId);
@@ -166,14 +166,18 @@ it('folds the menu into business areas, opens the one being read, lets several s
         ->assertMissing('a[href="/admin/stores"]')
         ->assertAttribute('a[href="/admin/roles"]', 'data-active', 'true');
 
-    // Several may be open at once: opening Configuration leaves Staff open.
+    // One open at a time (owner, 2026-11-15; shop-design.md §8): opening Configuration folds Staff, the page stays,
+    // and the folded area holding it keeps its lit mark.
     $page->click('[data-test="area-store_settings"]')
         ->assertVisible('a[href="/admin/stores"]')
-        ->assertAttribute('[data-test="area-staff_and_permissions"]', 'aria-expanded', 'true');
+        ->assertAttribute('[data-test="area-staff_and_permissions"]', 'aria-expanded', 'false')
+        ->assertAttribute('[data-test="area-staff_and_permissions"]', 'data-active', 'true');
+    expect($page->script('window.location.pathname'))->toBe('/admin/roles');
 
-    // Remembered by this browser: the next page draws both open from the start.
+    // Nothing is remembered: the next page opens its own area only.
     $page->navigate('/admin/staff');
-    expect(browserUntil($page, "document.querySelector('[data-test=\"area-store_settings\"]')?.getAttribute('aria-expanded') === 'true'"))->toBeTrue();
+    expect(browserUntil($page, "document.querySelector('[data-test=\"area-staff_and_permissions\"]')?.getAttribute('aria-expanded') === 'true'"))->toBeTrue();
+    $page->assertAttribute('[data-test="area-store_settings"]', 'aria-expanded', 'false');
 
     // Folded around the screen being read, the area itself is lit, so the person still sees where
     // they are.
