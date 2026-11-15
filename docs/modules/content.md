@@ -100,6 +100,8 @@ On **every box or text that has an Arabic and an English side**, for whoever may
 
 ### 1.4 The home page (rounds 1, 2 and the design)
 
+**Amended 2026-11-16 (the shop to the design, [shop-design.md](shop-design.md)):** `HERO` becomes rotating banners with a slim title line, its facts in the promises row, its eyebrow, line and buttons gone (§3.1); `POINTS` as two stat cards (§3.2). Amendment 2 below.
+
 **Fixed section types that admins add, order and show or hide per store. No free page builder** (round 1 #4). The starting order is the prototype's, with bundles and "مختارات لك" dropped (owner, 2026-11-03):
 
 | # | Type | What staff fill | Reads from elsewhere |
@@ -120,6 +122,8 @@ On **every box or text that has an Arabic and an English side**, for whoever may
 
 ### 1.5 The frame
 
+**Amended 2026-11-16 (the shop to the design, [shop-design.md](shop-design.md)):** the frame's width (1400), top bar, header, category row, dark footer with the newsletter card and the phone frame are that spec's §2. Amendment 2 below.
+
 What every shop page carries from Content, through `ShopFrameParts` (`frame.content`), one cached read per store and language. **The cache holds every bar, theme part and pop-up that is scheduled or live with its start and end, and the part filters by the clock on each request**, so nothing waits for the cache at a start or an end. Every Content change that alters it, and a file's sizes becoming ready, invalidates it inside the change's transaction (`VersionedCache`). A person previewing a theme reads past the cache (§4.4 W5b). Every shop page gains this one read, recorded in its query test (owner, 2026-10-19).
 
 - **The announcement bar** (one bar: "alert bar" and "announcement bar" are the same thing, round 4 #5). One per store: text (one line, 120 characters) per language, optional link. **On or off**, with optional start and end `[ACCEPTED 2026-11-10]`. Full width, above the header, at every width; one line, cut with an ellipsis on a phone, its whole text on the link's page. While a theme is live its dress (§1.8 part 1) applies. With the bar off and no theme words, nothing draws.
@@ -128,6 +132,8 @@ What every shop page carries from Content, through `ShopFrameParts` (`frame.cont
 - **The live theme's parts** (§1.8) and **the pop-up** (§1.10).
 
 ### 1.6 Banners and image sizes (round 2 #11)
+
+**Amended 2026-11-16 (the shop to the design, [shop-design.md](shop-design.md)):** `HOME_HERO` takes a wide and a phone image, a title, a line and a button's text, up to 5 live (its P2, proposed), turning every 5 seconds; `HOME_PHONE` goes (§3.1, §10.3). Amendment 2 below.
 
 A banner: placement, **desktop and phone images, per language where the artwork has text** (a tick "This artwork has words on it"; ticked, an Arabic and an English image are each required), a link, a description for screen readers per language, start (default Now), end (optional, No End), order.
 
@@ -185,11 +191,11 @@ A theme is **those 11 parts only**. It is not colours, radius or shadow: this **
 | # | Part | What the theme fills | Where it shows | Left empty |
 |---|---|---|---|---|
 | 1 | Announcement bar | Artwork strip (desktop 2400 x 80, phone 1200 x 80 `[ACCEPTED 2026-11-10]`), optional words per language with a link | §1.5, over the store's own bar | The store's bar as it is |
-| 2 | Hero artwork | Desktop image per language if it has words; phone image likewise (§1.6 sizes) | Replaces `HOME_HERO` and leads `HOME_PHONE` | The banners |
+| 2 | Hero artwork | Desktop image per language if it has words; phone image likewise (§1.6 sizes) | Replaces `HOME_HERO` and leads `HOME_PHONE` (*amended 2026-11-16: leads the one banner list at both widths, [shop-design.md](shop-design.md) §3.1*) | The banners |
 | 3 | Promises row | Band artwork; optional words for each promise | The row's ground | The row as it is |
 | 4 | Points band | Band artwork; optional heading | The band's ground | As it is |
 | 5 | Logos band | Band artwork; optional heading | The band's ground | As it is |
-| 6 | Product flag and ribbon | Flag image (small, transparent PNG or WebP, 96 x 96) and ribbon image (strip, 400 x 48 `[ACCEPTED 2026-11-10]`) | Corner of a card, top of a product's gallery. **Every product showing a reduced price now** (Q9 (a), owner 2026-11-10) | Nothing |
+| 6 | Product flag and ribbon (*the flag dropped 2026-11-16, [shop-design.md](shop-design.md) §4.3: the ribbon only*) | Flag image (small, transparent PNG or WebP, 96 x 96) and ribbon image (strip, 400 x 48 `[ACCEPTED 2026-11-10]`) | Corner of a card, top of a product's gallery. **Every product showing a reduced price now** (Q9 (a), owner 2026-11-10) | Nothing |
 | 7 | Product badge | Short words per language (24 characters) | With the card's labels, in the system's badge style | Nothing |
 | 8 | Listing banner | §1.6 `LISTING` sizes | Above every product list, ahead of ordinary banners | The banners |
 | 9 | Cart message | One line per language, optional link | Top of the cart | Nothing |
@@ -276,7 +282,7 @@ In this order (Q19 (a), owner 2026-11-10): 1. Content, with the 11 slots, the ho
 
 **Covered here:** the frame (§1.5), Home (§1.4), and Content's own pages: Pages, Blog (list, post, category), Projects (list, project), the campaign page (H7), sitemap, robots, redirects.
 
-**A separate job, specified on its own: rebuilding the existing shop pages to the design**, after Content and before the themes (Q19 (a), owner 2026-11-10; §1.16). Theme parts 6 to 9 (flag and ribbon, badge, listing banner, cart message) sit on those pages, so that job builds their places in. Open points to carry to its spec:
+**A separate job, specified on its own: rebuilding the existing shop pages to the design**: now [shop-design.md](shop-design.md) (2026-11-16), which replaces rows 2, 6 (the delivery-days line), 7 (the add button; prices keep their font) and 8 (the card's edge) below, builds row 1's list view and leaves row 3's order and B2B screens to its question Q1, after Content and before the themes (Q19 (a), owner 2026-11-10; §1.16). Theme parts 6 to 9 (flag and ribbon, badge, listing banner, cart message) sit on those pages, so that job builds their places in. Open points to carry to its spec:
 
 | # | Point | State |
 |---|---|---|
@@ -802,7 +808,7 @@ The owner's answers of 2026-11-10/11 (plan §R): **the phone drawer is the desig
 | D1 | **One cached read a page** (`frame:{store}:{locale}`): the bar, the footer, the pop-ups, the themes with their parts, the smart bars and the listing banners, each with its start and end, filtered by the clock; the frame part, the theme's middleware and a list's slot share it through the request (`ShopFrameOfRequest`). Warm it is **2 queries** (the cache's version and its copy), so every shop page's recorded count rose by 2 | §1.5 |
 | D2 | A campaign's smart bar shows **while its run is live** (§1.9, the spec's word): from the job's going live until the run's end. Going live, End and a moved end (Save Campaign) replace the shop's copy; Schedule and Cancel touch only runs not live, so they leave it. An emptied sub-category is asked with its whole way up (its trail's ids, read by the query it already makes), so a parent's bar and banner still reach it | §1.9 |
 | D3 | The pop-up shows only on home, the catalogue's pages and Content's own (a list of where it may, so a page added later puts none between a customer and paying), never in a staff view. The browser keeps the last 50 ids shown | §1.10 |
-| D4 | The theme's background parts are one custom property each, switched at 641 px (`--tw-theme-bar`, `-promises`, `-points`, `-logos`, `-footer`) and `--tw-backdrop` from 1025 px: a 480 px tile on each side of the 72rem column, the start side's on the page's start side. Dark softens the bands with half of `--tw-overlay` (plan K8). Only a plain `https://`, `http://` or root-relative address is written | §1.8 |
+| D4 | The theme's background parts are one custom property each, switched at 641 px (`--tw-theme-bar`, `-promises`, `-points`, `-logos`, `-footer`) and `--tw-backdrop` from 1025 px: a 480 px tile on each side of the 72rem column (*1400 px from 2026-11-16, [shop-design.md](shop-design.md) §2.1*), the start side's on the page's start side. Dark softens the bands with half of `--tw-overlay` (plan K8). Only a plain `https://`, `http://` or root-relative address is written | §1.8 |
 | D5 | **Preview Theme on the shop** needs a staff view of someone who may see off stores - an active Super Admin, the only holder of the reserved `content.theme.manage` - asked again on every page (`OffStoreViewers::mayView`, now on Platform's public contract). The shop knows no staff id, so the cookie's presser is not matched there: another Super Admin's staff view in the same browser would see it | W5b |
 | D6 | The shop's own **Stop Preview** is an unnamed `POST /{store}/{locale}/theme-preview/stop` that forgets the cookie | W5b |
 | D7 | The phone's drawer holds, under Account & settings: the staff view's menu (staff only) or the greeting with the way in or the verify-email badge; My Orders; Track a Shipment (the orders list, where each order's tracking is); Company Account; the country; Sign Out for a signed-in shopper (the header's menu holds it from 641 px). Categories are Catalog's menu tree, **without counts** (parked: the menu carries none) | §1.5 |
@@ -887,3 +893,4 @@ Accepted with this spec (owner, 2026-11-10); each module's builder is still aske
 | # | Date | What | Where |
 |---|---|---|---|
 | 1 | 2026-11-11 | **P14, owner "yes mark it"**: Translate's mark is stored per item when nobody ticked "I read", and Publish, Schedule, Show and switching the bar on ask for the tick again in a later session; the tick clears the mark. Pages, posts, projects, banners, pop-ups, home sections and the announcement bar; campaigns and themes with PR 8. Built in PR 7b | §1.3 #4, §5, §7 |
+| 2 | 2026-11-16 | **The shop to the design** ([shop-design.md](shop-design.md), owner 2026-11-15/16): the frame to the design (1400 wide, the top bar, the header, the dark footer with the newsletter as a card); `HERO` as rotating banners (5 s, arrows, dots, pause, text over the image, one list for both widths, a live theme's artwork first) with a slim title line, the facts in the promises row; `HOME_HERO` takes both images and the banner's words, `HOME_PHONE` goes, the theme's hero artwork (part 2) leads the list at both widths; the facts a figure and a caption each; `POINTS` as two stat cards; the theme's artwork flag (part 6) dropped, its ribbon kept; **a store setting for the delivery days, default 4 working days**, text only (§10.2). Its picks are shop-design.md §13 | §1.4, §1.5, §1.6, §1.8, §1.17 |
