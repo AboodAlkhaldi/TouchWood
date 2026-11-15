@@ -1662,12 +1662,16 @@ Content's spec settles §9.5 (content.md §1.7 #10, #13, §2.1, §2.3 O1 to O3, 
   - a staff member's invitation, phone change, and a Super Admin's new phone (`PhoneVerification`);
   - staff sign-in.
 
-  Its one other caller, the critical alerts (`EventSender::smsStaff`), is question W1.
+  Its one other caller, the critical alerts (`EventSender::smsStaff`), goes by WhatsApp too (W1, point 9).
 - The SMS countries list stays the routing table. Each listed country names its provider, now `whatsapp` or `log`. A number from an unlisted country is still refused when entered (amendment 90).
 
 **2. Meta's settings live in `.env` only.** The owner enters them on the server: `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN` (a permanent system user's), `WHATSAPP_CODE_TEMPLATE` (the approved template's name), `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` and `WHATSAPP_MAIN_NUMBER`.
 - The Graph API version is pinned in config and checked against Meta's documentation when built.
-- **A production server refuses to start** while a listed country names `whatsapp` and a setting is missing. This is the owner's answer to reminder 24 ("go with rec", 2026-11-10). It goes here and into §2.2, which still says the question is being decided, and §7's boot guard gains these settings.
+- **A missing setting never stops the site** (W3, the owner, 2026-11-15; it replaces reminder 24's "refuse to start").
+  - The site starts and runs as normal: the shop, the cart, orders, the panel, and staff signing in with the authenticator app.
+  - Only codes and WhatsApp alerts stop. Anyone who asks for a code is told "Codes can't be sent right now. Please try again later."
+  - Every active Super Admin is told at once by bell and email (not WhatsApp, which is what's down), at most once an hour, and the panel shows a red notice: "WhatsApp is not set up: no codes can be sent."
+  - §2.2 and §7's boot guard say so in place.
 
 **3. Sent is not delivered.** When Meta takes a message, it answers at once with a message id, and only later tells us whether it reached the phone. As far as known, a number with no WhatsApp is accepted at first and failed later (verify).
 - The code's `ops.sent_messages` row gets a new channel, **WHATSAPP** (`varchar(8)` holds it), and never holds the code or the number.
@@ -1720,15 +1724,32 @@ Content's spec settles §9.5 (content.md §1.7 #10, #13, §2.1, §2.3 O1 to O3, 
 - The auto-reply: one a day per sender, none to a status, and the hourly cap.
 - `log` unchanged; production refusing to start with a setting missing.
 
-**Questions for the owner:**
+**9. The critical alerts by WhatsApp too** (W1). S5 at 1 day and S5b (the gateway key) still go to the Super Admins who have their critical switch on and a phone, now by **two utility templates** of our own fixed words, approved by Meta once, beside email and bell:
+- **Key expiring:** «تنبيه TouchWood: مفتاح بوابة الدفع ينتهي خلال يوم. جدّده من لوحة التحكم.» / "TouchWood alert: the payment gateway key expires in 1 day. Renew it in the admin panel."
+- **Key refused:** «تنبيه TouchWood: بوابة الدفع رفضت المفتاح. لا يمكن الدفع حتى يُحدَّث.» / "TouchWood alert: the payment gateway refused the key. Payments stop until it's updated."
 
-| # | Question | Options | Recommended |
-|---|---|---|---|
-| W1 | The **critical alerts to Super Admins** (S5 at 1 day, S5b: the gateway key) went by SMS. An alert is not a code; by WhatsApp it needs a second, utility template (about a code's price) | (a) **email and bell only**: the critical-SMS switch goes with it (access.md 131, amendments 81, 91(8); `SetOwnCriticalSms`, the account page's switch); (b) a WhatsApp utility template | (a) |
-| W2 | The panel page "SMS Countries" | (a) **"Code Countries"** (دول رموز التحقق), with WhatsApp offered as the provider; (b) keep the name | (a) |
-| W3 | **The code's life is a setting (1-60 minutes), but Meta's expiry line is fixed in the approved template** | (a) **no expiry line** in the message; the code still dies at its set minutes; (b) lock both settings at 5 minutes and show "expires in 5 minutes"; (c) one template per minute value | (a) |
-| W4 | **The staff sign-in code loses its warning** ("If you did not try to sign in, change your password now"), because Meta's text is fixed | (a) **accept the loss**: the code only comes after the right password, and the authenticator app is the safer choice anyway; (b) also email the warning with every staff sign-in code | (a) |
-| W5 | The auto-reply's words (wording approved for now, reminder 16) | approve, or give your own | approve |
+The rest is unchanged:
+- A utility message is sent at any time, with no customer message needed first.
+- It costs the utility rate, about SAR 0.04 each; these alerts are rare.
+- Its `ops.sent_messages` row is channel WHATSAPP.
+- `EventSender::smsStaff` sends the alert's template by name through the same WhatsApp connection, and `SendEventSmsJob` keeps its tries.
+- The critical switch stays, its visible words reading "WhatsApp" (point 6). The template names live in `.env`: `WHATSAPP_ALERT_KEY_EXPIRING` and `WHATSAPP_ALERT_KEY_REFUSED`.
+
+**The owner's answers (2026-11-15):**
+
+| # | Question | Answer |
+|---|---|---|
+| W1 | The critical alerts to Super Admins | **By WhatsApp too**, by two utility templates of our own fixed words, beside email and bell (point 9) |
+| W2 | The panel page "SMS Countries" | **Renamed "Code Countries"** (دول رموز التحقق), with WhatsApp offered as the provider |
+| W3 | WhatsApp's settings missing on the live server | **The site runs; only codes and WhatsApp alerts stop**, with a clear message, an alert to the Super Admins and a red notice in the panel (point 2) |
+| W4 | The staff sign-in code's warning line | **Accepted as lost**: the code only comes after the right password, and the authenticator app is the safer choice |
+| W6 | The code template's "expires in X minutes" line, which Meta prints into the approved template | **No minutes line.** The message shows the code and Meta's do-not-share line, the code still expires at its set minutes, and the setting stays free to change |
+
+**Still open:**
+
+| # | Question | Recommended |
+|---|---|---|
+| W5 | The auto-reply's words (wording approved for now, reminder 16) | approve the proposed words below |
 
 Proposed W5 words; the link is the main number's `https://wa.me/<number>`:
 - ar: «هذا الرقم مخصص لإرسال رموز التحقق فقط ولا يستقبل الرسائل. للتواصل معنا راسلنا على رقمنا الرئيسي: <الرابط>»
