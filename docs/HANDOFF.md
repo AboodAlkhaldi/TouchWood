@@ -145,6 +145,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-11-02 | §14 | **Ops' menu:** the five reports are one Reports entry with the kinds as tabs, beside Daily Reports; Marketing gains Offer Notices and Customer Messages; SMS Countries goes under Store Settings (ops.md §4.15, §9.4) | Owner, Ops screens round 1 |
 | 2026-11-03 | §4.4, §10.2, §12.5 | **Shipping and Payments as built (stage 7)**: neither depends on Sales, and Sales reaches them through their Public contracts alone (§4.4); the shipping fee in the canonical amounts is the chosen carrier's price for the place, 0 once free shipping applies, or "to be set" by staff and left out of the total until set, and an online payment takes `order_total` while a payment request asks for exactly what an order is missing (§10.2); carriers, price groups, free shipping and the optional boxes as built (§12.5) | Stage 7 wrap-up, from the code (`docs/modules/shipping.md`, `docs/modules/payments.md`) |
 | 2026-11-10 | §4.1, §4.4, §13.2, §14 | **Content's rules** (`docs/modules/content.md`, accepted): `/` with no remembered store answers 302 to the base store's Arabic home instead of the country page (§4.1); **Content → Access**, only to declare its permissions (§4.4); a **campaign** is a named period with prices, run per store, and a **theme** is separate, made by a Super Admin from 11 parts; many campaigns at once, the lowest price winning, one theme per store at a time (§13.2); **one Content section** in the menu (§14) | Owner, Content rounds 1–4 and the spec's questions (2026-11-10) |
+| 2026-11-15 | §17 | **Stage 8 (Ops + Content) built and merged.** Ops: PRs to #363. Content: #364 (spec) to #392, its 13 planned PRs (PR 7 in two) and the owner's in-run changes - the Odoo real API read (#377), the import format (#379), the B2B company page in two (#383), the Brevo nightly read switched off until checked (#384), a wholesale price's struck old price (#385), the campaign page's full address (#390), the ceiling skip in every store (#392). Lists still without phone cards are named in frontend.md (follow-ups). Owner's end-of-stage checks still to come: the derived shop pages, the wording, the builders' picks (content.md §9.3b-§9.3f) | Stage close |
 
 ---
 
@@ -1839,6 +1840,9 @@ Decide these when the owning module is reached; do not design them now.
   withdrawn (a guest's row gone, a customer's consent off with source `NEWSLETTER_PROVIDER`), the third is **not**, and
   nobody else changed. If the third was withdrawn, switch it back off and tell the owner: Brevo keeps `listUnsubscribed`
   after a contact is added back, and the read must be changed before it runs.
+- **Clear the cache on the first deploy after Content's shop pages (#389)** (`php artisan cache:clear`): Catalog's
+  menus cached before it carry no per-category counts or tile photos, so the phone drawer shows no counts and the
+  home's category tiles no photos until the next Catalog change refreshes them.
 - **Sync's notifications** (Sync step 5b): when Ops listens to `SyncNeedsAttention`, its listener
   must be queued - Sync marks the entries told before the event goes out, so a send that fails must be
   retried by the queue, not lost.

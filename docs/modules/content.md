@@ -1,6 +1,6 @@
 # Content: module specification
 
-**Status: ACCEPTED 2026-11-10 (owner, in chat; merged with #364).** Nothing here is built. It is written from the owner's answers in
+**Status: ACCEPTED 2026-11-10 (owner, in chat; merged with #364). BUILT 2026-11-10 to 2026-11-15** (PRs #365 to #392; the build's own picks, for the owner's end-of-stage check, in §9.3a to §9.3f). It is written from the owner's answers in
 `docs/handoff/content-rounds.md` (rounds 1 to 4) and the code on `main` at `4434e8ac`. The owner answered every question of §9.2 on 2026-11-10 ("Yes, all rec"); each answer is written
 where it applies. A pick marked `[ACCEPTED 2026-11-10]` was the spec's own and was accepted with the rest, none rejected (§9.3).
 
