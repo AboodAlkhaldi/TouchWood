@@ -7,6 +7,7 @@ import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { Money } from '@/components/Money';
 import { PanelDialog } from '@/components/PanelDialog';
+import { PhoneCards } from '@/components/PhoneCards';
 import { SearchCombobox } from '@/components/SearchCombobox';
 import { StoreFilter } from '@/components/StoreFilter';
 import { Badge } from '@/components/ui/badge';
@@ -176,7 +177,7 @@ export default function Index(page: ProductsPage) {
                         </EmptyHeader>
                     </Empty>
                 ) : (
-                    <div className="material-base overflow-x-auto">
+                    <div className="material-base hidden overflow-x-auto sm:block">
                         <Table>
                             <TableCaption className="sr-only">{t('catalog::admin_products.title')}</TableCaption>
                             <TableHeader className="bg-surface-sunken">
@@ -207,6 +208,25 @@ export default function Index(page: ProductsPage) {
                         </Table>
                     </div>
                 )}
+                {/* On a phone each product a card (round 3 #15) that opens the product, as its row does. */}
+                {list.rows.length === 0 ? null : (
+                    <PhoneCards
+                        test="product"
+                        cards={list.rows.map((row) => ({
+                            id: row.id,
+                            title: nameIn(locale, row.nameAr, row.nameEn),
+                            badge: <StageBadge stage={row.stage} />,
+                            href: `/admin/products/${row.id}`,
+                            lines: [
+                                <bdi key="c" dir="ltr" className="tw-figure font-mono">
+                                    {row.codes.join(' · ')}
+                                </bdi>,
+                                <span key="b">{`${nameIn(locale, row.brandNameAr, row.brandNameEn)} · ${row.categoryNameAr === null ? '—' : nameIn(locale, row.categoryNameAr, row.categoryNameEn)}`}</span>,
+                                <span key="v" className="tw-figure">{`${t('catalog::admin_products.column.variants')}: ${figure(locale, row.variants)}`}</span>,
+                            ],
+                        }))}
+                    />
+                )}
 
                 {more && after !== null ? <LoadMoreButton loading={list.loading} onClick={() => list.more('/admin/products', { ...asked(applied), after }, ['products', 'more', 'after'])} /> : null}
             </div>
@@ -232,7 +252,7 @@ function Row({ row, storeChosen }: { row: ProductRowData; storeChosen: boolean }
                         {name}
                     </Link>
                     {other ? (
-                        <span className="text-copy-12 text-ink-muted" dir={locale === 'ar' ? 'ltr' : 'rtl'}>
+                        <span className="text-label-12 text-ink-muted" dir={locale === 'ar' ? 'ltr' : 'rtl'}>
                             {other}
                         </span>
                     ) : null}

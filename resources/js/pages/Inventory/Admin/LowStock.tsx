@@ -3,6 +3,7 @@ import { Link } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
+import { PhoneCards } from '@/components/PhoneCards';
 import { Guarded, MoreButton } from '@/components/RowMenu';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
@@ -38,6 +39,16 @@ export default function LowStock(page: LowStockPage) {
     const restoring = useKeptDepth(list, next, more);
     const nameOf = (row: StockRowData) => `${nameIn(locale, row.size.productNameAr, row.size.productNameEn)} · ${sizeName(t, row.size.values)}`;
     const subtitle = `${t('inventory::admin_low.subtitle')} ${plural(t, locale, 'inventory::admin_low.count_in', total, { store: frame.storeName })}`;
+    const wired = frame.wired ? frame.reasons.wired : null;
+    // A row's two dialogs, opened from its ⋯ in the table or on its phone card.
+    const onAdjust = (row: StockRowData) => (trigger: HTMLElement | null) => {
+        opener.current = trigger;
+        setDialog({ kind: 'adjust', size: { variantId: row.size.variantId, name: nameOf(row), figures: row.figures } });
+    };
+    const onThreshold = (row: StockRowData) => (trigger: HTMLElement | null) => {
+        opener.current = trigger;
+        setDialog({ kind: 'threshold', size: row.size.variantId, name: nameOf(row), current: row.figures.ownThreshold });
+    };
 
     return (
         <AdminLayout title={t('inventory::admin_low.title')} subtitle={subtitle}>
@@ -55,7 +66,7 @@ export default function LowStock(page: LowStockPage) {
                 ) : (
                     <>
                         <Showing shown={list.rows.length} total={total} />
-                        <div className="material-base overflow-x-auto">
+                        <div className="material-base hidden overflow-x-auto sm:block">
                             <Table>
                                 <TableCaption className="sr-only">{t('inventory::admin_low.title')}</TableCaption>
                                 <TableHeader className="bg-surface-sunken">
@@ -75,25 +86,31 @@ export default function LowStock(page: LowStockPage) {
                                 </TableHeader>
                                 <TableBody>
                                     {list.rows.map((row) => (
-                                        <LowRow
-                                            key={row.size.variantId}
-                                            row={row}
-                                            store={frame.storeCode}
-                                            wired={frame.wired ? frame.reasons.wired : null}
-                                            name={nameOf(row)}
-                                            onAdjust={(trigger) => {
-                                                opener.current = trigger;
-                                                setDialog({ kind: 'adjust', size: { variantId: row.size.variantId, name: nameOf(row), figures: row.figures } });
-                                            }}
-                                            onThreshold={(trigger) => {
-                                                opener.current = trigger;
-                                                setDialog({ kind: 'threshold', size: row.size.variantId, name: nameOf(row), current: row.figures.ownThreshold });
-                                            }}
-                                        />
+                                        <LowRow key={row.size.variantId} row={row} store={frame.storeCode} wired={wired} name={nameOf(row)} onAdjust={onAdjust(row)} onThreshold={onThreshold(row)} />
                                     ))}
                                 </TableBody>
                             </Table>
                         </div>
+                        {/* On a phone each size a card (round 3 #15): its name opens it on Stock, as the row's. */}
+                        <PhoneCards
+                            test="low-row"
+                            cards={list.rows.map((row) => ({
+                                id: row.size.variantId,
+                                title: nameIn(locale, row.size.productNameAr, row.size.productNameEn),
+                                href: `/admin/stock?store=${frame.storeCode}&size=${row.size.variantId}`,
+                                badge: <StockBadge figures={row.figures} />,
+                                lines: [
+                                    <span key="s">
+                                        {`${t('inventory::admin_stock.column.size')}: ${sizeName(t, row.size.values)} · `}
+                                        <bdi dir="ltr" className="tw-figure font-mono">
+                                            {row.size.code}
+                                        </bdi>
+                                    </span>,
+                                    <span key="f" className="tw-figure">{`${t('inventory::admin_stock.column.available')}: ${figure(locale, row.figures.available)} · ${t('inventory::admin_stock.column.threshold')}: ${threshold(t, locale, row.figures)}`}</span>,
+                                ],
+                                menu: <LowMenu name={nameOf(row)} wired={wired} onAdjust={onAdjust(row)} onThreshold={onThreshold(row)} test={`low-card-actions-${row.size.variantId}`} />,
+                            }))}
+                        />
                     </>
                 )}
 
@@ -136,7 +153,6 @@ function LowRow({
 }) {
     const t = useT();
     const locale = useLocale();
-    const more = useRef<HTMLButtonElement>(null);
     const id = row.size.variantId;
 
     return (
@@ -162,17 +178,39 @@ function LowRow({
             </TableCell>
             <TableCell className="tw-figure">{threshold(t, locale, row.figures)}</TableCell>
             <TableCell className="text-end">
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <MoreButton ref={more} name={name} data-test={`low-actions-${id}`} />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="min-w-56">
-                        {/* A wired store's stock is the provider's (§1.5): drawn, with why not. */}
-                        <Guarded label={t('inventory::admin_stock.menu.adjust')} reason={wired} onSelect={() => onAdjust(more.current)} test="adjust-stock" />
-                        <Guarded label={t('inventory::admin_stock.menu.threshold')} onSelect={() => onThreshold(more.current)} test="set-threshold" />
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                <LowMenu name={name} wired={wired} onAdjust={onAdjust} onThreshold={onThreshold} test={`low-actions-${id}`} />
             </TableCell>
         </TableRow>
+    );
+}
+
+/** A low size's ⋯ menu: the row's, and the same on its phone card under its own test name. */
+function LowMenu({
+    name,
+    wired,
+    onAdjust,
+    onThreshold,
+    test,
+}: {
+    name: string;
+    wired: string | null;
+    onAdjust: (trigger: HTMLElement | null) => void;
+    onThreshold: (trigger: HTMLElement | null) => void;
+    test: string;
+}) {
+    const t = useT();
+    const more = useRef<HTMLButtonElement>(null);
+
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <MoreButton ref={more} name={name} data-test={test} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-56">
+                {/* A wired store's stock is the provider's (§1.5): drawn, with why not. */}
+                <Guarded label={t('inventory::admin_stock.menu.adjust')} reason={wired} onSelect={() => onAdjust(more.current)} test="adjust-stock" />
+                <Guarded label={t('inventory::admin_stock.menu.threshold')} onSelect={() => onThreshold(more.current)} test="set-threshold" />
+            </DropdownMenuContent>
+        </DropdownMenu>
     );
 }

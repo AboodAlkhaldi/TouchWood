@@ -277,7 +277,7 @@ export default function Stock(page: StockPage & DrawerProps) {
                                                             {nameIn(locale, row.size.productNameAr, row.size.productNameEn)}
                                                         </Link>
                                                         {otherName(locale, row.size.productNameAr, row.size.productNameEn) ? (
-                                                            <span className="text-copy-12 text-ink-muted" dir={locale === 'ar' ? 'ltr' : 'rtl'}>
+                                                            <span className="text-label-12 text-ink-muted" dir={locale === 'ar' ? 'ltr' : 'rtl'}>
                                                                 {otherName(locale, row.size.productNameAr, row.size.productNameEn)}
                                                             </span>
                                                         ) : null}
@@ -291,7 +291,7 @@ export default function Stock(page: StockPage & DrawerProps) {
                                                         {row.lastPieces === true ? <Mark tone="blue-subtle">{t('inventory::admin_stock.badge.last_pieces')}</Mark> : null}
                                                     </span>
                                                     {row.size.archived ? (
-                                                        <span id={`archived-${id}`} className="mt-1 block max-w-56 text-copy-12 text-ink-muted">
+                                                        <span id={`archived-${id}`} className="mt-1 block max-w-56 text-copy-13 text-ink-muted">
                                                             {frame.reasons.archived}
                                                         </span>
                                                     ) : null}
@@ -452,7 +452,7 @@ function LastPiecesItem({ store, product, on }: { store: string; product: string
         <DropdownMenuItem onSelect={() => router.post('/admin/stock/last-pieces', { store, product, on: !on }, { preserveScroll: true })} data-test="last-pieces">
             <span className="grid gap-0.5">
                 <span>{on ? t('inventory::admin_stock.menu.hide_last') : t('inventory::admin_stock.menu.show_last')}</span>
-                <span className="text-copy-12 text-ink-muted">{t('inventory::admin_stock.menu.last_helper')}</span>
+                <span className="text-copy-13 text-ink-muted">{t('inventory::admin_stock.menu.last_helper')}</span>
             </span>
         </DropdownMenuItem>
     );
@@ -618,7 +618,7 @@ function HistoryItem({ line }: { line: HistoryLineData }) {
                     {figure(locale, line.after)}
                 </span>
             </span>
-            <span className="text-copy-12 text-ink-muted">
+            <span className="text-label-12 text-ink-muted">
                 {who} · <Time value={line.at} inSentence />
             </span>
             {line.note !== null ? <span className="text-copy-13 text-ink">{line.note}</span> : null}

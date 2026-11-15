@@ -288,7 +288,7 @@ function StoreCard({ page, store }: { page: ProductPage; store: StoreCardData })
                                     {labels.map((label) => (
                                         <li key={label.id} className="flex items-center gap-1">
                                             <Badge className={tone(label.tone as Tone)}>{nameIn(locale, label.nameAr, label.nameEn)}</Badge>
-                                            {label.active ? null : <span className="text-copy-12 text-ink-muted">{t('catalog::admin.state.inactive')}</span>}
+                                            {label.active ? null : <span className="text-label-12 text-ink-muted">{t('catalog::admin.state.inactive')}</span>}
                                         </li>
                                     ))}
                                 </ul>
@@ -444,7 +444,7 @@ function LabelsDialog({
                                             <Badge className={tone(label.tone as Tone)}>{nameIn(locale, label.nameAr, label.nameEn)}</Badge>
                                         </Label>
                                         {label.active ? null : (
-                                            <span id={`label-${label.id}-off`} className="text-copy-12 text-ink-muted">
+                                            <span id={`label-${label.id}-off`} className="text-copy-13 text-ink-muted">
                                                 {t('catalog::admin_products.stores.labels_off')}
                                             </span>
                                         )}

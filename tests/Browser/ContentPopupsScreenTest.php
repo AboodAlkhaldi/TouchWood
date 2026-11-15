@@ -82,6 +82,6 @@ it('draws right to left in Arabic, in Latin digits, and fits a phone, the list a
         ->and(Cb::latinDigits($page))->toBeTrue()
         ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page))
         // A card opens from the keyboard too: its title is a real link to the pop-up's page.
-        ->and($page->script("document.querySelector('[data-test=\"popup-card-open\"]').tagName"))->toBe('A');
+        ->and($page->script("document.querySelector('[data-test=\"popup-open-card\"]').tagName"))->toBe('A');
     $page->assertNoJavaScriptErrors();
 });

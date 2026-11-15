@@ -285,7 +285,7 @@ function BoxSize({ box, paddingMm }: { box: BoxData; paddingMm: number }) {
             <bdi dir="ltr" className="tw-figure">
                 {t(`${B}.list.size`, { l: box.lengthMm, w: box.widthMm, h: box.heightMm })}
             </bdi>
-            <span className="text-copy-12 text-ink-muted" data-test="box-room">
+            <span className="text-label-12 text-ink-muted" data-test="box-room">
                 {room === null ? t(`${B}.list.too_small`) : t(`${B}.list.inside`, { l: room[0], w: room[1], h: room[2] })}
             </span>
         </span>

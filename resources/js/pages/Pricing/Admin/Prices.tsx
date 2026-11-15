@@ -181,7 +181,7 @@ export default function Prices(page: PricesPage & { drawer: SizePricesData | nul
                                                             {nameIn(locale, row.size.productNameAr, row.size.productNameEn)}
                                                         </Link>
                                                         {otherName(locale, row.size.productNameAr, row.size.productNameEn) ? (
-                                                            <span className="text-copy-12 text-ink-muted" dir={locale === 'ar' ? 'ltr' : 'rtl'}>
+                                                            <span className="text-label-12 text-ink-muted" dir={locale === 'ar' ? 'ltr' : 'rtl'}>
                                                                 {otherName(locale, row.size.productNameAr, row.size.productNameEn)}
                                                             </span>
                                                         ) : null}
@@ -194,7 +194,7 @@ export default function Prices(page: PricesPage & { drawer: SizePricesData | nul
                                                         {row.size.archived ? <Mark tone="amber-subtle" test="archived">{t('pricing::admin.badge.archived')}</Mark> : null}
                                                     </span>
                                                     {/* Read-only, and why (§4.3.3 P1 "Marks on a row"). */}
-                                                    {row.size.archived ? <span className="mt-1 block max-w-56 text-copy-12 text-ink-muted">{frame.reasons.archived}</span> : null}
+                                                    {row.size.archived ? <span className="mt-1 block max-w-56 text-copy-13 text-ink-muted">{frame.reasons.archived}</span> : null}
                                                 </TableCell>
                                                 <TableCell className="tw-figure font-mono text-copy-13" dir="ltr">
                                                     {row.size.code}
@@ -334,7 +334,7 @@ function RetailSource({ row }: { row: PriceRowData }) {
 
     if (row.retail === null) {
         return (
-            <span className="text-copy-12 text-ink-muted" data-test="no-price">
+            <span className="text-label-12 text-ink-muted" data-test="no-price">
                 {row.size.archived ? null : '— '}
                 {t('pricing::admin.no_price')}
             </span>
@@ -342,7 +342,7 @@ function RetailSource({ row }: { row: PriceRowData }) {
     }
 
     return (
-        <span className="text-copy-12 text-ink-muted">
+        <span className="text-label-12 text-ink-muted">
             {t(`pricing::admin.source.${row.retail.source}`)} · <Time value={row.retail.updatedAt} inSentence />
         </span>
     );
@@ -365,7 +365,7 @@ function Today({ row, zone }: { row: PriceRowData; zone: string }) {
 
     return (
         <span className="grid gap-1">
-            {today.before !== null ? <Money value={today.before} className="text-copy-12 text-ink-muted line-through" /> : null}
+            {today.before !== null ? <Money value={today.before} className="text-label-12 text-ink-muted line-through" /> : null}
             <Money value={today.price} />
             {today.why === 'SALE' || today.why === 'CATEGORY' || today.why === 'CAMPAIGN' ? (
                 <span className="flex flex-wrap items-center gap-1">
@@ -375,7 +375,7 @@ function Today({ row, zone }: { row: PriceRowData; zone: string }) {
                     {today.alwaysWins ? <Mark tone="amber-subtle">{t('pricing::admin.badge.always_wins')}</Mark> : null}
                 </span>
             ) : null}
-            {today.endsAt !== null && today.why !== 'BASE' ? <span className="tw-figure text-copy-12 text-ink-muted">{t('pricing::admin.until', { date: date(today.endsAt) })}</span> : null}
+            {today.endsAt !== null && today.why !== 'BASE' ? <span className="tw-figure text-label-12 text-ink-muted">{t('pricing::admin.until', { date: date(today.endsAt) })}</span> : null}
         </span>
     );
 }
@@ -478,7 +478,7 @@ function DrawerBody({ view, frame, zone, onBands, onDirty }: { view: SizePricesD
                     <p className="text-copy-14 text-ink-muted">{t('pricing::admin.no_price')}</p>
                 )}
                 {view.retail !== null ? (
-                    <p className="text-copy-12 text-ink-muted">
+                    <p className="text-label-12 text-ink-muted">
                         {t(`pricing::admin.source.${view.retail.source}`)} · <Time value={view.retail.updatedAt} inSentence />
                     </p>
                 ) : null}
@@ -498,7 +498,7 @@ function DrawerBody({ view, frame, zone, onBands, onDirty }: { view: SizePricesD
                         ) : (
                             <span className="grid">
                                 <Money value={view.todayRetail.price} />
-                                <span className="text-copy-12 text-ink-muted">{t(`pricing::admin_prices.drawer.why.${view.todayRetail.why}`)}</span>
+                                <span className="text-label-12 text-ink-muted">{t(`pricing::admin_prices.drawer.why.${view.todayRetail.why}`)}</span>
                             </span>
                         )}
                     </dd>
@@ -511,7 +511,7 @@ function DrawerBody({ view, frame, zone, onBands, onDirty }: { view: SizePricesD
                                 ) : (
                                     <span className="grid">
                                         <Money value={view.todayWholesale.price} />
-                                        <span className="text-copy-12 text-ink-muted">{t(`pricing::admin_prices.drawer.why.${view.todayWholesale.why}`)}</span>
+                                        <span className="text-label-12 text-ink-muted">{t(`pricing::admin_prices.drawer.why.${view.todayWholesale.why}`)}</span>
                                     </span>
                                 )}
                             </dd>
@@ -539,7 +539,7 @@ function DrawerBody({ view, frame, zone, onBands, onDirty }: { view: SizePricesD
                                 {sale.alwaysWins ? <Mark tone="amber-subtle">{t('pricing::admin.badge.always_wins')}</Mark> : null}
                                 {sale.winsNow ? <Mark tone="green-subtle">{t('pricing::admin_prices.drawer.wins_now')}</Mark> : null}
                             </span>
-                            <span className="tw-figure text-copy-12 text-ink-muted">{t('pricing::admin.note.dates', { start: date(sale.startsAt), end: sale.endsAt === null ? t('pricing::admin.no_end') : date(sale.endsAt) })}</span>
+                            <span className="tw-figure text-label-12 text-ink-muted">{t('pricing::admin.note.dates', { start: date(sale.startsAt), end: sale.endsAt === null ? t('pricing::admin.no_end') : date(sale.endsAt) })}</span>
                             <Link href={`/admin/offers?store=${frame.storeCode}&sale=${sale.id}`} className="w-fit text-copy-13 text-ink underline underline-offset-4">
                                 {t('pricing::admin_prices.drawer.open_offer')}
                             </Link>
@@ -560,8 +560,8 @@ function DrawerBody({ view, frame, zone, onBands, onDirty }: { view: SizePricesD
                                 {discount.alwaysWins ? <Mark tone="amber-subtle">{t('pricing::admin.badge.always_wins')}</Mark> : null}
                                 {discount.winsNow ? <Mark tone="green-subtle">{t('pricing::admin_prices.drawer.wins_now')}</Mark> : null}
                             </span>
-                            {discount.skipped !== null ? <span className="text-copy-12 text-warn">{t(`pricing::admin_prices.drawer.skipped.${discount.skipped}`)}</span> : null}
-                            <span className="tw-figure text-copy-12 text-ink-muted">{t('pricing::admin.note.dates', { start: date(discount.startsAt), end: discount.endsAt === null ? t('pricing::admin.no_end') : date(discount.endsAt) })}</span>
+                            {discount.skipped !== null ? <span className="text-copy-13 text-warn">{t(`pricing::admin_prices.drawer.skipped.${discount.skipped}`)}</span> : null}
+                            <span className="tw-figure text-label-12 text-ink-muted">{t('pricing::admin.note.dates', { start: date(discount.startsAt), end: discount.endsAt === null ? t('pricing::admin.no_end') : date(discount.endsAt) })}</span>
                             <Link href={`/admin/category-discounts/${discount.id}`} className="w-fit text-copy-13 text-ink underline underline-offset-4">
                                 {t('pricing::admin_prices.drawer.open_discount')}
                             </Link>
@@ -579,7 +579,7 @@ function DrawerBody({ view, frame, zone, onBands, onDirty }: { view: SizePricesD
                                 ) : null}
                                 {campaign.winsNow ? <Mark tone="green-subtle">{t('pricing::admin_prices.drawer.wins_now')}</Mark> : null}
                             </span>
-                            <span className="tw-figure text-copy-12 text-ink-muted">{t('pricing::admin.note.dates', { start: date(campaign.startsAt), end: campaign.endsAt === null ? t('pricing::admin.no_end') : date(campaign.endsAt) })}</span>
+                            <span className="tw-figure text-label-12 text-ink-muted">{t('pricing::admin.note.dates', { start: date(campaign.startsAt), end: campaign.endsAt === null ? t('pricing::admin.no_end') : date(campaign.endsAt) })}</span>
                         </li>
                     ))}
                     {view.bands.length > 0 ? (
@@ -587,7 +587,7 @@ function DrawerBody({ view, frame, zone, onBands, onDirty }: { view: SizePricesD
                             <span className="text-copy-14 text-ink">{t('pricing::admin_prices.drawer.bands')}</span>
                             <span className="tw-figure text-copy-13 text-ink-muted">{view.bands.map((band) => t('pricing::admin_prices.drawer.band_line', { from: figure(locale, band.fromQuantity), price: ltr(band.price.text) })).join(' · ')}</span>
                             {view.minimumChanged && view.wholesaleMinimum !== null ? (
-                                <span className="text-copy-12 text-warn">{t('pricing::admin_prices.drawer.minimum_changed', { minimum: figure(locale, view.wholesaleMinimum), first: figure(locale, view.bands[0]?.fromQuantity ?? 0) })}</span>
+                                <span className="text-copy-13 text-warn">{t('pricing::admin_prices.drawer.minimum_changed', { minimum: figure(locale, view.wholesaleMinimum), first: figure(locale, view.bands[0]?.fromQuantity ?? 0) })}</span>
                             ) : null}
                             {frame.mayEditWholesale ? (
                                 <Button type="button" variant="link" className="h-auto w-fit p-0 text-copy-13" onClick={(event) => onBands(event.currentTarget)} data-test="drawer-bands">

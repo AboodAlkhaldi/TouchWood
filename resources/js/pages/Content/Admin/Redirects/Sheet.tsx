@@ -4,6 +4,7 @@ import { ActionButton } from '@/components/ActionButton';
 import { FormError } from '@/components/FormError';
 import { Note } from '@/components/Note';
 import { PanelDialog } from '@/components/PanelDialog';
+import { PhoneCards } from '@/components/PhoneCards';
 import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -77,33 +78,54 @@ export default function Sheet({ uploadId, lines, counts, applied, tab }: Redirec
                         </EmptyHeader>
                     </Empty>
                 ) : (
-                    <div className="material-base max-w-full overflow-x-auto">
-                        <Table>
-                            <TableCaption className="sr-only">{names[tab]}</TableCaption>
-                            <TableHeader className="bg-surface-sunken">
-                                <TableRow>
-                                    <TableHead className="w-16">{t('content::admin_redirects.sheet.columns.line')}</TableHead>
-                                    <TableHead>{t('content::admin_redirects.sheet.columns.old')}</TableHead>
-                                    <TableHead>{t('content::admin_redirects.sheet.columns.new')}</TableHead>
-                                    {tab === 'REFUSED' ? <TableHead>{t('content::admin_redirects.sheet.columns.reason')}</TableHead> : null}
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {shown.map((line) => (
-                                    <TableRow key={line.line} data-test={`sheet-line-${line.line}`}>
-                                        <TableCell className="tw-figure">{line.line}</TableCell>
-                                        <TableCell className="max-w-56 truncate font-mono text-copy-13" dir="ltr">
-                                            {line.old}
-                                        </TableCell>
-                                        <TableCell className="max-w-56 truncate font-mono text-copy-13 text-ink-muted" dir="ltr">
-                                            {line.new}
-                                        </TableCell>
-                                        {tab === 'REFUSED' ? <TableCell className="min-w-48 text-copy-13 text-ink">{reason(line.reason)}</TableCell> : null}
+                    <>
+                        <div className="material-base hidden max-w-full overflow-x-auto sm:block">
+                            <Table>
+                                <TableCaption className="sr-only">{names[tab]}</TableCaption>
+                                <TableHeader className="bg-surface-sunken">
+                                    <TableRow>
+                                        <TableHead className="w-16">{t('content::admin_redirects.sheet.columns.line')}</TableHead>
+                                        <TableHead>{t('content::admin_redirects.sheet.columns.old')}</TableHead>
+                                        <TableHead>{t('content::admin_redirects.sheet.columns.new')}</TableHead>
+                                        {tab === 'REFUSED' ? <TableHead>{t('content::admin_redirects.sheet.columns.reason')}</TableHead> : null}
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
+                                </TableHeader>
+                                <TableBody>
+                                    {shown.map((line) => (
+                                        <TableRow key={line.line} data-test={`sheet-line-${line.line}`}>
+                                            <TableCell className="tw-figure">{line.line}</TableCell>
+                                            <TableCell className="max-w-56 truncate font-mono text-copy-13" dir="ltr">
+                                                {line.old}
+                                            </TableCell>
+                                            <TableCell className="max-w-56 truncate font-mono text-copy-13 text-ink-muted" dir="ltr">
+                                                {line.new}
+                                            </TableCell>
+                                            {tab === 'REFUSED' ? <TableCell className="min-w-48 text-copy-13 text-ink">{reason(line.reason)}</TableCell> : null}
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                        {/* On a phone each line a card (round 3 #15): its old address, its new one, its row and, refused, why. */}
+                        <PhoneCards
+                            test="sheet-line"
+                            cards={shown.map((line) => ({
+                                id: String(line.line),
+                                title: (
+                                    <span dir="ltr" className="font-mono">
+                                        {line.old}
+                                    </span>
+                                ),
+                                lines: [
+                                    <span key="new" dir="ltr" className="font-mono">
+                                        {line.new}
+                                    </span>,
+                                    <span key="line" className="tw-figure">{`${t('content::admin_redirects.sheet.columns.line')}: ${line.line}`}</span>,
+                                    ...(tab === 'REFUSED' ? [<span key="why">{`${t('content::admin_redirects.sheet.columns.reason')}: ${reason(line.reason)}`}</span>] : []),
+                                ],
+                            }))}
+                        />
+                    </>
                 )}
                 <div>
                     <Button asChild variant="outline">

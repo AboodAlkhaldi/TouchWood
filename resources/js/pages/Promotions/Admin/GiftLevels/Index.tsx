@@ -3,6 +3,7 @@ import { router } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
 import { FormError } from '@/components/FormError';
+import { PhoneCards } from '@/components/PhoneCards';
 import { StoreFilter } from '@/components/StoreFilter';
 import { Time, useMoments } from '@/components/Time';
 import { Amount, Unknown } from '@/components/promotions/parts';
@@ -37,6 +38,25 @@ export default function Index(page: GiftLevelsPage) {
                 {`${t('promotions::admin_gifts.list.new')}…`}
             </Button>
         ) : null;
+    // A level's Edit… and Turn Off / Turn On, in its row and on its phone card under their own test names.
+    const buttons = (level: GiftLevelData, card: string) => (
+        <div className="flex justify-end gap-2">
+            <Button type="button" size="sm" variant="outline" aria-label={t('promotions::admin_gifts.list.edit_named', { amount: isolate(level.amountText) })} onClick={() => setEditing(level)} data-test={`edit-${card}${level.id}`}>
+                {`${t('promotions::admin_gifts.list.edit')}…`}
+            </Button>
+            <ActionButton
+                type="button"
+                size="sm"
+                variant="outline"
+                loading={busy === level.id}
+                aria-label={t(level.active ? 'promotions::admin_gifts.list.turn_off_named' : 'promotions::admin_gifts.list.turn_on_named', { amount: isolate(level.amountText) })}
+                data-test={`switch-${card}${level.id}`}
+                onClick={() => router.post(`/admin/gift-levels/${level.id}/switch`, { active: !level.active }, { preserveScroll: true, onStart: () => setBusy(level.id), onFinish: () => setBusy(null) })}
+            >
+                {level.active ? t('promotions::admin_gifts.list.turn_off') : t('promotions::admin_gifts.list.turn_on')}
+            </ActionButton>
+        </div>
+    );
 
     return (
         <AdminLayout title={t('promotions::admin_gifts.list.title')} subtitle={t('promotions::admin_gifts.list.subtitle')} action={newButton(`new-level`) ?? undefined}>
@@ -58,7 +78,7 @@ export default function Index(page: GiftLevelsPage) {
                     </Empty>
                 ) : (
                     <>
-                        <div className="material-base max-w-full overflow-x-auto">
+                        <div className="material-base hidden max-w-full overflow-x-auto sm:block">
                             <Table>
                                 <TableCaption className="sr-only">{t('promotions::admin_gifts.list.title')}</TableCaption>
                                 <TableHeader className="bg-surface-sunken">
@@ -114,33 +134,48 @@ export default function Index(page: GiftLevelsPage) {
                                                     {t(`promotions::admin_gifts.state.${level.state}`)}
                                                 </Badge>
                                             </TableCell>
-                                            {page.mayManage ? (
-                                                <TableCell className="text-end">
-                                                    <div className="flex justify-end gap-2">
-                                                        <Button type="button" size="sm" variant="outline" aria-label={t('promotions::admin_gifts.list.edit_named', { amount: isolate(level.amountText) })} onClick={() => setEditing(level)} data-test={`edit-${level.id}`}>
-                                                            {`${t('promotions::admin_gifts.list.edit')}…`}
-                                                        </Button>
-                                                        <ActionButton
-                                                            type="button"
-                                                            size="sm"
-                                                            variant="outline"
-                                                            loading={busy === level.id}
-                                                            aria-label={t(level.active ? 'promotions::admin_gifts.list.turn_off_named' : 'promotions::admin_gifts.list.turn_on_named', { amount: isolate(level.amountText) })}
-                                                            data-test={`switch-${level.id}`}
-                                                            onClick={() =>
-                                                                router.post(`/admin/gift-levels/${level.id}/switch`, { active: !level.active }, { preserveScroll: true, onStart: () => setBusy(level.id), onFinish: () => setBusy(null) })
-                                                            }
-                                                        >
-                                                            {level.active ? t('promotions::admin_gifts.list.turn_off') : t('promotions::admin_gifts.list.turn_on')}
-                                                        </ActionButton>
-                                                    </div>
-                                                </TableCell>
-                                            ) : null}
+                                            {page.mayManage ? <TableCell className="text-end">{buttons(level, '')}</TableCell> : null}
                                         </TableRow>
                                     ))}
                                 </TableBody>
                             </Table>
                         </div>
+                        {/* On a phone each level a card (round 3 #15), its two buttons at its end. */}
+                        <PhoneCards
+                            test="level"
+                            cards={page.levels.map((level) => ({
+                                id: level.id,
+                                title: <Amount value={level.amount} />,
+                                badge: <Badge className={tone(STATE_LOOK[level.state] ?? 'gray-subtle')}>{t(`promotions::admin_gifts.state.${level.state}`)}</Badge>,
+                                lines: [
+                                    <span key="g">
+                                        {`${t('promotions::admin_gifts.columns.gift')}: ${level.productName ?? t('promotions::admin_gifts.list.gone')}`}
+                                        {level.variantCode === null ? null : (
+                                            <>
+                                                {' · '}
+                                                <bdi dir="ltr" className="font-mono">
+                                                    {level.variantCode}
+                                                </bdi>
+                                            </>
+                                        )}
+                                        {level.archived ? ` · ${t('promotions::admin_gifts.list.archived')}` : null}
+                                    </span>,
+                                    <span key="w">{t(`promotions::admin_gifts.who.${level.forPublic && level.forCompany ? 'both' : level.forPublic ? 'individuals' : 'companies'}`)}</span>,
+                                    <span key="d">
+                                        {level.startsAt === null && level.endsAt === null ? (
+                                            t('promotions::admin_gifts.list.always')
+                                        ) : (
+                                            <>
+                                                {level.startsAt === null ? <Unknown /> : <Time value={level.startsAt} focusable={false} />}
+                                                {' · '}
+                                                {level.endsAt === null ? t('promotions::admin_gifts.list.no_end') : t('promotions::admin_gifts.list.until', { date: isolate(moments.date(level.endsAt)) })}
+                                            </>
+                                        )}
+                                    </span>,
+                                ],
+                                menu: page.mayManage ? buttons(level, 'card-') : undefined,
+                            }))}
+                        />
                         <p className="text-copy-13 text-ink-muted" data-test="levels-rule">
                             {t('promotions::admin_gifts.list.rule')}
                         </p>

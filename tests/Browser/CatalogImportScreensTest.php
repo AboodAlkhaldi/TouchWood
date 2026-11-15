@@ -10,6 +10,8 @@ use Modules\Catalog\Application\Command\UploadImport\UploadImportHandler;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
+use Tests\Modules\Catalog\Support\CatalogImports as Ix;
+use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 
 use function Pest\Laravel\seed;
 
@@ -90,6 +92,20 @@ function catalogImportBrowserFile(): array
     return ['import' => $import, 'n' => $n];
 }
 
+/** An import of one product whose code a ready product of the catalog keeps, so its codes part has a row to decide. */
+function catalogImportBrowserCodes(): string
+{
+    Px::numberFrom((int) substr((string) hrtime(true), -8));
+    ['variants' => [$variant]] = Px::ready();
+    $code = (string) DB::table('catalog.variants')->where('id', $variant)->value('code');
+    $path = (string) tempnam(sys_get_temp_dir(), 'tw-');
+    file_put_contents($path, Ix::json([Ix::product($code)]));
+    $import = Fx::asSystem(fn (): string => app(UploadImportHandler::class)->handle(new UploadImport($path, "codes {$code}.json")));
+    @unlink($path);
+
+    return $import;
+}
+
 it('refuses a name from its row, brings the products in once nothing waits, and moves between the parts', function () {
     ['import' => $import] = catalogImportBrowserFile();
     $nameId = (string) DB::table('catalog.import_names')->where('import_id', $import)->value('id');
@@ -117,6 +133,8 @@ it('refuses a name from its row, brings the products in once nothing waits, and 
 
 it('reads right to left in Arabic, at a phone\'s width, with nothing wider than the screen', function () {
     ['import' => $import] = catalogImportBrowserFile();
+    $nameId = (string) DB::table('catalog.import_names')->where('import_id', $import)->value('id');
+    $codes = catalogImportBrowserCodes();
     $page = catalogImportBrowser('ar');
     $page->resize(375, 812);
 
@@ -131,6 +149,41 @@ it('reads right to left in Arabic, at a phone\'s width, with nothing wider than 
             ->and($page->script('document.documentElement.dir'))->toBe('rtl')
             ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
     }
+
+    // Under 640 px the files, the names, the products before bringing in and the products each read
+    // as cards and the table's row is not drawn (round 3 #15), in Arabic and in English.
+    $cards = [
+        '/admin/imports' => ["import-card-{$import}", "import-{$import}"],
+        "/admin/imports/{$import}" => ["name-card-{$nameId}", "name-{$nameId}"],
+        "/admin/imports/{$import}?part=before" => ['before-row-card-1', 'before-row-1'],
+        "/admin/imports/{$import}?part=products" => ['product-row-card-1', 'product-row-1'],
+        "/admin/imports/{$codes}?part=codes" => ['code-row-card-1', 'code-row-1'],
+    ];
+
+    foreach (['ar', 'en'] as $locale) {
+        browserPanelLanguage($page, $locale);
+
+        foreach ($cards as $address => [$card, $row]) {
+            // The page before settled first, as above.
+            expect(browserUntil($page, "document.readyState === 'complete' && (performance.getEntriesByType('navigation')[0]?.loadEventEnd ?? 1) > 0 && document.querySelector('[data-loading], #nprogress') === null"))->toBeTrue();
+            $page->navigate($address, BROWSER_PAGE_LOAD);
+
+            expect(browserSoon($page, "document.documentElement.lang === '{$locale}'"))->toBeTrue()
+                ->and(browserRowIsCard($page, '[data-test="'.$card.'"]', '[data-test="'.$row.'"]'))->toBeTrue("{$locale}: {$address} draws no card for {$card}");
+        }
+    }
+
+    // The table head's Select All is hidden on a phone: the same choice sits above the cards, and ticks every card.
+    $page->navigate("/admin/imports/{$import}", BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"select-all-card\"]')?.getClientRects().length > 0"))->toBeTrue();
+    $page->click('[data-test="select-all-card"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"select-all-card\"]').getAttribute('data-state') === 'checked' && [...document.querySelectorAll('[data-test=\"name-cards\"] [data-test^=\"select-card-\"]')].every((box) => box.getAttribute('data-state') === 'checked')"))->toBeTrue();
+
+    // The codes part's decision is chosen on the card itself, and saved as it is chosen.
+    $page->navigate("/admin/imports/{$codes}?part=codes", BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"decision-card\"]')?.getClientRects().length > 0"))->toBeTrue();
+    $page->select('[data-test="decision-card"]', 'SKIP');
+    expect(catalogImportBrowserSoon($page, fn (): mixed => DB::table('catalog.import_products')->where('import_id', $codes)->value('decision'), fn ($found): bool => $found === 'SKIP'))->toBe('SKIP');
 
     $page->assertNoJavaScriptErrors();
 });

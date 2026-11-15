@@ -3,6 +3,7 @@ import { Link, router } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { PanelDialog } from '@/components/PanelDialog';
+import { PhoneCards } from '@/components/PhoneCards';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { figure } from '@/lib/digits';
@@ -10,7 +11,7 @@ import { useTranslator } from '@/lib/t';
 import { useLoadMore } from '@/lib/use-load-more';
 import type { ImportPage, ImportProductData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { nameIn, useLocale } from '../parts';
-import { ConfirmByName, ProductStateBadge, SelectAll, useSelection } from './parts';
+import { ConfirmByName, PhoneSelectAll, ProductStateBadge, SelectAll, useSelection } from './parts';
 import { ImportShell } from './shell';
 
 /*
@@ -74,7 +75,7 @@ function Products({ page }: { page: ImportPage }) {
                 </ActionButton>
             </div>
 
-            <div className="material-base overflow-x-auto">
+            <div className="material-base hidden overflow-x-auto sm:block">
                 <Table>
                     <TableCaption className="sr-only">{t('catalog::admin_imports.part.products')}</TableCaption>
                     <TableHeader className="bg-surface-sunken">
@@ -133,6 +134,34 @@ function Products({ page }: { page: ImportPage }) {
                     </TableBody>
                 </Table>
             </div>
+            {/* On a phone each product a card (round 3 #15): opens its product when it has one; its tick beside it. */}
+            {isIn ? <PhoneSelectAll selection={selection} offered={actionable.length} disabled={busy} /> : null}
+            <PhoneCards
+                test="product-row"
+                cards={list.rows.map((row) => {
+                    const name = nameIn(locale, row.nameAr, row.nameEn);
+
+                    return {
+                        id: String(row.number),
+                        title: <bdi>{name}</bdi>,
+                        badge: <ProductStateBadge state={row.state} />,
+                        ...(row.productId !== null && row.state !== 'DELETED' ? { href: `/admin/products/${row.productId}` } : {}),
+                        lines: [
+                            <span key="c" className="tw-figure">
+                                {`${t('catalog::admin_imports.products.column.number')}: ${figure(locale, row.number)} · `}
+                                <bdi dir="ltr" className="font-mono">
+                                    {row.codes.join(' · ')}
+                                </bdi>
+                            </span>,
+                            ...(row.state === 'REFUSED' && row.refusal !== null ? [<bdi key="r" dir="ltr">{row.refusal}</bdi>] : []),
+                            ...(row.missing.length > 0 ? [<span key="m">{`${t('catalog::admin_imports.products.column.lacks')}: ${row.missing.map((rule) => t(`catalog::admin_products.missing.${rule}`)).join(locale === 'ar' ? '، ' : ', ')}`}</span>] : []),
+                        ],
+                        menu: isIn && actionable.some((other) => other.id === row.id) ? (
+                            <Checkbox checked={selection.has(row.id)} disabled={busy} onCheckedChange={(on) => selection.set(row.id, on === true)} aria-label={t('catalog::admin_imports.select_row', { name })} data-test={`select-card-${row.number}`} />
+                        ) : undefined,
+                    };
+                })}
+            />
             {page.more ? <LoadMoreButton loading={list.loading} onClick={() => list.more(window.location.pathname, { part: 'products', page: page.page + 1 }, ['products', 'page', 'more'])} /> : null}
 
             {dialog === 'archive' ? (

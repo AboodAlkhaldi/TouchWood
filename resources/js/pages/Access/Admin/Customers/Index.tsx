@@ -4,6 +4,7 @@ import { AdminLayout } from '@/layouts/AdminLayout';
 import { SelectField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { Pager } from '@/components/Pager';
+import { PhoneCards } from '@/components/PhoneCards';
 import { SearchField } from '@/components/SearchField';
 import { StoreOffBadge } from '@/components/StoreOffBadge';
 import { Time } from '@/components/Time';
@@ -197,28 +198,53 @@ export default function Index({ customers, total, page, perPage, search, status,
                             ) : null}
                         </Empty>
                     ) : (
-                        <div className="material-base overflow-hidden">
-                            <Table>
-                                <TableHeader className="bg-surface-sunken">
-                                    <TableRow>
-                                        <TableHead>{t('access::customers.name')}</TableHead>
-                                        <TableHead>{t('access::customers.email')}</TableHead>
-                                        <TableHead>{t('access::customers.type')}</TableHead>
-                                        <TableHead>{t('access::customers.email_verified')}</TableHead>
-                                        <TableHead>{t('access::customers.phone_verified')}</TableHead>
-                                        <TableHead>{t('access::customers.home_store')}</TableHead>
-                                        <TableHead>{t('access::customers.registered')}</TableHead>
-                                        <TableHead>{t('access::customers.status')}</TableHead>
-                                    </TableRow>
-                                </TableHeader>
+                        <>
+                            <div className="material-base hidden overflow-hidden sm:block">
+                                <Table>
+                                    <TableHeader className="bg-surface-sunken">
+                                        <TableRow>
+                                            <TableHead>{t('access::customers.name')}</TableHead>
+                                            <TableHead>{t('access::customers.email')}</TableHead>
+                                            <TableHead>{t('access::customers.type')}</TableHead>
+                                            <TableHead>{t('access::customers.email_verified')}</TableHead>
+                                            <TableHead>{t('access::customers.phone_verified')}</TableHead>
+                                            <TableHead>{t('access::customers.home_store')}</TableHead>
+                                            <TableHead>{t('access::customers.registered')}</TableHead>
+                                            <TableHead>{t('access::customers.status')}</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
 
-                                <TableBody>
-                                    {customers.map((customer) => (
-                                        <Row key={customer.id} customer={customer} />
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </div>
+                                    <TableBody>
+                                        {customers.map((customer) => (
+                                            <Row key={customer.id} customer={customer} />
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                            {/* On a phone each customer a card (round 3 #15), opening the customer as the row does. */}
+                            <PhoneCards
+                                test="customer"
+                                cards={customers.map((customer) => ({
+                                    id: customer.id,
+                                    title: customer.name,
+                                    href: `/admin/customers/${customer.id}`,
+                                    badge: <Status customer={customer} />,
+                                    lines: [
+                                        <bdi key="e" dir="ltr">
+                                            {customer.email}
+                                        </bdi>,
+                                        <span key="s">
+                                            {`${t(`access::customers.account_type.${customer.accountType}`)} · ${customer.homeStore}`}
+                                            {customer.homeStoreIsActive ? null : <> · {t('admin.store.off')}</>}
+                                        </span>,
+                                        <span key="r">
+                                            {`${t('access::customers.registered')}: `}
+                                            <Time value={customer.registeredAt} focusable={false} />
+                                        </span>,
+                                    ],
+                                }))}
+                            />
+                        </>
                     )}
                 </div>
 

@@ -8,12 +8,13 @@ import { formatMoney, type Money } from '@/lib/money';
 import { useTranslator } from '@/lib/t';
 import { cn } from '@/lib/cn';
 import type { SharedProps } from '@/types/page';
-import type { ExpiringData, HistoryRowData, LotData } from '@/types/generated/Modules/Loyalty/Presentation/Http/Resource';
+import type { ExpiringData, LotData } from '@/types/generated/Modules/Loyalty/Presentation/Http/Resource';
 
 /*
 | The parts Loyalty's screens share (loyalty.md §4.1) - the panel's, the customer page's section and
 | the shop's: the programme-off note, points and money written as every screen writes them,
-| "expiring next", a history and the live lots. Not a page: each counts inside the pages that import it.
+| "expiring next" and the live lots. Not a page: each counts inside the pages that import it. The staff history is the
+| panel's alone, in staff-history.tsx, so the shop's pages never load its phone cards.
 */
 
 /** The page's language, for numbers and dates in Latin digits (frontend.md §1.8). */
@@ -121,53 +122,4 @@ export function LotsTable({ lots, caption, pointsLabel, expiresLabel }: { lots: 
 /** A history line's points: green when they came in, the plain ink when they went - never red for an ordinary spend. */
 export function SignedPoints({ value }: { value: number }) {
     return <Points value={value} signed className={value > 0 ? 'text-good' : 'text-ink'} />;
-}
-
-/** The staff history (L2): date, what, order, points, by whom, why. */
-export function StaffHistory({ rows }: { rows: HistoryRowData[] }) {
-    const t = useTranslator();
-
-    return (
-        <div className="material-base max-w-full overflow-x-auto">
-            <Table>
-                <TableCaption className="sr-only">{t('loyalty::admin_points.history')}</TableCaption>
-                <TableHeader className="bg-surface-sunken">
-                    <TableRow>
-                        <TableHead>{t('loyalty::admin_points.columns.date')}</TableHead>
-                        <TableHead>{t('loyalty::admin_points.columns.what')}</TableHead>
-                        <TableHead>{t('loyalty::admin_points.columns.order')}</TableHead>
-                        <TableHead className="text-end">{t('loyalty::admin_points.columns.points')}</TableHead>
-                        <TableHead>{t('loyalty::admin_points.columns.by')}</TableHead>
-                        <TableHead>{t('loyalty::admin_points.columns.reason')}</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {rows.map((row) => (
-                        <TableRow key={row.id} data-test={`history-${row.id}`}>
-                            <TableCell className="text-copy-13 whitespace-nowrap text-ink-muted">
-                                <Time value={row.occurredAt} />
-                            </TableCell>
-                            <TableCell>{t(`loyalty::admin_points.kind.${row.kind}`)}</TableCell>
-                            <TableCell>
-                                {row.orderNumber === null ? (
-                                    <Unknown />
-                                ) : (
-                                    <bdi dir="ltr" className="tw-figure">
-                                        {row.orderNumber}
-                                    </bdi>
-                                )}
-                            </TableCell>
-                            <TableCell className="text-end">
-                                <SignedPoints value={row.points} />
-                            </TableCell>
-                            <TableCell>{row.staffName === null ? <Unknown /> : <bdi>{row.staffName}</bdi>}</TableCell>
-                            <TableCell className="max-w-80 text-copy-13 whitespace-normal text-ink-muted">
-                                {row.reason === null ? <Unknown /> : <bdi className="break-words">{row.reason}</bdi>}
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-        </div>
-    );
 }

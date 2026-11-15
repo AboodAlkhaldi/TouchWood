@@ -6,6 +6,7 @@ import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { Money } from '@/components/Money';
 import { PanelDialog } from '@/components/PanelDialog';
+import { PhoneCards } from '@/components/PhoneCards';
 import { SearchField } from '@/components/SearchField';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -43,6 +44,16 @@ export default function WholesalePrices(page: WholesalePage) {
     const typed = useDebounced(query, 300);
     const store = { code: frame.storeCode, decimals: frame.decimals, currency: frame.currency };
     const close = (open: boolean) => (open ? undefined : setDialog(null));
+    // A row's two dialogs, opened from its ⋯ in the table or on its phone card.
+    const openRow = (row: WholesaleRowData) => (kind: 'bands' | 'remove', trigger: HTMLElement | null) => {
+        opener.current = trigger;
+        setDialog({
+            kind,
+            size: { variantId: row.size.variantId, name: sizeName(t, row.size.values) },
+            facts: { retail: row.retail?.price ?? null, minimum: row.minimum, maximum: row.maximum, bands: row.bands, minimumChanged: row.minimumChanged },
+            adding: false,
+        });
+    };
 
     useEffect(() => {
         if (typed !== search) {
@@ -100,7 +111,7 @@ export default function WholesalePrices(page: WholesalePage) {
                 ) : (
                     <>
                         <Showing shown={list.rows.length} total={total} />
-                        <div className="material-base overflow-x-auto">
+                        <div className="material-base hidden overflow-x-auto sm:block">
                             <Table>
                                 <TableCaption className="sr-only">{t('pricing::admin_wholesale.title')}</TableCaption>
                                 <TableHeader className="bg-surface-sunken">
@@ -121,24 +132,45 @@ export default function WholesalePrices(page: WholesalePage) {
                                 </TableHeader>
                                 <TableBody>
                                     {list.rows.map((row) => (
-                                        <Row
-                                            key={row.size.variantId}
-                                            row={row}
-                                            frame={frame}
-                                            onOpen={(kind, trigger) => {
-                                                opener.current = trigger;
-                                                setDialog({
-                                                    kind,
-                                                    size: { variantId: row.size.variantId, name: sizeName(t, row.size.values) },
-                                                    facts: { retail: row.retail?.price ?? null, minimum: row.minimum, maximum: row.maximum, bands: row.bands, minimumChanged: row.minimumChanged },
-                                                    adding: false,
-                                                });
-                                            }}
-                                        />
+                                        <Row key={row.size.variantId} row={row} frame={frame} onOpen={openRow(row)} />
                                     ))}
                                 </TableBody>
                             </Table>
                         </div>
+                        {/* On a phone each size a card (round 3 #15); as its row, it opens nothing but its ⋯. */}
+                        <PhoneCards
+                            test="wholesale-row"
+                            cards={list.rows.map((row) => ({
+                                id: row.size.variantId,
+                                title: nameIn(locale, row.size.productNameAr, row.size.productNameEn),
+                                badge: (
+                                    <>
+                                        {row.keptNotSoldWholesale ? <Mark tone="gray-subtle">{t('pricing::admin_wholesale.mark.kept')}</Mark> : null}
+                                        {row.noRetailPrice ? <Mark tone="amber-subtle">{t('pricing::admin_wholesale.mark.no_retail')}</Mark> : null}
+                                        {row.minimumChanged ? <Mark tone="amber-subtle">{t('pricing::admin_wholesale.mark.minimum_changed')}</Mark> : null}
+                                    </>
+                                ),
+                                lines: [
+                                    <span key="s">
+                                        {`${t('pricing::admin.column.size')}: ${sizeName(t, row.size.values)} · `}
+                                        <bdi dir="ltr" className="tw-figure font-mono">
+                                            {row.size.code}
+                                        </bdi>
+                                    </span>,
+                                    <span key="r" className="tw-figure">
+                                        {`${t('pricing::admin.column.retail_price')}: `}
+                                        {row.retail !== null ? <Money value={row.retail.price} /> : '—'}
+                                        {` · ${t('pricing::admin_wholesale.column.minimum')}: ${row.minimum === null ? '—' : figure(locale, row.minimum)}`}
+                                    </span>,
+                                    <span key="b" className="tw-figure">
+                                        {`${t('pricing::admin_wholesale.column.bands')}: ${row.bands.map((band) => t('pricing::admin_wholesale.band_line', { from: figure(locale, band.fromQuantity), price: ltr(band.price.text) })).join(' · ')}`}
+                                    </span>,
+                                ],
+                                menu: frame.mayEditWholesale ? (
+                                    <WholesaleMenu name={`${nameIn(locale, row.size.productNameAr, row.size.productNameEn)} · ${sizeName(t, row.size.values)}`} onOpen={openRow(row)} test={`wholesale-card-actions-${row.size.variantId}`} />
+                                ) : undefined,
+                            }))}
+                        />
                     </>
                 )}
 
@@ -166,7 +198,6 @@ export default function WholesalePrices(page: WholesalePage) {
 function Row({ row, frame, onOpen }: { row: WholesaleRowData; frame: PricingFrameData; onOpen: (kind: 'bands' | 'remove', trigger: HTMLElement | null) => void }) {
     const t = useT();
     const locale = useLocale();
-    const more = useRef<HTMLButtonElement>(null);
     const name = `${nameIn(locale, row.size.productNameAr, row.size.productNameEn)} · ${sizeName(t, row.size.values)}`;
 
     return (
@@ -183,9 +214,9 @@ function Row({ row, frame, onOpen }: { row: WholesaleRowData; frame: PricingFram
                         {row.noRetailPrice ? <Mark tone="amber-subtle">{t('pricing::admin_wholesale.mark.no_retail')}</Mark> : null}
                         {row.minimumChanged ? <Mark tone="amber-subtle">{t('pricing::admin_wholesale.mark.minimum_changed')}</Mark> : null}
                     </span>
-                    {row.noRetailPrice ? <span className="text-copy-12 text-ink-muted">{t('pricing::admin_wholesale.mark.no_retail_reason')}</span> : null}
+                    {row.noRetailPrice ? <span className="text-copy-13 text-ink-muted">{t('pricing::admin_wholesale.mark.no_retail_reason')}</span> : null}
                     {row.minimumChanged && row.minimum !== null ? (
-                        <span className="text-copy-12 text-ink-muted">{t('pricing::admin_wholesale.mark.minimum_changed_reason', { minimum: figure(locale, row.minimum), first: figure(locale, row.bands[0]?.fromQuantity ?? 0) })}</span>
+                        <span className="text-copy-13 text-ink-muted">{t('pricing::admin_wholesale.mark.minimum_changed_reason', { minimum: figure(locale, row.minimum), first: figure(locale, row.bands[0]?.fromQuantity ?? 0) })}</span>
                     ) : null}
                 </span>
             </TableCell>
@@ -197,21 +228,27 @@ function Row({ row, frame, onOpen }: { row: WholesaleRowData; frame: PricingFram
                 {row.bands.map((band) => t('pricing::admin_wholesale.band_line', { from: figure(locale, band.fromQuantity), price: ltr(band.price.text) })).join(' · ')}
             </TableCell>
             <TableCell className="tw-figure">{row.minimum === null ? '—' : figure(locale, row.minimum)}</TableCell>
-            <TableCell className="text-end">
-                {frame.mayEditWholesale ? (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <MoreButton ref={more} name={name} data-test={`wholesale-actions-${row.size.variantId}`} />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-56">
-                            <Guarded label={t('pricing::admin_wholesale.menu.edit')} onSelect={() => onOpen('bands', more.current)} test="edit-wholesale" />
-                            <DropdownMenuSeparator />
-                            <Guarded destructive label={t('pricing::admin_wholesale.menu.remove')} onSelect={() => onOpen('remove', more.current)} test="remove-wholesale" />
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                ) : null}
-            </TableCell>
+            <TableCell className="text-end">{frame.mayEditWholesale ? <WholesaleMenu name={name} onOpen={onOpen} test={`wholesale-actions-${row.size.variantId}`} /> : null}</TableCell>
         </TableRow>
+    );
+}
+
+/** A size's ⋯ menu: the row's, and the same on its phone card under its own test name. */
+function WholesaleMenu({ name, onOpen, test }: { name: string; onOpen: (kind: 'bands' | 'remove', trigger: HTMLElement | null) => void; test: string }) {
+    const t = useT();
+    const more = useRef<HTMLButtonElement>(null);
+
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <MoreButton ref={more} name={name} data-test={test} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-56">
+                <Guarded label={t('pricing::admin_wholesale.menu.edit')} onSelect={() => onOpen('bands', more.current)} test="edit-wholesale" />
+                <DropdownMenuSeparator />
+                <Guarded destructive label={t('pricing::admin_wholesale.menu.remove')} onSelect={() => onOpen('remove', more.current)} test="remove-wholesale" />
+            </DropdownMenuContent>
+        </DropdownMenu>
     );
 }
 
@@ -249,7 +286,7 @@ function PickSize({ frame, onChoose, onOpenChange, returnFocusTo }: { frame: Pri
                         <RowPhoto src={size.photo} />
                         <span className="grid min-w-0">
                             <span className="truncate">{label(size)}</span>
-                            <span className="tw-figure font-mono text-copy-12 text-ink-muted" dir="ltr">
+                            <span className="tw-figure text-label-12-mono text-ink-muted" dir="ltr">
                                 {size.code}
                             </span>
                         </span>

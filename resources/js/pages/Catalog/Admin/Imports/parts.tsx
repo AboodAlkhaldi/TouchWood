@@ -4,6 +4,7 @@ import { TextField } from '@/components/Fields';
 import { PanelDialog } from '@/components/PanelDialog';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone, type Tone } from '@/lib/tones';
@@ -117,6 +118,21 @@ export function SelectAll({ selection, offered, disabled }: { selection: ReturnT
             aria-label={t('catalog::admin_imports.select_all')}
             data-test="select-all"
         />
+    );
+}
+
+/**
+ * Select All on a phone, where the table's head is hidden (round 3 #15): the same choice, above the cards, its words
+ * beside it.
+ */
+export function PhoneSelectAll({ selection, offered, disabled }: { selection: ReturnType<typeof useSelection>; offered: number; disabled?: boolean }) {
+    const t = useTranslator();
+
+    return (
+        <Label className="flex w-fit items-center gap-2 text-label-14 text-ink sm:hidden">
+            <Checkbox checked={selection.every} disabled={disabled || offered === 0} onCheckedChange={(on) => selection.all(on === true)} data-test="select-all-card" />
+            {t('catalog::admin_imports.select_all')}
+        </Label>
     );
 }
 

@@ -13,7 +13,8 @@ import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { useLoadMore } from '@/lib/use-load-more';
 import { ChangePointsDialog } from '@/pages/Loyalty/Admin/Points/ChangePointsDialog';
-import { Amount, LotsTable, Points, ProgrammeOffNote, StaffHistory, useDay, useLocale } from '@/components/loyalty/parts';
+import { Amount, LotsTable, Points, ProgrammeOffNote, useDay, useLocale } from '@/components/loyalty/parts';
+import { StaffHistory } from '@/components/loyalty/staff-history';
 import type { CustomerPointsPage } from '@/types/generated/Modules/Loyalty/Presentation/Http/Resource';
 
 /*

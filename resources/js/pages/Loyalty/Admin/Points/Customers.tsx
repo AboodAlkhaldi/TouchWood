@@ -3,6 +3,7 @@ import { Link, router } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
+import { PhoneCards } from '@/components/PhoneCards';
 import { SearchField } from '@/components/SearchField';
 import { StoreFilter } from '@/components/StoreFilter';
 import { Time } from '@/components/Time';
@@ -124,26 +125,54 @@ export default function Customers({ holders, nextPoints, nextAccountId, tooMany,
                         ) : null}
                     </Empty>
                 ) : (
-                    // Wide tables scroll inside their own box on a phone, never the page (frontend.md).
-                    <div className="material-base overflow-x-auto">
-                        <Table>
-                            <TableCaption className="sr-only">{t('loyalty::admin_points.customers.title')}</TableCaption>
-                            <TableHeader className="bg-surface-sunken">
-                                <TableRow>
-                                    <TableHead>{t('loyalty::admin_points.columns.customer')}</TableHead>
-                                    <TableHead className="text-end">{t('loyalty::admin_points.columns.points')}</TableHead>
-                                    <TableHead className="text-end">{t('loyalty::admin_points.columns.worth')}</TableHead>
-                                    <TableHead>{t('loyalty::admin_points.columns.expiring')}</TableHead>
-                                    <TableHead>{t('loyalty::admin_points.columns.last_change')}</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {list.rows.map((holder) => (
-                                    <Row key={holder.accountId} holder={holder} storeCode={storeCode} />
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
+                    // Wide tables scroll inside their own box, never the page (frontend.md); on a phone each
+                    // holder is a card (round 3 #15), opening their points as the row does.
+                    <>
+                        <div className="material-base hidden overflow-x-auto sm:block">
+                            <Table>
+                                <TableCaption className="sr-only">{t('loyalty::admin_points.customers.title')}</TableCaption>
+                                <TableHeader className="bg-surface-sunken">
+                                    <TableRow>
+                                        <TableHead>{t('loyalty::admin_points.columns.customer')}</TableHead>
+                                        <TableHead className="text-end">{t('loyalty::admin_points.columns.points')}</TableHead>
+                                        <TableHead className="text-end">{t('loyalty::admin_points.columns.worth')}</TableHead>
+                                        <TableHead>{t('loyalty::admin_points.columns.expiring')}</TableHead>
+                                        <TableHead>{t('loyalty::admin_points.columns.last_change')}</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {list.rows.map((holder) => (
+                                        <Row key={holder.accountId} holder={holder} storeCode={storeCode} />
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                        <PhoneCards
+                            test="holder"
+                            cards={list.rows.map((holder) => ({
+                                id: holder.customer.id,
+                                title: holder.customer.deleted ? t('loyalty::admin_points.deleted_customer') : <bdi>{holder.customer.name}</bdi>,
+                                ...(holder.customer.deleted ? {} : { href: `${LIST}/${holder.customer.id}?store=${encodeURIComponent(storeCode)}` }),
+                                lines: [
+                                    ...(holder.customer.email === null
+                                        ? []
+                                        : [
+                                              <bdi key="e" dir="ltr">
+                                                  {holder.customer.email}
+                                              </bdi>,
+                                          ]),
+                                    <span key="p">
+                                        {`${t('loyalty::admin_points.columns.points')}: `}
+                                        <Points value={holder.points} /> · <Amount value={holder.worth} />
+                                    </span>,
+                                    <span key="x">
+                                        {`${t('loyalty::admin_points.columns.expiring')}: `}
+                                        <ExpiringCell expiring={holder.expiring} />
+                                    </span>,
+                                ],
+                            }))}
+                        />
+                    </>
                 )}
 
                 {!tooMany && nextPoints !== null && nextAccountId !== null ? (

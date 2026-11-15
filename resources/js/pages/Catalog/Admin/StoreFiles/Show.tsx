@@ -6,10 +6,12 @@ import { TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { Note } from '@/components/Note';
 import { PanelDialog } from '@/components/PanelDialog';
+import { PhoneCards } from '@/components/PhoneCards';
 import { Time } from '@/components/Time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { figure, toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
@@ -93,7 +95,7 @@ export default function Show({ id, fileName, uploadedAt, storeCode, storeName, p
                     </ActionButton>
                 </div>
 
-                <div className="material-base overflow-x-auto">
+                <div className="material-base hidden overflow-x-auto sm:block">
                     <Table>
                         <TableCaption className="sr-only">{fileName}</TableCaption>
                         <TableHeader className="bg-surface-sunken">
@@ -137,6 +139,74 @@ export default function Show({ id, fileName, uploadedAt, storeCode, storeName, p
                         </TableBody>
                     </Table>
                 </div>
+                {/* On a phone each item a card (round 3 #15): opens its product when it has one; its tick and Correct Code… beside it.
+                    The table head's tick for every open item is above the cards there, the same choice. */}
+                <Label className="flex w-fit items-center gap-2 text-label-14 text-ink sm:hidden">
+                    <Checkbox
+                        checked={every}
+                        disabled={open.length === 0 || busy}
+                        onCheckedChange={(on) => setSelected(on === true ? open.map((item) => item.id) : [])}
+                        data-test="select-open-card"
+                    />
+                    {t('catalog::admin_store_files.select_open')}
+                </Label>
+                <PhoneCards
+                    test="item"
+                    cards={items.map((item) => {
+                        const isOpen = item.state === 'OPEN';
+
+                        return {
+                            id: String(item.number),
+                            title: item.productId !== null ? nameIn(locale, item.productNameAr, item.productNameEn) : <bdi dir="ltr">{item.code}</bdi>,
+                            ...(item.productId !== null ? { href: `/admin/products/${item.productId}` } : {}),
+                            badge: (
+                                <Badge className={tone(isOpen && item.standing !== null ? (STANDING_TONE[item.standing] ?? 'gray-subtle') : 'gray-subtle')}>
+                                    {isOpen && item.standing !== null ? t(`catalog::admin_store_files.standing.${item.standing}`) : t(`catalog::admin_store_files.state.${item.state}`)}
+                                </Badge>
+                            ),
+                            lines: [
+                                <span key="c" className="tw-figure">
+                                    {`${t('catalog::admin_store_files.column.number')}: ${figure(locale, item.number)} · ${t('catalog::admin_store_files.column.code')}: `}
+                                    <bdi dir="ltr" className="font-mono">
+                                        {item.code}
+                                    </bdi>
+                                </span>,
+                                <span key="p" className="tw-figure">
+                                    {`${t('catalog::admin_store_files.column.price')}: `}
+                                    {item.price === null ? '—' : <bdi dir="ltr">{item.price}</bdi>}
+                                    {` · ${t('catalog::admin_store_files.column.stock')}: ${item.stock === null ? '—' : figure(locale, item.stock)}`}
+                                </span>,
+                                ...(item.missing.length > 0 ? [<span key="m">{`${t('catalog::admin_store_files.lacks')} ${item.missing.map((rule) => t(`catalog::admin_products.missing.${rule}`)).join(locale === 'ar' ? '، ' : ', ')}`}</span>] : []),
+                            ],
+                            menu: isOpen ? (
+                                <span className="flex items-center gap-2">
+                                    {item.standing === 'UNKNOWN' ? (
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={busy}
+                                            onClick={(event) => {
+                                                opener.current = event.currentTarget;
+                                                setDialog({ action: 'code', itemId: item.id });
+                                            }}
+                                            data-test={`correct-card-${item.number}`}
+                                        >
+                                            {t('catalog::admin_store_files.correct')}
+                                        </Button>
+                                    ) : null}
+                                    <Checkbox
+                                        checked={chosen.includes(item.id)}
+                                        disabled={busy}
+                                        onCheckedChange={(on) => toggle(item.id, on === true)}
+                                        aria-label={t('catalog::admin_store_files.select_item', { number: String(item.number) })}
+                                        data-test={`select-card-${item.number}`}
+                                    />
+                                </span>
+                            ) : undefined,
+                        };
+                    })}
+                />
             </div>
 
             {dialog?.action === 'remove' ? <RemoveDialog fileId={id} itemIds={chosen} onDone={() => setSelected([])} onOpenChange={(next) => (next ? undefined : setDialog(null))} returnFocusTo={opener} /> : null}

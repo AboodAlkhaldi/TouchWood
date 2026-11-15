@@ -13,7 +13,7 @@ export function SizeLine({ size, htmlFor }: { size: PackingSizeData; htmlFor?: s
             {size.photo !== null ? <img src={size.photo} alt="" className="size-10 shrink-0 rounded-md border border-line object-cover" /> : <span className="size-10 shrink-0 rounded-md border border-line bg-surface-sunken" aria-hidden="true" />}
             <Text htmlFor={htmlFor} className="grid min-w-0 flex-1 gap-0.5">
                 <span className="truncate text-copy-14 text-ink">{size.productName}</span>
-                <span className="flex flex-wrap items-center gap-2 text-copy-12 text-ink-muted">
+                <span className="flex flex-wrap items-center gap-2 text-label-12 text-ink-muted">
                     <bdi dir="ltr" className="tw-figure">
                         {size.code}
                     </bdi>

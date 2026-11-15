@@ -74,7 +74,7 @@ function libraryScreenFileNamed(string $filename, string $variantsStatus): strin
 
 it('draws the media library and switches between the table and the grid', function () {
     $filename = 'photo-'.Str::random(6).'.jpg';
-    libraryScreenFileNamed($filename, 'PENDING');
+    $id = libraryScreenFileNamed($filename, 'PENDING');
 
     $page = visit('/admin/sign-in')
         ->type('#email', libraryScreenEmail())
@@ -98,13 +98,37 @@ it('draws the media library and switches between the table and the grid', functi
         ->assertSee($filename)
         ->assertNoJavaScriptErrors();
 
-    // A phone (frontend.md §2.1): the grid, then the table, fit, the table scrolling inside its card. The
+    // A phone (frontend.md §2.1): the grid, then the table, fit, the table's rows drawn as cards. The
     // grid is waited for: its names are cut again once the narrower tiles are measured (it failed once,
     // read in the same breath as the resize, and fit in every later run - the phone audit, 2026-10-29).
     $page->resize(375, 812);
     expect(browserUntil($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the grid scrolls sideways');
     $page->click('[data-test="view-table"]')->assertAttribute('[data-test="view-table"]', 'data-state', 'on');
-    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the table scrolls sideways');
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the table scrolls sideways')
+        // On a phone the table's rows are cards (round 3 #15).
+        ->and(browserRowIsCard($page, '[data-test="file-card-'.$id.'"]', '[data-test="file-menu-'.$id.'"]'))->toBeTrue();
+});
+
+it('draws the media library\'s files as cards on a phone in Arabic (round 3 #15)', function () {
+    $id = libraryScreenFileNamed('photo-'.Str::random(6).'.jpg', 'READY');
+    $staffId = Fx::staffWith([PlatformPermissions::MEDIA_UPDATE, PlatformPermissions::MEDIA_DELETE], ['sa'], RoleLevel::Admin);
+    DB::table('access.staff_users')->where('id', $staffId)->update(['locale' => 'ar']);
+
+    $page = visit('/admin/sign-in')
+        ->type('#email', (string) DB::table('access.staff_users')->where('id', $staffId)->value('email'))
+        ->type('#password', LIBRARY_SCREEN_PASSWORD)
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin');
+
+    $page->resize(375, 812);
+    $page->navigate('/admin/media', BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "document.documentElement.dir === 'rtl'"))->toBeTrue()
+        ->and(browserRowIsCard($page, '[data-test="file-card-'.$id.'"]', '[data-test="file-menu-'.$id.'"]'))->toBeTrue()
+        ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    $page->assertNoJavaScriptErrors();
 });
 
 it('asks before deleting a file, in the page, and then deletes it', function () {

@@ -5,6 +5,7 @@ import { TextField } from '@/components/Fields';
 import { PanelDialog } from '@/components/PanelDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { PhoneCards } from '@/components/PhoneCards';
 import { Checkbox } from '@/components/ui/checkbox';
 import { FieldError } from '@/components/ui/field';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
@@ -15,7 +16,7 @@ import { tone } from '@/lib/tones';
 import type { ImportPage, ImportProductData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
 import { nameIn, useLocale } from '../parts';
-import { isDeciding, SelectAll, useSelection } from './parts';
+import { isDeciding, PhoneSelectAll, SelectAll, useSelection } from './parts';
 import { ImportShell } from './shell';
 
 /*
@@ -56,6 +57,83 @@ function Codes({ page }: { page: ImportPage }) {
     const selling = ticked.filter((row) => row.onSale && row.decision !== null && SELLING.includes(row.decision));
     const sell = (sale: string) => save(selling.map((row) => ({ product_id: row.id, decision: row.decision ?? '', sale })), selection.clear);
 
+    // A row's decision and its sale: the table's cells, and the same under the card's lines on a phone, each with its own id
+    // and test name there (round 3 #15). Each saves as it is chosen, so the two copies share nothing but the row.
+    const decisionControl = (row: ImportProductData, name: string, card: boolean) => (
+        <>
+            {deciding ? (
+                <NativeSelect
+                    id={`decision${card ? '-card' : ''}-${row.id}`}
+                    size="sm"
+                    aria-label={t('catalog::admin_imports.codes.decision_label', { name })}
+                    value={row.decision ?? ''}
+                    disabled={busy}
+                    onChange={(event) => {
+                        if (event.target.value === 'RECODE') {
+                            opener.current = event.currentTarget;
+                            setRecoding(row);
+                        } else if (event.target.value !== '') {
+                            decide([row], event.target.value);
+                        }
+                    }}
+                    data-test={card ? 'decision-card' : 'decision'}
+                >
+                    <NativeSelectOption value="">{t('catalog::admin_imports.codes.decision.none')}</NativeSelectOption>
+                    {DECISIONS.map((decision) => (
+                        <NativeSelectOption key={decision} value={decision}>
+                            {t(`catalog::admin_imports.codes.decision.${decision}`)}
+                        </NativeSelectOption>
+                    ))}
+                </NativeSelect>
+            ) : (
+                <span className="text-copy-14">{t(`catalog::admin_imports.codes.decision.${row.decision ?? 'none'}`)}</span>
+            )}
+            {deciding && row.decision === 'RECODE' ? (
+                <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="w-fit px-0"
+                    onClick={(event) => {
+                        opener.current = event.currentTarget;
+                        setRecoding(row);
+                    }}
+                    data-test={card ? 'edit-recode-card' : 'edit-recode'}
+                >
+                    {t('catalog::admin_imports.codes.decision.RECODE')}
+                </Button>
+            ) : null}
+        </>
+    );
+    const saleControl = (row: ImportProductData, name: string, card: boolean) =>
+        row.onSale && row.decision !== null && SELLING.includes(row.decision) ? (
+            deciding ? (
+                <span className="grid gap-1">
+                    <NativeSelect
+                        id={`sale${card ? '-card' : ''}-${row.id}`}
+                        size="sm"
+                        aria-label={t('catalog::admin_imports.codes.sale_label', { name })}
+                        value={row.sale ?? ''}
+                        disabled={busy}
+                        onChange={(event) => (event.target.value === '' ? undefined : save([{ product_id: row.id, decision: row.decision ?? '', sale: event.target.value }]))}
+                        data-test={card ? 'sale-card' : 'sale'}
+                    >
+                        <NativeSelectOption value="">{t('catalog::admin_imports.codes.decision.none')}</NativeSelectOption>
+                        {SALES.map((sale) => (
+                            <NativeSelectOption key={sale} value={sale}>
+                                {t(`catalog::admin_imports.codes.sale.${sale}`)}
+                            </NativeSelectOption>
+                        ))}
+                    </NativeSelect>
+                    {row.sale === null ? <span className="text-copy-13 text-warn">{t('catalog::admin_imports.codes.sale_needed')}</span> : null}
+                </span>
+            ) : (
+                <span className="text-copy-14">{row.sale === null ? '—' : t(`catalog::admin_imports.codes.sale.${row.sale}`)}</span>
+            )
+        ) : card ? null : (
+            '—'
+        );
+
     if (rows.length === 0) {
         return <p className="text-copy-14 text-ink-muted" data-test="codes-empty">{t('catalog::admin_imports.codes.empty')}</p>;
     }
@@ -94,7 +172,7 @@ function Codes({ page }: { page: ImportPage }) {
                 </div>
             ) : null}
 
-            <div className="material-base overflow-x-auto">
+            <div className="material-base hidden overflow-x-auto sm:block">
                 <Table>
                     <TableCaption className="sr-only">{t('catalog::admin_imports.part.codes')}</TableCaption>
                     <TableHeader className="bg-surface-sunken">
@@ -151,85 +229,53 @@ function Codes({ page }: { page: ImportPage }) {
                                         {row.codes.join(' · ')}
                                         {row.newCodes !== null ? <span className="block text-ink-muted">{Object.entries(row.newCodes).map(([from, to]) => `${from} → ${to}`).join(' · ')}</span> : null}
                                     </TableCell>
-                                    <TableCell>
-                                        {deciding ? (
-                                            <NativeSelect
-                                                id={`decision-${row.id}`}
-                                                size="sm"
-                                                aria-label={t('catalog::admin_imports.codes.decision_label', { name })}
-                                                value={row.decision ?? ''}
-                                                disabled={busy}
-                                                onChange={(event) => {
-                                                    if (event.target.value === 'RECODE') {
-                                                        opener.current = event.currentTarget;
-                                                        setRecoding(row);
-                                                    } else if (event.target.value !== '') {
-                                                        decide([row], event.target.value);
-                                                    }
-                                                }}
-                                                data-test="decision"
-                                            >
-                                                <NativeSelectOption value="">{t('catalog::admin_imports.codes.decision.none')}</NativeSelectOption>
-                                                {DECISIONS.map((decision) => (
-                                                    <NativeSelectOption key={decision} value={decision}>
-                                                        {t(`catalog::admin_imports.codes.decision.${decision}`)}
-                                                    </NativeSelectOption>
-                                                ))}
-                                            </NativeSelect>
-                                        ) : (
-                                            <span className="text-copy-14">{t(`catalog::admin_imports.codes.decision.${row.decision ?? 'none'}`)}</span>
-                                        )}
-                                        {deciding && row.decision === 'RECODE' ? (
-                                            <Button
-                                                type="button"
-                                                variant="link"
-                                                size="sm"
-                                                className="px-0"
-                                                onClick={(event) => {
-                                                    opener.current = event.currentTarget;
-                                                    setRecoding(row);
-                                                }}
-                                                data-test="edit-recode"
-                                            >
-                                                {t('catalog::admin_imports.codes.decision.RECODE')}
-                                            </Button>
-                                        ) : null}
-                                    </TableCell>
-                                    <TableCell>
-                                        {row.onSale && row.decision !== null && SELLING.includes(row.decision) ? (
-                                            deciding ? (
-                                                <span className="grid gap-1">
-                                                    <NativeSelect
-                                                        id={`sale-${row.id}`}
-                                                        size="sm"
-                                                        aria-label={t('catalog::admin_imports.codes.sale_label', { name })}
-                                                        value={row.sale ?? ''}
-                                                        disabled={busy}
-                                                        onChange={(event) => (event.target.value === '' ? undefined : save([{ product_id: row.id, decision: row.decision ?? '', sale: event.target.value }]))}
-                                                        data-test="sale"
-                                                    >
-                                                        <NativeSelectOption value="">{t('catalog::admin_imports.codes.decision.none')}</NativeSelectOption>
-                                                        {SALES.map((sale) => (
-                                                            <NativeSelectOption key={sale} value={sale}>
-                                                                {t(`catalog::admin_imports.codes.sale.${sale}`)}
-                                                            </NativeSelectOption>
-                                                        ))}
-                                                    </NativeSelect>
-                                                    {row.sale === null ? <span className="text-copy-13 text-warn">{t('catalog::admin_imports.codes.sale_needed')}</span> : null}
-                                                </span>
-                                            ) : (
-                                                <span className="text-copy-14">{row.sale === null ? '—' : t(`catalog::admin_imports.codes.sale.${row.sale}`)}</span>
-                                            )
-                                        ) : (
-                                            '—'
-                                        )}
-                                    </TableCell>
+                                    <TableCell>{decisionControl(row, name, false)}</TableCell>
+                                    <TableCell>{saleControl(row, name, false)}</TableCell>
                                 </TableRow>
                             );
                         })}
                     </TableBody>
                 </Table>
             </div>
+            {/* On a phone each product a card (round 3 #15): its codes and the catalog's product its lines, its decision and
+                sale under them, its tick beside it while deciding; Select All above the cards. */}
+            {deciding ? <PhoneSelectAll selection={selection} offered={rows.length} disabled={busy} /> : null}
+            <PhoneCards
+                test="code-row"
+                cards={rows.map((row) => {
+                    const name = nameIn(locale, row.nameAr, row.nameEn);
+
+                    return {
+                        id: String(row.number),
+                        title: <bdi>{name}</bdi>,
+                        badge:
+                            deciding && row.conflictProductId !== null ? (
+                                <Badge className={tone(row.onSale ? 'green-subtle' : 'gray-subtle')}>{t(row.onSale ? 'catalog::admin_imports.codes.on_sale' : 'catalog::admin_imports.codes.not_on_sale')}</Badge>
+                            ) : undefined,
+                        lines: [
+                            <bdi key="c" dir="ltr" className="tw-figure text-label-12-mono">
+                                {figure(locale, row.number)} · {row.codes.join(' · ')}
+                            </bdi>,
+                            ...(row.conflictProductId === null
+                                ? []
+                                : [
+                                      <Link key="p" href={`/admin/products/${row.conflictProductId}`}>
+                                          {nameIn(locale, row.conflictNameAr, row.conflictNameEn) || row.conflictProductId}
+                                      </Link>,
+                                  ]),
+                            ...(row.codeChange ? [<span key="cc" className="text-warn">{t('catalog::admin_imports.codes.code_change')}</span>] : []),
+                            ...(row.attributeChange ? [<span key="ac" className="text-warn">{t('catalog::admin_imports.codes.attribute_change')}</span>] : []),
+                        ],
+                        controls: (
+                            <>
+                                {decisionControl(row, name, true)}
+                                {saleControl(row, name, true)}
+                            </>
+                        ),
+                        menu: deciding ? <Checkbox checked={selection.has(row.id)} disabled={busy} onCheckedChange={(on) => selection.set(row.id, on === true)} aria-label={t('catalog::admin_imports.select_row', { name })} data-test={`select-card-${row.number}`} /> : undefined,
+                    };
+                })}
+            />
 
             {recoding !== null ? (
                 <RecodeDialog

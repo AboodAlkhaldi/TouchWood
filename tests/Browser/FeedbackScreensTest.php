@@ -6,6 +6,8 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Access\Domain\ValueObject\RoleLevel;
+use Modules\Feedback\Application\FeedbackPermissions;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
@@ -77,6 +79,8 @@ it('approves two ticked reviews at once', function () {
 
 it('adds a ready reason from its dialog, and draws every Support page at a phone\'s width', function () {
     $reason = 'Off topic '.feedbackScreenTag();
+    // Before signing in: made after it, the product's fixtures left the panel's session signed out.
+    feedbackScreenFavourite();
     $page = feedbackScreenPanel();
 
     $page->navigate('/admin/rejection-reasons', BROWSER_PAGE_LOAD)
@@ -103,4 +107,43 @@ it('adds a ready reason from its dialog, and draws every Support page at a phone
 
         expect($wide)->toBe('', "{$uri} scrolls sideways");
     }
+
+    // On a phone each favourited product is a card (round 3 #15).
+    $page->navigate('/admin/favourites?store=sa', BROWSER_PAGE_LOAD);
+    expect(browserRowIsCard($page, FEEDBACK_SCREEN_FIRST_CARD, FEEDBACK_SCREEN_FIRST_ROW))->toBeTrue((string) $page->script('location.pathname'));
+});
+
+/*
+| The list's first card and first table row. The saves of every run are kept and the list puts the most saved first, so
+| which product leads is the list's own business: any card drawn, and the table's rows not, is what is checked.
+*/
+const FEEDBACK_SCREEN_FIRST_CARD = '[data-test="favourite-cards"] [data-test^="favourite-card-"]';
+const FEEDBACK_SCREEN_FIRST_ROW = 'tr[data-test^="favourite-"]';
+
+/** A product saved in `sa`, so Favourited Products has at least one line. */
+function feedbackScreenFavourite(): void
+{
+    DB::table('feedback.wishlist_items')->insert(['customer_id' => Fx::customer(strtolower((string) Str::ulid()).'@example.test'), 'product_id' => Fb::sold()['product'], 'store_id' => Fx::storeId('sa'), 'saved_at' => now()]);
+}
+
+it('draws Favourited Products as cards on a phone in Arabic (round 3 #15)', function () {
+    feedbackScreenFavourite();
+    $staffId = Fx::staffWith([FeedbackPermissions::WISHLIST_VIEW], ['sa'], RoleLevel::Admin);
+    DB::table('access.staff_users')->where('id', $staffId)->update(['locale' => 'ar']);
+
+    $page = visit('/admin/sign-in')
+        ->type('#email', (string) DB::table('access.staff_users')->where('id', $staffId)->value('email'))
+        ->type('#password', Fx::STAFF_PASSWORD)
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]');
+
+    expect(signedInToPanel($page))->toBeTrue();
+    $page->resize(375, 812);
+    $page->navigate('/admin/favourites?store=sa', BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "document.documentElement.dir === 'rtl'"))->toBeTrue()
+        ->and(browserRowIsCard($page, FEEDBACK_SCREEN_FIRST_CARD, FEEDBACK_SCREEN_FIRST_ROW))->toBeTrue()
+        ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    $page->assertNoJavaScriptErrors();
 });

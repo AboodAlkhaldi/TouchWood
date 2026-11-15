@@ -105,6 +105,10 @@ it('shows each kind in words, hides a customer\'s email saying why, and removes 
     $page->click('[data-test="confirm-remove"]');
     expect(browserSoon($page, "document.querySelector('[data-test=\"subscriber-{$guest}\"]') === null && document.body.textContent.includes('Removed from the newsletter.')"))->toBeTrue()
         ->and(DB::table('ops.subscribers')->where('id', $guest)->exists())->toBeFalse();
+
+    // On a phone each row is a card (round 3 #15).
+    $page->resize(375, 812);
+    expect(browserRowIsCard($page, '[data-test="subscriber-card-'.$waiting.'"]', '[data-test="subscriber-'.$waiting.'"]'))->toBeTrue();
     $page->assertNoJavaScriptErrors();
 });
 
@@ -123,7 +127,7 @@ it('keeps the rows shown with Show More when a guest below them is removed', fun
     // A minute apart, the first written the oldest.
     $ids = array_map(static fn (int $i): string => subscribersBrowserRow("deep{$i}.{$run}@example.test", ['created_at' => now()->subMinutes(60 - $i)]), range(1, 55));
     $page = subscribersBrowser(['ops.newsletter.manage']);
-    $rows = "document.querySelectorAll('[data-test^=\"subscriber-\"]')";
+    $rows = "document.querySelectorAll('tr[data-test^=\"subscriber-\"]')";
 
     $page->navigate('/admin/newsletter/subscribers?store=ae', BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "{$rows}.length === 50"))->toBeTrue()
@@ -172,10 +176,11 @@ it('draws right to left in Arabic, in Latin digits, and fits a phone', function 
     $page->navigate('/admin/newsletter/subscribers?store=ae', BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.documentElement.dir === 'rtl' && document.querySelector('[data-test^=\"subscriber-\"]') !== null"))->toBeTrue()
         ->and((bool) $page->script('/[٠-٩]/.test(document.body.textContent)'))->toBeFalse()
-        ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+        ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue()
+        ->and(browserRowIsCard($page, '[data-test="subscriber-card-'.$guest.'"]', '[data-test="subscriber-'.$guest.'"]'))->toBeTrue();
 
-    // A tap opens the hidden email's reason, which a tooltip never did; it fits the phone.
-    $page->click("[data-test=\"subscriber-{$customer}\"] [data-test=\"hidden-email\"]");
+    // A tap opens the hidden email's reason, which a tooltip never did; it fits the phone. On a phone the row is a card.
+    $page->click("[data-test=\"subscriber-card-{$customer}\"] [data-test=\"hidden-email-card\"]");
     expect(browserSoon($page, "document.querySelector('[data-test=\"hidden-why\"]')?.textContent === 'لا يمكنك عرض عملاء هذا المتجر.'"))->toBeTrue()
         ->and(browserSoon($page, "(() => { const box = document.querySelector('[data-test=\"hidden-why\"]').getBoundingClientRect(); return box.left >= 0 && box.right <= window.innerWidth; })()"))->toBeTrue()
         ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
@@ -183,8 +188,8 @@ it('draws right to left in Arabic, in Latin digits, and fits a phone', function 
     expect(browserSoon($page, "document.querySelector('[data-test=\"hidden-why\"]') === null"))->toBeTrue();
 
     // The question with a long address fits the phone too, wrapped inside its dialog.
-    $page->script("(() => { document.querySelector('[data-test=\"more-{$guest}\"]').scrollIntoView({ block: 'center' }); })()");
-    $page->click("[data-test=\"more-{$guest}\"]")->click('[data-test="remove"]');
+    $page->script("(() => { document.querySelector('[data-test=\"more-card-{$guest}\"]').scrollIntoView({ block: 'center' }); })()");
+    $page->click("[data-test=\"more-card-{$guest}\"]")->click('[data-test="remove"]');
     expect(browserSoon($page, "document.querySelector('[data-test=\"confirm-remove\"]') !== null"))->toBeTrue()
         ->and(browserSoon($page, "(() => { const box = document.querySelector('[role=\"alertdialog\"] h2'); return box !== null && box.scrollWidth <= box.clientWidth; })()"))->toBeTrue()
         ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();

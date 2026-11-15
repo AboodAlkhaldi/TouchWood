@@ -124,7 +124,7 @@ function Section({ card, store }: { card: Card; store: { code: string; name: str
                                     <TableCell>
                                         <span className="grid">
                                             <span>{name}</span>
-                                            <span className="tw-figure font-mono text-copy-12 text-ink-muted" dir="ltr">
+                                            <span className="tw-figure text-label-12-mono text-ink-muted" dir="ltr">
                                                 {variants.get(id)?.code ?? ''}
                                             </span>
                                         </span>
@@ -133,7 +133,7 @@ function Section({ card, store }: { card: Card; store: { code: string; name: str
                                         {size.archived ? (
                                             <span className="grid gap-1">
                                                 <InStock figures={size.figures} wired={card.wired} />
-                                                <span className="max-w-56 text-copy-12 text-ink-muted" data-test={`archived-${store.code}-${id}`}>
+                                                <span className="max-w-56 text-copy-13 text-ink-muted" data-test={`archived-${store.code}-${id}`}>
                                                     {archivedReason}
                                                 </span>
                                             </span>

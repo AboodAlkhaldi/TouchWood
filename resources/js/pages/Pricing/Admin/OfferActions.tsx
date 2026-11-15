@@ -23,8 +23,8 @@ type Open = { mode: OfferMode | 'end' | 'remove'; sale: SaleRowData | null; prod
 /** What End Offer or Remove Offer asks about. */
 type Confirming = { kind: 'end' | 'remove'; sale: SaleRowData };
 
-/** Every offer's ⋯ on the screen, in the order they are drawn (OfferMenu's `offer-actions-{id}`). */
-const OFFER_MENUS = '[data-test^="offer-actions-"]';
+/** Every offer's ⋯ on the screen, in the order they are drawn: a row's `offer-actions-{id}`, a phone card's `offer-card-actions-{id}`. */
+const OFFER_MENUS = '[data-test^="offer-actions-"], [data-test^="offer-card-actions-"]';
 
 /**
  * Where focus may go back once End or Remove closes, besides the opener's ⋯: the next offer's ⋯, the one
@@ -33,7 +33,8 @@ const OFFER_MENUS = '[data-test^="offer-actions-"]';
  */
 function nearOpener(trigger: HTMLElement | null): HTMLElement[] {
     const list: ParentNode = trigger?.closest('[data-test^="pricing-section-"]') ?? document;
-    const menus = Array.from(list.querySelectorAll<HTMLElement>(OFFER_MENUS));
+    // The shape drawn at this width only: the other one is hidden (round 3 #15).
+    const menus = Array.from(list.querySelectorAll<HTMLElement>(OFFER_MENUS)).filter((menu) => menu.getClientRects().length > 0);
     const at = trigger === null ? -1 : menus.indexOf(trigger);
     const add = list.querySelector<HTMLElement>('[data-test="add-offer"], [data-test^="section-add-offer-"]');
 
@@ -96,7 +97,7 @@ export function useOfferDialogs(store: OfferStore) {
     };
 }
 
-export function OfferMenu({ sale, mayEdit, name, onOpen }: { sale: SaleRowData; mayEdit: boolean; name: string; onOpen: (mode: Open['mode'], trigger: HTMLElement | null) => void }) {
+export function OfferMenu({ sale, mayEdit, name, onOpen, test }: { sale: SaleRowData; mayEdit: boolean; name: string; onOpen: (mode: Open['mode'], trigger: HTMLElement | null) => void; test?: string }) {
     const t = useT();
     const more = useRef<HTMLButtonElement>(null);
 
@@ -110,7 +111,7 @@ export function OfferMenu({ sale, mayEdit, name, onOpen }: { sale: SaleRowData; 
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <MoreButton ref={more} name={name} data-test={`offer-actions-${sale.id}`} />
+                <MoreButton ref={more} name={name} data-test={test ?? `offer-actions-${sale.id}`} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-56">
                 {sale.state === 'SCHEDULED' ? (

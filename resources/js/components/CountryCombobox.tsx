@@ -74,7 +74,7 @@ export function CountryCombobox({ id, label, countries, value, onChange, error, 
             ) : (
                 <span className="grid gap-0.5">
                     <span>{country.name}</span>
-                    <span className="text-copy-12 text-ink-muted">{country.reason}</span>
+                    <span className="text-copy-13 text-ink-muted">{country.reason}</span>
                 </span>
             )}
             <Check aria-hidden="true" className={cn('ms-auto', value === country.code ? 'opacity-100' : 'opacity-0')} />

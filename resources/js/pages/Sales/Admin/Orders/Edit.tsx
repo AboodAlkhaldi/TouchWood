@@ -253,7 +253,7 @@ function Preview({ page, preview, stale }: { page: EditPage; preview: EditPrevie
     return (
         <div className={`grid gap-2 ${stale ? 'opacity-60' : ''}`} data-test="preview-result">
             <dl className="grid gap-1.5 text-copy-14">
-                <div className="flex justify-end gap-3 text-copy-12 text-ink-muted" aria-hidden="true">
+                <div className="flex justify-end gap-3 text-label-12 text-ink-muted" aria-hidden="true">
                     <span>{t(`${W}.edit.before`)} → {t(`${W}.edit.after`)}</span>
                 </div>
                 {rows

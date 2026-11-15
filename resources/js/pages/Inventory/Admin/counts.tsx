@@ -193,12 +193,12 @@ export function CountBox({ id, label, value, onChange, onEscape, onEnter, change
                 data-test={id}
             />
             {error ? (
-                <FieldError id={`${id}-error`} className="max-w-56 text-copy-12">
+                <FieldError id={`${id}-error`} className="max-w-56 text-copy-13">
                     {error}
                 </FieldError>
             ) : null}
             {warning ? (
-                <p id={`${id}-warning`} className="max-w-56 text-copy-12 text-warn" data-test={`${id}-warning`}>
+                <p id={`${id}-warning`} className="max-w-56 text-copy-13 text-warn" data-test={`${id}-warning`}>
                     {warning}
                 </p>
             ) : null}

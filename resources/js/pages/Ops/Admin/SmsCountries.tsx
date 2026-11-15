@@ -7,6 +7,7 @@ import { checked, describedBy, Messages, SelectField } from '@/components/Fields
 import { FormError } from '@/components/FormError';
 import { Note } from '@/components/Note';
 import { PanelDialog } from '@/components/PanelDialog';
+import { PhoneCards } from '@/components/PhoneCards';
 import { MoreButton } from '@/components/RowMenu';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -61,7 +62,7 @@ export default function SmsCountries({ countries, providers, options }: SmsCount
                         <EmptyContent>{addButton('empty-add-country')}</EmptyContent>
                     </Empty>
                 ) : (
-                    <div className="material-base max-w-full overflow-x-auto">
+                    <div className="material-base hidden max-w-full overflow-x-auto sm:block">
                         <Table>
                             <TableCaption className="sr-only">{t('ops::admin_sms.title')}</TableCaption>
                             <TableHeader className="bg-surface-sunken">
@@ -91,6 +92,7 @@ export default function SmsCountries({ countries, providers, options }: SmsCount
                                                     opener.current = from;
                                                     setDialog({ action, country });
                                                 }}
+                                                test={`more-${country.countryCode}`}
                                             />
                                         </TableCell>
                                     </TableRow>
@@ -98,6 +100,37 @@ export default function SmsCountries({ countries, providers, options }: SmsCount
                             </TableBody>
                         </Table>
                     </div>
+                )}
+                {/* On a phone each country a card (round 3 #15), its menu at the end. */}
+                {countries.length === 0 ? null : (
+                    <PhoneCards
+                        test="country"
+                        cards={countries.map((country) => ({
+                            id: country.countryCode,
+                            title: country.name,
+                            lines: [
+                                <span key="code">
+                                    {`${t('ops::admin_sms.columns.code')}: `}
+                                    <bdi dir="ltr">{country.countryCode}</bdi>
+                                </span>,
+                                <span key="calling">
+                                    {`${t('ops::admin_sms.columns.calling_code')}: `}
+                                    <bdi dir="ltr" className="tw-figure">{`+${country.callingCode}`}</bdi>
+                                </span>,
+                                <span key="provider">{`${t('ops::admin_sms.columns.provider')}: ${providerName(country.provider)}`}</span>,
+                            ],
+                            menu: (
+                                <RowActions
+                                    country={country}
+                                    onChoose={(action, from) => {
+                                        opener.current = from;
+                                        setDialog({ action, country });
+                                    }}
+                                    test={`more-card-${country.countryCode}`}
+                                />
+                            ),
+                        }))}
+                    />
                 )}
             </div>
 
@@ -109,14 +142,15 @@ export default function SmsCountries({ countries, providers, options }: SmsCount
     );
 }
 
-function RowActions({ country, onChoose }: { country: SmsCountryData; onChoose: (action: 'provider' | 'calling_code' | 'remove', from: HTMLElement | null) => void }) {
+/** A country's ⋯ menu: the row's, and the same on its phone card under its own test name. */
+function RowActions({ country, onChoose, test }: { country: SmsCountryData; onChoose: (action: 'provider' | 'calling_code' | 'remove', from: HTMLElement | null) => void; test: string }) {
     const t = useTranslator();
     const more = useRef<HTMLButtonElement>(null);
 
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <MoreButton ref={more} name={country.name} data-test={`more-${country.countryCode}`} />
+                <MoreButton ref={more} name={country.name} data-test={test} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-52">
                 <DropdownMenuItem onSelect={() => onChoose('provider', more.current)} data-test="change-provider">{`${t('ops::admin_sms.menu.provider')}…`}</DropdownMenuItem>

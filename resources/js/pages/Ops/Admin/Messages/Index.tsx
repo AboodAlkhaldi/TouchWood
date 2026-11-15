@@ -3,6 +3,7 @@ import { Link } from '@inertiajs/react';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { channelWords, Reached, ReadBackDialog, ReadBackLine, RefreshWhileSending, SentAt, WrittenStatus, type ReadBack } from '@/components/ops/written-list';
 import { FormError } from '@/components/FormError';
+import { PhoneCards } from '@/components/PhoneCards';
 import { StoreFilter } from '@/components/StoreFilter';
 import { Time } from '@/components/Time';
 import { Button } from '@/components/ui/button';
@@ -85,7 +86,7 @@ export default function Index({ messages, next, stores, storeCode }: MessagesLis
                     </Empty>
                 ) : (
                     <>
-                        <div className="material-base max-w-full overflow-x-auto">
+                        <div className="material-base hidden max-w-full overflow-x-auto sm:block">
                             <Table>
                                 <TableCaption className="sr-only">{t('ops::admin_written.messages.title')}</TableCaption>
                                 <TableHeader className="bg-surface-sunken">
@@ -135,6 +136,24 @@ export default function Index({ messages, next, stores, storeCode }: MessagesLis
                                 </TableBody>
                             </Table>
                         </div>
+                        {/* On a phone each message a card (round 3 #15); pressing it reads it back, as the row. */}
+                        <PhoneCards
+                            test="message"
+                            cards={list.rows.map((message) => ({
+                                id: message.id,
+                                title: inLanguage(message.titleAr, message.titleEn),
+                                badge: <WrittenStatus status={message.status} />,
+                                lines: [
+                                    <span key="to">{`${t('ops::admin_written.messages.columns.to')}: ${audience(message)}`}</span>,
+                                    <span key="by">{`${t('ops::admin_written.messages.columns.by')}: ${channelWords(message, t)}`}</span>,
+                                    <span key="sent">
+                                        {`${message.sentBy} · `}
+                                        <Time value={message.createdAt} focusable={false} />
+                                    </span>,
+                                ],
+                                onOpen: () => setOpen(message),
+                            }))}
+                        />
                         {next !== null ? <LoadMoreButton loading={list.loading} onClick={() => list.more(LIST, { store: storeCode, after: next }, ['messages', 'next'])} /> : null}
                     </>
                 )}

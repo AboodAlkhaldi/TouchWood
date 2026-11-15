@@ -1,24 +1,25 @@
-import { type RefObject, useEffect, useRef, useState } from 'react';
-import { router, useForm } from '@inertiajs/react';
+import { lazy, type RefObject, Suspense, useRef, useState } from 'react';
+import { router } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
-import { TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { PanelDialog } from '@/components/PanelDialog';
+import { PhoneCards } from '@/components/PhoneCards';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
-import { FieldError, FieldLegend, FieldSet } from '@/components/ui/field';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone, type Tone } from '@/lib/tones';
-import { useChecks } from '@/lib/use-checks';
 import type { LabelData, LabelsPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MoreButton, MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
 import { DragHandle, MoveItems, SortableGroup, SortableGroups, useSavedOrder, useSortableRow } from '../SortableList';
+import { meaningOf } from './meanings';
+
+// The add and edit dialog - its form, its checks as typed, the meaning's choices - loads when it is first opened, as the
+// brands' does, which leaves the page room for its phone cards (frontend.md §5, the page budget).
+const LabelDialog = lazy(() => import('./LabelDialog').then((module) => ({ default: module.LabelDialog })));
 
 /*
 | The labels screen (catalog.md §1.8, §4.4 S5): «الشارات» (amendment 1(b)), each shown as a shopper
@@ -29,29 +30,6 @@ import { DragHandle, MoveItems, SortableGroup, SortableGroups, useSavedOrder, us
 | not deleted. The list's order is the order on a card: dragged, saved when dropped, or a label moved
 | to the top or the bottom from its ⋯ menu; a new label goes last (amendment 16(d)).
 */
-
-const MEANINGS = [
-    ['neutral', 'gray'],
-    ['information', 'blue'],
-    ['healthy', 'green'],
-    ['warning', 'amber'],
-    ['error', 'red'],
-] as const;
-
-type Meaning = (typeof MEANINGS)[number][0];
-
-function toneOf(meaning: Meaning, subtle: boolean): Tone {
-    const colour = MEANINGS.find(([name]) => name === meaning)?.[1] ?? 'gray';
-
-    return (subtle ? `${colour}-subtle` : colour) as Tone;
-}
-
-function meaningOf(labelTone: string): { meaning: Meaning; subtle: boolean } {
-    const subtle = labelTone.endsWith('-subtle');
-    const colour = labelTone.replace('-subtle', '');
-
-    return { meaning: MEANINGS.find(([, each]) => each === colour)?.[0] ?? 'neutral', subtle };
-}
 
 type Dialog = { action: 'add' | 'edit' | 'delete'; label: LabelData | null } | null;
 
@@ -96,7 +74,7 @@ export default function Index({ labels, mayChange }: LabelsPage) {
                     </Empty>
                 ) : (
                     <SortableGroups groups={{ labels: order }} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={(_, ids) => move(ids)}>
-                        <div className="material-base overflow-x-auto">
+                        <div className="material-base hidden overflow-x-auto sm:block">
                             <Table>
                                 <TableCaption className="sr-only">{t('catalog::admin_labels.title')}</TableCaption>
                                 <TableHeader className="bg-surface-sunken">
@@ -135,11 +113,45 @@ export default function Index({ labels, mayChange }: LabelsPage) {
                                 </TableBody>
                             </Table>
                         </div>
+                        {/* On a phone each label a card (round 3 #15), shown as a shopper sees it; its place moves from its menu. */}
+                        <PhoneCards
+                            test="label"
+                            cards={rows.map((label, index) => ({
+                                id: label.id,
+                                title: <Badge className={tone(label.tone as Tone)}>{nameIn(locale, label.nameAr, label.nameEn)}</Badge>,
+                                badge: <StateBadge active={label.active} />,
+                                lines: [
+                                    <span key="o" dir={locale === 'ar' ? 'ltr' : 'rtl'}>
+                                        {locale === 'ar' ? label.nameEn : label.nameAr}
+                                    </span>,
+                                    <span key="p" className="tw-figure">{`${t('catalog::admin.column.products')}: ${figure(locale, label.products)}`}</span>,
+                                ],
+                                menu: (
+                                    <LabelMenu
+                                        label={label}
+                                        reason={reason}
+                                        first={index === 0}
+                                        last={index === rows.length - 1}
+                                        toTop={() => toTop(label.id)}
+                                        toBottom={() => toBottom(label.id)}
+                                        open={(action, trigger) => {
+                                            opener.current = trigger;
+                                            setDialog({ action, label });
+                                        }}
+                                        test={`label-card-actions-${label.id}`}
+                                    />
+                                ),
+                            }))}
+                        />
                     </SortableGroups>
                 )}
             </div>
 
-            {dialog !== null && (dialog.action === 'add' || dialog.action === 'edit') ? <LabelDialog label={dialog.label} open onOpenChange={close} returnFocusTo={opener} /> : null}
+            {dialog !== null && (dialog.action === 'add' || dialog.action === 'edit') ? (
+                <Suspense fallback={null}>
+                    <LabelDialog label={dialog.label} open onOpenChange={close} returnFocusTo={opener} />
+                </Suspense>
+            ) : null}
             {dialog !== null && dialog.action === 'delete' && dialog.label !== null ? <DeleteLabelDialog label={dialog.label} open onOpenChange={close} returnFocusTo={opener} /> : null}
         </AdminLayout>
     );
@@ -164,11 +176,8 @@ function Row({
 }) {
     const t = useTranslator();
     const locale = useLocale();
-    const [busy, setBusy] = useState(false);
-    const more = useRef<HTMLButtonElement>(null);
     const { meaning, subtle } = meaningOf(label.tone);
     const name = nameIn(locale, label.nameAr, label.nameEn);
-    const deleteReason = label.products > 0 ? t('catalog::admin_labels.reason.in_use') : null;
     const row = useSortableRow(label.id, reason !== undefined);
 
     return (
@@ -196,156 +205,81 @@ function Row({
                 <StateBadge active={label.active} />
             </TableCell>
             <TableCell className="text-end">
-                {reason !== undefined ? (
-                    <MoreButtonOff name={name} reason={reason} />
-                ) : (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <MoreButton ref={more} name={name} busy={busy} data-test={`label-actions-${label.id}`} />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-56">
-                            <DropdownMenuItem onSelect={() => open('edit', more.current)} data-test="edit-label">
-                                {t('catalog::admin_labels.edit')}
-                            </DropdownMenuItem>
-                            <MoveItems first={first} last={last} onTop={toTop} onBottom={toBottom} />
-                            <DropdownMenuItem
-                                disabled={busy}
-                                onSelect={() => router.post(`/admin/labels/${label.id}/${label.active ? 'deactivate' : 'activate'}`, {}, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) })}
-                                data-test={label.active ? 'deactivate-label' : 'activate-label'}
-                            >
-                                {label.active ? t('catalog::admin_labels.deactivate') : t('catalog::admin_labels.activate')}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                                variant="destructive"
-                                aria-disabled={deleteReason !== null || undefined}
-                                className={deleteReason !== null ? 'cursor-not-allowed' : undefined}
-                                onSelect={(event) => {
-                                    if (deleteReason !== null) {
-                                        event.preventDefault();
-
-                                        return;
-                                    }
-
-                                    open('delete', more.current);
-                                }}
-                                data-test="delete-label"
-                            >
-                                <span className="grid gap-0.5">
-                                    <span className={deleteReason !== null ? 'opacity-60' : undefined}>{t('catalog::admin_labels.delete')}</span>
-                                    {deleteReason !== null ? <span className="text-copy-12 text-ink-muted">{deleteReason}</span> : null}
-                                </span>
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                )}
+                <LabelMenu label={label} reason={reason} first={first} last={last} toTop={toTop} toBottom={toBottom} open={open} test={`label-actions-${label.id}`} />
             </TableCell>
         </TableRow>
     );
 }
 
-type LabelForm = { name_ar: string; name_en: string; meaning: Meaning; subtle: boolean };
-
-function LabelDialog({
+/** A label's ⋯ menu: the row's, and the same on its phone card under its own test name. */
+function LabelMenu({
     label,
+    reason,
+    first,
+    last,
+    toTop,
+    toBottom,
     open,
-    onOpenChange,
-    returnFocusTo,
+    test,
 }: {
-    label: LabelData | null;
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    returnFocusTo?: RefObject<HTMLElement | null>;
+    label: LabelData;
+    reason: string | undefined;
+    first: boolean;
+    last: boolean;
+    toTop: () => void;
+    toBottom: () => void;
+    open: (action: 'edit' | 'delete', trigger: HTMLElement | null) => void;
+    test: string;
 }) {
     const t = useTranslator();
     const locale = useLocale();
-    const initial = (): LabelForm => {
-        const look = meaningOf(label?.tone ?? 'gray');
+    const [busy, setBusy] = useState(false);
+    const more = useRef<HTMLButtonElement>(null);
+    const name = nameIn(locale, label.nameAr, label.nameEn);
+    const deleteReason = label.products > 0 ? t('catalog::admin_labels.reason.in_use') : null;
 
-        return { name_ar: label?.nameAr ?? '', name_en: label?.nameEn ?? '', meaning: look.meaning, subtle: label === null ? true : look.subtle };
-    };
-    const form = useForm<LabelForm>(initial());
-    const errors = form.errors as Record<string, string | undefined>;
+    return reason !== undefined ? (
+        <MoreButtonOff name={name} reason={reason} />
+    ) : (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <MoreButton ref={more} name={name} busy={busy} data-test={test} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-56">
+                <DropdownMenuItem onSelect={() => open('edit', more.current)} data-test="edit-label">
+                    {t('catalog::admin_labels.edit')}
+                </DropdownMenuItem>
+                <MoveItems first={first} last={last} onTop={toTop} onBottom={toBottom} />
+                <DropdownMenuItem
+                    disabled={busy}
+                    onSelect={() => router.post(`/admin/labels/${label.id}/${label.active ? 'deactivate' : 'activate'}`, {}, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) })}
+                    data-test={label.active ? 'deactivate-label' : 'activate-label'}
+                >
+                    {label.active ? t('catalog::admin_labels.deactivate') : t('catalog::admin_labels.activate')}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                    variant="destructive"
+                    aria-disabled={deleteReason !== null || undefined}
+                    className={deleteReason !== null ? 'cursor-not-allowed' : undefined}
+                    onSelect={(event) => {
+                        if (deleteReason !== null) {
+                            event.preventDefault();
 
-    useEffect(() => {
-        if (open) {
-            form.setDefaults(initial());
-            form.reset();
-            form.clearErrors();
-        }
-    }, [open, label?.id]);
+                            return;
+                        }
 
-    const title = label === null ? t('catalog::admin_labels.add') : t('catalog::admin_labels.edit_title');
-    const preview = nameIn(locale, form.data.name_ar, form.data.name_en) || t('catalog::admin_labels.preview_empty');
-    // Each box as typed (frontend.md §1.7), with the domain's rules: names of up to 30 characters
-    // (Label::NAME_MAX) of one or two words - what the spaces separate (Label::checkWords, amendment
-    // 1(f)). A new label goes last; it has no place to type (amendment 16(d)).
-    const name = { required: true, length: { max: 30 }, format: { pattern: /^\S+(\s+\S+)?$/u, key: 'catalog::admin_labels.check.words' } };
-    const checks = useChecks([
-        { id: 'label-name-ar', label: t('catalog::admin.field.name_ar'), value: form.data.name_ar, rules: name },
-        { id: 'label-name-en', label: t('catalog::admin.field.name_en'), value: form.data.name_en, rules: name },
-    ]);
-
-    function submit() {
-        form.transform((data) => ({ name_ar: data.name_ar, name_en: data.name_en, tone: toneOf(data.meaning, data.subtle) }));
-        checks.submit(() => form.post(label === null ? '/admin/labels' : `/admin/labels/${label.id}`, { preserveScroll: true, onSuccess: () => onOpenChange(false) }));
-    }
-
-    return (
-        <PanelDialog
-            open={open}
-            onOpenChange={onOpenChange}
-            returnFocusTo={returnFocusTo}
-            title={title}
-            description={t('catalog::admin_labels.body')}
-            busy={form.processing}
-            confirm={
-                <ActionButton loading={form.processing} disabledReason={checks.reason} onClick={submit} data-test="confirm-label">
-                    {label === null ? title : t('catalog::admin_labels.save')}
-                </ActionButton>
-            }
-        >
-            <div className="grid gap-4">
-                <TextField id="label-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} helper={t('catalog::admin_labels.name_helper')} value={form.data.name_ar} check={checks.box('label-name-ar', form.errors.name_ar)} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="label-name-ar" />
-                <TextField id="label-name-en" dir="ltr" label={t('catalog::admin.field.name_en')} helper={t('catalog::admin_labels.name_helper')} value={form.data.name_en} check={checks.box('label-name-en', form.errors.name_en)} onChange={(event) => form.setData('name_en', event.target.value)} data-test="label-name-en" />
-
-                <FieldSet>
-                    <FieldLegend className="text-label-14 text-ink">{t('catalog::admin_labels.column.meaning')}</FieldLegend>
-                    <RadioGroup value={form.data.meaning} onValueChange={(value) => form.setData('meaning', value as Meaning)} className="grid gap-2 sm:grid-cols-2">
-                        {MEANINGS.map(([meaning]) => (
-                            <div key={meaning} className="flex items-center gap-2">
-                                <RadioGroupItem id={`meaning-${meaning}`} value={meaning} data-test={`meaning-${meaning}`} />
-                                <Label htmlFor={`meaning-${meaning}`} className="text-copy-14">
-                                    {t(`catalog::admin_labels.meaning.${meaning}`)}
-                                </Label>
-                            </div>
-                        ))}
-                    </RadioGroup>
-                    {errors.tone ? <FieldError>{errors.tone}</FieldError> : null}
-                </FieldSet>
-
-                <FieldSet>
-                    <FieldLegend className="text-label-14 text-ink">{t('catalog::admin_labels.strength.title')}</FieldLegend>
-                    <RadioGroup value={form.data.subtle ? 'subtle' : 'strong'} onValueChange={(value) => form.setData('subtle', value === 'subtle')} className="flex gap-4">
-                        {(['strong', 'subtle'] as const).map((strength) => (
-                            <div key={strength} className="flex items-center gap-2">
-                                <RadioGroupItem id={`strength-${strength}`} value={strength} data-test={`strength-${strength}`} />
-                                <Label htmlFor={`strength-${strength}`} className="text-copy-14">
-                                    {t(`catalog::admin_labels.strength.${strength}`)}
-                                </Label>
-                            </div>
-                        ))}
-                    </RadioGroup>
-                </FieldSet>
-
-                <p className="flex items-center gap-2 text-copy-13 text-ink-muted">
-                    {t('catalog::admin_labels.preview')}
-                    <Badge className={tone(toneOf(form.data.meaning, form.data.subtle))} data-test="label-preview">
-                        {preview}
-                    </Badge>
-                </p>
-            </div>
-        </PanelDialog>
+                        open('delete', more.current);
+                    }}
+                    data-test="delete-label"
+                >
+                    <span className="grid gap-0.5">
+                        <span className={deleteReason !== null ? 'opacity-60' : undefined}>{t('catalog::admin_labels.delete')}</span>
+                        {deleteReason !== null ? <span className="text-copy-13 text-ink-muted">{deleteReason}</span> : null}
+                    </span>
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
     );
 }
 

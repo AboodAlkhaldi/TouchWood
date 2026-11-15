@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { router, useForm } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
-import { PhoneCards } from '@/components/content/list';
+import { PhoneCards } from '@/components/PhoneCards';
 import { TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { MiddleTruncate } from '@/components/geist-only/MiddleTruncate';

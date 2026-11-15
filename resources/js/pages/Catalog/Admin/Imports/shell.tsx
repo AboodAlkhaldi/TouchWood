@@ -176,7 +176,7 @@ export function ImportShell({ page, children }: { page: ImportPage; children: Re
                         {PARTS.map((part) => (
                             <TabsTrigger key={part} value={part} data-test={`part-${part}`} className="flex-none gap-2 px-3 text-label-14">
                                 {t(`catalog::admin_imports.part.${part}`)}
-                                {counts[part] > 0 ? <span className="tw-figure text-copy-12 text-ink-muted">{figure(locale, counts[part])}</span> : null}
+                                {counts[part] > 0 ? <span className="tw-figure text-label-12 text-ink-muted">{figure(locale, counts[part])}</span> : null}
                             </TabsTrigger>
                         ))}
                     </TabsList>

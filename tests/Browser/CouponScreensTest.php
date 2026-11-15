@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Modules\Catalog\Application\Command\AddCategory\AddCategory;
 use Modules\Catalog\Application\Command\AddCategory\AddCategoryHandler;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
+use Tests\Modules\Promotions\Support\PromotionsFixtures as Pr;
 
 use function Pest\Laravel\seed;
 
@@ -43,10 +45,10 @@ function couponScreenCategory(): string
     return Fx::asSystem(fn (): string => app(AddCategoryHandler::class)->handle(new AddCategory("قسم {$n}", "Browser Kitchens {$n}", null)));
 }
 
-/** Signed in to the panel as a new Super Admin. */
-function couponScreenPanel(): mixed
+/** Signed in to the panel as a new Super Admin, or as the one given (a test that changes their language). */
+function couponScreenPanel(?string $staffId = null): mixed
 {
-    $email = (string) DB::table('access.staff_users')->where('id', Fx::staff(superAdmin: true))->value('email');
+    $email = (string) DB::table('access.staff_users')->where('id', $staffId ?? Fx::staff(superAdmin: true))->value('email');
 
     $page = visit('/admin/sign-in')
         ->type('#email', $email)
@@ -100,7 +102,16 @@ it('creates a coupon through the form with a category picked by name, then turns
 });
 
 it('draws the list and a coupon\'s form at a phone\'s width with nothing scrolling sideways', function () {
-    $page = couponScreenPanel();
+    // A coupon given to one customer, who has used it once: a row of this run's on the list and on
+    // each of its two tabs. Given, not public, so no other test's cart can take it by its code.
+    $code = couponScreenCode();
+    $coupon = Pr::coupon($code, with: ['eligibility' => 'ASSIGNED']);
+    $customer = Fx::customer(strtolower((string) Str::ulid()).'@example.test', 'sa');
+    Pr::assign($coupon, $customer);
+    $use = (int) DB::table('promotions.coupon_uses')->where('order_id', Pr::used($coupon, $customer))->value('id');
+
+    $staffId = Fx::staff(superAdmin: true);
+    $page = couponScreenPanel($staffId);
     $page->resize(375, 812);
 
     foreach (['/admin/coupons?store=sa', '/admin/coupons/new?store=sa'] as $uri) {
@@ -108,5 +119,25 @@ it('draws the list and a coupon\'s form at a phone\'s width with nothing scrolli
         $wide = (string) $page->script('document.documentElement.scrollWidth > document.documentElement.clientWidth ? String(document.documentElement.scrollWidth) : ""');
 
         expect($wide)->toBe('', "{$uri} scrolls sideways");
+    }
+
+    // Under 640 px each row reads as a card and the table's row is not drawn (round 3 #15), in both
+    // languages: the coupon in the list (searched by its code), its use, and the customer given it.
+    $cards = [
+        '/admin/coupons?store=sa&code='.rawurlencode($code) => ["coupon-card-{$code}", "coupon-{$code}"],
+        "/admin/coupons/{$coupon}?tab=uses" => ["use-card-{$use}", "use-{$use}"],
+        "/admin/coupons/{$coupon}?tab=customers" => ["assignment-card-{$customer}", "assignment-{$customer}"],
+    ];
+
+    foreach (['ar', 'en'] as $locale) {
+        browserPanelLanguage($page, $locale);
+
+        foreach ($cards as $uri => [$card, $row]) {
+            $page->navigate($uri, BROWSER_PAGE_LOAD);
+
+            expect(browserSoon($page, "document.documentElement.lang === '{$locale}'"))->toBeTrue()
+                ->and(browserRowIsCard($page, '[data-test="'.$card.'"]', '[data-test="'.$row.'"]'))->toBeTrue("{$locale}: {$uri} draws no card for {$card}")
+                ->and((string) $page->script('document.documentElement.scrollWidth > document.documentElement.clientWidth ? "wide" : ""'))->toBe('', "{$locale}: {$uri} scrolls sideways");
+        }
     }
 });

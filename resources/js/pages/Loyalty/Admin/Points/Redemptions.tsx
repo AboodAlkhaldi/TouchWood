@@ -2,6 +2,7 @@ import { Link } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
+import { PhoneCards } from '@/components/PhoneCards';
 import { StoreFilter } from '@/components/StoreFilter';
 import { Time } from '@/components/Time';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
@@ -41,49 +42,77 @@ export default function Redemptions({ redemptions, nextAt, nextId, storeCode, pr
                         </EmptyHeader>
                     </Empty>
                 ) : (
-                    <div className="material-base overflow-x-auto">
-                        <Table>
-                            <TableCaption className="sr-only">{t('loyalty::admin_points.redemptions.title')}</TableCaption>
-                            <TableHeader className="bg-surface-sunken">
-                                <TableRow>
-                                    <TableHead>{t('loyalty::admin_points.columns.date')}</TableHead>
-                                    <TableHead>{t('loyalty::admin_points.columns.order')}</TableHead>
-                                    <TableHead>{t('loyalty::admin_points.columns.customer')}</TableHead>
-                                    <TableHead className="text-end">{t('loyalty::admin_points.columns.points')}</TableHead>
-                                    <TableHead className="text-end">{t('loyalty::admin_points.columns.discount')}</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {list.rows.map((row) => (
-                                    <TableRow key={row.id} data-test={`redemption-${row.id}`}>
-                                        <TableCell className="text-copy-13 whitespace-nowrap text-ink-muted">
-                                            <Time value={row.occurredAt} />
-                                        </TableCell>
-                                        <TableCell>
-                                            <bdi dir="ltr" className="tw-figure">
-                                                {row.orderNumber}
-                                            </bdi>
-                                        </TableCell>
-                                        <TableCell>
-                                            {row.customer.deleted ? (
-                                                <span className="text-ink-muted">{t('loyalty::admin_points.deleted_customer')}</span>
-                                            ) : (
-                                                <Link href={`/admin/points/customers/${row.customer.id}?store=${encodeURIComponent(storeCode)}`} className="text-ink underline-offset-4 hover:underline">
-                                                    <bdi>{row.customer.name}</bdi>
-                                                </Link>
-                                            )}
-                                        </TableCell>
-                                        <TableCell className="text-end">
-                                            <Points value={row.points} />
-                                        </TableCell>
-                                        <TableCell className="text-end whitespace-nowrap">
-                                            <Amount value={row.discount} />
-                                        </TableCell>
+                    <>
+                        <div className="material-base hidden overflow-x-auto sm:block">
+                            <Table>
+                                <TableCaption className="sr-only">{t('loyalty::admin_points.redemptions.title')}</TableCaption>
+                                <TableHeader className="bg-surface-sunken">
+                                    <TableRow>
+                                        <TableHead>{t('loyalty::admin_points.columns.date')}</TableHead>
+                                        <TableHead>{t('loyalty::admin_points.columns.order')}</TableHead>
+                                        <TableHead>{t('loyalty::admin_points.columns.customer')}</TableHead>
+                                        <TableHead className="text-end">{t('loyalty::admin_points.columns.points')}</TableHead>
+                                        <TableHead className="text-end">{t('loyalty::admin_points.columns.discount')}</TableHead>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
+                                </TableHeader>
+                                <TableBody>
+                                    {list.rows.map((row) => (
+                                        <TableRow key={row.id} data-test={`redemption-${row.id}`}>
+                                            <TableCell className="text-copy-13 whitespace-nowrap text-ink-muted">
+                                                <Time value={row.occurredAt} />
+                                            </TableCell>
+                                            <TableCell>
+                                                <bdi dir="ltr" className="tw-figure">
+                                                    {row.orderNumber}
+                                                </bdi>
+                                            </TableCell>
+                                            <TableCell>
+                                                {row.customer.deleted ? (
+                                                    <span className="text-ink-muted">{t('loyalty::admin_points.deleted_customer')}</span>
+                                                ) : (
+                                                    <Link href={`/admin/points/customers/${row.customer.id}?store=${encodeURIComponent(storeCode)}`} className="text-ink underline-offset-4 hover:underline">
+                                                        <bdi>{row.customer.name}</bdi>
+                                                    </Link>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className="text-end">
+                                                <Points value={row.points} />
+                                            </TableCell>
+                                            <TableCell className="text-end whitespace-nowrap">
+                                                <Amount value={row.discount} />
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                        {/* On a phone each redemption a card (round 3 #15); it opens nothing, its customer still does. */}
+                        <PhoneCards
+                            test="redemption"
+                            cards={list.rows.map((row) => ({
+                                id: String(row.id),
+                                title: (
+                                    <bdi dir="ltr" className="tw-figure">
+                                        {row.orderNumber}
+                                    </bdi>
+                                ),
+                                lines: [
+                                    <Time key="d" value={row.occurredAt} focusable={false} />,
+                                    row.customer.deleted ? (
+                                        <span key="c">{t('loyalty::admin_points.deleted_customer')}</span>
+                                    ) : (
+                                        <Link key="c" href={`/admin/points/customers/${row.customer.id}?store=${encodeURIComponent(storeCode)}`} className="text-ink underline-offset-4 hover:underline">
+                                            <bdi>{row.customer.name}</bdi>
+                                        </Link>
+                                    ),
+                                    <span key="p">
+                                        {`${t('loyalty::admin_points.columns.points')}: `}
+                                        <Points value={row.points} /> · <Amount value={row.discount} />
+                                    </span>,
+                                ],
+                            }))}
+                        />
+                    </>
                 )}
 
                 {nextAt !== null && nextId !== null ? (

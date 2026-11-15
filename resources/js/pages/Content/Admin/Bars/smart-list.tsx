@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { router } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
-import { PhoneCards, StateBadge } from '@/components/content/list';
+import { StateBadge } from '@/components/content/list';
+import { PhoneCards } from '@/components/PhoneCards';
 import { PanelDialog } from '@/components/PanelDialog';
 import { MoreButton } from '@/components/RowMenu';
 import { Time } from '@/components/Time';

@@ -5,6 +5,7 @@ import { AdminLayout } from '@/layouts/AdminLayout';
 import { SelectField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { Pager } from '@/components/Pager';
+import { PhoneCards } from '@/components/PhoneCards';
 import { SearchField } from '@/components/SearchField';
 import { Time } from '@/components/Time';
 import { Badge } from '@/components/ui/badge';
@@ -200,25 +201,51 @@ export default function Index({ companies, total, page, perPage, search, status,
                         ) : null}
                     </Empty>
                 ) : (
-                    <div className="material-base overflow-hidden">
-                        <Table>
-                            <TableCaption className="sr-only">{t('b2b::admin_companies.title')}</TableCaption>
-                            <TableHeader className="bg-surface-sunken">
-                                <TableRow>
-                                    <TableHead>{t('b2b::admin_companies.column.company')}</TableHead>
-                                    <TableHead>{t('b2b::admin_companies.column.status')}</TableHead>
-                                    <TableHead>{t('b2b::admin_companies.column.store')}</TableHead>
-                                    <TableHead>{t('b2b::admin_companies.column.sent')}</TableHead>
-                                    <TableHead>{t('b2b::admin_companies.column.changed')}</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {companies.map((company) => (
-                                    <Row key={company.id} company={company} />
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
+                    <>
+                        <div className="material-base hidden overflow-hidden sm:block">
+                            <Table>
+                                <TableCaption className="sr-only">{t('b2b::admin_companies.title')}</TableCaption>
+                                <TableHeader className="bg-surface-sunken">
+                                    <TableRow>
+                                        <TableHead>{t('b2b::admin_companies.column.company')}</TableHead>
+                                        <TableHead>{t('b2b::admin_companies.column.status')}</TableHead>
+                                        <TableHead>{t('b2b::admin_companies.column.store')}</TableHead>
+                                        <TableHead>{t('b2b::admin_companies.column.sent')}</TableHead>
+                                        <TableHead>{t('b2b::admin_companies.column.changed')}</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {companies.map((company) => (
+                                        <Row key={company.id} company={company} />
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                        {/* On a phone each company a card (round 3 #15), opening the company as the row does. */}
+                        <PhoneCards
+                            test="company"
+                            cards={companies.map((company) => ({
+                                id: company.id,
+                                title: company.name,
+                                href: `${LIST}/${company.id}`,
+                                badge: <Badge className={tone(companyStatusTone(company.status))}>{t(`b2b::admin_companies.status.${company.status}`)}</Badge>,
+                                lines: [
+                                    <span key="s">
+                                        {company.storeName}
+                                        {company.typeDeactivatedSinceSent ? <span className="text-warn"> · {t('b2b::admin_companies.type_deactivated')}</span> : null}
+                                    </span>,
+                                    <span key="w">
+                                        {`${t('b2b::admin_companies.column.sent')}: `}
+                                        {company.waitingSince === null ? <Unknown /> : <Time value={company.waitingSince} focusable={false} />}
+                                    </span>,
+                                    <span key="c">
+                                        {`${t('b2b::admin_companies.column.changed')}: `}
+                                        {company.statusChangedAt === null ? <Unknown /> : <Time value={company.statusChangedAt} focusable={false} />}
+                                    </span>,
+                                ],
+                            }))}
+                        />
+                    </>
                 )}
 
                 {companies.length > 0 ? <Pager from={from} to={to} total={total} previousHref={page > 1 ? href(page - 1) : null} nextHref={to < total ? href(page + 1) : null} /> : null}

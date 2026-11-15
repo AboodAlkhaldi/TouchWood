@@ -47,7 +47,7 @@ export function Guarded({ label, reason, onSelect, test, destructive = false }: 
         >
             <span className="grid gap-0.5">
                 <span className={off ? 'opacity-60' : undefined}>{label}</span>
-                {off ? <span className="text-copy-12 text-ink-muted">{reason}</span> : null}
+                {off ? <span className="text-copy-13 text-ink-muted">{reason}</span> : null}
             </span>
         </DropdownMenuItem>
     );

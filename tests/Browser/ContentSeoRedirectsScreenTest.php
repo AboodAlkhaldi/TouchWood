@@ -105,12 +105,23 @@ it('draws right to left in Arabic, in Latin digits, and fits a phone', function 
     DB::table('access.staff_users')->where('id', $staff)->update(['locale' => 'ar']);
     $page = Cb::signInAs($staff);
     $page->resize(375, 812);
+    $sheet = seoBrowserSheet($run, $staff);
 
-    foreach (['/admin/content/seo?store=ae', '/admin/content/redirects', '/admin/content/redirects/sheets/'.seoBrowserSheet($run, $staff)] as $address) {
+    foreach (['/admin/content/seo?store=ae', '/admin/content/redirects', "/admin/content/redirects/sheets/{$sheet}"] as $address) {
         $page->navigate($address, BROWSER_SLOW_PAGE_LOAD);
         expect(browserSoon($page, "document.documentElement.dir === 'rtl' && document.querySelector('main') !== null"))->toBeTrue()
             ->and(Cb::fitsPhone($page))->toBeTrue($address.' '.Cb::overflow($page))
             ->and(Cb::latinDigits($page))->toBeTrue();
+    }
+
+    // Under 640 px each line of the sheet reads as a card and the table's row is not drawn (round 3
+    // #15), in Arabic and in English.
+    foreach (['ar', 'en'] as $locale) {
+        browserPanelLanguage($page, $locale);
+        $page->navigate("/admin/content/redirects/sheets/{$sheet}", BROWSER_SLOW_PAGE_LOAD);
+
+        expect(browserSoon($page, "document.documentElement.lang === '{$locale}'"))->toBeTrue()
+            ->and(browserRowIsCard($page, '[data-test="sheet-line-card-2"]', '[data-test="sheet-line-2"]'))->toBeTrue("{$locale}: the sheet's line is not a card");
     }
 
     $page->assertNoJavaScriptErrors();

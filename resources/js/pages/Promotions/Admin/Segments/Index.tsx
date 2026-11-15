@@ -3,6 +3,7 @@ import { Link } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
+import { PhoneCards } from '@/components/PhoneCards';
 import { StoreFilter } from '@/components/StoreFilter';
 import { Time } from '@/components/Time';
 import { Unknown, useLocale } from '@/components/promotions/parts';
@@ -55,52 +56,68 @@ export default function Index({ segments, nextAt, nextId, mayManage, storeCode, 
                         {mayManage ? <EmptyContent>{newButton(`empty-new-segment`)}</EmptyContent> : null}
                     </Empty>
                 ) : (
-                    <div className="material-base max-w-full overflow-x-auto">
-                        <Table>
-                            <TableCaption className="sr-only">{t('promotions::admin_segments.list.title')}</TableCaption>
-                            <TableHeader className="bg-surface-sunken">
-                                <TableRow>
-                                    <TableHead>{t('promotions::admin_segments.columns.name')}</TableHead>
-                                    <TableHead>{t('promotions::admin_segments.columns.type')}</TableHead>
-                                    <TableHead>{t('promotions::admin_segments.columns.who')}</TableHead>
-                                    <TableHead>{t('promotions::admin_segments.columns.rule')}</TableHead>
-                                    <TableHead className="text-end">{t('promotions::admin_segments.columns.members')}</TableHead>
-                                    <TableHead>{t('promotions::admin_segments.columns.updated')}</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {list.rows.map((segment) => (
-                                    <TableRow key={segment.id} data-test={`segment-${segment.id}`} className="relative hover:bg-surface-sunken">
-                                        <TableCell className="min-w-40">
-                                            <Link
-                                                href={`${LIST}/${segment.id}`}
-                                                className="text-label-14 text-ink after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-[3px] focus-visible:after:ring-ring/50"
-                                            >
-                                                {segment.name}
-                                            </Link>
-                                        </TableCell>
-                                        <TableCell className="text-ink-muted">{t(`promotions::admin_segments.type.${segment.type}`)}</TableCell>
-                                        <TableCell className="text-ink-muted">{t(`promotions::admin_segments.audience.${segment.audience}`)}</TableCell>
-                                        <TableCell>{rule(segment) ?? <Unknown />}</TableCell>
-                                        <TableCell className="text-end">
-                                            <bdi dir="ltr" className="tw-figure">
-                                                {figure(locale, segment.memberCount)}
-                                            </bdi>
-                                        </TableCell>
-                                        <TableCell className="text-copy-13 whitespace-nowrap text-ink-muted">
-                                            {segment.refreshedAt === null ? (
-                                                <Unknown />
-                                            ) : (
-                                                <span className="relative z-10">
-                                                    <Time value={segment.refreshedAt} />
-                                                </span>
-                                            )}
-                                        </TableCell>
+                    <>
+                        <div className="material-base hidden max-w-full overflow-x-auto sm:block">
+                            <Table>
+                                <TableCaption className="sr-only">{t('promotions::admin_segments.list.title')}</TableCaption>
+                                <TableHeader className="bg-surface-sunken">
+                                    <TableRow>
+                                        <TableHead>{t('promotions::admin_segments.columns.name')}</TableHead>
+                                        <TableHead>{t('promotions::admin_segments.columns.type')}</TableHead>
+                                        <TableHead>{t('promotions::admin_segments.columns.who')}</TableHead>
+                                        <TableHead>{t('promotions::admin_segments.columns.rule')}</TableHead>
+                                        <TableHead className="text-end">{t('promotions::admin_segments.columns.members')}</TableHead>
+                                        <TableHead>{t('promotions::admin_segments.columns.updated')}</TableHead>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
+                                </TableHeader>
+                                <TableBody>
+                                    {list.rows.map((segment) => (
+                                        <TableRow key={segment.id} data-test={`segment-${segment.id}`} className="relative hover:bg-surface-sunken">
+                                            <TableCell className="min-w-40">
+                                                <Link
+                                                    href={`${LIST}/${segment.id}`}
+                                                    className="text-label-14 text-ink after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-[3px] focus-visible:after:ring-ring/50"
+                                                >
+                                                    {segment.name}
+                                                </Link>
+                                            </TableCell>
+                                            <TableCell className="text-ink-muted">{t(`promotions::admin_segments.type.${segment.type}`)}</TableCell>
+                                            <TableCell className="text-ink-muted">{t(`promotions::admin_segments.audience.${segment.audience}`)}</TableCell>
+                                            <TableCell>{rule(segment) ?? <Unknown />}</TableCell>
+                                            <TableCell className="text-end">
+                                                <bdi dir="ltr" className="tw-figure">
+                                                    {figure(locale, segment.memberCount)}
+                                                </bdi>
+                                            </TableCell>
+                                            <TableCell className="text-copy-13 whitespace-nowrap text-ink-muted">
+                                                {segment.refreshedAt === null ? (
+                                                    <Unknown />
+                                                ) : (
+                                                    <span className="relative z-10">
+                                                        <Time value={segment.refreshedAt} />
+                                                    </span>
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                        {/* On a phone each segment a card (round 3 #15), opening the segment as the row does. */}
+                        <PhoneCards
+                            test="segment"
+                            cards={list.rows.map((segment) => ({
+                                id: segment.id,
+                                title: segment.name,
+                                href: `${LIST}/${segment.id}`,
+                                lines: [
+                                    <span key="t">{`${t(`promotions::admin_segments.type.${segment.type}`)} · ${t(`promotions::admin_segments.audience.${segment.audience}`)}`}</span>,
+                                    <span key="r">{rule(segment) ?? <Unknown />}</span>,
+                                    <span key="m" className="tw-figure">{`${t('promotions::admin_segments.columns.members')}: ${figure(locale, segment.memberCount)}`}</span>,
+                                ],
+                            }))}
+                        />
+                    </>
                 )}
 
                 {nextAt !== null && nextId !== null ? <LoadMoreButton loading={list.loading} onClick={() => list.more(LIST, { store: storeCode, before_at: nextAt, before_id: nextId }, ['segments', 'nextAt', 'nextId'])} /> : null}

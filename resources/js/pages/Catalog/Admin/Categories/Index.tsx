@@ -382,7 +382,7 @@ function Row({
                     {category.image !== null ? <img src={category.image} alt="" className="size-8 rounded-md border border-line object-cover" /> : null}
                     <span className="grid">
                         <span className="text-label-14 text-ink">{name}</span>
-                        <span className="text-copy-12 text-ink-muted" dir={locale === 'ar' ? 'ltr' : 'rtl'}>
+                        <span className="text-label-12 text-ink-muted" dir={locale === 'ar' ? 'ltr' : 'rtl'}>
                             {other}
                         </span>
                     </span>
@@ -462,7 +462,7 @@ function Item({ label, reason, onSelect, test, destructive = false }: { label: s
         >
             <span className="grid gap-0.5">
                 <span className={reason !== null ? 'opacity-60' : undefined}>{label}</span>
-                {reason !== null ? <span className="text-copy-12 text-ink-muted">{reason}</span> : null}
+                {reason !== null ? <span className="text-copy-13 text-ink-muted">{reason}</span> : null}
             </span>
         </DropdownMenuItem>
     );
