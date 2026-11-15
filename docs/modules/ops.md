@@ -1641,70 +1641,97 @@ Content's spec settles §9.5 (content.md §1.7 #10, #13, §2.1, §2.3 O1 to O3, 
    the 24-hour one alone from 24 hours to under 3 days, none under 24 hours), each its own event: "once per event" sends each, and
    "ends on :date" stays true for each. **§9.5 #3 is still open**: the words with `:campaign` wait for the full review of the words.
 
-### 9.8 WhatsApp replaces SMS for codes — **[DRAFT for the owner, 2026-11-15; not built]**
+### 9.8 WhatsApp replaces SMS for codes — **[DRAFT for the owner, 2026-11-15, revised after its review; not built]**
 
 **The owner's decisions (2026-11-15, in chat; the CEO approves the cost first):**
-- **D1.** WhatsApp **replaces** SMS. No SMS provider is ever built; the verification flows in Access (who gets a code,
-  when, how often, how long it lives) stay exactly as they are. **Only the delivery adapter changes.**
-- **D2.** **Direct with Meta's WhatsApp Cloud API**, no Solution Partner or other middleman.
-- **D3.** From a **new Saudi number used only by the API**: no phone app on it. The company's current number, used by staff in
-  the WhatsApp Business app (8 linked devices), is untouched.
-- **D4.** **Codes only.** Offer notices, customer messages and newsletters stay bell and email; WhatsApp campaigns are a later
-  decision (cost report, 2026-11-15: a marketing message costs about 5x a code).
-- **D5.** **An auto-reply** on the new number: anyone who writes to it is told, in Arabic and English, that it only sends codes,
-  and given a link to chat with the main number.
-- **D6.** People without WhatsApp: a fallback is a later decision (owner's reminder). Until then they cannot receive a code.
+- **D1.** WhatsApp **replaces** SMS, and no SMS provider is ever built. Access's code rules stay as they are: who gets a code, when, how often, and its length (4-8) and life (1-60 minutes), both settings. **Only the delivery adapter changes.**
+- **D2.** **Direct with Meta's WhatsApp Cloud API**, with no Solution Partner or other middleman.
+- **D3.** From a **new Saudi number used only by the API**, with no phone app on it. The company's current number (the WhatsApp Business app, 8 linked devices) is untouched.
+- **D4.** **Codes only.** Notices, customer messages and newsletters stay bell and email. WhatsApp campaigns are a later decision: the local cost report puts a marketing message at about 5x a code in Saudi Arabia.
+- **D5.** **An auto-reply** on the new number points whoever writes to it to the main number.
+- **D6.** A fallback for people without WhatsApp is a later decision. **Until then**, for the owner to see plainly:
+  - A customer without WhatsApp cannot verify a phone, so cannot order (`customerMayOrder`).
+  - A new staff member or Super Admin without WhatsApp cannot finish the first sign-in (amendment 91(2)).
+  - Whether a number has WhatsApp is only learned after a send. So access.md amendment 90's "a number the channel cannot reach is never saved" now holds for the country only.
 
-**1. The adapter's contract changes from a text to a code.** Meta allows codes only in an **authentication template** whose
-body Meta fixes ("*123456* is your verification code"); we cannot send our own sentence. So `SmsSender::send(phone, message)`
-becomes a **code sender**: `sendCode(phone, locale, code)`, the provider choosing the words.
-- `log` (development and tests) writes the same words as today (`ops::security.phone_code` / `sign_in_code`) to the log.
-- `whatsapp` sends the approved authentication template in the recipient's language (`ar` or `en`), the code as its body
-  parameter and as its Copy Code button's parameter (Meta asks for it twice). The template has Meta's do-not-share line on
-  and an **expiry footer of 5 minutes**, the codes' own validity (access.md §1.3). A message's time-to-live is set to the same
-  5 minutes, so a code is never delivered after it has expired.
-- **Lost by this:** the staff sign-in code's own warning ("If you did not try to sign in, change your password now",
-  access.md §1.8) cannot be in Meta's fixed body. Staff still get the existing email on a failed app code.
-- The **SMS countries list stays as the routing table**: each listed country names its provider, now `whatsapp` or `log`.
-  A number from an unlisted country is still refused when entered (access.md amendment 90).
+**1. The adapter sends a code, not a text.** Meta allows codes only in an **authentication template**, and Meta fixes its body ("*123456* is your verification code"; verify when built). We cannot send our own sentence, so `SmsSender::send(phone, message)` becomes `CodeSender::sendCode(phone, locale, purpose, code)`, where purpose is `PHONE_CHECK` or `SIGN_IN`.
+- `log` (development and tests) writes the same words as today to the log: `ops::security.phone_code` or `sign_in_code`, chosen by purpose.
+- `whatsapp` sends the approved template in the recipient's language, with Meta's do-not-share line on. The code goes in twice, as the body parameter and as the Copy Code button's parameter, because Meta asks for both (verify).
+- Every code path already goes through `OpsSecurityMessages::sms`, so this one change covers them all:
+  - the customer's phone (`CustomerPhoneVerification`);
+  - a staff member's invitation, phone change, and a Super Admin's new phone (`PhoneVerification`);
+  - staff sign-in.
 
-**2. Meta's settings live in `.env` only**, entered by the owner on the server:
-`WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN` (a permanent system user's token), `WHATSAPP_CODE_TEMPLATE` (the approved
-template's name), `WHATSAPP_APP_SECRET` (to check that what Meta sends us is Meta's), `WHATSAPP_VERIFY_TOKEN` (Meta's handshake
-when the address is set), and `WHATSAPP_MAIN_NUMBER` (the main number, for the auto-reply's link). The Graph API version is
-pinned in config and checked against Meta's documentation when this is built.
+  Its one other caller, the critical alerts (`EventSender::smsStaff`), is question W1.
+- The SMS countries list stays the routing table. Each listed country names its provider, now `whatsapp` or `log`. A number from an unlisted country is still refused when entered (amendment 90).
 
-**3. Sent is not delivered.** Meta answers at once with a message id when it accepts a message, and tells us later whether it
-was delivered. So:
-- The code's `ops.sent_messages` row (channel **WHATSAPP**, never the code or the number) is **SENT** with Meta's id when
-  Meta accepts it, and **FAILED** at once when Meta refuses (bad token, unknown template, no such number): the person sees
-  the code could not be sent, as with any provider failure today, and S10b alerts the Super Admins once an hour.
-- When Meta later reports the message **failed** (for example the number has no WhatsApp), the row turns **FAILED** and S10b
-  alerts as above. The person, waiting, uses **Resend** as today.
-- Meta only charges for a delivered message.
+**2. Meta's settings live in `.env` only.** The owner enters them on the server: `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN` (a permanent system user's), `WHATSAPP_CODE_TEMPLATE` (the approved template's name), `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` and `WHATSAPP_MAIN_NUMBER`.
+- The Graph API version is pinned in config and checked against Meta's documentation when built.
+- **A production server refuses to start** while a listed country names `whatsapp` and a setting is missing. This is the owner's answer to reminder 24 ("go with rec", 2026-11-10). It goes here and into §2.2, which still says the question is being decided, and §7's boot guard gains these settings.
 
-**4. Meta's notices come to one address**, `POST /whatsapp/webhook` (Meta's `GET` handshake there with the verify token):
-every request's `X-Hub-Signature-256` is checked against the app secret first, and a request without a valid one answers
-403 and does nothing. Statuses (point 3) update the row by Meta's id; an unknown id is ignored.
+**3. Sent is not delivered.** When Meta takes a message, it answers at once with a message id, and only later tells us whether it reached the phone. As far as known, a number with no WhatsApp is accepted at first and failed later (verify).
+- The code's `ops.sent_messages` row gets a new channel, **WHATSAPP** (`varchar(8)` holds it), and never holds the code or the number.
+  - It is written as QUEUED **before** the send, so a fast status never arrives for a row that isn't there yet.
+  - It turns **SENT** with Meta's id when Meta takes the message.
+  - It turns **FAILED** at once when Meta refuses: a bad token, template or request.
+- A later **failed** status turns the row from **SENT to FAILED**, found by Meta's id (`provider_id` gains an index).
+- A later **delivered** or **read** status changes nothing. The row stays SENT, and there is no new state.
+- S10b (the security message could not be sent, once an hour) covers the WHATSAPP channel too, using the row's own store: `SecurityFailureAlert` maps WHATSAPP the same as SMS.
+- **A per-person failure** (that number has no WhatsApp) is kept apart from **a setup failure** (token, template), as Brevo's `FailureKind` does. Only a setup failure alerts the Super Admins. The person who is waiting uses Resend, as today.
 
-**5. The auto-reply (D5).** A text a person sends to the new number gets one reply, as a free-form message within the 24
-hours Meta then allows: both languages, the main number's chat link (`https://wa.me/<main number>`). **At most one auto-reply
-per sender in 24 hours**, so a conversation never becomes a loop or a cost; the sender is kept only as a one-way hash with
-the time. Meta charges nothing for the person's messages, and the first 1,000 replies a month per number are free.
-Proposed words (wording to be approved, reminder 16):
-- ar: «هذا الرقم مخصص لإرسال رموز التحقق فقط ولا يستقبل الرسائل. للتواصل معنا راسلنا على رقمنا الرئيسي: <link>»
-- en: "This number only sends verification codes and can't read replies. To reach us, message our main number: <link>"
+**4. Meta's notices come to one address, `/whatsapp/webhook`, built like Brevo's (§1.9).** It is unnamed, with no session and no CSRF, reserved (`ReservedPaths`), answered during maintenance, throttled, and its body capped (413).
+- `GET` is Meta's handshake. It answers `hub.challenge` only when `hub.mode` is `subscribe` and the verify token matches (compared in constant time); otherwise 403.
+- Every `POST` is checked first:
+  - `X-Hub-Signature-256` must be an HMAC-SHA256 of the raw body with the app secret, compared with `hash_equals`. A missing or wrong one answers 403 and does nothing.
+  - Its `metadata.phone_number_id` must be ours.
+- It answers 200 at once and leaves the work to the queue.
+- A notice may come twice: Meta retries, and the signature carries no timestamp (verify). So every step is idempotent:
+  - a status turns a row FAILED only from SENT;
+  - an incoming message is handled once, by its message id.
 
-**6. Tests** (no real message is ever sent): Meta faked over HTTP — a code sent in each language with the template, the code
-twice and the 5-minute footer and time-to-live; Meta refusing (token, template, number); a delivered and a failed status
-turning the row; a webhook with a wrong or missing signature refused; the handshake; one auto-reply a day per sender; `log`
-unchanged in development; `whatsapp` with a missing setting failing as a provider failure.
+**5. The auto-reply (D5).** An incoming message from a person gets one reply. Statuses and our own numbers never get one. The reply is sent from the queue as a free-form message, inside the 24 hours Meta then allows (verify).
+- **At most one per sender in 24 hours.**
+  - The sender is **claimed before** the send, so a retried notice never replies twice.
+  - The sender is kept only as a **keyed HMAC** of the number, with a key from `APP_KEY`. A plain hash of a phone number can be reversed by trying every number.
+  - Each row is deleted after 24 hours. New table `ops.whatsapp_auto_replies`: `sender_hmac` PK, `replied_at` (§5; its clean-up in §6).
+- **At most 100 auto-replies an hour in total** (proposed), so a flood of senders cannot spend money or wear down the number's quality rating, which the codes depend on.
+- It writes its own `ops.sent_messages` row (channel WHATSAPP, kind `auto_reply`) and raises no alert when it fails.
+- Cost: messages from people are free. The first 1,000 replies a month per number are free, then the service rate applies (Meta's pricing page, read 2026-11-15).
 
-**Open questions for the owner:**
+**6. The words.** Internal names stay as they are, so nothing in the database changes: the `access.*.sms_*` settings, the `ops.sms_countries` table, its permission, routes and error codes. **Every visible "SMS"** reads "WhatsApp" in both languages. That is about 21 language files: Access's sign-in, account, settings, staff and errors; Ops' security, S10b, menu, permissions, SMS countries, audit and jobs. It also covers the staff box "sign in by SMS". The page title is question W2.
+
+**7. Sections changed in place when accepted:**
+- ops.md:
+  - §0 (lines 22-26), §1.1 (56), §1.5 (C18, 142);
+  - §1.6 (S10b, 210; and 214-226 by W1);
+  - §2.2 (488-493), §4.14, §4.15 (O10);
+  - §5 (the `sent_messages` channel CHECK, the new table), §6;
+  - §7 (the boot guard; webhook failures as Brevo's, 1388-1393), §8.
+- access.md amendment 98.
+- The `MessageChannel` enum and its generated types.
+
+**8. Tests.** No real message is ever sent; Meta is faked over HTTP.
+- A code in each language and purpose, with the code in twice.
+- Meta refusing: token, template, request.
+- A failed status turning SENT to FAILED; a duplicate status doing nothing; delivered changing nothing.
+- A per-person failure raising no alert; a setup failure raising S10b once an hour.
+- The webhook refusing a wrong or missing signature, a foreign `phone_number_id`, and an oversized body.
+- The handshake.
+- The auto-reply: one a day per sender, none to a status, and the hourly cap.
+- `log` unchanged; production refusing to start with a setting missing.
+
+**Questions for the owner:**
 
 | # | Question | Options | Recommended |
 |---|---|---|---|
-| W1 | The **critical alerts to Super Admins** (S5 at 1 day, S5b: the gateway key) went by SMS too. An alert is not a code, so WhatsApp would need a second, utility template (about the same price as a code) | (a) **email and bell only** from now; (b) a WhatsApp utility template as well | (a): the owner's "codes only"; the alerts already go by email and bell |
-| W2 | The panel page **"SMS Countries"** | (a) rename it **"Code Countries"** (دول رموز التحقق), the provider column offering WhatsApp; (b) keep the name | (a) |
-| W3 | A production server whose listed countries' provider is not ready (a missing setting) | (a) **refuse to start** (reminder 24's answer, kept); (b) start and fail each code | (a) |
-| W4 | The auto-reply's words (point 5) | approve, or give your own | approve |
+| W1 | The **critical alerts to Super Admins** (S5 at 1 day, S5b: the gateway key) went by SMS. An alert is not a code; by WhatsApp it needs a second, utility template (about a code's price) | (a) **email and bell only**: the critical-SMS switch goes with it (access.md 131, amendments 81, 91(8); `SetOwnCriticalSms`, the account page's switch); (b) a WhatsApp utility template | (a) |
+| W2 | The panel page "SMS Countries" | (a) **"Code Countries"** (دول رموز التحقق), with WhatsApp offered as the provider; (b) keep the name | (a) |
+| W3 | **The code's life is a setting (1-60 minutes), but Meta's expiry line is fixed in the approved template** | (a) **no expiry line** in the message; the code still dies at its set minutes; (b) lock both settings at 5 minutes and show "expires in 5 minutes"; (c) one template per minute value | (a) |
+| W4 | **The staff sign-in code loses its warning** ("If you did not try to sign in, change your password now"), because Meta's text is fixed | (a) **accept the loss**: the code only comes after the right password, and the authenticator app is the safer choice anyway; (b) also email the warning with every staff sign-in code | (a) |
+| W5 | The auto-reply's words (wording approved for now, reminder 16) | approve, or give your own | approve |
+
+Proposed W5 words; the link is the main number's `https://wa.me/<number>`:
+- ar: «هذا الرقم مخصص لإرسال رموز التحقق فقط ولا يستقبل الرسائل. للتواصل معنا راسلنا على رقمنا الرئيسي: <الرابط>»
+- en: "This number only sends verification codes and can't read replies. To reach us, message our main number: <link>"
+
+Not covered: Egypt is on the SMS countries' start list. A code to an Egyptian or Emirati phone from a Saudi number may be billed at Meta's international authentication rate (cost report §2). Confirm it on the first invoice.
