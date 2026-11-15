@@ -390,6 +390,12 @@ stylesheet, the same day.
   hue; text and lines are a step stronger and brand and status colours a step more saturated,
   measured in OKLCH. Light-mode muted text on a card goes from 4.90:1 to 6.31:1. The values are in
   `resources/css/themes.css`, light and dark.
+- **The shop's warm tokens** (shop-design.md §2.7, P1; 2026-11-16), from the design's own colours:
+  `--tw-line-warm` (#e7d6c6 light, #4a3a2c dark), the newsletter card's `--tw-sand` (#f0e2d6 light,
+  #2e241b dark) and `--tw-sand-ink` (#2c1911 light, #f0e2d6 dark). The shop's dark footer reuses the
+  sidebar's tokens, and its copper is `--tw-accent`. The shop's content box is the `shop-box`
+  utility in `resources/css/app.css`: 1400 px at most, 40 px each side, 24 px from 1024 down, 16 px
+  from 640 down.
 - **Type**: Geist's type scale under Geist's own class names — `text-heading-{14…48}`,
   `text-label-{12…20}` (and `-mono`), `text-copy-{13…24}` (and `-mono`), `text-button-{12,14,16}` —
   with the sizes, line heights and weights of Geist's stylesheet, set in our fonts. Geist's negative

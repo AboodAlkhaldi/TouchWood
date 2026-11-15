@@ -13,6 +13,7 @@ return [
         'search_placeholder' => 'ابحث عن منتج…',
         'see_all' => 'عرض كل النتائج',
         'no_suggestions' => 'لا منتجات مطابقة بعد.',
+        'order_wholesale' => 'اطلب بالجملة',
         'all_of' => 'كل :name',
     ],
     'home' => 'الرئيسية',

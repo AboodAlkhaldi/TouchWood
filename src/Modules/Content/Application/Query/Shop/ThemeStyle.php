@@ -38,7 +38,7 @@ final class ThemeStyle
     ];
 
     /** The content column's half width (`max-w-6xl`, 72rem), which the edges' artwork stops at. */
-    private const string HALF_COLUMN = '36rem';
+    private const string HALF_COLUMN = '700px';
 
     private const string TINT = 'linear-gradient(color-mix(in oklab, var(--tw-overlay) 50%, transparent), color-mix(in oklab, var(--tw-overlay) 50%, transparent))';
 

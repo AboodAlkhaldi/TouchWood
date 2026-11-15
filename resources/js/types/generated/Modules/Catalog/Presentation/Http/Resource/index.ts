@@ -435,6 +435,7 @@ ratingSort: boolean,
 export type ShopFrameData = {
 menu: ShopMenuItemData[],
 words: Record<string, string>,
+wholesale: boolean,
 };
 export type ShopLabelData = {
 name: string,

@@ -14,6 +14,7 @@ return [
         'search_placeholder' => 'Search products…',
         'see_all' => 'See All Results',
         'no_suggestions' => 'No products match yet.',
+        'order_wholesale' => 'Order Wholesale',
         'all_of' => 'All of :name',
     ],
     'home' => 'Home',

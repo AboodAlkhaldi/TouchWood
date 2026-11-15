@@ -25,5 +25,6 @@ return [
     'light' => 'Light',
     'previewing' => 'Previewing :name.',
     'stop_preview' => 'Stop Preview',
+    'track_order' => 'Track Order',
     'footer_links' => 'More links',
 ];
