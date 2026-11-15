@@ -86,6 +86,9 @@ it('draws the frame at a computer\'s width and on a phone, both languages and bo
                 ->and($phone->script("getComputedStyle(document.querySelector('[data-test=\"header-cart\"]')?.parentElement ?? document.body).display === 'none' || document.querySelector('[data-test=\"header-cart\"]') === null"))->toBeTrue()
                 // One line, cut on a phone.
                 ->and($phone->script("document.querySelector('[data-test=\"announcement-bar\"]').getBoundingClientRect().height <= 40"))->toBeTrue()
+                // A navy band with light words in both modes, readable (shop-design.md §12, bug 2: dark mode drew dark words on light blue).
+                ->and(Cb::lightOnDark($phone, '[data-test="announcement-bar"] span', '[data-test="announcement-bar"]'))->toBeTrue("{$address} {$mode}: the bar is not light words on a dark band")
+                ->and(Cb::contrast($phone, '[data-test="announcement-bar"] span', '[data-test="announcement-bar"]'))->toBeGreaterThanOrEqual(4.5, "{$address} {$mode}: the bar's words do not read")
                 ->and(Cb::latinDigits($phone))->toBeTrue();
             shopFrameBrowserFits($phone);
             $phone->assertNoJavaScriptErrors();

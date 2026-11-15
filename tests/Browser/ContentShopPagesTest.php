@@ -142,7 +142,17 @@ it('draws every Content page at 375 x 812 in both languages, nothing sideways, e
     $page->navigate("/eg/en{$paths['home']}", BROWSER_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"home-best-sellers\"] [data-test=\"card\"]') !== null && document.querySelector('[data-test=\"home-projects\"]') !== null && document.querySelector('[data-test=\"home-tile\"]') !== null"))->toBeTrue();
 
+    // The project's caption reads in both modes: light words on a navy fade, even over a white photo (shop-design.md §12, bug 1).
+    $dark = visit('/eg/en')->inDarkMode();
+    expect(browserSoon($dark, "document.querySelector('[data-test=\"home-project-caption\"]') !== null"))->toBeTrue();
+    foreach (['light' => $page, 'dark' => $dark] as $mode => $shown) {
+        foreach (['first-child' => 'line', 'last-child' => 'title'] as $child => $part) {
+            expect(Cb::contrast($shown, "[data-test=\"home-project-caption\"] span:{$child}", '[data-test="home-project-caption"]'))->toBeGreaterThanOrEqual(4.5, "{$mode}: the project's {$part} does not read");
+        }
+    }
+
     $page->assertNoJavaScriptErrors();
+    $dark->assertNoJavaScriptErrors();
 });
 
 it('sends brand.com/ to the base store\'s Arabic home with no store remembered, and to the remembered one with it', function () {

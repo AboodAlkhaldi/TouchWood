@@ -257,7 +257,8 @@ function Projects({ heading, project, guides }: { heading: string | null; projec
             <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
                 <Link href={link('storefront.content.project', { slug: project.slug })} className="group relative block overflow-hidden rounded-xl" data-test="home-project">
                     <ShopPhoto photo={Array.isArray(project.image) ? null : project.image} size="detail" alt="" className="aspect-[2/1] w-full" />
-                    <span className="absolute inset-x-0 bottom-0 grid gap-1 bg-[var(--tw-overlay)] p-4 text-ink-on-brand">
+                    {/* The design's caption: the sidebar's navy, dark in both modes, solid behind the words and fading out above them; the words light (shop-design.md §12, bug 1). */}
+                    <span className="absolute inset-x-0 bottom-0 grid gap-1 bg-linear-to-t from-sidebar/85 from-60% to-transparent p-4 pt-12 text-sidebar-ink" data-test="home-project-caption">
                         {project.line ? <span className="text-label-13">{project.line}</span> : null}
                         <span className="text-heading-16 group-hover:underline sm:text-heading-20">{project.title}</span>
                     </span>

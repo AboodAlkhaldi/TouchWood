@@ -278,11 +278,12 @@ export function StorefrontLayout({ title, children, address, head }: Props) {
 /**
  * The announcement bar (content.md §1.5): one line, full width, above the header at every width, cut with an ellipsis
  * on a phone; its link's page holds the whole text. A live theme's strip is its ground (§1.8 part 1), the words in the
- * bar's fixed colours.
+ * bar's fixed colours. Navy in light mode, the sidebar's deep navy in dark, light words on both (shop-design.md §12,
+ * bug 2: the brand token turns light blue in dark mode).
  */
 function AnnouncementBar({ bar, store, locale }: { bar: NonNullable<ContentFrame['bar']>; store: string; locale: string }) {
     return (
-        <div className={`bg-brand text-ink-on-brand ${bar.art ? 'bg-cover bg-center [background-image:var(--tw-theme-bar)]' : ''}`} data-test="announcement-bar">
+        <div className={`bg-brand text-ink-on-brand dark:bg-sidebar dark:text-sidebar-ink ${bar.art ? 'bg-cover bg-center [background-image:var(--tw-theme-bar)]' : ''}`} data-test="announcement-bar">
             <p className="mx-auto flex h-9 w-full max-w-6xl items-center justify-center px-4 text-copy-13">
                 <ContentLink link={bar.link} store={store} locale={locale} className="min-w-0 truncate underline-offset-4 hover:underline">
                     <span className="block truncate">{bar.text}</span>
