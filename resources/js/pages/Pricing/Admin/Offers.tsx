@@ -18,7 +18,7 @@ import { figure } from '@/lib/digits';
 import { useLoadMore } from '@/lib/use-load-more';
 import { SWITCH_ITEM, SWITCH_TRACK } from '@/lib/view-switch';
 import type { OffersPage, PickedProductData, ProductResultsData, SaleRowData } from '@/types/generated/Modules/Pricing/Presentation/Http/Resource';
-import { OfferMenu, useOfferDialogs } from './OfferActions';
+import { OfferMenu, offerMenuShown, useOfferDialogs } from './OfferActions';
 import { Mark, nameIn, Off, plural, RowPhoto, Showing, StateBadge, StoreFrame, useLocale, useT } from './parts';
 import { RemoteCombobox } from './picker';
 
@@ -245,7 +245,7 @@ export default function Offers(page: OffersPage) {
                                         </span>,
                                     ],
                                     // OfferMenu draws nothing when the reader may do nothing to the offer: no empty corner then.
-                                    menu: !frame.mayEditPrices && sale.state !== 'ENDED' ? undefined : <OfferMenu sale={sale} mayEdit={frame.mayEditPrices} name={name} onOpen={(mode, trigger) => offers.open({ mode, sale }, trigger)} test={`offer-card-actions-${sale.id}`} />,
+                                    menu: !offerMenuShown(sale, frame.mayEditPrices) ? undefined : <OfferMenu sale={sale} mayEdit={frame.mayEditPrices} name={name} onOpen={(mode, trigger) => offers.open({ mode, sale }, trigger)} test={`offer-card-actions-${sale.id}`} />,
                                 };
                             })}
                         />

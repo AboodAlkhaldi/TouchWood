@@ -322,12 +322,12 @@ function Row({
     );
 }
 
-/** A type's ⋯ menu: the row's, and the same on its phone card under its own test name. */
 /** Whether a type's ⋯ menu has anything in it for this reader: none is drawn otherwise, on the row or the card. */
 function typeMenuShown(kind: Kind, type: StaffTypeRowData, actions: StaffTypeListPage['actions']): boolean {
     return actions.mayUpdate || (kind === 'company' && actions.mayTransfer && type.active) || actions.mayDeactivate;
 }
 
+/** A type's ⋯ menu: the row's, and the same on its phone card under its own test name. */
 function TypeMenu({
     kind,
     type,

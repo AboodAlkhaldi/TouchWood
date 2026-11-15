@@ -1434,7 +1434,9 @@ Pest, as the rest of the project (§1.1). Browser tests run with the suite (`com
   - Platform's Places, Index and Level: their columns already fold into the first cell on a phone (stage 7's).
   - With phone cards of their own markup, not `PhoneCards`: Sales' Orders and Returns (under 768 px), Payments,
     Shipping's Boxes and Carriers (stage 7's; Carriers is 0.1 KB from the budget).
-  - Not lists: the roles' permissions grid (read across roles), an order's or a return's lines, a dialog's table.
+  - Not lists: the roles' permissions grid (read across roles), an order's or a return's lines, a dialog's table,
+    a customer's points lots on Loyalty's customer page (`components/loyalty/parts.tsx`), and a campaign's price
+    preview (`components/content/campaign-prices.tsx`).
 - Phone width, everywhere: nothing scrolls the page sideways (`scrollWidth <= innerWidth` at 375×812, in every browser test file - `innerWidth`
   because headless Chromium keeps a 10 px scrollbar gutter a phone does not have, so it lets an
   overflow of up to 10 px through); the shop's

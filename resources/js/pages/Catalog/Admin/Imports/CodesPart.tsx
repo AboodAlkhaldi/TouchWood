@@ -256,6 +256,16 @@ function Codes({ page }: { page: ImportPage }) {
                             <bdi key="c" dir="ltr" className="tw-figure text-label-12-mono">
                                 {figure(locale, row.number)} · {row.codes.join(' · ')}
                             </bdi>,
+                            // The new codes a recode chose, as the table's codes cell shows them under the old.
+                            ...(row.newCodes === null
+                                ? []
+                                : [
+                                      <bdi key="n" dir="ltr" className="tw-figure text-label-12-mono text-ink-muted" data-test={`code-row-new-codes-${row.number}`}>
+                                          {Object.entries(row.newCodes)
+                                              .map(([from, to]) => `${from} → ${to}`)
+                                              .join(' · ')}
+                                      </bdi>,
+                                  ]),
                             ...(row.conflictProductId === null
                                 ? []
                                 : [

@@ -185,5 +185,12 @@ it('reads right to left in Arabic, at a phone\'s width, with nothing wider than 
     $page->select('[data-test="decision-card"]', 'SKIP');
     expect(catalogImportBrowserSoon($page, fn (): mixed => DB::table('catalog.import_products')->where('import_id', $codes)->value('decision'), fn ($found): bool => $found === 'SKIP'))->toBe('SKIP');
 
+    // A recode's new codes read on the card too, as the table's codes cell shows them (the review of #391). The
+    // recode is written as the dialog saves it; the card is what is under test.
+    $old = (string) DB::table('catalog.import_products')->where('import_id', $codes)->value('data->variants->0->code');
+    DB::table('catalog.import_products')->where('import_id', $codes)->update(['decision' => 'RECODE', 'new_codes' => json_encode([$old => '9'.$old], JSON_THROW_ON_ERROR)]);
+    $page->navigate("/admin/imports/{$codes}?part=codes", BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"code-row-new-codes-1\"]')?.textContent.includes('{$old} → 9{$old}') === true"))->toBeTrue('the codes card does not show the new codes');
+
     $page->assertNoJavaScriptErrors();
 });

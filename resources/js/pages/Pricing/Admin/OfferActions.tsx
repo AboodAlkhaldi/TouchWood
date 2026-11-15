@@ -97,12 +97,17 @@ export function useOfferDialogs(store: OfferStore) {
     };
 }
 
+/** Whether an offer's ⋯ menu has anything in it for this reader: the row's menu and the phone card's both ask. */
+export function offerMenuShown(sale: SaleRowData, mayEdit: boolean): boolean {
+    return mayEdit || sale.state === 'ENDED';
+}
+
 export function OfferMenu({ sale, mayEdit, name, onOpen, test }: { sale: SaleRowData; mayEdit: boolean; name: string; onOpen: (mode: Open['mode'], trigger: HTMLElement | null) => void; test?: string }) {
     const t = useT();
     const more = useRef<HTMLButtonElement>(null);
 
     // Nothing the reader may do to it: no menu is drawn.
-    if (!mayEdit && sale.state !== 'ENDED') {
+    if (!offerMenuShown(sale, mayEdit)) {
         return null;
     }
 
