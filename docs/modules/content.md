@@ -313,7 +313,7 @@ Module to module: ids and values in, DTOs out; no permission is checked inside a
 - `isReady(): bool`: a token is set.
 - `translate(list<string> $texts, string $from, string $to, bool $keepMarks = false): list<string>`: the same count back, in the same order. Throws `TranslationFailed` with `reason`: `QUOTA`, `BUSY`, `REFUSED`, `UNREACHABLE`; never the service's text or the token.
 
-Adapters, chosen by configuration: `DeepLTextTranslator` over **`deeplcom/deepl-php`** (v1.21.0, Packagist, read 2026-11-09; **not yet in `composer.json`**), `FakeTextTranslator` for development and tests. The token is the server's: **`DEEPL_API_KEY`**, in `.env` only (CONVENTIONS), held in the owner's hands. A `SensitiveParameter`. Texts go in calls under the service's 128 KiB limit (read 2026-11-09); §1.3's cap keeps a press to one call.
+Adapters, chosen by configuration: `DeepLTextTranslator` over **`deeplcom/deepl-php`** (v1.21.0, Packagist, read 2026-11-09; in `composer.json` as `^1.21`), `FakeTextTranslator` for development and tests. The token is the server's: **`DEEPL_API_KEY`**, in `.env` only (CONVENTIONS), held in the owner's hands. A `SensitiveParameter`. Texts go in calls under the service's 128 KiB limit (read 2026-11-09); §1.3's cap keeps a press to one call.
 
 **Verified on the real account** (2026-11-10, the owner's key, §1.3): Arabic is accepted as a source, `en-US` as the target, and `<b>` is kept in Arabic with `tag_handling` `xml`. `$keepMarks` means the texts are XML whose tags must be kept. Not tried live: a link's tag, and the account's full language list (`GET /v3/languages`). **The English is American** (Q15 (a), owner 2026-11-10): the account's American code, whichever its language list gives.
 
@@ -542,6 +542,7 @@ Schema `content` (added to `search_path` in `config/database.php`, or `migrate:f
 | `content.banner_images` | (`banner_id` CASCADE, `kind` CHECK (`DESKTOP`, `PHONE`), `locale` CHECK (`any`, `ar`, `en`)) PK · `media_id` RESTRICT |
 | `content.campaigns` | `name_ar`, `name_en` · `starts_at_local`, `ends_at_local` as typed (Q1 (a)) · `theme_id` NULL FK RESTRICT (a theme is deleted only as a draft, and only unlinked) · `version` · `created_by` |
 | `content.campaign_runs` | `id` (the id events carry) · `campaign_id` CASCADE · `store_id` RESTRICT · `state` CHECK (`DRAFT`, `SCHEDULED`, `LIVE`, `ENDED`, `CANCELLED`) · `starts_at`, `ends_at` CHECK end after start · `price_choices` jsonb NULL (a draft's choices, ids and amounts as typed, no media; cleared at Schedule, §1.7 #14) · `slug_ar`, `slug_en` NULL (H7), unique per store · `notice_id` NULL (no key: Ops') · `went_live_at`, `ended_at`, `cancelled_at` NULL · `warned_72_at`, `warned_24_at` NULL (§1.7 #11) · unique (`campaign_id`, `store_id`) · a partial unique index on `notice_id` where state in (`DRAFT`, `SCHEDULED`) · index (`state`, `starts_at`), (`state`, `ends_at`) |
+| `content.campaign_run_targets` | *As built (PR 6, §9.3b C3):* `run_id` CASCADE · `category_id` NULL FK RESTRICT · `brand_id` NULL FK RESTRICT: the categories and brands a run not yet ended or cancelled names, so Catalog's delete of one in use is refused (`CatalogUsage`); they go when the run ends or is cancelled |
 | `content.themes` | `slug` · `name_ar`, `name_en` · `is_scheduled` · `starts_at_local`, `ends_at_local` as typed (Q1 (a)) · `version` · `created_by` |
 | `content.theme_stores` | (`theme_id` CASCADE, `store_id` RESTRICT) PK · `starts_at`, `ends_at` (that store's moments). Overlap checked in code per store, under the store's lock |
 | `content.theme_parts` | (`theme_id` CASCADE, `part` CHECK (the 11)) PK · `text_ar`, `text_en`, `link` NULL · `extras` jsonb (words) |
@@ -561,7 +562,7 @@ Schema `content` (added to `search_path` in `config/database.php`, or `migrate:f
 | `content.sitemaps` | (`store_id`, `part`) PK · `file_key` · `urls` · `built_at`. File in private storage, served by the routes |
 | `content.redirects` | `old_path` PK, trimmed and decoded (`COLLATE "C"`) · `new_path` · `visits` bigint default 0 · `last_visit_at` NULL · `source` CHECK (`HAND`, `SHEET`) · `check_result` NULL · `check_final_path` NULL · `checked_at` NULL · `created_by` · timestamps |
 | `content.redirect_uploads` | `id` · `lines` jsonb (result per line) · `state` · `created_by` · `created_at` · `applied_at` NULL (set with `APPLIED`; as built, PR 4). Dropped after 24 hours, by the hourly `PruneRedirectUploadsJob` |
-| `content.unread_translations` | *P14, as built (PR 7b):* (`kind` CHECK (`PAGE`, `POST`, `PROJECT`, `BANNER`, `POPUP`, `HOME_SECTION`, `BAR`), `item_id`) PK · `store_id` FK RESTRICT · `marked_by` NULL · `marked_at`. A row is Translate's unread mark on that item (§1.3 #4); a bar's item is its store |
+| `content.unread_translations` | *P14, as built (PR 7b):* (`kind` CHECK (`PAGE`, `POST`, `PROJECT`, `BANNER`, `POPUP`, `HOME_SECTION`, `BAR`, and since PR 8 `CAMPAIGN`, `THEME`), `item_id`) PK · `store_id` FK RESTRICT · `marked_by` NULL · `marked_at`. A row is Translate's unread mark on that item (§1.3 #4); a bar's item is its store |
 | `content.job_runs` | *As built (PR 4 review, the build's pick):* `uuid` PK (the queued job's) · `finished_at`. A sitemap build or a page of Check Addresses that finished: a copy of it a second worker takes, should the queue hand one out (both run on the long connection, whose `retry_after` is above them; owner, 2026-11-10), deletes itself. Rows older than 2 days are removed as each job ends |
 | `content.waiting_jobs` | *As built (PR 4, the build's pick):* `job` PK CHECK (`BUILD_SITEMAPS`, `CHECK_REDIRECTS`) · `queued_at` NULL (one is queued: W10's and W11's buttons disabled, a second ask queues nothing; older than 6 hours, taken as lost) · `wanted_at` NULL, `wanted_now` (a change wants a sitemap build; a store switched on or off: at the next tick) · `extra_on` date NULL (the UTC day of the one extra build for Catalog's changes, §9.3 #35). A row missing is made again by the first ask |
 
@@ -580,7 +581,7 @@ Both are unchanged from what Ops listens to. "Ids only, through the outbox, afte
 
 | Consumed | From | Content |
 |---|---|---|
-| `StoreActivated`, `StoreDeactivated` | Platform | A sitemap rebuild; the frame's cache. `AdvanceCampaignsJob` reads whether a store is on at each tick, so §1.7 #9 and #11 need no listener |
+| `StoreActivated`, `StoreDeactivated` | Platform | A sitemap rebuild (`QueueSitemapBuild::store`); an off store's pages answer 404, so the frame's cache needs no listener. `AdvanceCampaignsJob` reads whether a store is on at each tick, so §1.7 #9 and #11 need no listener |
 | `ProductArchived`, `ProductMadeReady`, `StoreListingChanged` | Catalog | Queue a sitemap rebuild, at most one a day beyond the nightly `[ACCEPTED 2026-11-10]` |
 | `MediaVariantsReady` | Platform | Clears a Content cache holding addresses of that file |
 
@@ -598,6 +599,7 @@ Every error extends `ContentError` → `DomainError`, type `content.*`, both lan
 | `MissingEnglish` | INVALID | Publish or Schedule with an English side empty, naming which |
 | `SlugTaken` | CONFLICT | The slug is another item's, current or held by history |
 | `StaleEdit` | CONFLICT | A save over a newer version, naming who and when |
+| `CampaignPartlyScheduled` | Pricing's refusal's own category (else UNAVAILABLE) | *As built (PR 6, §9.3b C4):* Schedule stopped part way: the stores before stay scheduled, the rest drafts; carries Pricing's reason, the refused store and its sizes (`rows.*`) |
 | `ThemeClash` | CONFLICT | §1.8, naming the theme, the store and its dates |
 | `PopupClash` | CONFLICT | §1.10, the same |
 | `NoticeTaken` | CONFLICT | A notice another run holds |

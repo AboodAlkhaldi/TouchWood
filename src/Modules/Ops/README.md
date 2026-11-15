@@ -189,8 +189,8 @@ Each checked against the code on 2026-11-01, the first two on 2026-11-03, C11's 
 
 | What | State here | On whom |
 |---|---|---|
-| S8 Campaign expiry | Built on Ops' side (`AlertStaff`, `MessageWriter`); sends nothing until Content is built. Its permission stands in for Content's (ops.md §1.6, §9.5) | Content: to fire `CampaignExpiring` and replace `NoCampaignsYet` |
-| A notice sent when a campaign goes live (§1.7) | Built on Ops' side (`StartCampaignNotice`): a waiting notice only. No state makes a notice wait for its campaign (ops.md §9.5) | Content: to fire `CampaignWentLive`; the owner |
+| S8 Campaign expiry | **Done (Content PR 6, 2026-11-11):** Content fires `CampaignExpiring`; `NoCampaignsYet` is gone; `AlertStaff` sends to `content.campaign.manage` (ops.md §1.6, §9.5) | — |
+| A notice sent when a campaign goes live (§1.7) | **Done (Content PR 6, 2026-11-11):** Content fires `CampaignWentLive`, and a campaign's draft notice is sent when its run goes live (ops.md §9.5, §9.7) | — |
 | The SMS provider | `log` only | The owner (Mobily being checked) |
 | Brevo on the live system | The adapters are built, every failure covered with faked answers (ops.md §7), and in production a web request or a worker refuses to boot on either `log` driver, or without a usable key and `MAIL_FROM_ADDRESS`, and logs loudly without `BREVO_NEWSLETTER_FOLDER_ID` or `BREVO_WEBHOOK_SECRET`, all the server's; other console commands are left alone; the webhook is made in Brevo, unbatched, with the secret as its custom header. Run `php artisan ops:brevo:check` once the key is in, and `php artisan queue:restart` after changing it. Not yet proven against the real Brevo | The owner, at hosting |
 | A lost unsubscribe (ops.md §9.6 #1): the nightly read | Built and **switched off** (`BREVO_NIGHTLY_READ=false`): tested only against faked answers. Turn it on after one real run at staging has shown the right people (docs/HANDOFF.md §15.4) | The owner, at staging |
