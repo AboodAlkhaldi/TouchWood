@@ -126,11 +126,13 @@ function browserPanelLanguage(mixed $page, string $locale): void
 /**
  * Whether the staff member has landed in the panel. The code's submit only starts the sign-in, and
  * a page opened before its answer lands is the sign-in screen again (it raced, and lost, in CI on
- * 2026-10-04) - so every sign-in waits for this before it opens the screen under test.
+ * 2026-10-04) - so every sign-in waits for this before it opens the screen under test. Up to fifteen
+ * seconds (browserSoon), not four: a cold server's first sign-in in CI took longer, and StaffScreensTest
+ * failed on two pull requests that never touched Access (#382, #392; 2026-11-11, 2026-11-13).
  */
 function signedInToPanel(mixed $page): bool
 {
-    return browserUntil($page, "window.location.pathname === '/admin'");
+    return browserSoon($page, "window.location.pathname === '/admin'");
 }
 
 /*
