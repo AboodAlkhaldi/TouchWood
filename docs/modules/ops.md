@@ -1722,7 +1722,9 @@ Content's spec settles §9.5 (content.md §1.7 #10, #13, §2.1, §2.3 O1 to O3, 
 - The webhook refusing a wrong or missing signature, a foreign `phone_number_id`, and an oversized body.
 - The handshake.
 - The auto-reply: one a day per sender, none to a status, and the hourly cap.
-- `log` unchanged; production refusing to start with a setting missing.
+- `log` unchanged.
+- A missing setting: the site still runs; a code is refused with its words; the Super Admins are told once an hour.
+- The two alert templates sent to a Super Admin with the switch on and a phone, and to nobody else.
 
 **9. The critical alerts by WhatsApp too** (W1). S5 at 1 day and S5b (the gateway key) still go to the Super Admins who have their critical switch on and a phone, now by **two utility templates** of our own fixed words, approved by Meta once, beside email and bell:
 - **Key expiring:** «تنبيه TouchWood: مفتاح بوابة الدفع ينتهي خلال يوم. جدّده من لوحة التحكم.» / "TouchWood alert: the payment gateway key expires in 1 day. Renew it in the admin panel."
