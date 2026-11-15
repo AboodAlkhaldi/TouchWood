@@ -282,7 +282,7 @@ In this order (Q19 (a), owner 2026-11-10): 1. Content, with the 11 slots, the ho
 
 **Covered here:** the frame (§1.5), Home (§1.4), and Content's own pages: Pages, Blog (list, post, category), Projects (list, project), the campaign page (H7), sitemap, robots, redirects.
 
-**A separate job, specified on its own: rebuilding the existing shop pages to the design**: now [shop-design.md](shop-design.md) (2026-11-16), which replaces rows 2, 6 (the delivery-days line), 7 (the add button; prices keep their font) and 8 (the card's edge) below, builds row 1's list view and builds row 3's order and B2B screens last, as its PR 9 (its Q1, owner 2026-11-16), after Content and before the themes (Q19 (a), owner 2026-11-10; §1.16). Theme parts 6 to 9 (flag and ribbon, badge, listing banner, cart message) sit on those pages, so that job builds their places in. Open points to carry to its spec:
+**A separate job, specified on its own: rebuilding the existing shop pages to the design**: now [shop-design.md](shop-design.md) (2026-11-16), which replaces rows 2, 6 (the delivery-days line), 7 (the add button; prices keep their font) and 8 (the card's edge) below, builds row 1's list view and builds row 3's order and B2B screens last, in its PR C (its Q1, owner 2026-11-16), after Content and before the themes (Q19 (a), owner 2026-11-10; §1.16). Theme parts 6 to 9 (flag and ribbon, badge, listing banner, cart message) sit on those pages, so that job builds their places in. Open points to carry to its spec:
 
 | # | Point | State |
 |---|---|---|

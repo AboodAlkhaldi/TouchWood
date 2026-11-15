@@ -480,29 +480,36 @@ as Content reads Loyalty's (content.md §1.4 POINTS).
 
 | # | Question | Answer |
 |---|---|---|
-| Q1 | The order pages and B2B's screens to the design (content.md §1.17 row 3): in this job or a later one? | **After the other eight PRs, as this job's PR 9** (§14), reusing their pieces (card, chips, lists). The owner, the same day: "make the order pages and B2B screens in the rebuild order, not to forget them" |
+| Q1 | The order pages and B2B's screens to the design (content.md §1.17 row 3): in this job or a later one? | **In this job, last: in PR C** (§14), reusing the pieces PR B builds (card, chips, lists). The owner, the same day: "make the order pages and B2B screens in the rebuild order, not to forget them" |
 | Q2 | The unit of sale beyond the card and product page: cart lines, checkout, order lines and emails? And the header's count (pieces, R1-10) when a cart holds metres or cartons? | **The unit wherever a line's price shows**; the header counts **products** (lines), since metres and cartons don't add up to pieces (§2.3, §10.1, §10.7) |
 | Q3 | Who owns the delivery-days setting: Content (it is text) or Shipping (it is about delivery)? | **Content**, since it has nothing to do with the carriers (§10.2) |
 
-## 14 · The build, one PR each (spec → plan → build → review), nine in all
+## 14 · The build: three PRs (owner, 2026-11-16: "reduce the amount of prs and put them together")
 
-1. **Quick fixes:** bug 1 and bug 2 (§12).
-2. **The frame:** width and bands, top bar, header, category row, the dark footer with the newsletter, the mock
-   footer data, the phone frame, the new tokens, the edge artwork at 700 px.
-3. **Home:** the banners (and their data, §10.3), the slim title, the strip with the facts, tiles, best sellers,
-   audience, points, projects, logos.
-4. **The card (backend + screen):** §10.1, §10.4, §10.6; the card, the sale price, the flags, the heart without
-   a spinner everywhere, the phone card, desktop hover photos.
-5. **Category and brand pages:** heading, count and description (§10.5), filters, sort with prices, the list
-   view, the phone sheets.
-6. **The product page (backend + screen):** §10.2, §10.8; gallery, price box, buy row, total, toast, delivery
-   and returns, tabs, Goes With rows, review cards, the phone gallery and buy bar.
-7. **The cart:** §10.7; lines, summary, the phone checkout bar; the unit on checkout, the order's lines and the
-   order emails; the header's count of products.
-8. **The admin sidebar:** §8.
-9. **The order pages and B2B's screens** (content.md §1.17 row 3; Q1): the customer's order list and order page,
-   and B2B's shop screens, to the design's `order` and `b2b` screens, with the pieces PRs 4 to 7 built. Its own
-   short spec section is written first, from the design, before its plan.
+Each PR is spec → plan → build → review, with **one commit per piece** so each can be read alone. While a piece is
+built, only the tests it touches run; the full set runs once, at the end of each PR.
+
+1. **PR A · Frame and home** (were 1, 2, 3 and 8):
+   - the quick fixes, bugs 1 and 2 (§12);
+   - the frame: width and bands, the top bar, the header, the category row, the dark footer with the newsletter,
+     the mock footer data, the phone frame, the new tokens, the edge artwork at 700 px;
+   - home: the banners and their data (§10.3), the slim title, the strip with the facts (§10.9), tiles, best
+     sellers, audience, points, projects, logos;
+   - the admin sidebar (§8).
+2. **PR B · Card and catalog pages** (were 4, 5 and 6, backend and screens):
+   - §10.1, §10.2, §10.4 to §10.6 and §10.8;
+   - the card, the sale price, the flags, the heart without a spinner everywhere, the phone card, desktop hover
+     photos;
+   - category and brand pages: heading, count and description, filters, sort with prices, the list view, the phone
+     sheets;
+   - the product page: gallery, price box, buy row, total, toast, delivery and returns, tabs, Goes With rows, review
+     cards, the phone gallery and buy bar.
+3. **PR C · Cart, orders and B2B** (were 7 and 9):
+   - §10.7: the cart's lines, summary and phone checkout bar; the unit on checkout, the order's lines and the order
+     emails; the header's count of products;
+   - **the order pages and B2B's screens** (content.md §1.17 row 3; Q1): the customer's order list and order page,
+     and B2B's shop screens, to the design's `order` and `b2b` screens, with the pieces PR B built. Their own short
+     spec section is written first, from the design, before the plan.
 
 **Checked in every PR:**
 - the browser tests at 375 × 812 and desktop, Arabic and English, light and dark;
