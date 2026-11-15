@@ -430,8 +430,6 @@ as Content reads Loyalty's (content.md §1.4 POINTS).
 - **The theme's artwork flag on cards and the gallery** (owner, 2026-11-16).
 - **An Installation tab** until a field exists (C2).
 - **"Empty cart"** (C10).
-- **The order pages and B2B's screens** to the design (content.md §1.17 row 3): **a later small job, after these
-  eight PRs**, reusing their pieces (Q1, owner 2026-11-16). The unit on order lines (§10.7) is in PR 7 all the same.
 - **The round category row** of the original phone design (H1; P14, proposed).
 - **The All Categories promo card** (H13).
 - **A "2×" points card** (H5).
@@ -482,11 +480,11 @@ as Content reads Loyalty's (content.md §1.4 POINTS).
 
 | # | Question | Answer |
 |---|---|---|
-| Q1 | The order pages and B2B's screens to the design (content.md §1.17 row 3): in this job or a later one? | **A later small job**, after these eight PRs, reusing their pieces (card, chips, lists) (§11) |
+| Q1 | The order pages and B2B's screens to the design (content.md §1.17 row 3): in this job or a later one? | **After the other eight PRs, as this job's PR 9** (§14), reusing their pieces (card, chips, lists). The owner, the same day: "make the order pages and B2B screens in the rebuild order, not to forget them" |
 | Q2 | The unit of sale beyond the card and product page: cart lines, checkout, order lines and emails? And the header's count (pieces, R1-10) when a cart holds metres or cartons? | **The unit wherever a line's price shows**; the header counts **products** (lines), since metres and cartons don't add up to pieces (§2.3, §10.1, §10.7) |
 | Q3 | Who owns the delivery-days setting: Content (it is text) or Shipping (it is about delivery)? | **Content**, since it has nothing to do with the carriers (§10.2) |
 
-## 14 · The build, one PR each (spec → plan → build → review)
+## 14 · The build, one PR each (spec → plan → build → review), nine in all
 
 1. **Quick fixes:** bug 1 and bug 2 (§12).
 2. **The frame:** width and bands, top bar, header, category row, the dark footer with the newsletter, the mock
@@ -502,6 +500,9 @@ as Content reads Loyalty's (content.md §1.4 POINTS).
 7. **The cart:** §10.7; lines, summary, the phone checkout bar; the unit on checkout, the order's lines and the
    order emails; the header's count of products.
 8. **The admin sidebar:** §8.
+9. **The order pages and B2B's screens** (content.md §1.17 row 3; Q1): the customer's order list and order page,
+   and B2B's shop screens, to the design's `order` and `b2b` screens, with the pieces PRs 4 to 7 built. Its own
+   short spec section is written first, from the design, before its plan.
 
 **Checked in every PR:**
 - the browser tests at 375 × 812 and desktop, Arabic and English, light and dark;
