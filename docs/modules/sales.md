@@ -982,9 +982,9 @@ amount still owed (§4.2 B1).
 - **Added**: a message, "Added to cart · 2 pieces", with **View Cart**, for a few seconds (R2-7), and the
   header's cart count goes up (R1-6).
 
-**S3 · The header's cart** — a cart icon beside the account's, with **the count of pieces** in it (R1-10). **Amended 2026-11-16 (the shop to the design, [shop-design.md](shop-design.md)):** a filled navy button with «السلة» and the count (§2.3); what the count counts once units exist is its question Q2.
+**S3 · The header's cart** — a cart icon beside the account's, with **the count of pieces** in it (R1-10). **Amended 2026-11-16 (the shop to the design, [shop-design.md](shop-design.md)):** a filled navy button with «السلة» and **the count of products (lines), no longer of pieces** (§2.3; its Q2, owner 2026-11-16: R1-10 reversed, as a cart may hold metres or cartons).
 
-**S4 · The cart** — `/{store}/{locale}/cart` (`ViewCart`, §3.1). **Amended 2026-11-16 (the shop to the design, [shop-design.md](shop-design.md)):** its look is §7 there, and `CartLineData` gains the brand and the values as a list (§10.7); everything below stays:
+**S4 · The cart** — `/{store}/{locale}/cart` (`ViewCart`, §3.1). **Amended 2026-11-16 (the shop to the design, [shop-design.md](shop-design.md)):** its look is §7 there, and `CartLineData` gains the brand, the values as a list and the unit, which checkout, the order's lines and the order emails show too (§10.1, §10.7); everything below stays:
 - **Each line**: photo, name, size, a Retail / Wholesale badge, unit price (old struck on a sale), the
   quantity's − and + within its minimum and maximum, the line's total, **Remove** (R1-11).
 - **A line with a problem** says so on the line, with its one fix (R2-10): below the minimum → **Set to

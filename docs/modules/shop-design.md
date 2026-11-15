@@ -6,7 +6,7 @@ spec says. It changes **how the shop looks**, and adds the few pieces of data th
 
 **State:** written 2026-11-16 from the owner's answers of 2026-11-15 and 2026-11-16 (two rounds). Not built.
 Points marked **[PROPOSED Pn]** are the builder's picks, listed in §13 for the owner's review; every other
-point is the owner's answer.
+point is the owner's answer. The three questions of §13b were answered on 2026-11-16, all as recommended.
 
 **Sources:**
 - **The design:** the owner's Claude Design project "TouchWood E-Commerce UI Design" (Home, Screens: the
@@ -84,7 +84,8 @@ set stay (content.md round 3 #7). Sizes are the design's, read from its source.
 - **Logo:** a 46 px tile with the wordmark **"TOUCHWOOD" and «تاتش وود» under it** (H8).
 - **Search:** fills the row; 46 px tall; a grey well with a border; **16 px text on phones**, so an iPhone doesn't
   zoom in on tap.
-- **Cart:** a filled navy button with «السلة» and the count of pieces.
+- **Cart:** a filled navy button with «السلة» and **the count of products** (lines), no longer of pieces (Q2,
+  owner 2026-11-16; reverses sales.md R1-10).
 - **Icon buttons:** 42 px, 40 on phones.
 - **Kept, though the design omits them** (content.md §1.5): country, language, bell, staff view line and menu,
   back to panel, shopper lines, verify-email badge.
@@ -315,7 +316,7 @@ Not available now; the greyed and Last-pieces choices; how it is sold; the canon
 
 ## 7 · The cart (sales.md S4)
 
-- **Heading 34 px plus «N قطعة»** (N pieces).
+- **Heading 34 px plus the count of products, as the header's** (Q2; the design's «N قطعة» counted pieces) **[PROPOSED P27]**.
 - **Columns:** the lines, and a **392 px summary**.
 - **The lines as one bordered list:** a 96 px photo; the brand; **a chip for each chosen value and for the way of
   buying**; one stepper box; «إزالة» (Remove) as text.
@@ -354,13 +355,16 @@ Each piece is added by its own module's code, in its own PR (§14), with its tes
   (box)**, piece by default (C4, D2).
 - Set in the product's panel screen and **in the import file** (`src/Modules/Catalog/Presentation/import-format/`;
   changed here with the owner's word).
-- Shown after the price on the card and the product page: «ر.س / للحبة», «ر.س / للطقم», and the same for the
-  others. **Where else, and what the header's count means for metres and cartons, is question Q2** (§13b).
+- Shown after the price **wherever a line's price shows** (Q2, owner 2026-11-16): the card, the product page, the
+  cart's lines, checkout, the order's lines (customer's and staff's) and the order emails: «ر.س / للحبة»,
+  «ر.س / للطقم», and the same for the others. A line's quantity is in its unit («3 أمتار», «2 كرتون») **[PROPOSED P26]**.
+- **The header's cart count counts products (lines), not pieces** (Q2), since metres and cartons don't add up to
+  pieces.
 - *Not checked:* whether Odoo carries a unit. The sync doesn't read one (sync.md); none is added.
 
 ### 10.2 Delivery days (Content)
-- **A store setting, «مدة التوصيل (أيام عمل)», an integer, default 4** (C11, D1). **Who owns it is question Q3**
-  (§13b). Proposed: Content, key `content.delivery.working_days`, scope Store, 1 to 60, edited under
+- **A store setting, «مدة التوصيل (أيام عمل)», an integer, default 4** (C11, D1), **owned by Content** (Q3, owner
+  2026-11-16). Proposed: key `content.delivery.working_days`, scope Store, 1 to 60, edited under
   `content.homepage.manage`, in a new `ContentSettings` (as `SalesSettings`; Content registers none today)
   **[PROPOSED P8]**.
 - Text on the product page only. Nothing to do with the carriers or the checkout's shipping (owner).
@@ -402,7 +406,9 @@ Read in the listing row as built (`DatabaseListingRows`), each side's (individua
 - the two automatic flags (§10.4).
 
 ### 10.7 The cart's lines (Sales)
-`CartLineData` gains the brand, and the chosen values as a list (today one string).
+`CartLineData` gains the brand, the chosen values as a list (today one string) and the unit (§10.1). The order's
+lines keep the unit as it was when ordered, so a later change to the product doesn't rewrite an order
+**[PROPOSED P25]**; checkout and the order emails show it.
 
 ### 10.8 The product page's reads (Catalog)
 The returns window (`sales.returns.window_days`) and the delivery days (§10.2), read through `PlatformApi::setting`
@@ -424,8 +430,8 @@ as Content reads Loyalty's (content.md §1.4 POINTS).
 - **The theme's artwork flag on cards and the gallery** (owner, 2026-11-16).
 - **An Installation tab** until a field exists (C2).
 - **"Empty cart"** (C10).
-- **The order pages and B2B's screens** to the design (content.md §1.17 row 3): **question Q1** (§13b), not in
-  these PRs until answered.
+- **The order pages and B2B's screens** to the design (content.md §1.17 row 3): **a later small job, after these
+  eight PRs**, reusing their pieces (Q1, owner 2026-11-16). The unit on order lines (§10.7) is in PR 7 all the same.
 - **The round category row** of the original phone design (H1; P14, proposed).
 - **The All Categories promo card** (H13).
 - **A "2×" points card** (H5).
@@ -451,7 +457,7 @@ as Content reads Loyalty's (content.md §1.4 POINTS).
 | P5 | «وفّر» wraps under the old price where it doesn't fit, and is left off the phone card |
 | P6 | Two quick presses of a heart: the last one wins |
 | P7 | The grid/list choice remembered per browser |
-| P8 | Delivery days: `content.delivery.working_days`, Store, 1 to 60, under `content.homepage.manage` (if Q3 says Content) |
+| P8 | Delivery days: `content.delivery.working_days`, Store, 1 to 60, under `content.homepage.manage` |
 | P9 | A banner's title 60, line 120, button 24 characters per language |
 | P10 | Banner uploads: wide 2400 × 800, phone 1200 × 600 |
 | P11 | Best seller: `catalog.flags.best_seller_top`, default 10, 0 to 100, under `catalog.listing.labels` |
@@ -468,14 +474,17 @@ as Content reads Loyalty's (content.md §1.4 POINTS).
 | P22 | Over the phone photo: back and the heart |
 | P23 | The category description in the panel only, not the import |
 | P24 | A fact: a figure (16 characters) and a caption (40) per language |
+| P25 | An order line keeps the unit it was ordered in |
+| P26 | A line's quantity written in its unit («3 أمتار») |
+| P27 | The cart's heading counts products, as the header does |
 
-## 13b · Questions for the owner
+## 13b · Questions for the owner: answered 2026-11-16, all as recommended
 
-| # | Question | Recommended |
+| # | Question | Answer |
 |---|---|---|
-| Q1 | The order pages and B2B's screens to the design (content.md §1.17 row 3): in this job or a later one? | **A later small job**, after these eight PRs, reusing their pieces (card, chips, lists) |
-| Q2 | The unit of sale beyond the card and product page: cart lines, checkout, order lines and emails? And the header's count (pieces, R1-10) when a cart holds metres or cartons? | **The unit wherever a line's price shows**; the header counts **products** (lines), since metres and cartons don't add up to pieces |
-| Q3 | Who owns the delivery-days setting: Content (it is text) or Shipping (it is about delivery)? | **Content**, since it has nothing to do with the carriers (the owner) |
+| Q1 | The order pages and B2B's screens to the design (content.md §1.17 row 3): in this job or a later one? | **A later small job**, after these eight PRs, reusing their pieces (card, chips, lists) (§11) |
+| Q2 | The unit of sale beyond the card and product page: cart lines, checkout, order lines and emails? And the header's count (pieces, R1-10) when a cart holds metres or cartons? | **The unit wherever a line's price shows**; the header counts **products** (lines), since metres and cartons don't add up to pieces (§2.3, §10.1, §10.7) |
+| Q3 | Who owns the delivery-days setting: Content (it is text) or Shipping (it is about delivery)? | **Content**, since it has nothing to do with the carriers (§10.2) |
 
 ## 14 · The build, one PR each (spec → plan → build → review)
 
@@ -490,7 +499,8 @@ as Content reads Loyalty's (content.md §1.4 POINTS).
    view, the phone sheets.
 6. **The product page (backend + screen):** §10.2, §10.8; gallery, price box, buy row, total, toast, delivery
    and returns, tabs, Goes With rows, review cards, the phone gallery and buy bar.
-7. **The cart:** §10.7; lines, summary, the phone checkout bar.
+7. **The cart:** §10.7; lines, summary, the phone checkout bar; the unit on checkout, the order's lines and the
+   order emails; the header's count of products.
 8. **The admin sidebar:** §8.
 
 **Checked in every PR:**
