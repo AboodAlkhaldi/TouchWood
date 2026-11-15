@@ -1641,7 +1641,7 @@ Content's spec settles §9.5 (content.md §1.7 #10, #13, §2.1, §2.3 O1 to O3, 
    the 24-hour one alone from 24 hours to under 3 days, none under 24 hours), each its own event: "once per event" sends each, and
    "ends on :date" stays true for each. **§9.5 #3 is still open**: the words with `:campaign` wait for the full review of the words.
 
-### 9.8 WhatsApp replaces SMS for codes — **[DRAFT for the owner, 2026-11-15, revised after its review; not built]**
+### 9.8 WhatsApp replaces SMS for codes — **[ANSWERED by the owner 2026-11-15 (W1-W6); for the owner's acceptance; not built — the build waits for the CEO's approval of the cost]**
 
 **The owner's decisions (2026-11-15, in chat; the CEO approves the cost first):**
 - **D1.** WhatsApp **replaces** SMS, and no SMS provider is ever built. Access's code rules stay as they are: who gets a code, when, how often, and its length (4-8) and life (1-60 minutes), both settings. **Only the delivery adapter changes.**
@@ -1745,15 +1745,10 @@ The rest is unchanged:
 | W2 | The panel page "SMS Countries" | **Renamed "Code Countries"** (دول رموز التحقق), with WhatsApp offered as the provider |
 | W3 | WhatsApp's settings missing on the live server | **The site runs; only codes and WhatsApp alerts stop**, with a clear message, an alert to the Super Admins and a red notice in the panel (point 2) |
 | W4 | The staff sign-in code's warning line | **Accepted as lost**: the code only comes after the right password, and the authenticator app is the safer choice |
+| W5 | The auto-reply's words | **Approved as proposed** (below) |
 | W6 | The code template's "expires in X minutes" line, which Meta prints into the approved template | **No minutes line.** The message shows the code and Meta's do-not-share line, the code still expires at its set minutes, and the setting stays free to change |
 
-**Still open:**
-
-| # | Question | Recommended |
-|---|---|---|
-| W5 | The auto-reply's words (wording approved for now, reminder 16) | approve the proposed words below |
-
-Proposed W5 words; the link is the main number's `https://wa.me/<number>`:
+The auto-reply's words (W5, **approved by the owner 2026-11-15**, for now as reminder 16 says); the link is the main number's `https://wa.me/<number>`:
 - ar: «هذا الرقم مخصص لإرسال رموز التحقق فقط ولا يستقبل الرسائل. للتواصل معنا راسلنا على رقمنا الرئيسي: <الرابط>»
 - en: "This number only sends verification codes and can't read replies. To reach us, message our main number: <link>"
 
