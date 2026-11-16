@@ -26,9 +26,12 @@ beforeEach(function () {
     seed(CatalogSeeder::class);
 });
 
+/**
+ * @param  array<string, mixed>  $with
+ */
 function categoryDescriptionEdit(string $id, array $with): void
 {
-    $row = DB::table('catalog.categories')->where('id', $id)->first();
+    $row = DB::table('catalog.categories')->where('id', $id)->first() ?? throw new LogicException('No category.');
     Fx::asSystem(fn () => app(EditCategoryHandler::class)->handle(new EditCategory(...['categoryId' => $id, 'nameAr' => (string) $row->name_ar, 'nameEn' => (string) $row->name_en, 'imageMediaId' => $row->image_media_id, ...$with])));
 }
 

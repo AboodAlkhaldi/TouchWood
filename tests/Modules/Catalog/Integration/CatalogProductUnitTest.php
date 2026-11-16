@@ -31,7 +31,7 @@ beforeEach(function () {
 
 function productUnitEdit(string $productId, ?string $unit): void
 {
-    $row = DB::table('catalog.products')->where('id', $productId)->first();
+    $row = DB::table('catalog.products')->where('id', $productId)->first() ?? throw new LogicException('No product.');
     app(EditProductDetailsHandler::class)->handle(new EditProductDetails(
         productId: $productId,
         nameAr: (string) $row->name_ar,
