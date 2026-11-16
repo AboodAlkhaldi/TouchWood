@@ -204,6 +204,16 @@ export function SaveHeart({ wishlist, productId, name, className, test = 'save-h
     function press() {
         const was = on;
         const mine = ++pressing.current;
+        // Only the last press may undo: an earlier one's answer must not overturn a later choice.
+        const undo = (say: boolean) => {
+            if (shopper && mine === pressing.current) {
+                setOn(was);
+
+                if (say) {
+                    toast.error(t('catalog::shop.card.save_failed', { name }));
+                }
+            }
+        };
 
         if (shopper) {
             setOn(!was);
@@ -214,12 +224,10 @@ export function SaveHeart({ wishlist, productId, name, className, test = 'save-h
             { back: window.location.pathname + window.location.search },
             {
                 preserveScroll: true,
-                onError: () => {
-                    if (shopper && mine === pressing.current) {
-                        setOn(was);
-                        toast.error(t('catalog::shop.card.save_failed', { name }));
-                    }
-                },
+                // A refusal is said by the shop's toasts from its errors; a server error or a lost connection, here.
+                onError: () => undo(false),
+                onHttpException: () => undo(true),
+                onNetworkError: () => undo(true),
             },
         );
     }

@@ -82,6 +82,12 @@ final class ShopVisit
         }
     }
 
+    /** A kept copy in this release's shape: the menu with the settings beside it. Read as mixed - the cache keeps what any release wrote. */
+    private static function whole(mixed $copy): bool
+    {
+        return is_array($copy) && isset($copy['menu'], $copy['top'], $copy['days'], $copy['delivery'], $copy['returns']);
+    }
+
     /**
      * @return list<ShopMenuItemData>
      */
@@ -91,17 +97,23 @@ final class ShopVisit
         $key = $this->key($store, $locale);
 
         if (! isset($this->menus[$key])) {
-            /** @var array{menu: list<array{id: string, name: string, slug: string, image: string|null, products: int, children: list<mixed>}>, top: int, days: int, delivery?: int, returns?: int} $copy */
-            $copy = $this->pages->remember($key, fn (): array => [
+            $fresh = fn (): array => [
                 'menu' => array_map(static fn (MenuCategory $category): array => self::kept($category), $this->catalog->menu($store, $locale, $viewer)),
                 'top' => $this->platform->setting(CatalogSettings::BEST_SELLER_TOP, $store)->int(),
                 'days' => $this->platform->setting(CatalogSettings::NEW_ARRIVAL_DAYS, $store)->int(),
                 'delivery' => $this->platform->setting(self::DELIVERY_DAYS, $store)->int(),
                 'returns' => $this->platform->setting(self::RETURN_DAYS, $store)->int(),
-            ]);
+            ];
+            $copy = $this->pages->remember($key, $fresh);
+
+            // A copy an older release wrote - the menu alone, while a deploy rolls out - is read afresh for this request.
+            if (! self::whole($copy)) {
+                $copy = $fresh();
+            }
+
             $kept = $copy['menu'];
             $this->kept[$key] = $kept;
-            $this->flags[$key] = ['top' => (int) $copy['top'], 'days' => (int) $copy['days'], 'delivery' => (int) ($copy['delivery'] ?? 0), 'returns' => (int) ($copy['returns'] ?? 0)];
+            $this->flags[$key] = ['top' => (int) $copy['top'], 'days' => (int) $copy['days'], 'delivery' => (int) $copy['delivery'], 'returns' => (int) $copy['returns']];
             $this->menus[$key] = array_map(self::item(...), $kept);
         }
 

@@ -130,7 +130,9 @@ function ProductCard({ card, test }: { card: ShopCardData; test: string }) {
             <Link
                 href={href}
                 className="relative block aspect-square overflow-hidden rounded-xl bg-surface-sunken sm:rounded-none"
-                aria-label={card.name}
+                // The name's link below is the card's one for a screen reader and the keyboard: this one repeats it.
+                aria-hidden="true"
+                tabIndex={-1}
                 onMouseMove={(event) => {
                     if (!many) {
                         return;
@@ -174,6 +176,8 @@ function ProductCard({ card, test }: { card: ShopCardData; test: string }) {
                 {/* Two lines kept, so cards line up. */}
                 <Link href={href} className="line-clamp-2 min-h-[2lh] text-[12px] leading-snug text-ink hover:underline sm:text-label-14" data-test="card-name">
                     {card.name}
+                    {/* The flags and the percent off, read with the card (shop-design.md §4.3): drawn over the photo, hidden there. */}
+                    {flags.length > 0 || off > 0 ? <span className="sr-only">{[...flags.map((flag) => flag.text), ...(off > 0 ? [t('catalog::shop.price.off', { percent: figure(locale, off) })] : [])].map((text) => `, ${text}`).join('')}</span> : null}
                 </Link>
                 <CardPriceLine card={card} />
                 {card.rating === null || card.ratingCount === 0 ? null : (
@@ -316,6 +320,17 @@ function CardHeart({ productId, name, saved }: { productId: string; name: string
     function press() {
         const was = on;
         const mine = ++pressing.current;
+        // Only the last press may undo: an earlier one's answer must not overturn a later choice.
+        const undo = (say: boolean) => {
+            if (shopper && mine === pressing.current) {
+                setOn(was);
+                window.dispatchEvent(new CustomEvent(HEART_PRESSED, { detail: { productId, saved: was } }));
+
+                if (say) {
+                    toast.error(t('catalog::shop.card.save_failed', { name }));
+                }
+            }
+        };
 
         if (shopper) {
             setOn(!was);
@@ -328,14 +343,10 @@ function CardHeart({ productId, name, saved }: { productId: string; name: string
             {
                 only: ['cardFacts'],
                 preserveScroll: true,
-                onError: () => {
-                    // Only the last press may undo: an earlier one's answer must not overturn a later choice.
-                    if (shopper && mine === pressing.current) {
-                        setOn(was);
-                        window.dispatchEvent(new CustomEvent(HEART_PRESSED, { detail: { productId, saved: was } }));
-                        toast.error(t('catalog::shop.card.save_failed', { name }));
-                    }
-                },
+                // A refusal is said by the shop's toasts from its errors; a server error or a lost connection, here.
+                onError: () => undo(false),
+                onHttpException: () => undo(true),
+                onNetworkError: () => undo(true),
             },
         );
     }

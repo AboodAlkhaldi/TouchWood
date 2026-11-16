@@ -36,6 +36,8 @@ final class ShopCardData extends Data
         public string $unit = 'PIECE',
         public int $sizes = 0,
         public ?array $oneSize = null,
+        // An individual's only: it sells wholesale to companies, which its card says (§4.1). Never set for a company or a
+        // guest, whose card shows the wholesale price itself.
         public bool $sellsWholesale = false,
         public array $morePhotos = [],
         public bool $bestSeller = false,

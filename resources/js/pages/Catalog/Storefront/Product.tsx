@@ -96,6 +96,9 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
         ...(variant !== null && hasDetails(variant) ? [{ key: 'specs', title: t('catalog::shop.product.specs'), body: <Details variant={variant} /> }] : []),
         { key: 'returns', title: t('catalog::shop.product.returns_warranty'), body: <ReturnsAndWarranty warranty={warranty} returnDays={page.returnDays} /> },
     ];
+    // The open tab; a size without details takes Specifications away, and the first part shows instead.
+    const [tab, setTab] = useState<string>(parts[0]?.key ?? 'returns');
+    const shownTab = parts.some((part) => part.key === tab) ? tab : (parts[0]?.key ?? 'returns');
 
     return (
         <StorefrontLayout title={name} address={address} tabBar={!buying}>
@@ -130,10 +133,20 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
                             <section className="grid gap-2 rounded-xl border border-line bg-surface p-4" data-test="price-box">
                                 <ProductPrice variant={variant} wholesale={wholesale} wholesaleMinimum={selling?.wholesaleMinimum ?? null} unit={page.unit} mode={mode} />
                                 <p className="text-copy-13 text-ink-muted">{t('catalog::shop.product.tax_note')}</p>
-                                {variant?.sellsWholesale && selling?.wholesaleMinimum ? (
-                                    <p className="tw-figure text-copy-13 text-ink-muted" data-test="wholesale-note">
-                                        {modes.includes('WHOLESALE') ? t('catalog::shop.product.wholesale_note', { count: selling.wholesaleMinimum }) : t('catalog::shop.card.wholesale_individual')}
-                                    </p>
+                                {/* A company or a guest who may buy it wholesale: from how many; an individual, whose terms carry no
+                                    wholesale side (P17): that companies can. */}
+                                {variant?.sellsWholesale && selling !== null ? (
+                                    selling.wholesaleMinimum !== null ? (
+                                        modes.includes('WHOLESALE') ? (
+                                            <p className="tw-figure text-copy-13 text-ink-muted" data-test="wholesale-note">
+                                                {t('catalog::shop.product.wholesale_note', { count: selling.wholesaleMinimum })}
+                                            </p>
+                                        ) : null
+                                    ) : (
+                                        <p className="text-copy-13 text-ink-muted" data-test="wholesale-note">
+                                            {t('catalog::shop.card.wholesale_individual')}
+                                        </p>
+                                    )
                                 ) : null}
                                 <ModeSwitch modes={modes} mode={mode} onChange={setMode} />
                             </section>
@@ -222,7 +235,7 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
                 </div>
 
                 {/* Tabs from a tablet up; on a phone the same parts fold open (shop-design.md §6.5, §6.6). */}
-                <Tabs defaultValue={parts[0]?.key} className="hidden gap-4 md:flex" data-test="product-tabs">
+                <Tabs value={shownTab} onValueChange={setTab} className="hidden gap-4 md:flex" data-test="product-tabs">
                     <TabsList className="h-11 w-fit">
                         {parts.map((part) => (
                             <TabsTrigger key={part.key} value={part.key} className="px-4" data-test={`tab-${part.key}`}>

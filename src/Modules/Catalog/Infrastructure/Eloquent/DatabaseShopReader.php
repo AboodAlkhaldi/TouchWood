@@ -627,6 +627,8 @@ final readonly class DatabaseShopReader implements ShopReader
             'SELECT * FROM (SELECT found.*, CASE WHEN tier = 3 THEN -near ELSE 0 END AS k2, COALESCE(sales_rank::bigint, '.SearchCursor::UNRANKED.') AS k3 FROM ('
             .'SELECT l.product_id, l.name, l.slug, l.card_photo, l.sales_rank, l.card_variant_id, l.retail_card_variant_id,'
             .' l.ending_soon_companies, l.ending_soon_individuals, l.retail_price_minor, l.retail_price_before_minor, l.retail_from_minor, l.wholesale_from_minor, l.wholesale_from_before_minor, l.for_companies,'
+            // The card's facts, as every list's card has them (shop-design.md §4).
+            .' l.brand_name, l.unit, l.sizes_individuals, l.sizes_companies, l.one_size_individuals, l.one_size_companies, l.sells_wholesale, l.more_photos, l.listed_at,'
             .' '.self::labelsOf($locale, 'l').' AS labels, '.self::ratingOf('l').','
             .' CASE WHEN split_part(l.search_text, chr(10), 1) = ?::text OR split_part(l.search_text, chr(10), 2) = ?::text THEN 1'
             ." WHEN l.search_document @@ to_tsquery('simple', ?) THEN 2"

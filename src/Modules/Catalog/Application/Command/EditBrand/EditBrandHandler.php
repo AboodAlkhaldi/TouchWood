@@ -51,6 +51,7 @@ final readonly class EditBrandHandler
             $input->requireFreeSlugs($this->brands, $brand->id());
 
             $shown = $brand->showInDefaultListings();
+            $named = $brand->name();
             $brand->edit($input->name, $input->slugs, $input->descriptionAr, $input->descriptionEn, $logo, $command->originCountry, $input->agencyType, $command->showInDefaultListings);
             $entry = ListAudit::changed('brand', 'edited', $brand->id(), $brand->pullChanges(), $brand->snapshot());
 
@@ -60,8 +61,9 @@ final readonly class EditBrandHandler
 
             $this->brands->update($brand);
 
-            // Copied into its products' rows, so the default grid needs no join (handoff §9.4).
-            if ($brand->showInDefaultListings() !== $shown) {
+            // Copied into its products' rows, so the default grid needs no join (handoff §9.4) - and its name, which
+            // their cards show (shop-design.md §4.1).
+            if ($brand->showInDefaultListings() !== $shown || ! $brand->name()->equals($named)) {
                 $this->listingRows->refresh($this->products->idsWithBrand($brand->id()));
             }
 

@@ -158,7 +158,7 @@ final readonly class ShopPages
         }
 
         $viewer = $this->visit->viewer();
-        /** @var array{page: array<string, mixed>|null, other: string|null, category: string|null, companies?: bool|null, noindex?: bool, trail?: list<array{name: string, slug: string}>|null, rank?: int|null, listed?: string|null} $kept */
+        /** @var array{page: array<string, mixed>|null, other: string|null, category: string|null, companies?: bool|null, noindex?: bool, trail?: list<array{name: string, slug: string}>|null, rank?: int|null, listed?: string|null, related?: array<string, array{int|null, string|null}>} $kept */
         $kept = $this->cache->remember("product:{$store->value}:{$locale}:{$viewer->value}:{$owner['id']}", function () use ($store, $locale, $viewer, $owner): array {
             $page = $this->catalog->productPage($store, $locale, $viewer, $owner['id'], $owner['slug']);
 
@@ -202,6 +202,8 @@ final readonly class ShopPages
                 // pushed by Sales replaces the kept pages' version, so the rank kept here is current.
                 'rank' => $page->salesRank,
                 'listed' => $page->listedAt,
+                // The related cards' too: their flags are compared as the page is shown, never kept (§10.4).
+                'related' => array_column(array_map(static fn (ProductCard $card): array => [$card->productId, [$card->salesRank, $card->listedAt]], [...($relations->goesWith ?? []), ...($relations->mayAlsoLike ?? [])]), 1, 0),
                 // Its category out of this viewer's menu but still answering, emptied by stock or prices: the way to it
                 // (amendment 42). Kept with the page, as the menu it was read against is in the same cache.
                 'trail' => $this->wayToEmptied($store, $locale, $viewer, $page->categoryId)];
@@ -251,9 +253,19 @@ final readonly class ShopPages
         ['top' => $top, 'days' => $days] = $this->visit->cardFlags($store, $locale);
         $rank = $kept['rank'] ?? null;
         $listed = $kept['listed'] ?? null;
+        $since = CarbonImmutable::now()->subDays($days);
+        $flagged = static fn (?int $rank, ?string $listed): array => [
+            'bestSeller' => $top > 0 && $rank !== null && $rank <= $top,
+            'newArrival' => $days > 0 && $listed !== null && CarbonImmutable::parse($listed)->greaterThanOrEqualTo($since),
+        ];
+        // A kept card keeps what it was read with; its flags are this moment's.
+        $keptFacts = $kept['related'] ?? [];
+        $reflag = static fn (array $cards): array => array_map(static fn (array $card): array => isset($keptFacts[$card['productId'] ?? '']) ? [...$card, ...$flagged(...$keptFacts[$card['productId']])] : $card, $cards);
 
         return [
             ...$kept['page'],
+            'goesWith' => $reflag(self::listOf($kept['page']['goesWith'] ?? [])),
+            'mayAlsoLike' => $reflag(self::listOf($kept['page']['mayAlsoLike'] ?? [])),
             'path' => array_map(static fn (ShopLinkData $link): array => $link->toArray(), $path),
             'address' => $address->toArray(),
             'sections' => (object) $sections,
@@ -262,8 +274,7 @@ final readonly class ShopPages
             // The delivery and returns lines (shop-design.md §6.3): the store's settings, kept with the menu's copy.
             'deliveryDays' => $lines['delivery'],
             'returnDays' => $lines['returns'],
-            'bestSeller' => $top > 0 && is_int($rank) && $rank <= $top,
-            'newArrival' => $days > 0 && is_string($listed) && CarbonImmutable::parse($listed)->greaterThanOrEqualTo(CarbonImmutable::now()->subDays($days)),
+            ...$flagged(is_int($rank) ? $rank : null, is_string($listed) ? $listed : null),
         ];
     }
 
@@ -479,6 +490,7 @@ final readonly class ShopPages
         // goes stale; the settings ride in the menu's cached copy, read already (the owner's option (a)).
         ['top' => $top, 'days' => $days] = $cards === [] || ! $flags ? ['top' => 0, 'days' => 0] : $this->visit->cardFlags($store, $locale);
         $since = CarbonImmutable::now()->subDays($days);
+        $individual = $cards !== [] && $this->visit->viewer() === ShopperKind::Individual;
 
         return array_map(static fn (ProductCard $card): ShopCardData => new ShopCardData(
             $card->productId, $card->name, $card->slug, $card->photo, self::labels($card->labels), $card->lastPieces, $card->rating?->average, $card->rating->count ?? 0,
@@ -491,7 +503,8 @@ final readonly class ShopPages
             $card->unit,
             $card->sizes,
             $card->oneSize,
-            $card->sellsWholesale,
+            // An individual's card says companies can buy it wholesale (§4.1); a company's or a guest's shows its wholesale price instead.
+            $individual && $card->sellsWholesale,
             $card->morePhotos,
             $top > 0 && $card->salesRank !== null && $card->salesRank <= $top,
             $days > 0 && $card->listedAt !== null && CarbonImmutable::parse($card->listedAt)->greaterThanOrEqualTo($since),

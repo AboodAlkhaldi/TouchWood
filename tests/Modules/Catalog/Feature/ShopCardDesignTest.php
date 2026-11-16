@@ -10,6 +10,8 @@ use Inertia\Testing\AssertableInertia;
 use Modules\Catalog\Application\CatalogSettings;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
+use Modules\Catalog\Application\Command\EditBrand\EditBrand;
+use Modules\Catalog\Application\Command\EditBrand\EditBrandHandler;
 use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTerms;
 use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTermsHandler;
 use Modules\Catalog\Application\Listing\ListingRows;
@@ -175,4 +177,47 @@ it('gives the product page its own Best seller and New arrival, and its unit of 
     Fx::asSystem(fn () => app(UpdateSettingHandler::class)->handle(new UpdateSetting(CatalogSettings::NEW_ARRIVAL_DAYS, 'sa', 0)));
     cardDesignViewer(ShopperKind::Guest);
     get('/sa/en/products/'.$slug)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('newArrival', false)->where('bestSeller', true));
+});
+
+it('gives a search result the same card as a list: its brand, unit, sizes and what Add to cart adds', function () {
+    $p = cardDesignProduct([[true, false]]);
+    DB::table('catalog.products')->where('id', $p['product'])->update(['unit' => 'METRE']);
+    DB::transaction(fn () => app(ListingRows::class)->refresh([$p['product']]));
+    $name = (string) DB::table('catalog.products')->where('id', $p['product'])->value('name_en');
+
+    cardDesignViewer(ShopperKind::Individual);
+    get('/sa/en/search?q='.rawurlencode($name))->assertOk()->assertInertia(function (AssertableInertia $page) use ($p): void {
+        $card = null;
+
+        foreach ($page->toArray()['props']['products'] as $each) {
+            $card = (string) $each['productId'] === $p['product'] ? $each : $card;
+        }
+
+        expect($card)->not->toBeNull()
+            ->and($card['unit'])->toBe('METRE')
+            ->and($card['brand'])->not->toBeNull()
+            ->and($card['sizes'])->toBe(1)
+            ->and($card['oneSize'])->toBe(['variant' => $p['sizes'][0], 'mode' => 'RETAIL', 'minimum' => 1]);
+    });
+});
+
+it('tells only an individual that companies buy it wholesale', function () {
+    $p = cardDesignProduct([[true, true]]);
+
+    foreach ([ShopperKind::Individual->value => true, ShopperKind::Company->value => false, ShopperKind::Guest->value => false] as $kind => $said) {
+        cardDesignViewer(ShopperKind::from($kind));
+        expect(cardDesignCards($p['category'])[$p['product']]['sellsWholesale'])->toBe($said);
+    }
+});
+
+it('shows a renamed brand on the cards of its products at once', function () {
+    $p = cardDesignProduct([[true, false]]);
+    $id = (string) DB::table('catalog.products')->where('id', $p['product'])->value('brand_id');
+    $row = DB::table('catalog.brands')->where('id', $id)->first() ?? throw new LogicException('No brand.');
+    $slug = static fn (string $locale): string => (string) DB::table('catalog.brand_slugs')->where('brand_id', $id)->where('locale', $locale)->where('is_current', true)->value('slug');
+
+    Fx::asSystem(fn () => app(EditBrandHandler::class)->handle(new EditBrand($id, (string) $row->name_ar, 'Renamed Maker', (string) $row->agency_type, (bool) $row->show_in_default_listings, slugAr: $slug('ar'), slugEn: $slug('en'))));
+
+    cardDesignViewer(ShopperKind::Guest);
+    expect(cardDesignCards($p['category'])[$p['product']]['brand'])->toBe('Renamed Maker');
 });
