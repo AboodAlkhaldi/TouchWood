@@ -515,3 +515,53 @@ built, only the tests it touches run; the full set runs once, at the end of each
 - the browser tests at 375 × 812 and desktop, Arabic and English, light and dark;
 - each page's query count (frontend.md §5: 8 a shop page is the target, every count recorded);
 - each page's JavaScript under 60 KB gzipped.
+
+---
+
+## 15 · PR C: the order pages and B2B's screens (owner, 2026-11-17: all 20 answers as recommended)
+
+Written from the design's `order` and `b2b` screens (the "TouchWood Screens" page of the owner's design project), compared
+with what is built and with sales.md and b2b.md. The design's status tabs and its review bar are tools for viewing the
+mock-up, not features, and every name, number and bank account in it is mock data. The design has no order list.
+
+### 15.1 The order placed (sales.md S6)
+- **A green band at the top:** a tick, «تم استلام طلبك», the line that every order is reviewed by the team before it is
+  prepared, and the order number at 20 px (answer 1).
+
+### 15.2 The order page (sales.md S8)
+- **Two columns:** the main column and a **372 px side column that stays in place while scrolling** (sticky under the
+  header); one column at 820 px or less, the main column first (answer 20). The account's side menu stays (answer 2).
+- **The status as a 4-step stepper** across the page: New, Processing, Shipped, Delivered, each with its time. Approved
+  shows its time, read from the order's `decided_at` (answer 6). A cancelled, rejected or refunded order keeps its built
+  wording.
+- **The lines as one bordered list:** a 64 px photo (the product's card photo, Catalog's `productCards` read, answer 4);
+  the name; chips for the code (kept, answer 3), the chosen values, and Retail or Wholesale (answer 5); the line total
+  with «unit × pieces» under it, and the unit of sale (§10.7). The head says «N أصناف · M قطعة».
+- **The totals as built** (no taxable-base row, answer 7).
+- **The delivery address card** with the line «العنوان محفوظ كنسخة داخل الطلب — تعديله في دفتر العناوين لا يغيّر هذا الطلب»
+  (answer 9).
+- **The side column, top to bottom:**
+  - **Shipping:** before shipping, a note; once shipped, the carrier and number, and **Track only when the carrier gave a
+    link** (sales.md §1.5, answer 10);
+  - **Payment:** as built: the way paid, or for a company **bank transfer or staff contact**, with the bank details,
+    Copy and the receipt box while uploading is open; its words say both ways (answer 12);
+  - **The order's points:** the points it earns, added at delivery and taken back on a cancel or return (Loyalty's
+    `earningPreview` on the goods total; after delivery, "added to your balance") (answer 8);
+  - **Cancel** at the bottom, greyed once shipped, with its note; Buy Again, Returns and the payment request stay as built
+    (answer 11).
+
+### 15.3 My orders (sales.md S7)
+Not in the design: restyled with PR B's pieces only (the shop's cards, chips and Show More), its content as built.
+
+### 15.4 B2B's company page (b2b.md §4.5)
+- **Two columns:** the main column and a **352 px side column that stays in place while scrolling**; the account's side
+  menu stays (answers 2, 20).
+- **The status banner** with a coloured dot, for every built status (new, pending, approved, rejected, suspended).
+- **The form's sections as the design draws them** (a title and a muted line each, separated by rules): company data,
+  then the address, then the documents. As decided, not as the design draws them: **the account holder is the responsible
+  person** (answer 14), **the address is picked from the saved addresses** (answer 15), **company types are the list staff
+  manage** (answer 16), and **documents have no hints** (answer 17).
+- **The documents as rows** with their state (Required / Uploaded …) and Choose or Replace, «n من m مرفوعة» at the head.
+- **Send stays «تقديم الطلب»** with the missing items listed (answer 18). **No "two working days" promise** (answer 19).
+- **The sent application as a summary card:** the reference, the rows, and a chip per uploaded document.
+- **The side column keeps the 3-step progress** (form, under review, decision) of amendment 16(e) (answer 13).
