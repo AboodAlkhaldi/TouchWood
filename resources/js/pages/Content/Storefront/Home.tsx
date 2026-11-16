@@ -327,9 +327,11 @@ function Logos({ heading, logos, art, store, locale }: { heading: string | null;
     return (
         <section className={`grid gap-4 overflow-hidden border-y border-line bg-surface-sunken py-8 ${art ? 'bg-cover bg-center [background-image:var(--tw-theme-logos)]' : ''}`} data-test="home-logos">
             {heading ? <h2 className="shop-box text-heading-20 text-ink">{heading}</h2> : null}
-            <ul className="flex w-max animate-[tw-marquee_40s_linear_infinite] gap-4 hover:[animation-play-state:paused] motion-reduce:animate-none">
+            {/* One copy is the logos repeated until it is wider than a wide screen (196 px a tile), then drawn twice. */}
+            <ul className="flex w-max animate-[tw-marquee_40s_linear_infinite] gap-4 hover:[animation-play-state:paused] motion-reduce:animate-none rtl:animate-[tw-marquee-rtl_40s_linear_infinite] rtl:motion-reduce:animate-none">
                 {logos.map((logo, index) => tile(logo, index, false))}
-                {logos.map((logo, index) => tile(logo, index, true))}
+                {Array.from({ length: Math.ceil(2560 / (logos.length * 196)) - 1 }, (_, round) => logos.map((logo, index) => tile(logo, index + (round + 1) * 1000, true)))}
+                {Array.from({ length: Math.ceil(2560 / (logos.length * 196)) }, (_, round) => logos.map((logo, index) => tile(logo, index + (round + 1) * 100000, true)))}
             </ul>
         </section>
     );

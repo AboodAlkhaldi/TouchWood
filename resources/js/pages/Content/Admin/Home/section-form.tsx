@@ -93,11 +93,8 @@ export function SectionForm({ store, section, logos: savedLogos, icons, translat
     const specs: Spec[] =
         type === 'HERO'
             ? [
-                  { name: 'eyebrow', box: 'eyebrow', path: ['eyebrow'], label: f('eyebrow'), max: 40 },
+                  // The title and the facts only (shop-design.md §3.1): the banners carry their own words and buttons.
                   { name: 'title', box: 'title', path: ['title'], label: f('title'), max: 80 },
-                  { name: 'line', box: 'line', path: ['line'], label: f('line'), max: 160, rows: 2 },
-                  button('main', ['main'], 'main_button', f('main_button')),
-                  button('second', ['second'], 'second_button', f('second_button')),
                   ...facts.flatMap((_, index) => [
                       { name: `fact${index}figure`, box: 'fact_figure', path: ['facts', index, 'figure'], label: `${f('fact_figure')} ${index + 1}`, max: 16 },
                       { name: `fact${index}`, box: 'fact', path: ['facts', index, 'caption'], label: `${f('fact')} ${index + 1}`, max: 40 },
@@ -232,11 +229,7 @@ export function SectionForm({ store, section, logos: savedLogos, icons, translat
 
                 {type === 'HERO' ? (
                     <>
-                        {specs.slice(0, 3).map(pairOf)}
-                        {pairOf(specs[3] as Spec)}
-                        {linkOf(['main'], 'main_button')}
-                        {pairOf(specs[4] as Spec)}
-                        {linkOf(['second'], 'second_button')}
+                        {pairOf(specs[0] as Spec)}
                         <FieldSet className="gap-3" data-test="facts">
                             <FieldLegend variant="label" className="text-label-14 text-ink">
                                 {f('facts')}
@@ -246,8 +239,8 @@ export function SectionForm({ store, section, logos: savedLogos, icons, translat
                             {errors.facts ? <p className="text-copy-14 text-bad">{errors.facts}</p> : null}
                             {facts.map((_, index) => (
                                 <div key={`fact${index}`} className="grid gap-2">
-                                    {pairOf(specs[5 + index * 2] as Spec)}
-                                    {pairOf(specs[6 + index * 2] as Spec)}
+                                    {pairOf(specs[1 + index * 2] as Spec)}
+                                    {pairOf(specs[2 + index * 2] as Spec)}
                                     <div>
                                         <Button type="button" variant="ghost" size="sm" onClick={() => change(['facts'], facts.filter((_, i) => i !== index))}>
                                             <Trash2 aria-hidden />

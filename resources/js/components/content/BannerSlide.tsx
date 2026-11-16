@@ -19,14 +19,18 @@ export type Banner = {
     button: string | null;
 };
 
-/** An image no width asks for: the `<source>` that keeps a picture's file from the other width. */
-const NOTHING = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+/** Below Tailwind's `sm` (640 px) a phone, from it the wide picture: the same line as the layout's. */
+const PHONE = '(max-width: 639.98px)';
 
-/** A picture drawn at one width only: at the other, its `<source>` is an empty image, so its file is never fetched. */
-export function WidthPicture({ photo, alt, wide, first, className }: { photo: PhotoSizes; alt: string; wide: boolean; first: boolean; className: string }) {
-    const formats = photo.detail ?? photo.zoom ?? photo.card ?? {};
-    const src = formats.jpg ?? formats.webp ?? formats.avif;
-    const media = wide ? '(max-width: 640px)' : '(min-width: 641px)';
+/**
+ * A banner's one picture: the phone's file below 640 px, the wide one from it - one box, one description, and each
+ * file fetched only at its own width (the browser takes the first `<source>` whose media matches).
+ */
+export function BannerPicture({ wide, phone, alt, first }: { wide: PhotoSizes | []; phone: PhotoSizes | []; alt: string; first: boolean }) {
+    const formatsOf = (photo: PhotoSizes | []) => (Array.isArray(photo) ? {} : (photo.detail ?? photo.zoom ?? photo.card ?? {}));
+    const big = formatsOf(wide.length === 0 ? phone : wide);
+    const small = formatsOf(phone.length === 0 ? wide : phone);
+    const src = big.jpg ?? big.webp ?? big.avif;
 
     if (src === undefined) {
         return null;
@@ -34,10 +38,20 @@ export function WidthPicture({ photo, alt, wide, first, className }: { photo: Ph
 
     return (
         <picture>
-            <source media={media} srcSet={NOTHING} />
-            {formats.avif ? <source type="image/avif" srcSet={formats.avif} /> : null}
-            {formats.webp ? <source type="image/webp" srcSet={formats.webp} /> : null}
-            <img src={src} alt={alt} loading={first ? 'eager' : 'lazy'} decoding="async" {...(first ? { fetchPriority: 'high' as const } : {})} className={className} />
+            {small.avif ? <source media={PHONE} type="image/avif" srcSet={small.avif} /> : null}
+            {small.webp ? <source media={PHONE} type="image/webp" srcSet={small.webp} /> : null}
+            {(small.jpg ?? small.webp) ? <source media={PHONE} srcSet={small.jpg ?? small.webp} /> : null}
+            {big.avif ? <source type="image/avif" srcSet={big.avif} /> : null}
+            {big.webp ? <source type="image/webp" srcSet={big.webp} /> : null}
+            <img
+                src={src}
+                alt={alt}
+                loading={first ? 'eager' : 'lazy'}
+                decoding="async"
+                {...(first ? { fetchPriority: 'high' as const } : {})}
+                className="aspect-[2/1] w-full object-cover sm:aspect-[3/1]"
+                data-test="banner-picture"
+            />
         </picture>
     );
 }
@@ -46,8 +60,7 @@ export function BannerSlide({ banner, first, store, locale }: { banner: Banner; 
     return (
         <div className="relative overflow-hidden sm:rounded-xl">
             <ContentLink link={banner.link} store={store} locale={locale} className="block">
-                {banner.image.length === 0 ? null : <WidthPicture photo={banner.image as PhotoSizes} alt={banner.alt ?? ''} wide first={first} className="aspect-[3/1] w-full object-cover" />}
-                {banner.phone.length === 0 ? null : <WidthPicture photo={banner.phone as PhotoSizes} alt={banner.alt ?? ''} wide={false} first={first} className="aspect-[2/1] w-full object-cover" />}
+                <BannerPicture wide={banner.image} phone={banner.phone} alt={banner.alt ?? ''} first={first} />
             </ContentLink>
             {banner.title || banner.line || banner.button ? (
                 <div className="absolute inset-x-3 bottom-3 grid max-w-md gap-1 rounded-lg bg-sidebar/85 p-3 text-sidebar-ink sm:inset-x-6 sm:bottom-6 sm:gap-2 sm:p-5" data-test="home-banner-words">

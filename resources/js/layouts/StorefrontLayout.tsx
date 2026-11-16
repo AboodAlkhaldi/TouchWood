@@ -300,7 +300,7 @@ function TopBar({ bar, store, locale, words, children }: { bar: ContentFrame['ba
     const link = useLink();
 
     return (
-        <div className={`bg-brand text-ink-on-brand dark:bg-sidebar dark:text-sidebar-ink ${bar?.art ? 'bg-cover bg-center [background-image:var(--tw-theme-bar)]' : ''}`} data-test="top-bar">
+        <div className={`bg-brand text-ink-on-brand dark:bg-sidebar dark:text-sidebar-ink ${bar ? '' : 'max-sm:hidden'} ${bar?.art ? 'bg-cover bg-center [background-image:var(--tw-theme-bar)]' : ''}`} data-test="top-bar">
             <div className="shop-box flex h-[38px] items-center justify-between gap-4 text-copy-13">
                 {bar ? (
                     <p className="min-w-0 flex-1 truncate" data-test="announcement-bar">

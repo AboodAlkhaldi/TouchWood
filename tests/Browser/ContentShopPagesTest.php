@@ -205,6 +205,8 @@ it('turns the home banners every 5 seconds with their words, the arrows and dots
         ->and($page->script("document.querySelectorAll('[data-test=\"banner-dots\"] button').length"))->toBe(2)
         ->and($page->script("document.querySelector('[data-test=\"home-banner-words\"]')?.textContent"))->toContain('Offer A')
         ->and($page->script("document.querySelector('[data-test=\"home-facts\"]')?.textContent"))->toContain('TALLSEN')
+        // One picture a banner, 3:1 at a computer's width (no box held for the phone's picture).
+        ->and($page->script("(() => { const r = document.querySelector('[data-test=\"home-banner\"] [data-test=\"banner-picture\"]').getBoundingClientRect(); return Math.abs(r.width / r.height - 3) < 0.05 && document.querySelectorAll('[data-test=\"home-banner\"]')[0].querySelectorAll('img').length === 1; })()"))->toBeTrue('the banner is not one 3:1 picture')
         // By itself after 5 seconds, the second dot current.
         ->and(browserSoon($page, "document.querySelectorAll('[data-test=\"banner-dots\"] button')[1]?.getAttribute('aria-current') === 'true'", 9))->toBeTrue('the banners did not turn by themselves');
 
@@ -217,6 +219,8 @@ it('turns the home banners every 5 seconds with their words, the arrows and dots
     $page->navigate('/eg/ar', BROWSER_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"home-banners\"]')?.dataset.turning === 'true'"))->toBeTrue()
         ->and($page->script("document.querySelector('h1[data-test=\"home-title\"]')?.textContent"))->toBe('إكسسوارات المطابخ')
+        // A phone: the phone's picture, 2:1.
+        ->and($page->script("(() => { const r = document.querySelector('[data-test=\"home-banner\"] [data-test=\"banner-picture\"]').getBoundingClientRect(); return Math.abs(r.width / r.height - 2) < 0.05; })()"))->toBeTrue('the phone banner is not 2:1')
         ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
     $page->assertNoJavaScriptErrors();
 });

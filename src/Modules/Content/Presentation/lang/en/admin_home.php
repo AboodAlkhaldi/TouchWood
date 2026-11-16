@@ -39,7 +39,7 @@ return [
         'tiles' => ':count tiles',
         'products' => ':count products',
         'promises' => ':count promises',
-        'hero_banners' => 'Phones show the Home, Phone banners.',
+        'hero_banners' => 'The banners turn above the title, at every width: up to 5, set in Banners.',
         'newest' => 'The newest project and the 2 newest posts',
         'points_figures' => 'Figures from the Points settings',
         'nothing' => 'Nothing typed yet',

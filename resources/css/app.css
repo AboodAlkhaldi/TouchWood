@@ -273,9 +273,10 @@
 @utility material-base { background-color: var(--tw-surface); box-shadow: var(--tw-shadow-border); border-radius: var(--tw-radius); }
 /* The shop's content box (shop-design.md §2.1): 1400 px at most, 40 px each side, 24 px from 1024 down, 16 px from
 | 640 down. Every shop band brings its own, so its ground can reach the screen's edges. */
-@utility shop-box { margin-inline: auto; width: 100%; max-width: 1400px; padding-inline: 1rem; @media (width >= 40rem) { padding-inline: 1.5rem; } @media (width > 64rem) { padding-inline: 2.5rem; } }
+@utility shop-box { margin-inline: auto; width: 100%; max-width: 1400px; padding-inline: 1rem; @media (width > 40rem) { padding-inline: 1.5rem; } @media (width > 64rem) { padding-inline: 2.5rem; } }
 /* The home's logos band (shop-design.md §3.2, H7): the row, drawn twice, moves by one copy and starts again. */
 @keyframes tw-marquee { to { transform: translateX(-50%); } }
+@keyframes tw-marquee-rtl { to { transform: translateX(50%); } }
 @utility material-small { background-color: var(--tw-surface); box-shadow: var(--tw-shadow-small); border-radius: var(--tw-radius); }
 @utility material-medium { background-color: var(--tw-surface); box-shadow: var(--tw-shadow-medium); border-radius: var(--tw-radius); }
 @utility material-large { background-color: var(--tw-surface); box-shadow: var(--tw-shadow-large); border-radius: var(--tw-radius); }

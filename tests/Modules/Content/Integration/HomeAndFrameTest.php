@@ -150,7 +150,7 @@ describe('§1.4 the home page', function () {
         $promise = ['icon' => 'truck', 'title' => ['ar' => 'شحن سريع', 'en' => 'Fast delivery'], 'line' => ['ar' => 'خلال يومين', 'en' => 'In two days']];
 
         expect(homeRefusal(fn () => homeFill($hero->id, ['facts' => array_fill(0, 4, ['ar' => 'حقيقة', 'en' => 'Fact'])])))->toBe('facts:too_many')
-            ->and(homeRefusal(fn () => homeFill($hero->id, ['main' => ['text' => ['ar' => 'تسوق', 'en' => 'Shop']]])))->toBe('main_button_link:required')
+            ->and(homeRefusal(fn () => homeFill(homeSection('AUDIENCE')->id, ['companies' => ['button' => ['text' => ['ar' => 'تسوق', 'en' => 'Shop']]]])))->toBe('companies_button_link:required')
             ->and(homeRefusal(fn () => homeFill($promises->id, ['promises' => array_fill(0, 5, $promise)])))->toBe('promises:too_many')
             ->and(homeRefusal(fn () => homeFill($promises->id, ['promises' => [[...$promise, 'icon' => 'rocket']]])))->toBe('promise_icon:choice')
             ->and(homeRefusal(fn () => homeFill($categories->id, ['count' => 13])))->toBe('count:range')

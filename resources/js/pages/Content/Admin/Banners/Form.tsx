@@ -91,7 +91,7 @@ export default function Form({ store, storeTimezone, placement: asked, banner, i
         { id: 'alt_ar', label: t('content::admin_banners.fields.alt_ar'), value: form.data.alt_ar, rules: { required: true, length: { max: 200 } } },
         { id: 'alt_en', label: t('content::admin_banners.fields.alt_en'), value: form.data.alt_en, rules: { required: scheduled, length: { max: 200 } } },
         { id: 'category_id', label: t('content::admin_banners.fields.category'), value: form.data.category_id, rules: { required: form.data.placement === 'LISTING' && onCategory } },
-        ...(['title', 'line', 'button'] as const).flatMap((word) => {
+        ...(form.data.placement !== 'HOME_HERO' ? [] : (['title', 'line', 'button'] as const)).flatMap((word) => {
             const max = { title: 60, line: 120, button: 24 }[word];
 
             return (['ar', 'en'] as const).map((language) => ({

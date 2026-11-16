@@ -25,8 +25,24 @@ export default function HomeBanners({ banners, store, locale }: { banners: Banne
     const { direction } = usePage<SharedProps>().props;
     const [api, setApi] = useState<CarouselApi>();
     const [shown, setShown] = useState(0);
-    const [held, setHeld] = useState(false);
+    // Each its own hold, so leaving one never lets them turn while another still holds (P15).
+    const [hovered, setHovered] = useState(false);
+    const [focused, setFocused] = useState(false);
+    const [touched, setTouched] = useState(false);
+    const [still, setStill] = useState(false);
+    const held = hovered || focused || touched || still;
     const many = banners.length > 1;
+    const rtl = direction === 'rtl';
+
+    // Less motion, as the device asks now, and if it changes while the page is open.
+    useEffect(() => {
+        const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+        const read = () => setStill(query.matches);
+        read();
+        query.addEventListener('change', read);
+
+        return () => query.removeEventListener('change', read);
+    }, []);
 
     useEffect(() => {
         if (!api) {
@@ -43,7 +59,7 @@ export default function HomeBanners({ banners, store, locale }: { banners: Banne
     }, [api]);
 
     useEffect(() => {
-        if (!api || !many || held || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        if (!api || !many || held) {
             return;
         }
 
@@ -62,15 +78,25 @@ export default function HomeBanners({ banners, store, locale }: { banners: Banne
     return (
         <div
             className="shop-box relative max-sm:px-0!"
-            onMouseEnter={() => setHeld(true)}
-            onMouseLeave={() => setHeld(false)}
-            onFocusCapture={() => setHeld(true)}
-            onBlurCapture={() => setHeld(false)}
-            onPointerDown={() => setHeld(true)}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            onFocusCapture={() => setFocused(true)}
+            onBlurCapture={(event) => setFocused(event.currentTarget.contains(event.relatedTarget as Node | null))}
+            onPointerDown={(event) => event.pointerType !== 'mouse' && setTouched(true)}
+            onPointerUp={() => setTouched(false)}
+            onPointerCancel={() => setTouched(false)}
+            // shadcn's Carousel takes ArrowLeft as "previous" in both directions; in Arabic the left is the next.
+            onKeyDownCapture={(event) => {
+                if (rtl && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    void (event.key === 'ArrowLeft' ? api?.scrollNext() : api?.scrollPrev());
+                }
+            }}
             data-test="home-banners"
             data-turning="true"
         >
-            <Carousel setApi={setApi} opts={{ loop: many, direction: direction === 'rtl' ? 'rtl' : 'ltr' }} aria-label={t('content::shop.home.banners')}>
+            <Carousel setApi={setApi} opts={{ loop: many, direction: rtl ? 'rtl' : 'ltr' }} aria-label={t('content::shop.home.banners')}>
                 <CarouselContent className="ms-0">
                     {banners.map((banner, index) => (
                         <CarouselItem key={banner.id} className="ps-0" aria-label={of(index)} data-test="home-banner">

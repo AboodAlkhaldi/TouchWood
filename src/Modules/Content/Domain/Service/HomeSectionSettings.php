@@ -59,12 +59,10 @@ final class HomeSectionSettings
     public static function read(HomeSectionType $type, array $input): array
     {
         return match ($type) {
+            // The title and the facts only (shop-design.md §3.1, option (b)): the eyebrow, the line and the two buttons
+            // went with the banners, which carry their own words.
             HomeSectionType::Hero => [
-                'eyebrow' => self::pair('eyebrow', $input['eyebrow'] ?? null, 40),
                 'title' => self::pair('title', $input['title'] ?? null, 80),
-                'line' => self::pair('line', $input['line'] ?? null, 160),
-                'main' => self::button('main_button', $input['main'] ?? null),
-                'second' => self::button('second_button', $input['second'] ?? null),
                 // A fact saved before 2026-11-16 is a caption alone ({ar, en}); it reads as one with no figure.
                 'facts' => self::list('facts', $input['facts'] ?? [], self::MAX_FACTS, static function (mixed $fact): array {
                     $fact = is_array($fact) ? $fact : [];
@@ -160,7 +158,7 @@ final class HomeSectionSettings
 
         foreach ($settings as $key => $value) {
             if (is_array($value)) {
-                self::requireEnglish($value, is_int($key) ? $box : $key);
+                self::requireEnglish($value, is_int($key) ? $box : (['figure' => 'fact_figure', 'caption' => 'fact'][$key] ?? $key));
             }
         }
     }

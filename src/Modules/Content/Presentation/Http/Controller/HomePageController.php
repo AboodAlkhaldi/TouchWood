@@ -237,7 +237,7 @@ final readonly class HomePageController
      */
     private static function sectionBoxes(): array
     {
-        $pairs = ['eyebrow', 'title', 'line', 'main_button', 'second_button', 'fact', 'promise_title', 'promise_line', 'heading', 'small_heading', 'individuals_title', 'individuals_line', 'individuals_button', 'companies_title', 'companies_line', 'companies_button', 'logo_name', 'text'];
+        $pairs = ['eyebrow', 'title', 'line', 'main_button', 'second_button', 'fact', 'fact_figure', 'promise_title', 'promise_line', 'heading', 'small_heading', 'individuals_title', 'individuals_line', 'individuals_button', 'companies_title', 'companies_line', 'companies_button', 'logo_name', 'text'];
         $boxes = ['main_button_link', 'second_button_link', 'individuals_button_link', 'companies_button_link', 'promise_icon', 'promises', 'facts', 'count', 'logos', 'logo', 'logo_link', 'link'];
 
         foreach ($pairs as $pair) {
