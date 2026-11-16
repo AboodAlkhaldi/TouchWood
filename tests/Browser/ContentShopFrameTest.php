@@ -263,7 +263,8 @@ it('marks only a reduced price with the theme\'s flag and badge on its card, and
 
         $page->navigate('/sa/en/products/'.$slug('product', $sale['product']), BROWSER_PAGE_LOAD);
         expect(browserSoon($page, "document.querySelector('[data-test=\"gallery\"] [data-test=\"theme-ribbon\"]') !== null"))->toBeTrue()
-            ->and($page->script("document.querySelector('[data-test=\"gallery\"] [data-test=\"theme-flag\"]') !== null && document.querySelector('[data-test=\"theme-badge\"]')?.textContent === 'Offer'"))->toBeTrue();
+            // The ribbon stays on the photo; the theme's flag left it for the details' flags beside the brand (shop-design.md §6.2, §6.3).
+            ->and($page->script("document.querySelector('[data-test=\"gallery\"] [data-test=\"theme-flag\"]') === null && document.querySelector('[data-test=\"product-flags\"] [data-test=\"theme-badge\"]')?.textContent === 'Offer'"))->toBeTrue();
 
         $page->navigate('/sa/en/products/'.$slug('product', $plain['product']), BROWSER_PAGE_LOAD);
         expect(browserSoon($page, "document.querySelector('[data-test=\"gallery\"]') !== null"))->toBeTrue()

@@ -353,7 +353,7 @@ final readonly class DatabaseShopReader implements ShopReader
             })
             ->where('p.id', strtolower($productId))
             ->first([
-                'p.stage', 'p.archived_from', "p.{$name} as name", 'p.'.self::column('description', $locale).' as description', 'p.brand_id', 'p.category_id',
+                'p.stage', 'p.archived_from', 'p.unit', "p.{$name} as name", 'p.'.self::column('description', $locale).' as description', 'p.brand_id', 'p.category_id',
                 "b.{$name} as brand_name", 'b.is_active as brand_active', 'bs.slug as brand_slug',
                 'w.id as warranty_id', "w.{$name} as warranty_name", 'w.period_months', 'w.'.self::column('terms', $locale).' as warranty_terms',
                 'os.slug as other_slug',
@@ -365,6 +365,8 @@ final readonly class DatabaseShopReader implements ShopReader
 
         return [
             'stage' => (string) $row->stage,
+            // Its unit of sale, beside the price (shop-design.md §10.1).
+            'unit' => (string) ($row->unit ?? 'PIECE'),
             'archived_from' => $row->archived_from === null ? null : (string) $row->archived_from,
             'name' => $row->name === null ? null : (string) $row->name,
             'description' => self::json($row->description),
@@ -377,9 +379,15 @@ final readonly class DatabaseShopReader implements ShopReader
         ];
     }
 
-    public function isListed(string $storeId, string $locale, ShopperKind $viewer, string $productId): bool
+    public function listedFacts(string $storeId, string $locale, ShopperKind $viewer, string $productId): ?array
     {
-        return $this->listed($storeId, $locale, $viewer)->where('product_id', $productId)->exists();
+        $row = $this->listed($storeId, $locale, $viewer)->where('product_id', $productId)->first(['sales_rank', 'listed_at']);
+
+        return $row instanceof stdClass ? [
+            'sales_rank' => $row->sales_rank === null ? null : (int) $row->sales_rank,
+            // A row written before the column existed has none (filled by catalog:listing:rebuild).
+            'listed_at' => ($row->listed_at ?? null) === null ? null : (string) $row->listed_at,
+        ] : null;
     }
 
     public function onlySoldOut(string $storeId, string $locale, ShopperKind $viewer, string $kind, string $id): bool

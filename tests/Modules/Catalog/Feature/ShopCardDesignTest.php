@@ -158,3 +158,21 @@ it('keeps New arrival to the days after the product was first listed in the stor
     cardDesignViewer(ShopperKind::Guest);
     expect(cardDesignCards($p['category'])[$p['product']]['newArrival'])->toBeFalse();
 });
+
+it('gives the product page its own Best seller and New arrival, and its unit of sale (shop-design.md §6.3)', function () {
+    $p = cardDesignProduct([[true, false]]);
+    app(ListingFacts::class)->salesRanks(StoreId::fromString(Fx::storeId('sa')), [$p['product'] => 1]);
+    DB::table('catalog.products')->where('id', $p['product'])->update(['unit' => 'PAIR']);
+    $slug = (string) DB::table('catalog.product_slugs')->where('product_id', $p['product'])->where('locale', 'en')->where('is_current', true)->value('slug');
+
+    cardDesignViewer(ShopperKind::Guest);
+    get('/sa/en/products/'.$slug)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+        ->where('bestSeller', true)
+        ->where('newArrival', true)
+        ->where('unit', 'PAIR'));
+
+    // Compared as it is shown, never kept: past the days, the same kept page is no longer new.
+    Fx::asSystem(fn () => app(UpdateSettingHandler::class)->handle(new UpdateSetting(CatalogSettings::NEW_ARRIVAL_DAYS, 'sa', 0)));
+    cardDesignViewer(ShopperKind::Guest);
+    get('/sa/en/products/'.$slug)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('newArrival', false)->where('bestSeller', true));
+});

@@ -84,10 +84,10 @@ export function ProductCards({ cards, test = 'card', facts, columns = 4 }: { car
 }
 
 /** A flag over the photo (shop-design.md §4.3): strong ones solid, soft ones with a thin white edge to stand off a light photo. */
-type Flag = { key: string; text: string; className: string; icon?: 'clock' | 'flame'; test: string };
+export type Flag = { key: string; text: string; className: string; icon?: 'clock' | 'flame'; test: string };
 
-/** The flags in their order (P19): the campaign's word, Last pieces, Best seller, New arrival, then the store's labels. */
-function flagsOf(card: ShopCardData, reduced: boolean, themeWord: string | null, t: ReturnType<typeof useTranslator>): Flag[] {
+/** The flags in their order (P19): the campaign's word, Last pieces, Best seller, New arrival, then the store's labels. The product page shows them all (§6.3). */
+export function flagsOf(card: Pick<ShopCardData, 'lastPieces' | 'bestSeller' | 'newArrival' | 'labels'>, reduced: boolean, themeWord: string | null, t: ReturnType<typeof useTranslator>): Flag[] {
     const soft = 'ring-1 ring-white/90';
 
     return [
@@ -98,6 +98,17 @@ function flagsOf(card: ShopCardData, reduced: boolean, themeWord: string | null,
         // A label keeps the tone staff chose (P18); a subtle one gets the white edge too.
         ...card.labels.map((label, index) => ({ key: `label${index}`, text: label.name, className: `${tone(label.tone as Tone)} ${label.tone.endsWith('-subtle') ? soft : ''}`, test: 'card-label' })),
     ];
+}
+
+/** One flag; `large` on the product page. */
+export function FlagBadge({ flag, className = '', large = false }: { flag: Flag; className?: string; large?: boolean }) {
+    return (
+        <span className={`inline-flex items-center gap-1 rounded-md font-semibold ${large ? 'px-2 py-0.5 text-label-12' : 'px-1.5 py-0.5 text-[11px] leading-4'} ${flag.className} ${className}`} data-test={flag.test}>
+            {flag.icon === 'clock' ? <Clock aria-hidden="true" className="size-3" /> : null}
+            {flag.icon === 'flame' ? <Flame aria-hidden="true" className="size-3" /> : null}
+            {flag.text}
+        </span>
+    );
 }
 
 function ProductCard({ card, test }: { card: ShopCardData; test: string }) {
@@ -139,11 +150,7 @@ function ProductCard({ card, test }: { card: ShopCardData; test: string }) {
                     <span className="absolute start-2 top-2 flex flex-col items-start gap-1" data-test="card-flags">
                         {flags.slice(0, 4).map((flag, index) => (
                             // 4 on a computer, 3 on a phone (P19); the product page shows them all.
-                            <span key={flag.key} className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] leading-4 font-semibold ${flag.className} ${index === 3 ? 'max-sm:hidden' : ''}`} data-test={flag.test}>
-                                {flag.icon === 'clock' ? <Clock aria-hidden="true" className="size-3" /> : null}
-                                {flag.icon === 'flame' ? <Flame aria-hidden="true" className="size-3" /> : null}
-                                {flag.text}
-                            </span>
+                            <FlagBadge key={flag.key} flag={flag} className={index === 3 ? 'max-sm:hidden' : ''} />
                         ))}
                     </span>
                 ) : null}
@@ -470,5 +477,39 @@ export function ProductRows({ cards, test = 'card-row' }: { cards: ShopCardData[
                 })}
             </tbody>
         </table>
+    );
+}
+
+/**
+ * Goes With as the design's compact rows (shop-design.md §6.5; catalog.md §1.10): photo, name, price, and the card's button -
+ * Add for one size, Choose for several. No bundle price (C3).
+ */
+export function CompactRows({ cards, test = 'card' }: { cards: ShopCardData[]; test?: string }) {
+    const link = useLink();
+    const { staffView } = usePage<SharedProps>().props;
+
+    return (
+        <ul className="grid gap-3 md:grid-cols-2">
+            {cards.map((card) => {
+                const href = link('storefront.catalog.product', { slug: card.slug });
+
+                return (
+                    <li key={card.productId} className="grid grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-line bg-surface p-2.5" data-test={test}>
+                        <Link href={href} className="block size-18 overflow-hidden rounded-md bg-surface-sunken" aria-label={card.name} tabIndex={-1}>
+                            <ShopPhoto photo={card.photo} size="card" alt="" className="size-full object-contain" />
+                        </Link>
+                        <span className="grid min-w-0 gap-0.5">
+                            <Link href={href} className="line-clamp-2 text-label-14 text-ink hover:underline" data-test="card-name">
+                                {card.name}
+                            </Link>
+                            <CardPriceLine card={card} />
+                        </span>
+                        <span className="grid w-32 max-sm:w-auto">
+                            <CardButton card={card} href={href} staffView={Boolean(staffView)} />
+                        </span>
+                    </li>
+                );
+            })}
+        </ul>
     );
 }

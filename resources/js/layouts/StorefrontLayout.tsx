@@ -75,11 +75,13 @@ type Props = {
      * an icon, in place of the menu, the logo and the search row. From 640 px up the header is the same as everywhere.
      */
     compact?: { back: string };
+    /** A product's page hides the phone's tab bar: its buy bar takes the bottom (shop-design.md §6.6). */
+    tabBar?: boolean;
 };
 
 type PopupView = ComponentType<{ popup: NonNullable<ContentFrame['popup']> }>;
 
-export function StorefrontLayout({ title, children, address, head, bands = false, compact }: Props) {
+export function StorefrontLayout({ title, children, address, head, bands = false, compact, tabBar = true }: Props) {
     const page = usePage<SharedProps>();
     const { shop, shopper, shopperLines, staffView, locale, frame, theme } = page.props;
     const link = useLink();
@@ -172,7 +174,7 @@ export function StorefrontLayout({ title, children, address, head, bands = false
 
             {/* The page's ground: the theme's edges where it has some (`--tw-backdrop`, a whole background value). On a
                 phone the tab bar's room is kept at the bottom. */}
-            <div className="flex min-h-screen flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] text-ink [background:var(--tw-backdrop)] sm:pb-0">
+            <div className={`flex min-h-screen flex-col ${tabBar ? 'pb-[calc(3.5rem+env(safe-area-inset-bottom))]' : 'pb-[calc(4.5rem+env(safe-area-inset-bottom))]'} text-ink [background:var(--tw-backdrop)] sm:pb-0`}>
                 {inStore ? (
                     <TopBar bar={content?.bar ?? null} store={shop.code} locale={locale} words={words}>
                         <LanguageSwitch shop={shop} locale={locale} url={page.url} alternate={address?.alternate ?? null} />
@@ -284,7 +286,7 @@ export function StorefrontLayout({ title, children, address, head, bands = false
                 </footer>
 
                 {/* The phone's tab bar, once the page is in the browser: its room is kept above from the first paint. */}
-                {inStore && drawn ? (
+                {inStore && drawn && tabBar ? (
                     <Suspense fallback={null}>
                         <TabBar House={House} shop={shop.code} locale={locale} url={page.url} words={words} sales={staffView ? undefined : frame?.sales} staffView={Boolean(staffView)} />
                     </Suspense>

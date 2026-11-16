@@ -83,6 +83,15 @@ return [
         'not_available_text' => 'لا يمكن طلب هذا المنتج هنا الآن.',
         'unavailable_value' => ':name، غير متاح',
         'other_option_value' => ':name، متوفر بخيار آخر',
+        // The product page to the design (shop-design.md §6).
+        'tax_note' => 'الأسعار قبل الضريبة',
+        'wholesale_note' => 'الجملة ابتداءً من :count قطعة',
+        'delivery' => 'التوصيل خلال :count أيام عمل',
+        'returns' => 'إرجاع خلال :count يومًا من الاستلام',
+        'specs' => 'المواصفات',
+        'returns_warranty' => 'الإرجاع والضمان',
+        'no_warranty' => 'لا يشمل هذا المنتج ضمانًا.',
+        'photo_count' => ':number / :total',
     ],
     'search' => [
         'title' => 'البحث',

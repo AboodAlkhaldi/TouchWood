@@ -489,6 +489,9 @@ mayAlsoLike: ShopCardData[],
 address: ShopAddressData,
 deliveryDays: number,
 returnDays: number,
+bestSeller: boolean,
+newArrival: boolean,
+unit: string,
 };
 export type ShopSearchPage = {
 query: string,

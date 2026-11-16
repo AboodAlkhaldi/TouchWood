@@ -96,12 +96,12 @@ it('draws a guest the card\'s prices, each size\'s price and sale, and the whole
     $page->clear('#add-quantity')->type('#add-quantity', '20');
     expect(browserUntil($page, "document.querySelector('[data-test=\"band-current\"]')?.textContent.includes('32.00')"))->toBeTrue();
 
-    // 80 cm sells both ways: its retail price under the name; Wholesale stays chosen, its band from 5 for 20
-    // pieces; Retail chosen, no bands.
+    // 80 cm sells both ways: Wholesale stays chosen, so the price box shows its wholesale price - the switch is in the
+    // box (shop-design.md §6.3) - and its band from 5 for 20 pieces; Retail chosen, its retail price and no bands.
     $page->click('80 cm');
-    expect(browserUntil($page, "document.querySelector('[data-test=\"price\"]')?.textContent.includes('25.00') && document.querySelector('[data-test=\"band-current\"]')?.textContent.includes('20.00')"))->toBeTrue();
+    expect(browserUntil($page, "document.querySelector('[data-test=\"wholesale-price\"]')?.textContent.includes('20.00') && document.querySelector('[data-test=\"band-current\"]')?.textContent.includes('20.00')"))->toBeTrue();
     $page->click('[data-test="mode-RETAIL"]');
-    expect(browserUntil($page, "!document.querySelector('[data-test=\"bands\"]')"))->toBeTrue();
+    expect(browserUntil($page, "!document.querySelector('[data-test=\"bands\"]') && document.querySelector('[data-test=\"price\"]')?.textContent.includes('25.00') && !document.querySelector('[data-test=\"wholesale-price\"]')"))->toBeTrue();
 });
 
 // Amendment 45 (owner, 2026-11-11): a wholesale-only sale shows its old price struck through, as a retail sale.

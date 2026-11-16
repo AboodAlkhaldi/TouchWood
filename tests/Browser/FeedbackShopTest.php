@@ -100,8 +100,9 @@ it('writes a review, asks a question and saves the product, then shows it all in
         ->click('[data-test="submit-question"]');
     expect(browserUntil($page, "document.body.innerText.includes('the answer shows here')"))->toBeTrue();
 
-    $page->click('[data-test="save-heart"]');
-    expect(browserUntil($page, "document.querySelector('[data-test=\"save-heart\"]')?.getAttribute('aria-pressed') === 'true'"))->toBeTrue()
+    // On a phone the heart is over the photo (shop-design.md §6.6, P22); the buy row's is a computer's.
+    $page->click('[data-test="gallery-heart"]');
+    expect(browserUntil($page, "document.querySelector('[data-test=\"gallery-heart\"]')?.getAttribute('aria-pressed') === 'true'"))->toBeTrue()
         ->and(feedbackShopWide($page))->toBe('', 'the product page scrolls sideways');
 
     // The heart on the product's card, in its brand's list (feedback.md §4.1 F7): saved already; pressed off and on.

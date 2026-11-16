@@ -158,7 +158,7 @@ final readonly class ShopPages
         }
 
         $viewer = $this->visit->viewer();
-        /** @var array{page: array<string, mixed>|null, other: string|null, category: string|null, companies?: bool|null, noindex?: bool, trail?: list<array{name: string, slug: string}>|null} $kept */
+        /** @var array{page: array<string, mixed>|null, other: string|null, category: string|null, companies?: bool|null, noindex?: bool, trail?: list<array{name: string, slug: string}>|null, rank?: int|null, listed?: string|null} $kept */
         $kept = $this->cache->remember("product:{$store->value}:{$locale}:{$viewer->value}:{$owner['id']}", function () use ($store, $locale, $viewer, $owner): array {
             $page = $this->catalog->productPage($store, $locale, $viewer, $owner['id'], $owner['slug']);
 
@@ -192,11 +192,16 @@ final readonly class ShopPages
                 $this->cards($store, $locale, $relations === null ? [] : $relations->goesWith),
                 $this->cards($store, $locale, $relations === null ? [] : $relations->mayAlsoLike),
                 new ShopAddressData('', null, null, true),
+                unit: $page->unit,
             ))->toArray(), 'other' => $page->otherSlug, 'category' => $page->categoryId,
                 // A guest's: whether companies may buy it here, so whether its wholesale is shown (amendment 35).
                 // Kept with the page: a change of who sees its category is a Catalog change, a new version.
                 'companies' => $viewer === ShopperKind::Guest ? $this->openToCompanies($store, $owner['id']) : null,
                 'noindex' => $page->noindex(),
+                // What its own Best seller and New arrival compare, each time it is shown (shop-design.md §6.3): a rank
+                // pushed by Sales replaces the kept pages' version, so the rank kept here is current.
+                'rank' => $page->salesRank,
+                'listed' => $page->listedAt,
                 // Its category out of this viewer's menu but still answering, emptied by stock or prices: the way to it
                 // (amendment 42). Kept with the page, as the menu it was read against is in the same cache.
                 'trail' => $this->wayToEmptied($store, $locale, $viewer, $page->categoryId)];
@@ -242,6 +247,10 @@ final readonly class ShopPages
         // The relations' cards are kept with the page; what the modules add to them is this viewer's (amendment 32).
         $related = array_column([...self::listOf($kept['page']['goesWith'] ?? []), ...self::listOf($kept['page']['mayAlsoLike'] ?? [])], 'productId');
         $lines = $this->visit->productLines($store, $locale);
+        // Compared now, never kept: New arrival runs out with the days (the settings ride in the menu's copy, read already).
+        ['top' => $top, 'days' => $days] = $this->visit->cardFlags($store, $locale);
+        $rank = $kept['rank'] ?? null;
+        $listed = $kept['listed'] ?? null;
 
         return [
             ...$kept['page'],
@@ -253,6 +262,8 @@ final readonly class ShopPages
             // The delivery and returns lines (shop-design.md §6.3): the store's settings, kept with the menu's copy.
             'deliveryDays' => $lines['delivery'],
             'returnDays' => $lines['returns'],
+            'bestSeller' => $top > 0 && is_int($rank) && $rank <= $top,
+            'newArrival' => $days > 0 && is_string($listed) && CarbonImmutable::parse($listed)->greaterThanOrEqualTo(CarbonImmutable::now()->subDays($days)),
         ];
     }
 

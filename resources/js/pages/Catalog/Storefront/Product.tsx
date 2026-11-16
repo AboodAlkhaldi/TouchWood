@@ -1,42 +1,51 @@
-import { useState } from 'react';
-import { Link } from '@inertiajs/react';
+import { type ReactNode, useState } from 'react';
+import { Link, usePage } from '@inertiajs/react';
 import { cn } from 'cn';
+import { ChevronLeft, RotateCcw, Truck } from 'lucide-react';
 import { Note } from '@/components/Note';
-import { isReduced, ThemeBadge, ThemeFlag, ThemeRibbon } from '@/components/content/ThemeMarks';
+import { Money } from '@/components/Money';
+import { isReduced, ThemeRibbon } from '@/components/content/ThemeMarks';
 import { type FeedbackSections, QuestionsSection, RatingLine, ReviewsSection, SaveHeart } from '@/components/feedback/shop';
-import { AddToCart } from '@/components/sales/AddToCart';
-import { type CardFacts, ProductCards, useCardFacts } from '@/components/shop/ProductCards';
+import { AddToCart, ModeSwitch, useSaleModes } from '@/components/sales/AddToCart';
+import { type CardFacts, CompactRows, FlagBadge, flagsOf, ProductCards, useCardFacts } from '@/components/shop/ProductCards';
 import { RichText } from '@/components/shop/RichText';
 import { ShopPhoto, type PhotoSizes } from '@/components/shop/ShopPhoto';
-import { ShopPrice } from '@/components/shop/ShopPrice';
+import { percentOff } from '@/components/shop/ShopPrice';
 import { ShopTrail } from '@/components/shop/ShopTrail';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StorefrontLayout } from '@/layouts/StorefrontLayout';
+import { moneyAs } from '@/lib/money';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
-import { tone, type Tone } from '@/lib/tones';
+import { tone } from '@/lib/tones';
 import type { ShopChoiceData, ShopProductPage, ShopVariantData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
+import type { MoneyData } from '@/types/generated/Modules/Platform/Public/Dto';
 import type { ShopWholesaleData, ShopWholesaleSizeData } from '@/types/generated/Modules/Pricing/Presentation/Http/Resource';
 import type { ShopCartData } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
+import type { SharedProps } from '@/types/page';
 
 /*
-| A product's page in the shop (catalog.md §4.5): the path to its category, the brand, the labels, the
-| name; the gallery - the chosen variant's own photos, else the product's; the choices, a row per
-| variant attribute in the product's order, its values as buttons in the attribute's order, a colour's
-| with its swatch, a value no size left holds disabled, a sold-out size greyed (amendment 39); the chosen variant's details, weight and
-| size; "Last pieces" on the ending-soon option only (amendment 16(h)); the description; the warranty;
-| how it is sold to this viewer (P17); Goes With and You May Also Like. No code. The chosen size's price
-| under the name - the page opens on its first size - a size sold wholesale only priced by Pricing's section (amendment 35; sales.md §4.1 S1); Sales's Add to Cart in its slot (S2), the
-| wholesale bands with it. The variant is matched here from the list the server sent, for display only - Sales resolves
-| it on the server when there is a cart (handoff §9.1).
+| A product's page in the shop (catalog.md §4.5), to the design (shop-design.md §6): the gallery beside a 460 px details
+| column, 44 px apart - a 4:3 photo showing the whole product, four thumbnails under it, the theme's ribbon over it while
+| the chosen size shows a reduced price. Then the brand and every flag, the 30 px name, the rating, the price box - the
+| price at 36 px with its unit, the tax note, the wholesale note and the Retail / Wholesale switch - the choices as
+| chips, the chosen one filled navy (a value no size left holds disabled, a sold-out size greyed, amendment 39; "Last
+| pieces" on the ending-soon option, amendment 16(h)), how it is sold (P17), Sales's buy row with the heart, the total,
+| and the delivery and returns lines. Below: Description, Specifications and Returns & warranty as tabs (sections that
+| fold open on a phone), Goes With as compact rows, the reviews and questions, You May Also Like as cards. No code.
+| The variant is matched here from the list the server sent, for display only - Sales resolves it on the server when
+| there is a cart (handoff §9.1). On a phone: a swipe gallery with «1/4», back and the heart over it, the buy row fixed
+| at the bottom with the tab bar hidden (§6.6).
 |
 | Not available now (P18): its name, photos and description, a Note, nothing to choose; only sold out or
 | unpriced, its rating, reviews and questions stay, with no Add to Cart (amendment 40(a)).
 |
-| Other modules' sections (amendment 26(b)) are drawn in their slots: Feedback's rating under the name,
-| its Save heart after the choices - on a "Not available now" page too (amendment 34) - its reviews and
-| answered questions after Goes With (feedback.md §4.1 F5, Q11).
+| Other modules' sections (amendment 26(b)) are drawn in their slots: Feedback's rating under the name, its Save
+| heart in the buy row - alone on a "Not available now" page (amendment 34) - its reviews and answered questions after
+| Goes With (feedback.md §4.1 F5, Q11).
 */
 
 /** The variant these choices make, or none. */
@@ -55,6 +64,7 @@ type SalesSections = { 'sales.cart'?: ShopCartData | null; 'pricing.wholesale'?:
 export default function Product(page: ShopProductPage & { sections: FeedbackSections & SalesSections; cardFacts?: CardFacts | unknown[] }) {
     const t = useTranslator();
     const link = useLink();
+    const { frame } = usePage<SharedProps>().props;
     const { name, available, choices, selling, warranty, address } = page;
     // A sold-out or unpriced size is never chosen, opened on or priced: only the sizes that can be ordered are offered (amendment 39).
     // A page kept from before this has no such field: its sizes stay (`!== false`).
@@ -65,93 +75,115 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
     const sections = page.sections ?? {};
     const facts = useCardFacts(page.cardFacts ?? []);
     const url = link('storefront.catalog.product', { slug: page.slug });
+    const cart = sections['sales.cart'] ?? null;
+    const wholesale = sections['pricing.wholesale'] ?? null;
+    const { modes, mode, setMode } = useSaleModes(variant, available ? selling : null, cart);
+    const reduced = isReduced(variant?.price, variant?.priceBefore);
+    // Every flag (§6.3): the campaign's word on a reduced price, Last pieces on the chosen size, Best seller, New arrival, the labels.
+    const flags = flagsOf({ lastPieces: choices.length === 0 && Boolean(variant?.lastPieces), bestSeller: page.bestSeller, newArrival: page.newArrival, labels: page.labels }, reduced, frame?.content?.theme?.badge ?? null, t);
+    const above = page.path.at(-1);
+    const back = above ? link('storefront.catalog.category', { slug: above.slug }) : link('storefront.home');
+    // The buy row's heart; on a phone the photo carries it (§6.6).
+    const heart = (
+        <span className="max-sm:hidden">
+            <SaveHeart wishlist={sections['feedback.wishlist']} productId={page.productId} name={name} />
+        </span>
+    );
+    const buying = available && selling !== null && cart !== null;
+    const hasDescription = Object.keys(page.description).length > 0;
+    const parts = [
+        ...(hasDescription ? [{ key: 'description', title: t('catalog::shop.product.description'), body: <RichText document={page.description} className="max-w-3xl" /> }] : []),
+        ...(variant !== null && hasDetails(variant) ? [{ key: 'specs', title: t('catalog::shop.product.specs'), body: <Details variant={variant} /> }] : []),
+        { key: 'returns', title: t('catalog::shop.product.returns_warranty'), body: <ReturnsAndWarranty warranty={warranty} returnDays={page.returnDays} /> },
+    ];
 
     return (
-        <StorefrontLayout title={name} address={address}>
-            <div className="grid gap-8">
-                <ShopTrail path={page.path} current={name} />
+        <StorefrontLayout title={name} address={address} tabBar={!buying}>
+            <div className="grid gap-8 sm:gap-10">
+                <div className="max-sm:hidden">
+                    <ShopTrail path={page.path} current={name} />
+                </div>
 
-                <div className="grid gap-8 md:grid-cols-2">
+                <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_460px] lg:gap-11">
                     {/* A new set of photos starts at its first. */}
-                    <Gallery key={variant?.id ?? 'product'} photos={photos} name={name} reduced={isReduced(variant?.price, variant?.priceBefore)} />
+                    <Gallery key={variant?.id ?? 'product'} photos={photos} name={name} reduced={reduced} back={back} heart={<SaveHeart wishlist={sections['feedback.wishlist']} productId={page.productId} name={name} className="size-10 rounded-full border-0 bg-white text-[#2c2c2a] shadow-sm hover:bg-white/90" test="gallery-heart" />} />
 
                     <div className="grid content-start gap-4">
-                        {page.brand !== null ? (
-                            <Link href={link('storefront.catalog.brand', { slug: page.brand.slug })} className="text-label-14 text-ink-muted hover:underline" data-test="brand-link">
-                                {page.brand.name}
-                            </Link>
-                        ) : null}
-                        {page.labels.length > 0 ? (
-                            <span className="flex flex-wrap gap-1">
-                                {page.labels.map((label) => (
-                                    <Badge key={label.name} className={tone(label.tone as Tone)}>
-                                        {label.name}
-                                    </Badge>
-                                ))}
-                            </span>
-                        ) : null}
-                        <h1 className="text-heading-32 text-ink">{name}</h1>
+                        <div className="flex flex-wrap items-center gap-2">
+                            {page.brand !== null ? (
+                                <Link href={link('storefront.catalog.brand', { slug: page.brand.slug })} className="text-label-14 text-ink-muted hover:underline" data-test="brand-link">
+                                    {page.brand.name}
+                                </Link>
+                            ) : null}
+                            {available && flags.length > 0 ? (
+                                <span className="flex flex-wrap gap-1" data-test="product-flags">
+                                    {flags.map((flag) => (
+                                        <FlagBadge key={flag.key} flag={flag} large />
+                                    ))}
+                                </span>
+                            ) : null}
+                        </div>
+                        <h1 className="text-[26px] leading-tight font-semibold text-ink sm:text-[30px]">{name}</h1>
                         <RatingLine reviews={sections['feedback.reviews']} />
-                        {available ? <ProductPrice variant={variant} wholesale={sections['pricing.wholesale'] ?? null} wholesaleMinimum={selling?.wholesaleMinimum ?? null} /> : null}
-                        {available ? (
-                            <span className="flex empty:hidden">
-                                <ThemeBadge reduced={isReduced(variant?.price, variant?.priceBefore)} />
-                            </span>
-                        ) : null}
 
-                        {available ? null : (
+                        {available ? (
+                            <section className="grid gap-2 rounded-xl border border-line bg-surface p-4" data-test="price-box">
+                                <ProductPrice variant={variant} wholesale={wholesale} wholesaleMinimum={selling?.wholesaleMinimum ?? null} unit={page.unit} mode={mode} />
+                                <p className="text-copy-13 text-ink-muted">{t('catalog::shop.product.tax_note')}</p>
+                                {variant?.sellsWholesale && selling?.wholesaleMinimum ? (
+                                    <p className="tw-figure text-copy-13 text-ink-muted" data-test="wholesale-note">
+                                        {modes.includes('WHOLESALE') ? t('catalog::shop.product.wholesale_note', { count: selling.wholesaleMinimum }) : t('catalog::shop.card.wholesale_individual')}
+                                    </p>
+                                ) : null}
+                                <ModeSwitch modes={modes} mode={mode} onChange={setMode} />
+                            </section>
+                        ) : (
                             <Note variant="warning" label={t('catalog::shop.product.not_available')} data-test="not-available">
                                 {t('catalog::shop.product.not_available_text')}
                             </Note>
                         )}
 
-                        <div id="product-choices" className="grid gap-6">
-                        {choices.map((choice) => (
-                            <fieldset key={choice.id} className="grid gap-2" data-test="choice">
-                                <legend className="mb-2 text-label-14 text-ink">{choice.name}</legend>
-                                <div className="flex flex-wrap gap-2">
-                                    {choice.values.map((value) => {
-                                        const becomes = value.onSale ? pick(variants, choices, chosen, choice.id, value.id) : null;
-                                        const isChosen = chosen[choice.id] === value.id;
-                                        // With the other choices as they are, this value names a sold-out size: greyed. A size left that holds it can still be picked.
-                                        const soldOutHere = becomes !== null && variantOf(page.variants, choices, { ...chosen, [choice.id]: value.id })?.orderable === false;
+                        <div id="product-choices" className="grid gap-5">
+                            {choices.map((choice) => (
+                                <fieldset key={choice.id} className="grid gap-2" data-test="choice">
+                                    <legend className="mb-2 text-label-14 font-semibold text-ink">{choice.name}</legend>
+                                    <div className="flex flex-wrap gap-2">
+                                        {choice.values.map((value) => {
+                                            const becomes = value.onSale ? pick(variants, choices, chosen, choice.id, value.id) : null;
+                                            const isChosen = chosen[choice.id] === value.id;
+                                            // With the other choices as they are, this value names a sold-out size: greyed. A size left that holds it can still be picked.
+                                            const soldOutHere = becomes !== null && variantOf(page.variants, choices, { ...chosen, [choice.id]: value.id })?.orderable === false;
 
-                                        return (
-                                            <button
-                                                key={value.id}
-                                                type="button"
-                                                disabled={becomes === null}
-                                                aria-pressed={isChosen}
-                                                aria-label={becomes === null ? t('catalog::shop.product.unavailable_value', { name: value.name }) : soldOutHere ? t('catalog::shop.product.other_option_value', { name: value.name }) : undefined}
-                                                onClick={() => becomes !== null && setChosen(becomes.values)}
-                                                className={cn(
-                                                    'material-small flex items-center gap-2 bg-surface px-3 py-2 text-label-14 text-ink disabled:cursor-not-allowed disabled:text-ink-muted disabled:line-through',
-                                                    soldOutHere && 'text-ink-muted line-through',
-                                                    isChosen && 'shadow-[0_0_0_2px_var(--tw-ink)]',
-                                                )}
-                                                data-test="choice-value"
-                                            >
-                                                {value.swatch !== null ? <span className="size-4 rounded-full shadow-[0_0_0_1px_var(--tw-line-strong)]" style={{ backgroundColor: value.swatch }} aria-hidden="true" /> : null}
-                                                {value.name}
-                                                {/* On the option that is ending soon only (amendment 16(h)). */}
-                                                {becomes?.lastPieces && !soldOutHere ? (
-                                                    <Badge className={tone('amber')} data-test="last-pieces">
-                                                        {t('catalog::shop.last_pieces')}
-                                                    </Badge>
-                                                ) : null}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </fieldset>
-                        ))}
+                                            return (
+                                                <button
+                                                    key={value.id}
+                                                    type="button"
+                                                    disabled={becomes === null}
+                                                    aria-pressed={isChosen}
+                                                    aria-label={becomes === null ? t('catalog::shop.product.unavailable_value', { name: value.name }) : soldOutHere ? t('catalog::shop.product.other_option_value', { name: value.name }) : undefined}
+                                                    onClick={() => becomes !== null && setChosen(becomes.values)}
+                                                    className={cn(
+                                                        'flex items-center gap-2 rounded-full border border-line bg-surface px-4 py-2.5 text-label-14 text-ink hover:border-ink disabled:cursor-not-allowed disabled:text-ink-muted disabled:line-through',
+                                                        soldOutHere && 'text-ink-muted line-through',
+                                                        isChosen && 'border-brand bg-brand text-ink-on-brand hover:border-brand',
+                                                    )}
+                                                    data-test="choice-value"
+                                                >
+                                                    {value.swatch !== null ? <span className="size-4 rounded-full shadow-[0_0_0_1px_var(--tw-line-strong)]" style={{ backgroundColor: value.swatch }} aria-hidden="true" /> : null}
+                                                    {value.name}
+                                                    {/* On the option that is ending soon only (amendment 16(h)). */}
+                                                    {becomes?.lastPieces && !soldOutHere ? (
+                                                        <Badge className={tone('amber')} data-test="last-pieces">
+                                                            {t('catalog::shop.last_pieces')}
+                                                        </Badge>
+                                                    ) : null}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </fieldset>
+                            ))}
                         </div>
-
-                        {choices.length === 0 && variant?.lastPieces ? (
-                            <Badge className={cn(tone('amber'), 'w-fit')} data-test="last-pieces">
-                                {t('catalog::shop.last_pieces')}
-                            </Badge>
-                        ) : null}
 
                         {available && variant !== null && selling !== null ? (
                             <section className="grid gap-1" data-test="how-sold">
@@ -163,44 +195,60 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
                             </section>
                         ) : null}
 
-                        {/* Sales's Add to Cart (sales.md §4.1 S2): on an available page only, as Sales offers it. */}
-                        {available && selling !== null && sections['sales.cart'] ? <AddToCart variant={variant} selling={selling} choicesId="product-choices" cart={sections['sales.cart'] ?? null} wholesalePrices={variant !== null ? (sections['pricing.wholesale']?.sizes[variant.id] ?? null) : null} /> : null}
+                        {/* Sales's Add to Cart (sales.md §4.1 S2), the heart at its row's end; on a "Not available now" page the heart alone (amendment 34). */}
+                        {buying && selling !== null ? (
+                            <AddToCart variant={variant} selling={selling} choicesId="product-choices" mode={mode} modes={modes} cart={cart} wholesalePrices={variant !== null ? (wholesale?.sizes[variant.id] ?? null) : null} heart={heart} />
+                        ) : (
+                            heart
+                        )}
 
-                        {/* On a "Not available now" page too (amendment 34): a saved product kept or removed there. */}
-                        <SaveHeart wishlist={sections['feedback.wishlist']} productId={page.productId} name={name} />
-
-                        {variant !== null ? <Details variant={variant} /> : null}
+                        {available ? (
+                            <ul className="grid gap-2 border-t border-line pt-4 text-copy-14 text-ink" data-test="product-lines">
+                                {page.deliveryDays > 0 ? (
+                                    <li className="flex items-center gap-2" data-test="delivery-line">
+                                        <Truck aria-hidden="true" className="size-4 text-ink-muted" />
+                                        <span className="tw-figure">{t('catalog::shop.product.delivery', { count: page.deliveryDays })}</span>
+                                    </li>
+                                ) : null}
+                                {page.returnDays > 0 ? (
+                                    <li className="flex items-center gap-2" data-test="returns-line">
+                                        <RotateCcw aria-hidden="true" className="size-4 text-ink-muted" />
+                                        <span className="tw-figure">{t('catalog::shop.product.returns', { count: page.returnDays })}</span>
+                                    </li>
+                                ) : null}
+                            </ul>
+                        ) : null}
                     </div>
                 </div>
 
-                {Object.keys(page.description).length > 0 ? (
-                    <section className="grid gap-3">
-                        <h2 className="text-heading-20 text-ink">{t('catalog::shop.product.description')}</h2>
-                        <RichText document={page.description} className="max-w-3xl" />
-                    </section>
-                ) : null}
-
-                {warranty !== null ? (
-                    <section className="grid gap-2" data-test="warranty">
-                        <h2 className="text-heading-20 text-ink">{t('catalog::shop.product.warranty')}</h2>
-                        <p className="text-copy-16 text-ink">
-                            {warranty.name} ·{' '}
-                            <span className="tw-figure">
-                                {warranty.periodMonths === null
-                                    ? t('catalog::shop.product.lifetime')
-                                    : warranty.periodMonths === 1
-                                      ? t('catalog::shop.product.one_month')
-                                      : t('catalog::shop.product.months', { count: warranty.periodMonths })}
-                            </span>
-                        </p>
-                        <RichText document={warranty.terms} className="max-w-3xl text-copy-14" />
-                    </section>
-                ) : null}
+                {/* Tabs from a tablet up; on a phone the same parts fold open (shop-design.md §6.5, §6.6). */}
+                <Tabs defaultValue={parts[0]?.key} className="hidden gap-4 md:flex" data-test="product-tabs">
+                    <TabsList className="h-11 w-fit">
+                        {parts.map((part) => (
+                            <TabsTrigger key={part.key} value={part.key} className="px-4" data-test={`tab-${part.key}`}>
+                                {part.title}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                    {parts.map((part) => (
+                        <TabsContent key={part.key} value={part.key} className="pt-2">
+                            {part.body}
+                        </TabsContent>
+                    ))}
+                </Tabs>
+                <Accordion type="multiple" defaultValue={parts[0] ? [parts[0].key] : []} className="md:hidden" data-test="product-folds">
+                    {parts.map((part) => (
+                        <AccordionItem key={part.key} value={part.key}>
+                            <AccordionTrigger className="text-label-16 font-semibold">{part.title}</AccordionTrigger>
+                            <AccordionContent>{part.body}</AccordionContent>
+                        </AccordionItem>
+                    ))}
+                </Accordion>
 
                 {page.goesWith.length > 0 ? (
                     <section className="grid gap-4" data-test="goes-with">
                         <h2 className="text-heading-20 text-ink">{t('catalog::shop.product.goes_with')}</h2>
-                        <ProductCards cards={page.goesWith} facts={facts} />
+                        <CompactRows cards={page.goesWith} />
                     </section>
                 ) : null}
 
@@ -218,20 +266,49 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
     );
 }
 
-/** A large photo and its thumbnails; a live theme's ribbon and flag on it while the chosen size shows a reduced price. */
-function Gallery({ photos, name, reduced }: { photos: PhotoSizes[]; name: string; reduced: boolean }) {
+/**
+ * A 4:3 photo showing the whole product and four thumbnails under it; a live theme's ribbon on it while the chosen size
+ * shows a reduced price (its flag is in the details' flags, §6.2). On a phone a swipe gallery with «1/4», back and the
+ * heart over it (§6.6, P22).
+ */
+function Gallery({ photos, name, reduced, back, heart }: { photos: PhotoSizes[]; name: string; reduced: boolean; back: string; heart: ReactNode }) {
     const t = useTranslator();
     const [shown, setShown] = useState(0);
+    const all = photos.length > 0 ? photos : [null];
 
     return (
-        <div className="grid content-start gap-3" data-test="gallery">
-            <div className="relative overflow-hidden rounded-lg">
-                <ShopPhoto photo={photos[shown] ?? null} size="detail" alt={name} eager className="aspect-square w-full rounded-lg bg-surface" />
+        <div className="grid min-w-0 content-start gap-3 max-sm:-mx-4" data-test="gallery">
+            <div className="relative overflow-hidden bg-surface-sunken sm:rounded-xl">
+                {/* A computer's and a tablet's: the photo the thumbnails choose. */}
+                <ShopPhoto photo={all[shown] ?? null} size="detail" alt={name} eager className="aspect-[4/3] w-full object-contain max-sm:hidden" />
+                {/* A phone's: the photos side by side, swiped. */}
+                <div
+                    className="flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] sm:hidden"
+                    onScroll={(event) => {
+                        const box = event.currentTarget;
+                        setShown(Math.min(all.length - 1, Math.max(0, Math.round(Math.abs(box.scrollLeft) / box.clientWidth))));
+                    }}
+                    data-test="gallery-swipe"
+                >
+                    {all.map((photo, index) => (
+                        <ShopPhoto key={index} photo={photo} size="detail" alt={index === 0 ? name : ''} eager={index === 0} className="aspect-[4/3] w-full shrink-0 snap-center object-contain" />
+                    ))}
+                </div>
                 <ThemeRibbon reduced={reduced} />
-                <ThemeFlag reduced={reduced} />
+                <span className="absolute inset-x-3 top-3 flex items-center justify-between sm:hidden">
+                    <Link href={back} aria-label={t('ui.back')} className="grid size-10 place-items-center rounded-full bg-white text-[#2c2c2a] shadow-sm" data-test="gallery-back">
+                        <ChevronLeft aria-hidden="true" className="size-5 rtl:rotate-180" />
+                    </Link>
+                    {heart}
+                </span>
+                {all.length > 1 ? (
+                    <span className="tw-figure absolute end-3 bottom-3 rounded-full bg-black/60 px-2.5 py-0.5 text-label-12 text-white sm:hidden" data-test="gallery-count">
+                        {t('catalog::shop.product.photo_count', { number: shown + 1, total: all.length })}
+                    </span>
+                ) : null}
             </div>
             {photos.length > 1 ? (
-                <div className="flex flex-wrap gap-2">
+                <div className="flex gap-2 overflow-x-auto max-sm:hidden">
                     {photos.map((photo, index) => (
                         <button
                             key={index}
@@ -239,9 +316,9 @@ function Gallery({ photos, name, reduced }: { photos: PhotoSizes[]; name: string
                             onClick={() => setShown(index)}
                             aria-label={t('catalog::shop.product.photo', { number: index + 1, total: photos.length })}
                             aria-pressed={index === shown}
-                            className={cn('overflow-hidden rounded-md', index === shown && 'shadow-[0_0_0_2px_var(--tw-ink)]')}
+                            className={cn('w-[calc((100%-1.5rem)/4)] shrink-0 overflow-hidden rounded-lg bg-surface-sunken', index === shown ? 'shadow-[0_0_0_2px_var(--tw-brand)]' : 'shadow-[0_0_0_1px_var(--tw-line)]')}
                         >
-                            <ShopPhoto photo={photo} size="thumb" alt="" className="size-16" />
+                            <ShopPhoto photo={photo} size="thumb" alt="" className="aspect-[4/3] w-full object-contain" />
                         </button>
                     ))}
                 </div>
@@ -265,22 +342,22 @@ function Terms({ side, minimum, maximum }: { side: string; minimum: number; maxi
 }
 
 /**
- * The price under the name: the chosen size's, with any sale. A size sold wholesale only has no retail price:
- * Pricing's, what a piece costs at the wholesale minimum - the band that starts there or below, else its price
- * below any band.
+ * The price box's price (§6.3, §4.2 at its size): 36 px with its unit; on a sale in red, the old price readable under it
+ * with its percent off and «وفّر» what a piece saves. Wholesale chosen, or a size sold wholesale only: Pricing's, what a
+ * piece costs at the wholesale minimum - the band that starts there or below, else its price below any band.
  */
-function ProductPrice({ variant, wholesale, wholesaleMinimum }: { variant: ShopVariantData | null; wholesale: ShopWholesaleData | null; wholesaleMinimum: number | null }) {
+function ProductPrice({ variant, wholesale, wholesaleMinimum, unit, mode }: { variant: ShopVariantData | null; wholesale: ShopWholesaleData | null; wholesaleMinimum: number | null; unit: string; mode: string }) {
     const t = useTranslator();
 
     if (variant === null) {
         return null;
     }
 
-    if (variant.price !== null) {
-        return <ShopPrice now={variant.price} before={variant.priceBefore} className="text-heading-20" />;
-    }
-
     const only: ShopWholesaleSizeData | null = wholesale?.sizes[variant.id] ?? null;
+
+    if (variant.price !== null && (mode !== 'WHOLESALE' || only === null)) {
+        return <BigPrice now={variant.price} before={variant.priceBefore} unit={unit} />;
+    }
 
     if (only === null) {
         return null;
@@ -290,11 +367,45 @@ function ProductPrice({ variant, wholesale, wholesaleMinimum }: { variant: ShopV
     const band = only.bands.filter((each) => each.minQuantity <= Math.max(1, wholesaleMinimum ?? 1)).pop() ?? null;
 
     return (
-        <span className="flex flex-wrap items-center gap-x-2 text-heading-20" data-test="wholesale-price">
-            <ShopPrice now={band?.unit ?? only.price} before={band === null ? only.priceBefore : band.unitBefore} />
-            <span className="text-copy-14 text-ink-muted">{t('catalog::shop.product.wholesale')}</span>
+        <span className="grid gap-1" data-test="wholesale-price">
+            <span className="text-label-13 text-ink-muted">{t('catalog::shop.product.wholesale')}</span>
+            <BigPrice now={band?.unit ?? only.price} before={band === null ? only.priceBefore : band.unitBefore} unit={unit} />
         </span>
     );
+}
+
+function BigPrice({ now, before, unit }: { now: MoneyData; before: MoneyData | null; unit: string }) {
+    const t = useTranslator();
+    const off = percentOff(now, before);
+
+    return (
+        <span className="grid gap-1" data-test="price">
+            <span className="flex flex-wrap items-baseline gap-x-2">
+                <Money value={now} className={cn('text-[30px] leading-tight font-semibold sm:text-[36px]', off > 0 ? 'text-bad' : 'text-brand')} />
+                <span className="text-copy-14 text-ink-muted">/ {t(`catalog::shop.unit.${unit}`)}</span>
+            </span>
+            {before !== null && off > 0 ? (
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <s className="text-[16px] text-ink-muted decoration-[1.5px] sm:text-[18px]" data-test="price-before">
+                        <span className="sr-only">{t('catalog::shop.price.was')} </span>
+                        <Money value={before} />
+                    </s>
+                    <Badge className={tone('red')} data-test="price-off">
+                        <bdi dir="ltr" className="tw-figure">
+                            {t('catalog::shop.price.off', { percent: off })}
+                        </bdi>
+                    </Badge>
+                    <span className="text-copy-14 font-medium text-good" data-test="price-saving">
+                        {t('catalog::shop.saving', { amount: moneyAs(now, BigInt(before.minor) - BigInt(now.minor)).text })}
+                    </span>
+                </span>
+            ) : null}
+        </span>
+    );
+}
+
+function hasDetails(variant: ShopVariantData): boolean {
+    return variant.details.length > 0 || variant.weightGrams !== null || (variant.lengthMm !== null && variant.widthMm !== null && variant.heightMm !== null);
 }
 
 /** The chosen variant's details, weight and size, in a table. */
@@ -310,13 +421,8 @@ function Details({ variant }: { variant: ShopVariantData }) {
         rows.push([t('catalog::shop.product.size'), t('catalog::shop.product.size_value', { length: variant.lengthMm, width: variant.widthMm, height: variant.heightMm })]);
     }
 
-    if (rows.length === 0) {
-        return null;
-    }
-
     return (
-        <section className="grid gap-2" data-test="details">
-            <h2 className="text-label-14 font-semibold text-ink">{t('catalog::shop.product.details')}</h2>
+        <section className="grid max-w-3xl gap-2" data-test="details">
             <Table>
                 <TableBody>
                     {rows.map(([label, value]) => (
@@ -328,5 +434,34 @@ function Details({ variant }: { variant: ShopVariantData }) {
                 </TableBody>
             </Table>
         </section>
+    );
+}
+
+/** The warranty's name, period and terms, and the returns line (§6.5). */
+function ReturnsAndWarranty({ warranty, returnDays }: { warranty: ShopProductPage['warranty']; returnDays: number }) {
+    const t = useTranslator();
+
+    return (
+        <div className="grid max-w-3xl gap-3">
+            {warranty !== null ? (
+                <section className="grid gap-2" data-test="warranty">
+                    <h3 className="text-label-14 font-semibold text-ink">{t('catalog::shop.product.warranty')}</h3>
+                    <p className="text-copy-16 text-ink">
+                        {warranty.name} ·{' '}
+                        <span className="tw-figure">
+                            {warranty.periodMonths === null
+                                ? t('catalog::shop.product.lifetime')
+                                : warranty.periodMonths === 1
+                                  ? t('catalog::shop.product.one_month')
+                                  : t('catalog::shop.product.months', { count: warranty.periodMonths })}
+                        </span>
+                    </p>
+                    <RichText document={warranty.terms} className="text-copy-14" />
+                </section>
+            ) : (
+                <p className="text-copy-14 text-ink-muted">{t('catalog::shop.product.no_warranty')}</p>
+            )}
+            {returnDays > 0 ? <p className="tw-figure text-copy-14 text-ink">{t('catalog::shop.product.returns', { count: returnDays })}</p> : null}
+        </div>
     );
 }

@@ -273,7 +273,8 @@ final readonly class ShopCatalog
             return null;
         }
 
-        $available = $this->reader->isListed($store->value, $locale, $viewer, $productId);
+        $listed = $this->reader->listedFacts($store->value, $locale, $viewer, $productId);
+        $available = $listed !== null;
         $variants = $available ? $this->reader->variantsOnSale($store->value, $locale, $viewer, $productId) : [];
         // What can be ordered now (amendment 39): a sold-out or unpriced size is drawn greyed, its value not on sale, its photos never shown.
         $variantIds = array_values(array_map(static fn (ShopVariant $variant): string => $variant->variantId, array_filter($variants, static fn (ShopVariant $variant): bool => $variant->orderable)));
@@ -315,6 +316,9 @@ final readonly class ShopCatalog
             // An individual is told the retail side only (amendment 14(e), P17).
             $terms !== null && $viewer === ShopperKind::Individual ? new SellingTerms($terms->retailMinimum, $terms->retailMaximum, null, null) : $terms,
             ! $available && $this->reader->onlySoldOut($store->value, $locale, $viewer, 'product', $productId),
+            $listed['sales_rank'] ?? null,
+            $listed['listed_at'] ?? null,
+            $product['unit'],
         );
     }
 

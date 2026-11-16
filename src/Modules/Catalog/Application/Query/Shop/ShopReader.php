@@ -135,14 +135,18 @@ interface ShopReader
      * A product as its page needs it, in that language, whatever its stage: its brand — its name and
      * current slug — its warranty, and its slug now in the other language.
      *
-     * @return array{stage: string, archived_from: string|null, name: string|null, description: array<string, mixed>|null, brand_id: string, category_id: string|null, brand: ShopLink|null, warranty: ShopWarranty|null, other_slug: string|null}|null
+     * @return array{stage: string, unit: string, archived_from: string|null, name: string|null, description: array<string, mixed>|null, brand_id: string, category_id: string|null, brand: ShopLink|null, warranty: ShopWarranty|null, other_slug: string|null}|null
      */
     public function product(string $productId, string $locale): ?array;
 
     /**
-     * Whether this viewer can find the product in this store now — listed, or left and so reachable.
+     * Whether this viewer can find the product in this store now — listed, or left and so reachable — and, in the
+     * same read, what its own flags are compared with (shop-design.md §6.3, §10.4): its rank in the store's best
+     * sellers and when it was first listed here. Null when it is not listed for this viewer.
+     *
+     * @return array{sales_rank: int|null, listed_at: string|null}|null
      */
-    public function isListed(string $storeId, string $locale, ShopperKind $viewer, string $productId): bool;
+    public function listedFacts(string $storeId, string $locale, ShopperKind $viewer, string $productId): ?array;
 
     /**
      * @return list<string> the gallery's media ids, in order

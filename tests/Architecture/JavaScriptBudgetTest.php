@@ -41,7 +41,14 @@ const PAGE_BUDGET = 60_000;
 | holds the shop's whole frame and the company's long form: the frame's growth to the design (shop-design.md PR A) took it
 | to 60.3 KB, and the owner chose its own ceiling over loading parts of the site later (owner, 2026-11-16).
 */
-const PAGE_BUDGET_EXCEPTIONS = ['resources/js/pages/B2B/Storefront/Company/Edit.tsx' => 62_000];
+const PAGE_BUDGET_EXCEPTIONS = [
+    'resources/js/pages/B2B/Storefront/Company/Edit.tsx' => 62_000,
+    // The product page to the design (shop-design.md §6, PR B): tabs, the phone's folds and the buy box (owner, 2026-11-17).
+    'resources/js/pages/Catalog/Storefront/Product.tsx' => 68_000,
+    // Just over once icons shared with the shop's pages were split into files of their own (owner, 2026-11-17).
+    'resources/js/pages/Shipping/Admin/Carriers/Index.tsx' => 61_000,
+    'resources/js/pages/Access/Storefront/Account/Account.tsx' => 61_000,
+];
 const APP_ENTRY = 'resources/js/app.tsx';
 
 /**

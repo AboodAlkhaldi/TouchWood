@@ -84,6 +84,15 @@ return [
         'not_available_text' => 'This product cannot be ordered here now.',
         'unavailable_value' => ':name, not available',
         'other_option_value' => ':name, available in another option',
+        // The product page to the design (shop-design.md §6).
+        'tax_note' => 'Prices before VAT',
+        'wholesale_note' => 'Wholesale from :count pieces',
+        'delivery' => 'Delivery within :count working days',
+        'returns' => 'Returns within :count days of delivery',
+        'specs' => 'Specifications',
+        'returns_warranty' => 'Returns & Warranty',
+        'no_warranty' => 'No warranty is given with this product.',
+        'photo_count' => ':number / :total',
     ],
     'search' => [
         'title' => 'Search',
