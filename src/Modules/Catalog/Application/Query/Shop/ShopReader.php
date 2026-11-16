@@ -60,9 +60,10 @@ interface ShopReader
      * the filter attributes' values present and Retail and Wholesale for a company or a guest, each
      * with how many products picking it would show — every other kind of choice the shopper made kept,
      * its own kind's left out. A choice the page no longer offers (a brand not listed here, a value
-     * switched off or held by nothing here, a side nothing here is sold on) counts as not made.
+     * switched off or held by nothing here, a side nothing here is sold on) counts as not made. With its
+     * description in this language and how many products the choices show (shop-design.md §5.1).
      *
-     * @return array{id: string, slug: string, other_slug: string|null, name: string, lists: bool, ratings_shown: bool, filters: CategoryFilters}|null
+     * @return array{id: string, slug: string, other_slug: string|null, name: string, lists: bool, ratings_shown: bool, description: string|null, total: int, filters: CategoryFilters}|null
      */
     public function categoryHead(string $storeId, string $locale, ShopperKind $viewer, string $slug, ShopFilters $filters): ?array;
 

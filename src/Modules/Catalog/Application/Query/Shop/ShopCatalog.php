@@ -123,6 +123,8 @@ final readonly class ShopCatalog
             $chosen,
             $ratingSort,
             ! $head['lists'],
+            $head['description'],
+            $head['total'],
         );
     }
 

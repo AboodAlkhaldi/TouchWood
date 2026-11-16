@@ -106,6 +106,8 @@ final readonly class ShopPages
             $this->facts($store, $page->products->cards),
             $page->soldOut,
             $ids,
+            $page->description,
+            $page->total,
         );
     }
 

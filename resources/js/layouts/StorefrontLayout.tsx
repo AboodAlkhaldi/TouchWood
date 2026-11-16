@@ -1,6 +1,6 @@
 import { type ComponentType, lazy, type ReactNode, Suspense, useEffect, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ChevronDown, Heart, House, LayoutDashboard, LogOut, Menu, Moon, ShoppingCart, Sun, UserRound } from 'lucide-react';
+import { ChevronDown, ChevronLeft, Heart, House, LayoutDashboard, LogOut, Menu, Moon, Search, ShoppingCart, Sun, UserRound } from 'lucide-react';
 import { Bell } from '@/components/ops/Bell';
 import { Toasts } from '@/components/Toasts';
 import { SyncDocument } from '@/components/SyncDocument';
@@ -70,11 +70,16 @@ type Props = {
     head?: ContentHeadData;
     /** The page's bands bring their own box, so their grounds reach the screen's edges (the home, shop-design.md §2.1). */
     bands?: boolean;
+    /**
+     * A phone's compact top bar (shop-design.md §2.6, §5.4, C12): back to `back`, the page's title, and the search behind
+     * an icon, in place of the menu, the logo and the search row. From 640 px up the header is the same as everywhere.
+     */
+    compact?: { back: string };
 };
 
 type PopupView = ComponentType<{ popup: NonNullable<ContentFrame['popup']> }>;
 
-export function StorefrontLayout({ title, children, address, head, bands = false }: Props) {
+export function StorefrontLayout({ title, children, address, head, bands = false, compact }: Props) {
     const page = usePage<SharedProps>();
     const { shop, shopper, shopperLines, staffView, locale, frame, theme } = page.props;
     const link = useLink();
@@ -89,6 +94,9 @@ export function StorefrontLayout({ title, children, address, head, bands = false
     // Once drawn in this tab it stays: each page draws its own layout, and the box would go and come back on every visit.
     const [drawn, setDrawn] = useState(boxDrawn);
     const [drawer, setDrawer] = useState(false);
+    // The compact bar's search, opened by its icon.
+    const [searching, setSearching] = useState(false);
+    const t = useTranslator();
     const [Popup, setPopup] = useState<PopupView | null>(null);
     useEffect(() => {
         boxDrawn = true;
@@ -132,7 +140,7 @@ export function StorefrontLayout({ title, children, address, head, bands = false
         <Button
             variant="ghost"
             size="icon"
-            className="size-10 sm:size-[42px]"
+            className={`size-10 sm:size-[42px] ${compact ? 'max-sm:hidden' : ''}`}
             aria-label={dark ? words.light : words.dark}
             data-test="theme-quick"
             onClick={() => choosePreference('theme', dark ? 'light' : 'dark', '/preferences')}
@@ -178,7 +186,7 @@ export function StorefrontLayout({ title, children, address, head, bands = false
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="size-10 md:hidden"
+                                className={`size-10 md:hidden ${compact ? 'max-sm:hidden' : ''}`}
                                 aria-label={catalog?.words.open_menu ?? words.menu}
                                 data-test="category-sheet-open"
                                 onPointerEnter={() => void import('@/components/content/ShopDrawer')}
@@ -187,7 +195,24 @@ export function StorefrontLayout({ title, children, address, head, bands = false
                                 <Menu aria-hidden="true" />
                             </Button>
                         ) : null}
-                        <Link href={home} className="flex h-13 min-w-0 flex-1 items-center gap-2 sm:h-auto sm:flex-none sm:gap-3" data-test="header-logo">
+                        {compact ? (
+                            <>
+                                <Button asChild variant="ghost" size="icon" className="size-10 sm:hidden">
+                                    <Link href={compact.back} aria-label={t('ui.back')} data-test="compact-back">
+                                        <ChevronLeft aria-hidden="true" className="rtl:rotate-180" />
+                                    </Link>
+                                </Button>
+                                <span className="flex h-13 min-w-0 flex-1 items-center truncate text-label-16 font-semibold text-ink sm:hidden" data-test="compact-title">
+                                    {title}
+                                </span>
+                                {catalog ? (
+                                    <Button variant="ghost" size="icon" className="size-10 sm:hidden" aria-label={catalog.words.search_placeholder} aria-expanded={searching} onClick={() => setSearching(!searching)} data-test="compact-search">
+                                        <Search aria-hidden="true" />
+                                    </Button>
+                                ) : null}
+                            </>
+                        ) : null}
+                        <Link href={home} className={`flex h-13 min-w-0 flex-1 items-center gap-2 sm:h-auto sm:flex-none sm:gap-3 ${compact ? 'max-sm:hidden' : ''}`} data-test="header-logo">
                             <Logo tone="auto" decorative className="sm:size-[46px]" />
                             {/* The design's wordmark (H8): the name in Latin capitals, the Arabic under it. */}
                             <span className="grid leading-none" lang="en">
@@ -198,7 +223,7 @@ export function StorefrontLayout({ title, children, address, head, bands = false
 
                         {/* The search box, between the logo and the shopper's own things; on a phone, its own row under them. */}
                         {catalog ? (
-                            <div className="order-last w-full px-1 pb-2 sm:order-none sm:w-auto sm:min-w-0 sm:flex-1 sm:px-0 sm:pb-0" data-test="search-row">
+                            <div className={`order-last w-full px-1 pb-2 sm:order-none sm:w-auto sm:min-w-0 sm:flex-1 sm:px-0 sm:pb-0 ${compact && !searching ? 'max-sm:hidden' : ''}`} data-test="search-row">
                                 <SearchBox words={catalog.words} />
                             </div>
                         ) : null}

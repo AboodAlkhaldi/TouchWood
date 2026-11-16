@@ -412,6 +412,8 @@ filters: ShopFiltersData,
 address: ShopAddressData,
 cardFacts: Record<string, Record<string, Record<string, any>>>,
 soldOut: boolean,
+description: string | null,
+total: number,
 };
 export type ShopChoiceData = {
 id: string,

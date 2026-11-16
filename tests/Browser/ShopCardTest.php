@@ -125,3 +125,36 @@ it('fills the heart at once with no spinner, and keeps it saved', function () {
         ->and($page->script("document.querySelector('[data-test=\"card-heart\"]').getAttribute('aria-pressed')"))->toBe('true');
     $page->assertNoJavaScriptErrors();
 });
+
+it('lays the category page out to the design: the count, the price sort, the list remembered, and the phone\'s bar and sheets', function () {
+    $items = shopCardItems();
+    $page = visit('/sa/en/categories/'.$items['slug']);
+    $page->resize(1440, 1000);
+    $page->navigate('/sa/en/categories/'.$items['slug'].'?sort=price-low', BROWSER_PAGE_LOAD);
+
+    // «Showing 1–2 of 2», the 34 px name, the 248 px filter column; the reduced 24.00 before the 30.00.
+    expect(browserSoon($page, "document.querySelectorAll('[data-test=\"card\"]').length === 2"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=\"category-showing\"]').textContent"))->toBe('Showing 1–2 of 2')
+        ->and($page->script("getComputedStyle(document.querySelector('h1')).fontSize"))->toBe('34px')
+        ->and($page->script("Math.round(document.querySelector('aside').getBoundingClientRect().width)"))->toBe(248)
+        ->and($page->script("document.querySelector('[data-test=\"card\"] [data-test=\"price-now\"] bdi').textContent"))->toStartWith('24.00');
+
+    // The technical list, kept for the next page.
+    $page->script("document.querySelector('[data-test=\"view-list\"]').click()");
+    expect(browserSoon($page, "document.querySelectorAll('[data-test=\"card-row\"]').length === 2"))->toBeTrue();
+    $page->navigate('/sa/en/categories/'.$items['slug'].'?sort=price-high', BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelectorAll('[data-test=\"card-row\"]').length === 2"))->toBeTrue('the list was not remembered')
+        ->and($page->script("document.querySelector('[data-test=\"card-row\"] [data-test=\"price-now\"] bdi').textContent"))->toStartWith('30.00');
+
+    // A phone: the compact bar, the sticky Sort and Filter bar, the sort as a bottom sheet.
+    $page->resize(375, 812);
+    $page->navigate('/sa/ar/categories/'.$items['slug'], BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"compact-title\"]')?.offsetParent !== null"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=\"header-logo\"]').offsetParent === null"))->toBeTrue()
+        ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the page scrolls sideways');
+    $page->script("document.querySelector('[data-test=\"phone-sort\"]').click()");
+    expect(browserSoon($page, "document.querySelectorAll('[data-test=\"sort-option\"]').length >= 4"))->toBeTrue();
+    $page->script("[...document.querySelectorAll('[data-test=\"sort-option\"]')].at(-1).click()");
+    expect(browserUntil($page, "location.search.includes('sort=price-high')"))->toBeTrue();
+    $page->assertNoJavaScriptErrors();
+});

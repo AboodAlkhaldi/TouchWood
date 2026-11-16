@@ -31,6 +31,8 @@ return [
         'remove' => 'Remove :name',
         'none' => 'Nothing here matches these filters.',
         'open' => 'Show Filters',
+        // The phone's sticky bar (shop-design.md §5.4).
+        'filter' => 'Filter',
     ],
     'sort' => [
         'label' => 'Sort',
@@ -38,7 +40,15 @@ return [
         'newest' => 'Newest',
         // Where the store's lists show ratings (amendment 25; feedback.md §4.1 F7).
         'rating' => 'Best Rated',
+        // By this viewer's card price (shop-design.md §5.3, C8).
+        'price-low' => 'Price: Low to High',
+        'price-high' => 'Price: High to Low',
+        'by' => 'Sort by:',
     ],
+    // «Showing 1–24 of 918» under a category's name (shop-design.md §5.1).
+    'showing' => 'Showing 1–:shown of :total',
+    // The grid or the technical list (shop-design.md §5.3, C7).
+    'view' => ['label' => 'View', 'grid' => 'Grid', 'list' => 'List', 'photo' => 'Photo', 'product' => 'Product', 'size' => 'Size', 'price' => 'Price', 'buy' => 'Buy', 'one_size' => 'One size', 'sizes' => ':count sizes'],
     // A card's stars, read aloud (feedback.md §4.1 F7).
     'card_rating' => ['zero' => ':rating out of 5 stars, :count reviews', 'one' => ':rating out of 5 stars, :count review', 'two' => ':rating out of 5 stars, :count reviews', 'few' => ':rating out of 5 stars, :count reviews', 'many' => ':rating out of 5 stars, :count reviews', 'other' => ':rating out of 5 stars, :count reviews'],
     // A card's Save heart (feedback.md §4.1 F7; amendment 32).

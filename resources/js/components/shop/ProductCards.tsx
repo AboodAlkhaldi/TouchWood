@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
-import { Clock, Flame, Heart, Plus } from 'lucide-react';
+import { Clock, Flame, Heart, LayoutGrid, List, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { ActionButton } from '@/components/ActionButton';
 import { ShopStars } from '@/components/feedback/shop';
@@ -344,5 +344,131 @@ function CardHeart({ productId, name, saved }: { productId: string; name: string
         >
             <Heart aria-hidden="true" className={`size-4 ${on ? 'fill-red-500 text-red-500' : 'text-[#2c2c2a]'}`} />
         </button>
+    );
+}
+
+/** Grid or the technical list (shop-design.md §5.3, C7); the choice is the browser's, kept for the next page (P7). */
+export type ShopView = 'grid' | 'list';
+
+const VIEW_KEY = 'shop:view';
+
+/** The grid on the server's first draw and until the browser says otherwise, so the two draws agree. */
+export function useShopView(): [ShopView, (view: ShopView) => void] {
+    const [view, setView] = useState<ShopView>('grid');
+    useEffect(() => {
+        try {
+            if (window.localStorage.getItem(VIEW_KEY) === 'list') {
+                setView('list');
+            }
+        } catch {
+            // No storage (a private window, blocked site data): the grid, every time.
+        }
+    }, []);
+
+    return [
+        view,
+        (next: ShopView) => {
+            setView(next);
+
+            try {
+                window.localStorage.setItem(VIEW_KEY, next);
+            } catch {
+                // Kept for this page only.
+            }
+        },
+    ];
+}
+
+/** The switch, from a tablet up: a phone always shows the grid, the list's columns not fitting it. */
+export function ViewSwitch({ view, onChange }: { view: ShopView; onChange: (view: ShopView) => void }) {
+    const t = useTranslator();
+
+    return (
+        <span className="hidden items-center rounded-md border border-line p-0.5 md:inline-flex" role="group" aria-label={t('catalog::shop.view.label')} data-test="view-switch">
+            {(['grid', 'list'] as const).map((each) => (
+                <Button
+                    key={each}
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className={`size-8 ${view === each ? 'bg-surface-sunken text-ink' : 'text-ink-muted'}`}
+                    aria-pressed={view === each}
+                    aria-label={t(`catalog::shop.view.${each}`)}
+                    onClick={() => onChange(each)}
+                    data-test={`view-${each}`}
+                >
+                    {each === 'grid' ? <LayoutGrid aria-hidden="true" /> : <List aria-hidden="true" />}
+                </Button>
+            ))}
+        </span>
+    );
+}
+
+/**
+ * The technical list for contractors (shop-design.md §5.3, C7): photo · product and brand · size · how sold · price · the
+ * card's button. No code, no stock. Drawn from a tablet up; on a phone the page shows the grid.
+ */
+export function ProductRows({ cards, test = 'card-row' }: { cards: ShopCardData[]; test?: string }) {
+    const t = useTranslator();
+    const link = useLink();
+    const { locale, staffView } = usePage<SharedProps>().props;
+    const head = 'border-b border-line px-3 py-2 text-start font-medium';
+    const cell = 'border-b border-line px-3 py-3';
+
+    return (
+        <table className="w-full border-separate border-spacing-0 text-start" data-test="product-rows">
+            <thead>
+                <tr className="text-label-12 text-ink-muted">
+                    <th scope="col" className={`w-20 ${head} ps-0`}>
+                        <span className="sr-only">{t('catalog::shop.view.photo')}</span>
+                    </th>
+                    <th scope="col" className={head}>{t('catalog::shop.view.product')}</th>
+                    <th scope="col" className={`w-28 ${head}`}>{t('catalog::shop.view.size')}</th>
+                    <th scope="col" className={`w-36 ${head}`}>{t('catalog::shop.filters.sides')}</th>
+                    <th scope="col" className={`w-48 ${head}`}>{t('catalog::shop.view.price')}</th>
+                    <th scope="col" className={`w-44 ${head} pe-0`}>
+                        <span className="sr-only">{t('catalog::shop.view.buy')}</span>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                {cards.map((card) => {
+                    const href = link('storefront.catalog.product', { slug: card.slug });
+                    // How it is sold to this viewer: an individual's wholesale line is not theirs to buy (the card says so).
+                    const retail = card.price !== null && (card.price.now !== null || card.price.from !== null);
+                    const wholesale = card.price !== null && card.price.wholesaleFrom !== null;
+
+                    return (
+                        <tr key={card.productId} className="align-middle" data-test={test}>
+                            <td className={`${cell} ps-0`}>
+                                <Link href={href} className="block size-16 overflow-hidden rounded-md bg-surface-sunken" aria-label={card.name} tabIndex={-1}>
+                                    <ShopPhoto photo={card.photo} size="card" alt="" className="size-full object-contain" />
+                                </Link>
+                            </td>
+                            <td className={cell}>
+                                {card.brand ? <span className="block text-label-12 text-ink-muted">{card.brand}</span> : null}
+                                <Link href={href} className="line-clamp-2 text-label-14 text-ink hover:underline" data-test="card-name">
+                                    {card.name}
+                                </Link>
+                            </td>
+                            <td className={`tw-figure ${cell} text-copy-13 text-ink`} data-test="row-sizes">
+                                {card.sizes <= 1 ? t('catalog::shop.view.one_size') : t('catalog::shop.view.sizes', { count: figure(locale, card.sizes) })}
+                            </td>
+                            <td className={`${cell} text-copy-13 text-ink`} data-test="row-sold">
+                                {[retail ? t('catalog::shop.filters.retail') : null, wholesale ? t('catalog::shop.filters.wholesale') : null].filter(Boolean).join(' · ')}
+                            </td>
+                            <td className={cell}>
+                                <CardPriceLine card={card} />
+                            </td>
+                            <td className={`${cell} pe-0`}>
+                                <span className="grid">
+                                    <CardButton card={card} href={href} staffView={Boolean(staffView)} />
+                                </span>
+                            </td>
+                        </tr>
+                    );
+                })}
+            </tbody>
+        </table>
     );
 }

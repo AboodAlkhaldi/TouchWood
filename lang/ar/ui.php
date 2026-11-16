@@ -9,6 +9,8 @@ return [
     'next' => 'التالي',
     'pages' => 'الصفحات',
     'range' => ':from–:to من :total',
+    // A phone's compact top bar (shop-design.md §5.4).
+    'back' => 'رجوع',
     'load_more' => 'عرض المزيد',
     // A busy button's spinner, which shadcn names in English; given as a prop, not edited.
     'loading' => 'جارٍ التحميل',

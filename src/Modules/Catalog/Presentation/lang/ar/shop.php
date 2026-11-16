@@ -30,6 +30,8 @@ return [
         'remove' => 'إزالة :name',
         'none' => 'لا شيء هنا يطابق هذه التصفية.',
         'open' => 'عرض التصفية',
+        // The phone's sticky bar (shop-design.md §5.4).
+        'filter' => 'التصفية',
     ],
     'sort' => [
         'label' => 'الترتيب',
@@ -37,7 +39,15 @@ return [
         'newest' => 'الأحدث',
         // Where the store's lists show ratings (amendment 25; feedback.md §4.1 F7).
         'rating' => 'الأعلى تقييمًا',
+        // By this viewer's card price (shop-design.md §5.3, C8).
+        'price-low' => 'السعر: من الأقل إلى الأعلى',
+        'price-high' => 'السعر: من الأعلى إلى الأقل',
+        'by' => 'الترتيب:',
     ],
+    // «عرض 1–24 من 918» under a category's name (shop-design.md §5.1).
+    'showing' => 'عرض 1–:shown من :total',
+    // The grid or the technical list (shop-design.md §5.3, C7).
+    'view' => ['label' => 'طريقة العرض', 'grid' => 'شبكة', 'list' => 'قائمة', 'photo' => 'الصورة', 'product' => 'المنتج', 'size' => 'المقاس', 'price' => 'السعر', 'buy' => 'الشراء', 'one_size' => 'مقاس واحد', 'sizes' => 'المقاسات: :count'],
     // A card's stars, read aloud (feedback.md §4.1 F7).
     'card_rating' => ['zero' => ':rating من 5 نجوم، :count تقييم', 'one' => ':rating من 5 نجوم، تقييم واحد', 'two' => ':rating من 5 نجوم، تقييمان', 'few' => ':rating من 5 نجوم، :count تقييمات', 'many' => ':rating من 5 نجوم، :count تقييمًا', 'other' => ':rating من 5 نجوم، :count تقييم'],
     // A card's Save heart (feedback.md §4.1 F7; amendment 32).

@@ -124,7 +124,7 @@ final readonly class DatabaseShopReader implements ShopReader
         // counts under a value of one of them only when that one is all it misses (several values of one
         // attribute show any of them; two attributes, both).
         $rows = $this->db->select(
-            "WITH head AS (SELECT t.category_id AS id, now.slug, other.slug AS other_slug, c.{$name} AS name"
+            "WITH head AS (SELECT t.category_id AS id, now.slug, other.slug AS other_slug, c.{$name} AS name, c.".self::column('description', $locale).' AS description'
             .' FROM catalog.category_slugs t'
             .' JOIN catalog.category_slugs now ON now.category_id = t.category_id AND now.locale = t.locale AND now.is_current'
             .' JOIN catalog.categories c ON c.id = t.category_id'
@@ -144,11 +144,13 @@ final readonly class DatabaseShopReader implements ShopReader
             .' (NOT EXISTS (SELECT 1 FROM brands) OR listed.brand_id IN (SELECT brand_id FROM brands)) AS by_brand,'
             ." CASE (SELECT side FROM side) WHEN 'retail' THEN listed.sells_retail WHEN 'wholesale' THEN listed.sells_wholesale ELSE true END AS by_side"
             .' FROM listed)'
-            ." SELECT 'head' AS kind, head.id::text AS id, head.name AS name, head.other_slug::text AS swatch, head.slug::text AS group_id, NULL::text AS group_name,"
+            // The head's spare columns carry its description and how many products the choices show (shop-design.md §5.1).
+            ." SELECT 'head' AS kind, head.id::text AS id, head.name AS name, head.other_slug::text AS swatch, head.slug::text AS group_id, head.description::text AS group_name,"
             // The head's spare column carries whether the store's lists show ratings (amendment 25), so
             // the page reads it in this same query (P21).
             .' (EXISTS (SELECT 1 FROM listed))::int AS found,'
-            .' (COALESCE((SELECT d.shown FROM catalog.store_rating_display d WHERE d.store_id = ?), true))::int AS group_position, 0 AS position FROM head'
+            .' (COALESCE((SELECT d.shown FROM catalog.store_rating_display d WHERE d.store_id = ?), true))::int AS group_position,'
+            .' (SELECT count(*) FROM base WHERE base.by_brand AND base.by_side AND cardinality(base.missed) = 0)::int AS position FROM head'
             ." UNION ALL SELECT 'brand', b.id::text, b.{$name}, NULL, NULL, NULL,"
             .' count(*) FILTER (WHERE base.by_side AND cardinality(base.missed) = 0), b.position, b.position'
             .' FROM base JOIN catalog.brands b ON b.id = base.brand_id GROUP BY b.id'
@@ -198,6 +200,8 @@ final readonly class DatabaseShopReader implements ShopReader
             'name' => (string) $head->name,
             'lists' => (int) $head->found === 1,
             'ratings_shown' => (int) $head->group_position === 1,
+            'description' => $head->group_name === null || $head->group_name === '' ? null : (string) $head->group_name,
+            'total' => (int) $head->position,
             'filters' => new CategoryFilters(
                 $brandChoices,
                 array_map(static fn (string $id, string $name): FilterGroup => new FilterGroup($id, $name, $values[$id]), array_keys($names), $names),
@@ -751,6 +755,10 @@ final readonly class DatabaseShopReader implements ShopReader
             return $this->ratedPage($storeId, $query, $viewer, $after, $limit);
         }
 
+        if ($sort === ShopFilters::PRICE_LOW || $sort === ShopFilters::PRICE_HIGH) {
+            return $this->pricedPage($query, $viewer, $after, $limit, $sort === ShopFilters::PRICE_HIGH);
+        }
+
         // Newest: by id alone, a ULID being in the order it was made (P15).
         $newest = $sort === ShopFilters::NEWEST;
 
@@ -808,6 +816,39 @@ final readonly class DatabaseShopReader implements ShopReader
         return new CardPage(
             $this->cards($rows, $viewer),
             $more && $last instanceof stdClass ? Cursor::after($last->rating_key === null ? null : (int) $last->rating_key, (string) $last->product_id)->text() : null,
+        );
+    }
+
+    /**
+     * By price (shop-design.md §5.3): the card's price - the least a retail size costs, "From" where they
+     * differ, and for a company or a guest the wholesale "from" where nothing sells retail - lowest or
+     * highest first, products with no price last, ties newest first; keyset on (key, id) as the rating
+     * sort's. A price changed between two pages moves a product as a rank does (accepted the same way).
+     */
+    private function pricedPage(Builder $query, ShopperKind $viewer, ?Cursor $after, int $limit, bool $highest): CardPage
+    {
+        $key = $viewer === ShopperKind::Individual
+            ? 'COALESCE(retail_from_minor, retail_price_minor)'
+            : 'COALESCE(retail_from_minor, retail_price_minor, wholesale_from_minor)';
+        $priced = $this->db->table($query->selectRaw("{$key} AS price_key"), 'priced');
+        $beyond = $highest ? '<' : '>';
+
+        if ($after !== null && $after->salesRank === null) {
+            $priced->whereNull('price_key')->where('product_id', '<', $after->productId);
+        } elseif ($after !== null) {
+            $priced->where(static fn (Builder $where): Builder => $where->where('price_key', $beyond, $after->salesRank)
+                ->orWhere(static fn (Builder $tie): Builder => $tie->where('price_key', $after->salesRank)->where('product_id', '<', $after->productId))
+                ->orWhereNull('price_key'));
+        }
+
+        $rows = $priced->orderByRaw('price_key '.($highest ? 'DESC' : 'ASC').' NULLS LAST')->orderByDesc('product_id')->limit($limit + 1)->get()->all();
+        $more = count($rows) > $limit;
+        $rows = array_slice($rows, 0, $limit);
+        $last = $rows === [] ? null : $rows[count($rows) - 1];
+
+        return new CardPage(
+            $this->cards($rows, $viewer),
+            $more && $last instanceof stdClass ? Cursor::after($last->price_key === null ? null : (int) $last->price_key, (string) $last->product_id)->text() : null,
         );
     }
 

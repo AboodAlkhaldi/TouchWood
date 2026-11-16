@@ -3,7 +3,7 @@ import { Link, usePage } from '@inertiajs/react';
 import { type Banner, BannerSlide } from '@/components/content/BannerSlide';
 import { ContentLink } from '@/components/content/ContentLink';
 import { promiseIcon } from '@/components/content/promise-icons';
-import { ProductCards, useCardFacts } from '@/components/shop/ProductCards';
+import { ProductCards, ProductRows, useCardFacts, useShopView, ViewSwitch } from '@/components/shop/ProductCards';
 import { ShopPhoto, type PhotoSizes } from '@/components/shop/ShopPhoto';
 import { Button } from '@/components/ui/button';
 import { StorefrontLayout } from '@/layouts/StorefrontLayout';
@@ -42,6 +42,8 @@ export default function Home(props: ShopHomePageData) {
     const store = shop?.code ?? '';
     const sections = props.sections as unknown as Section[];
     const facts = useCardFacts(props.cardFacts, (props.bestSellers as unknown as ShopCardData[])[0]?.productId);
+    // The best sellers' grid or list, the category page's choice (shop-design.md §3.2, H10; P7).
+    const [view, setView] = useShopView();
     // The hero's facts are drawn in the promises row (shop-design.md §3.1, P3); with no promises row, alone there.
     const heroFacts = factsOf(sections.find((section) => section.type === 'HERO')?.words.facts);
     const hasPromises = sections.some((section) => section.type === 'PROMISES');
@@ -56,8 +58,19 @@ export default function Home(props: ShopHomePageData) {
                 return <Tiles key="categories" heading={text(section.words.heading)} tiles={props.categoryTiles as unknown as Tile[]} />;
             case 'BEST_SELLERS':
                 return (
-                    <Band key="best" heading={text(section.words.heading)} test="home-best-sellers">
-                        <ProductCards facts={facts} cards={props.bestSellers as unknown as ShopCardData[]} columns={5} />
+                    <Band key="best" heading={text(section.words.heading)} test="home-best-sellers" aside={<ViewSwitch view={view} onChange={setView} />}>
+                        {view === 'list' ? (
+                            <>
+                                <div className="hidden md:block">
+                                    <ProductRows cards={props.bestSellers as unknown as ShopCardData[]} />
+                                </div>
+                                <div className="md:hidden">
+                                    <ProductCards facts={facts} cards={props.bestSellers as unknown as ShopCardData[]} columns={5} />
+                                </div>
+                            </>
+                        ) : (
+                            <ProductCards facts={facts} cards={props.bestSellers as unknown as ShopCardData[]} columns={5} />
+                        )}
                     </Band>
                 );
             case 'PROJECTS':
