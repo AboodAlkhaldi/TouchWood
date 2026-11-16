@@ -57,7 +57,7 @@ export default function Home(props: ShopHomePageData) {
             case 'BEST_SELLERS':
                 return (
                     <Band key="best" heading={text(section.words.heading)} test="home-best-sellers">
-                        <ProductCards facts={facts} cards={props.bestSellers as unknown as ShopCardData[]} />
+                        <ProductCards facts={facts} cards={props.bestSellers as unknown as ShopCardData[]} columns={5} />
                     </Band>
                 );
             case 'PROJECTS':

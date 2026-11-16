@@ -46,6 +46,10 @@ return [
     'nothing_now' => 'لا يتوفر شيء هنا الآن.',
     // The shop's prices, without VAT (amendment 35; sales.md §4.1 S1).
     'price' => ['from' => 'ابتداءً من', 'wholesale_from' => 'الجملة ابتداءً من', 'was' => 'كان', 'off' => '−:percent%'],
+    'card' => ['add' => 'أضف إلى السلة', 'choose' => 'اختر الخيارات', 'add_name' => 'أضف :name إلى السلة', 'choose_name' => 'اختر خيارات :name', 'added' => 'أُضيف :name إلى سلتك.', 'wholesale_individual' => 'متاح بالجملة لحسابات الشركات', 'save_failed' => 'تعذّر حفظ :name. حاول مرة أخرى.'],
+    'flag' => ['best_seller' => 'الأكثر مبيعًا', 'new_arrival' => 'وصل حديثًا'],
+    'unit' => ['PIECE' => 'للحبة', 'SET' => 'للطقم', 'PAIR' => 'للزوج', 'METRE' => 'للمتر', 'CARTON' => 'للكرتون', 'BOX' => 'للعلبة'],
+    'saving' => 'وفّر :amount',
     'product' => [
         'photo' => 'الصورة :number من :total',
         'details' => 'التفاصيل',

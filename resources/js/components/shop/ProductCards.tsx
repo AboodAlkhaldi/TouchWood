@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
-import { Heart } from 'lucide-react';
+import { Clock, Flame, Heart, Plus } from 'lucide-react';
+import { toast } from 'sonner';
 import { ActionButton } from '@/components/ActionButton';
 import { ShopStars } from '@/components/feedback/shop';
-import { Badge } from '@/components/ui/badge';
+import { Money } from '@/components/Money';
+import { Button } from '@/components/ui/button';
 import { figure, intlLocale } from '@/lib/digits';
 import { ShopPhoto } from '@/components/shop/ShopPhoto';
-import { isReduced, ThemeBadge, ThemeFlag } from '@/components/content/ThemeMarks';
-import { CardPrice } from '@/components/shop/ShopPrice';
+import { isReduced } from '@/components/content/ThemeMarks';
+import { percentOff, ShopPrice } from '@/components/shop/ShopPrice';
 import { useLink } from '@/lib/routes';
 import { keptBeside } from '@/lib/use-load-more';
 import { useTranslator } from '@/lib/t';
@@ -65,9 +67,12 @@ export function useCardFacts(facts: CardFacts | unknown[] | undefined, firstRow?
     return all;
 }
 
-export function ProductCards({ cards, test = 'card', facts }: { cards: ShopCardData[]; test?: string; /** Present where the page carries `cardFacts`: the hearts are drawn. */ facts?: CardFacts }) {
+/** How many columns a list's cards take from a laptop up: 4 in a category's box, 5 for the home's best sellers (shop-design.md §3.2, §5.3). */
+type Columns = 4 | 5;
+
+export function ProductCards({ cards, test = 'card', facts, columns = 4 }: { cards: ShopCardData[]; test?: string; /** Present where the page carries `cardFacts`: the hearts are drawn. */ facts?: CardFacts; columns?: Columns }) {
     return (
-        <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <ul className={`grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-[18px] ${columns === 5 ? 'lg:grid-cols-4 xl:grid-cols-5' : 'lg:grid-cols-4'}`}>
             {cards.map((card) => (
                 <li key={card.productId} className="relative">
                     <ProductCard card={card} test={test} />
@@ -78,80 +83,250 @@ export function ProductCards({ cards, test = 'card', facts }: { cards: ShopCardD
     );
 }
 
+/** A flag over the photo (shop-design.md §4.3): strong ones solid, soft ones with a thin white edge to stand off a light photo. */
+type Flag = { key: string; text: string; className: string; icon?: 'clock' | 'flame'; test: string };
+
+/** The flags in their order (P19): the campaign's word, Last pieces, Best seller, New arrival, then the store's labels. */
+function flagsOf(card: ShopCardData, reduced: boolean, themeWord: string | null, t: ReturnType<typeof useTranslator>): Flag[] {
+    const soft = 'ring-1 ring-white/90';
+
+    return [
+        ...(reduced && themeWord ? [{ key: 'theme', text: themeWord, className: 'bg-brand text-ink-on-brand', test: 'theme-badge' }] : []),
+        ...(card.lastPieces ? [{ key: 'last', text: t('catalog::shop.last_pieces'), className: 'bg-accent text-ink-on-brand', icon: 'clock' as const, test: 'last-pieces' }] : []),
+        ...(card.bestSeller ? [{ key: 'best', text: t('catalog::shop.flag.best_seller'), className: `bg-warn-soft text-warn ${soft}`, icon: 'flame' as const, test: 'flag-best-seller' }] : []),
+        ...(card.newArrival ? [{ key: 'new', text: t('catalog::shop.flag.new_arrival'), className: `bg-good-soft text-good ${soft}`, test: 'flag-new-arrival' }] : []),
+        // A label keeps the tone staff chose (P18); a subtle one gets the white edge too.
+        ...card.labels.map((label, index) => ({ key: `label${index}`, text: label.name, className: `${tone(label.tone as Tone)} ${label.tone.endsWith('-subtle') ? soft : ''}`, test: 'card-label' })),
+    ];
+}
+
 function ProductCard({ card, test }: { card: ShopCardData; test: string }) {
     const t = useTranslator();
     const link = useLink();
-    const locale = usePage<SharedProps>().props.locale;
-    // A live theme marks every product showing a reduced price now (content.md Q9 (a)).
+    const { locale, frame, staffView } = usePage<SharedProps>().props;
+    const href = link('storefront.catalog.product', { slug: card.slug });
+    // A live theme marks every product showing a reduced price now (content.md Q9 (a)): its word is a flag (§4.3).
     const reduced = isReduced(card.price?.now, card.price?.before);
+    const flags = flagsOf(card, reduced, frame?.content?.theme?.badge ?? null, t);
+    const off = card.price?.now && card.price.before ? percentOff(card.price.now, card.price.before) : 0;
+    // The photo and the next ones, which a desktop's pointer moves through (C14, P4).
+    const photos = [card.photo, ...(card.morePhotos as ShopCardData['photo'][])];
+    const [shown, setShown] = useState(0);
+    const many = photos.length > 1;
 
     return (
-        <Link
-            href={link('storefront.catalog.product', { slug: card.slug })}
-            className="material-small group grid h-full content-start gap-3 overflow-hidden bg-surface p-3 hover:shadow-[0_0_0_1px_var(--tw-line-strong)]"
-            data-test={test}
-        >
-            <span className="relative block">
-                <ShopPhoto photo={card.photo} size="card" alt={card.name} className="aspect-square w-full rounded-md" />
-                <ThemeFlag reduced={reduced} />
-            </span>
-            <span className="text-label-14 text-ink group-hover:underline">{card.name}</span>
-            <CardPrice price={card.price} />
-            {card.rating === null || card.ratingCount === 0 ? null : (
-                <span className="inline-flex items-center gap-1.5" data-test="card-rating">
-                    <ShopStars rating={card.rating} className="size-3.5" label={t(`catalog::shop.card_rating.${new Intl.PluralRules(intlLocale(locale)).select(card.ratingCount)}`, { rating: new Intl.NumberFormat(intlLocale(locale), { maximumFractionDigits: 1 }).format(card.rating), count: figure(locale, card.ratingCount) })} />
-                    <span className="tw-figure text-copy-13 text-ink-muted" aria-hidden="true">
-                        ({figure(locale, card.ratingCount)})
+        <article className="group grid h-full content-start overflow-hidden sm:rounded-xl sm:border sm:border-line sm:bg-surface sm:hover:shadow-[0_0_0_1px_var(--tw-line-strong)]" data-test={test}>
+            <Link
+                href={href}
+                className="relative block aspect-square overflow-hidden rounded-xl bg-surface-sunken sm:rounded-none"
+                aria-label={card.name}
+                onMouseMove={(event) => {
+                    if (!many) {
+                        return;
+                    }
+
+                    const box = event.currentTarget.getBoundingClientRect();
+                    const along = (event.clientX - box.left) / box.width;
+                    const part = locale === 'ar' ? 1 - along : along;
+                    setShown(Math.min(photos.length - 1, Math.max(0, Math.floor(part * photos.length))));
+                }}
+                onMouseLeave={() => setShown(0)}
+                data-test={`${test}-photo`}
+            >
+                {/* The whole product, never cropped, on a grey well (C15). */}
+                <ShopPhoto photo={photos[shown] ?? card.photo} size="card" alt="" className="size-full object-contain" />
+                {flags.length > 0 ? (
+                    <span className="absolute start-2 top-2 flex flex-col items-start gap-1" data-test="card-flags">
+                        {flags.slice(0, 4).map((flag, index) => (
+                            // 4 on a computer, 3 on a phone (P19); the product page shows them all.
+                            <span key={flag.key} className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] leading-4 font-semibold ${flag.className} ${index === 3 ? 'max-sm:hidden' : ''}`} data-test={flag.test}>
+                                {flag.icon === 'clock' ? <Clock aria-hidden="true" className="size-3" /> : null}
+                                {flag.icon === 'flame' ? <Flame aria-hidden="true" className="size-3" /> : null}
+                                {flag.text}
+                            </span>
+                        ))}
                     </span>
-                </span>
-            )}
-            {card.labels.length === 0 && !card.lastPieces && !reduced ? null : (
-                <span className="flex flex-wrap gap-1 empty:hidden">
-                    <ThemeBadge reduced={reduced} />
-                    {card.lastPieces ? (
-                        <Badge className={tone('amber')} data-test="last-pieces">
-                            {t('catalog::shop.last_pieces')}
-                        </Badge>
-                    ) : null}
-                    {card.labels.map((label) => (
-                        <Badge key={label.name} className={tone(label.tone as Tone)} data-test="card-label">
-                            {label.name}
-                        </Badge>
-                    ))}
-                </span>
-            )}
-        </Link>
+                ) : null}
+                {/* The sale's percent at the photo's bottom corner, outside the flags' cap (§4.3). */}
+                {off > 0 ? (
+                    <span className="absolute start-2 bottom-2 rounded-md bg-bad px-1.5 py-0.5 text-label-13 font-semibold text-ink-on-brand" data-test="card-off">
+                        {t('catalog::shop.price.off', { percent: figure(locale, off) })}
+                    </span>
+                ) : null}
+                {many ? (
+                    <span aria-hidden="true" className="absolute inset-x-3 bottom-1.5 hidden gap-1 group-hover:flex max-sm:!hidden" data-test="card-photo-bars">
+                        {photos.map((_, index) => (
+                            <i key={index} className={`h-0.5 flex-1 rounded-full ${index === shown ? 'bg-ink' : 'bg-ink/20'}`} />
+                        ))}
+                    </span>
+                ) : null}
+            </Link>
+
+            <div className="grid content-start gap-1 pt-2 sm:p-3">
+                {card.brand ? <span className="truncate text-label-12 text-ink-muted" data-test="card-brand">{card.brand}</span> : null}
+                {/* Two lines kept, so cards line up. */}
+                <Link href={href} className="line-clamp-2 min-h-[2lh] text-[12px] leading-snug text-ink hover:underline sm:text-label-14" data-test="card-name">
+                    {card.name}
+                </Link>
+                <CardPriceLine card={card} />
+                {card.rating === null || card.ratingCount === 0 ? null : (
+                    <span className="inline-flex items-center gap-1.5" data-test="card-rating">
+                        <ShopStars rating={card.rating} className="size-3.5" label={t(`catalog::shop.card_rating.${new Intl.PluralRules(intlLocale(locale)).select(card.ratingCount)}`, { rating: new Intl.NumberFormat(intlLocale(locale), { maximumFractionDigits: 1 }).format(card.rating), count: figure(locale, card.ratingCount) })} />
+                        <span className="tw-figure text-copy-13 text-ink-muted" aria-hidden="true">
+                            ({figure(locale, card.ratingCount)})
+                        </span>
+                    </span>
+                )}
+                <CardButton card={card} href={href} staffView={Boolean(staffView)} />
+            </div>
+        </article>
     );
 }
 
 /**
- * The Save heart over a card's photo. It keeps what the last press made: the page asks again for its
- * facts only, which cover the first page's cards, so a card further down shows its own state.
+ * The price with its unit (shop-design.md §4.1, §4.2): 19 px; on a sale the price in red at 21 px, the old price under it,
+ * readable, and «وفّر» what a piece saves. Then the wholesale line, always given its row so cards line up.
+ */
+function CardPriceLine({ card }: { card: ShopCardData }) {
+    const t = useTranslator();
+    const price = card.price;
+    const unit = t(`catalog::shop.unit.${card.unit}`);
+    const individual = price !== null && price.wholesaleFrom === null && card.sellsWholesale;
+
+    return (
+        <span className="grid gap-0.5" data-test="card-price">
+            {price === null ? null : price.from !== null ? (
+                <span className="flex flex-wrap items-baseline gap-x-1.5" data-test="price-from">
+                    <span className="text-copy-13 text-ink-muted">{t('catalog::shop.price.from')}</span>
+                    <Money value={price.from} className="text-[14.5px] font-semibold text-brand sm:text-[19px]" />
+                    <span className="text-copy-13 text-ink-muted">/ {unit}</span>
+                </span>
+            ) : price.now !== null && price.saving !== null && price.before !== null ? (
+                <>
+                    <span className="flex flex-wrap items-baseline gap-x-1.5" data-test="price-now">
+                        <Money value={price.now} className="text-[16px] font-semibold text-bad sm:text-[21px]" />
+                        <span className="text-copy-13 text-ink-muted">/ {unit}</span>
+                    </span>
+                    <span className="flex flex-wrap items-baseline gap-x-2">
+                        <s className="text-[13px] text-ink-muted decoration-[1.5px] sm:text-[15px]" data-test="price-before">
+                            <Money value={price.before} />
+                        </s>
+                        {/* Left off a phone's card, where it does not fit (P5). */}
+                        <span className="text-copy-13 font-medium text-good max-sm:hidden" data-test="price-saving">
+                            {t('catalog::shop.saving', { amount: price.saving.text })}
+                        </span>
+                    </span>
+                </>
+            ) : price.now !== null ? (
+                <span className="flex flex-wrap items-baseline gap-x-1.5" data-test="price-now">
+                    <Money value={price.now} className="text-[14.5px] font-semibold text-brand sm:text-[19px]" />
+                    <span className="text-copy-13 text-ink-muted">/ {unit}</span>
+                </span>
+            ) : null}
+            <span className="min-h-[1lh] text-copy-13 text-ink-muted" data-test="card-wholesale">
+                {price?.wholesaleFrom ? (
+                    <span className="flex flex-wrap items-center gap-x-1.5" data-test="wholesale-from">
+                        <span>{t('catalog::shop.price.wholesale_from')}</span>
+                        {price.wholesaleFromBefore !== null ? <ShopPrice now={price.wholesaleFrom} before={price.wholesaleFromBefore} /> : <Money value={price.wholesaleFrom} />}
+                    </span>
+                ) : individual ? (
+                    t('catalog::shop.card.wholesale_individual')
+                ) : null}
+            </span>
+        </span>
+    );
+}
+
+/**
+ * The card's button (shop-design.md §4.1; reverses sales.md S2's "never on a card"): one size this viewer can order now -
+ * Add to cart, what the product page would start with (D3); several - Choose options, the product page. A staff view,
+ * which orders nothing, opens the page (P20). On a phone a 32 px «+».
+ */
+function CardButton({ card, href, staffView }: { card: ShopCardData; href: string; staffView: boolean }) {
+    const t = useTranslator();
+    const link = useLink();
+    const [busy, setBusy] = useState(false);
+    const one = staffView ? null : (card.oneSize as { variant: string; mode: string; minimum: number } | null);
+
+    if (one === null) {
+        return (
+            <>
+                <Button asChild variant="outline" className="mt-1 hidden h-10 border-brand sm:inline-flex">
+                    <Link href={href} data-test="card-choose">
+                        {t('catalog::shop.card.choose')}
+                    </Link>
+                </Button>
+                <Button asChild variant="outline" size="icon" className="mt-1 size-8 justify-self-end rounded-full sm:hidden" aria-label={t('catalog::shop.card.choose_name', { name: card.name })}>
+                    <Link href={href}>
+                        <Plus aria-hidden="true" />
+                    </Link>
+                </Button>
+            </>
+        );
+    }
+
+    const add = () =>
+        router.post(link('storefront.sales.cart.add'), { variant: one.variant, mode: one.mode, quantity: one.minimum } as never, {
+            preserveScroll: true,
+            onStart: () => setBusy(true),
+            onFinish: () => setBusy(false),
+            onSuccess: (page) => {
+                const errors = (page.props as { errors?: Record<string, string> }).errors ?? {};
+
+                // A refusal is said by the shop's toasts from the answer's errors; an add, here.
+                if (Object.keys(errors).length === 0) {
+                    toast.success(t('catalog::shop.card.added', { name: card.name }));
+                }
+            },
+        });
+
+    return (
+        <>
+            <ActionButton type="button" loading={busy} onClick={add} className="mt-1 hidden h-10 sm:inline-flex" data-test="card-add">
+                {t('catalog::shop.card.add')}
+            </ActionButton>
+            <ActionButton type="button" size="icon" loading={busy} onClick={add} className="mt-1 size-8 justify-self-end rounded-full sm:hidden" aria-label={t('catalog::shop.card.add_name', { name: card.name })} data-test="card-add-phone">
+                <Plus aria-hidden="true" />
+            </ActionButton>
+        </>
+    );
+}
+
+/**
+ * The Save heart over a card's photo (shop-design.md §4.4; feedback.md F7): 32 px on a white disc at the top-end corner.
+ * **No spinner**: pressed, it fills or empties at once and the save goes in the background; a failed save puts it back and
+ * says so. Pressed twice quickly, the last press wins (P6). A guest's press still goes to sign in (Q18 (a)).
  */
 function CardHeart({ productId, name, saved }: { productId: string; name: string; saved: boolean }) {
     const t = useTranslator();
     const link = useLink();
     const { shopper } = usePage<SharedProps>().props;
     const [on, setOn] = useState(saved);
-    const [busy, setBusy] = useState(false);
+    const pressing = useRef(0);
 
     useEffect(() => setOn(saved), [saved]);
 
     function press() {
+        const was = on;
+        const mine = ++pressing.current;
+
+        if (shopper) {
+            setOn(!was);
+            window.dispatchEvent(new CustomEvent(HEART_PRESSED, { detail: { productId, saved: !was } }));
+        }
 
         router.post(
-            link(on ? 'storefront.feedback.remove' : 'storefront.feedback.save', { product: productId }),
+            link(was ? 'storefront.feedback.remove' : 'storefront.feedback.save', { product: productId }),
             { back: window.location.pathname + window.location.search },
             {
                 only: ['cardFacts'],
                 preserveScroll: true,
-                onStart: () => setBusy(true),
-                onFinish: () => setBusy(false),
-                onSuccess: () => {
-                    // A guest has gone to sign in; a customer's press is done.
-                    if (shopper) {
-                        setOn(!on);
-                        window.dispatchEvent(new CustomEvent(HEART_PRESSED, { detail: { productId, saved: !on } }));
+                onError: () => {
+                    // Only the last press may undo: an earlier one's answer must not overturn a later choice.
+                    if (shopper && mine === pressing.current) {
+                        setOn(was);
+                        window.dispatchEvent(new CustomEvent(HEART_PRESSED, { detail: { productId, saved: was } }));
+                        toast.error(t('catalog::shop.card.save_failed', { name }));
                     }
                 },
             },
@@ -159,18 +334,15 @@ function CardHeart({ productId, name, saved }: { productId: string; name: string
     }
 
     return (
-        <ActionButton
+        <button
             type="button"
-            size="icon-sm"
-            variant="outline"
-            loading={busy}
             aria-pressed={on}
             aria-label={on ? t('catalog::shop.card_save.remove', { name }) : t('catalog::shop.card_save.add', { name })}
             onClick={press}
-            className="absolute end-5 top-5 rounded-full bg-surface/90"
+            className="absolute end-2 top-2 grid size-8 place-items-center rounded-full bg-white shadow-sm hover:bg-white/90"
             data-test="card-heart"
         >
-            <Heart aria-hidden="true" className={on ? 'fill-red-500 text-red-500' : undefined} />
-        </ActionButton>
+            <Heart aria-hidden="true" className={`size-4 ${on ? 'fill-red-500 text-red-500' : 'text-[#2c2c2a]'}`} />
+        </button>
     );
 }

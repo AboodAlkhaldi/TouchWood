@@ -47,6 +47,10 @@ return [
     'nothing_now' => 'Nothing here is available right now.',
     // The shop's prices, without VAT (amendment 35; sales.md §4.1 S1).
     'price' => ['from' => 'From', 'wholesale_from' => 'Wholesale from', 'was' => 'Was', 'off' => '−:percent%'],
+    'card' => ['add' => 'Add to Cart', 'choose' => 'Choose Options', 'add_name' => 'Add :name to the cart', 'choose_name' => 'Choose the options of :name', 'added' => ':name was added to your cart.', 'wholesale_individual' => 'Wholesale for company accounts', 'save_failed' => "Couldn't save :name. Try again."],
+    'flag' => ['best_seller' => 'Best Seller', 'new_arrival' => 'New Arrival'],
+    'unit' => ['PIECE' => 'per piece', 'SET' => 'per set', 'PAIR' => 'per pair', 'METRE' => 'per metre', 'CARTON' => 'per carton', 'BOX' => 'per box'],
+    'saving' => 'Save :amount',
     'product' => [
         'photo' => 'Photo :number of :total',
         'details' => 'Details',
