@@ -286,7 +286,7 @@ final readonly class ImportBringer
     private function create(FileProduct $product, array $newCodes, array $resolved, ImportPhotos $photos): string
     {
         $id = $this->createProduct->handle(new CreateProduct($product->nameAr, $product->nameEn, $resolved['brand'], $product->slugAr, $product->slugEn));
-        $this->editDetails->handle(new EditProductDetails($id, $product->nameAr, $product->nameEn, $resolved['brand'], $product->slugAr, $product->slugEn, $product->descriptionAr, $product->descriptionEn, $resolved['category'], $resolved['warranty']));
+        $this->editDetails->handle(new EditProductDetails($id, $product->nameAr, $product->nameEn, $resolved['brand'], $product->slugAr, $product->slugEn, $product->descriptionAr, $product->descriptionEn, $resolved['category'], $resolved['warranty'], $product->unit));
 
         // Has Variants: its attributes first, while it has no variant yet, then its variants.
         foreach ($resolved['attributes'] as $attributeId) {
@@ -326,6 +326,8 @@ final readonly class ImportBringer
             $product->descriptionEn ?? ($replace ? null : $existing->descriptionEn()?->toArray()),
             $resolved['category'] ?? ($replace ? null : $existing->categoryId()),
             $resolved['warranty'] ?? ($replace ? null : $existing->warrantyId()),
+            // A file that names no unit leaves the catalog's; replacing whole, it goes back to a piece.
+            $product->unit ?? ($replace ? 'PIECE' : null),
         ));
         $this->takeAttributes($productId, $resolved, $replace);
 

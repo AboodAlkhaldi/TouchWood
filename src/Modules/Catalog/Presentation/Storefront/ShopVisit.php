@@ -40,7 +40,15 @@ final class ShopVisit
     /** @var array<string, list<array<array-key, mixed>>> the menus as the cache keeps them, photos included */
     private array $kept = [];
 
-    /** @var array<string, array{top: int, days: int}> the card flags' settings, kept with each menu */
+    /**
+     * The other modules' settings the product page's lines say (shop-design.md §6.3, §10.8): read by their keys, as
+     * Content reads Loyalty's - Catalog names none of their code.
+     */
+    public const string DELIVERY_DAYS = 'content.delivery.working_days';
+
+    public const string RETURN_DAYS = 'sales.returns.window_days';
+
+    /** @var array<string, array{top: int, days: int, delivery: int, returns: int}> the settings kept with each menu */
     private array $flags = [];
 
     public function __construct(
@@ -83,15 +91,17 @@ final class ShopVisit
         $key = $this->key($store, $locale);
 
         if (! isset($this->menus[$key])) {
-            /** @var array{menu: list<array{id: string, name: string, slug: string, image: string|null, products: int, children: list<mixed>}>, top: int, days: int} $copy */
+            /** @var array{menu: list<array{id: string, name: string, slug: string, image: string|null, products: int, children: list<mixed>}>, top: int, days: int, delivery?: int, returns?: int} $copy */
             $copy = $this->pages->remember($key, fn (): array => [
                 'menu' => array_map(static fn (MenuCategory $category): array => self::kept($category), $this->catalog->menu($store, $locale, $viewer)),
                 'top' => $this->platform->setting(CatalogSettings::BEST_SELLER_TOP, $store)->int(),
                 'days' => $this->platform->setting(CatalogSettings::NEW_ARRIVAL_DAYS, $store)->int(),
+                'delivery' => $this->platform->setting(self::DELIVERY_DAYS, $store)->int(),
+                'returns' => $this->platform->setting(self::RETURN_DAYS, $store)->int(),
             ]);
             $kept = $copy['menu'];
             $this->kept[$key] = $kept;
-            $this->flags[$key] = ['top' => (int) $copy['top'], 'days' => (int) $copy['days']];
+            $this->flags[$key] = ['top' => (int) $copy['top'], 'days' => (int) $copy['days'], 'delivery' => (int) ($copy['delivery'] ?? 0), 'returns' => (int) ($copy['returns'] ?? 0)];
             $this->menus[$key] = array_map(self::item(...), $kept);
         }
 
@@ -135,7 +145,23 @@ final class ShopVisit
     {
         $this->menu($store, $locale);
 
-        return $this->flags[$this->key($store, $locale)] ?? ['top' => 0, 'days' => 0];
+        $kept = $this->flags[$this->key($store, $locale)] ?? null;
+
+        return $kept === null ? ['top' => 0, 'days' => 0] : ['top' => $kept['top'], 'days' => $kept['days']];
+    }
+
+    /**
+     * The product page's delivery and returns lines (shop-design.md §6.3, §10.8): the working days a delivery takes and
+     * the days after delivery a return may be asked - read with the menu's copy, so they cost no query of their own.
+     *
+     * @return array{delivery: int, returns: int}
+     */
+    public function productLines(StoreId $store, string $locale): array
+    {
+        $this->menu($store, $locale);
+        $kept = $this->flags[$this->key($store, $locale)] ?? null;
+
+        return ['delivery' => $kept['delivery'] ?? 0, 'returns' => $kept['returns'] ?? 0];
     }
 
     private function key(StoreId $store, string $locale): string

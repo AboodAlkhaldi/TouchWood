@@ -16,10 +16,12 @@ return [
         'category_search' => 'ابحث في الأقسام',
         'category_none' => 'لا يوجد قسم يطابق ":query".',
         'warranty' => 'الضمان',
+        'unit' => 'يُباع بـ',
         'description_ar' => 'الوصف بالعربية',
         'description_en' => 'الوصف بالإنجليزية',
     ],
     'none' => 'بلا',
+    'unit' => ['PIECE' => 'الحبة', 'SET' => 'الطقم', 'PAIR' => 'الزوج', 'METRE' => 'المتر', 'CARTON' => 'الكرتون', 'BOX' => 'العلبة'],
     'filters' => [
         'title' => 'التصفية',
         'search' => 'الاسم أو الرمز',

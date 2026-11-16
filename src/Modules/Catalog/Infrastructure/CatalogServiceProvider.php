@@ -192,9 +192,10 @@ final class CatalogServiceProvider extends ServiceProvider
         // A photo whose sizes became ready may be a card's photo now (§6.2).
         Event::listen(MediaVariantsReady::class, [RefreshCardPhotos::class, 'handle']);
 
-        // The card flags' settings ride in the menu's kept copy (shop-design.md §10.4): a change to either clears it.
+        // The card flags' and the product page lines' settings ride in the menu's kept copy (shop-design.md §10.4, §10.8):
+        // a change to any of them clears it.
         Event::listen(SettingChanged::class, function (SettingChanged $changed): void {
-            if (in_array($changed->key, [CatalogSettings::BEST_SELLER_TOP, CatalogSettings::NEW_ARRIVAL_DAYS], true)) {
+            if (in_array($changed->key, [CatalogSettings::BEST_SELLER_TOP, CatalogSettings::NEW_ARRIVAL_DAYS, ShopVisit::DELIVERY_DAYS, ShopVisit::RETURN_DAYS], true)) {
                 $this->app->make(ShopPagesCache::class)->invalidate();
             }
         });

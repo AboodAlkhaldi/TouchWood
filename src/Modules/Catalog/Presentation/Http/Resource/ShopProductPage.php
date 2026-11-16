@@ -41,5 +41,9 @@ final class ShopProductPage extends Data
         public array $goesWith,
         public array $mayAlsoLike,
         public ShopAddressData $address,
+        /** The delivery line's working days (shop-design.md §6.3, §10.2): the store's setting, filled as the page is shown. */
+        public int $deliveryDays = 0,
+        /** The returns line's days after delivery (§6.3; sales.returns.window_days), filled likewise. */
+        public int $returnDays = 0,
     ) {}
 }

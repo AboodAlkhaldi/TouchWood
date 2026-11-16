@@ -26,5 +26,7 @@ final readonly class CategoryRow
         public ?int $baseRank,
         public bool $forIndividuals = true,
         public bool $forCompanies = true,
+        public ?string $descriptionAr = null,
+        public ?string $descriptionEn = null,
     ) {}
 }

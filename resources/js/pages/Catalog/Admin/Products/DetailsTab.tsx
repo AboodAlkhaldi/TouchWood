@@ -30,9 +30,13 @@ type DetailsForm = {
     brand_id: string;
     category_id: string;
     warranty_id: string;
+    unit: string;
     description_ar: string;
     description_en: string;
 };
+
+/** The fixed list a product is sold by (shop-design.md §10.1, D2), a piece by default. */
+const UNITS = ['PIECE', 'SET', 'PAIR', 'METRE', 'CARTON', 'BOX'] as const;
 
 function initial(product: ProductHeadData): DetailsForm {
     return {
@@ -43,6 +47,7 @@ function initial(product: ProductHeadData): DetailsForm {
         brand_id: product.brandId,
         category_id: product.categoryId ?? '',
         warranty_id: product.warrantyId ?? '',
+        unit: product.unit,
         description_ar: product.descriptionAr,
         description_en: product.descriptionEn,
     };
@@ -139,6 +144,14 @@ export function DetailsTab({ page }: { page: ProductPage }) {
                             {warranties.map((warranty) => (
                                 <NativeSelectOption key={warranty.id} value={warranty.id}>
                                     {nameIn(locale, warranty.nameAr, warranty.nameEn)}
+                                </NativeSelectOption>
+                            ))}
+                        </SelectField>
+                        {/* How it is sold, shown after its price in the shop: "SAR / per piece" (shop-design.md §10.1). */}
+                        <SelectField id="details-unit" disabled={off} label={t('catalog::admin_products.field.unit')} value={form.data.unit} onChange={(event) => form.setData('unit', event.target.value)} data-test="details-unit">
+                            {UNITS.map((unit) => (
+                                <NativeSelectOption key={unit} value={unit}>
+                                    {t(`catalog::admin_products.unit.${unit}`)}
                                 </NativeSelectOption>
                             ))}
                         </SelectField>

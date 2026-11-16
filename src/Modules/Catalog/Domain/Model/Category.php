@@ -32,6 +32,9 @@ final class Category
         private ?string $imageMediaId,
         private bool $isActive,
         private bool $deactivatedWithParent,
+        // The line under its shop page's heading, per language, both optional (shop-design.md §10.5).
+        private ?string $descriptionAr = null,
+        private ?string $descriptionEn = null,
     ) {
         $this->changes = new ChangeLog;
     }
@@ -41,18 +44,37 @@ final class Category
         return new self($id, $parentId, $name, $slugs, $imageMediaId, true, false);
     }
 
-    public static function reconstitute(string $id, ?string $parentId, LocalizedName $name, Slugs $slugs, ?string $imageMediaId, bool $isActive, bool $deactivatedWithParent): self
+    public static function reconstitute(string $id, ?string $parentId, LocalizedName $name, Slugs $slugs, ?string $imageMediaId, bool $isActive, bool $deactivatedWithParent, ?string $descriptionAr = null, ?string $descriptionEn = null): self
     {
-        return new self($id, $parentId, $name, $slugs, $imageMediaId, $isActive, $deactivatedWithParent);
+        return new self($id, $parentId, $name, $slugs, $imageMediaId, $isActive, $deactivatedWithParent, $descriptionAr, $descriptionEn);
     }
 
-    public function edit(LocalizedName $name, Slugs $slugs, ?string $imageMediaId): void
+    /**
+     * @param  array{ar: string|null, en: string|null}|null  $description  none keeps it: the callers that predate it send none
+     */
+    public function edit(LocalizedName $name, Slugs $slugs, ?string $imageMediaId, ?array $description = null): void
     {
         $before = $this->snapshot();
         $this->name = $name;
         $this->slugs = $slugs;
         $this->imageMediaId = $imageMediaId;
+
+        if ($description !== null) {
+            $this->descriptionAr = $description['ar'];
+            $this->descriptionEn = $description['en'];
+        }
+
         $this->recordAgainst($before);
+    }
+
+    public function descriptionAr(): ?string
+    {
+        return $this->descriptionAr;
+    }
+
+    public function descriptionEn(): ?string
+    {
+        return $this->descriptionEn;
     }
 
     /**
@@ -160,6 +182,8 @@ final class Category
             'slug_ar' => $this->slugs->ar->value,
             'slug_en' => $this->slugs->en->value,
             'image_media_id' => $this->imageMediaId,
+            'description_ar' => $this->descriptionAr,
+            'description_en' => $this->descriptionEn,
             'is_active' => $this->isActive,
             'deactivated_with_parent' => $this->deactivatedWithParent,
         ];

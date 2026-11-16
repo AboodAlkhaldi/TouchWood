@@ -25,5 +25,7 @@ final readonly class EditProductDetails
         public ?array $descriptionEn = null,
         public ?string $categoryId = null,
         public ?string $warrantyId = null,
+        /** How it is sold (shop-design.md §10.1): one of ProductUnit's; none keeps what it has. */
+        public ?string $unit = null,
     ) {}
 }

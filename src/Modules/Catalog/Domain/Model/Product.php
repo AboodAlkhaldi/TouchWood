@@ -12,6 +12,7 @@ use Modules\Catalog\Domain\ValueObject\ProductName;
 use Modules\Catalog\Domain\ValueObject\ProductSlugs;
 use Modules\Catalog\Domain\ValueObject\StructuredText;
 use Modules\Catalog\Public\Enums\ProductStage;
+use Modules\Catalog\Public\Enums\ProductUnit;
 
 /**
  * A product (catalog.md §1.1): a family of purchasable configurations, **global** — one copy of its
@@ -44,6 +45,8 @@ final class Product
         private ?ProductStage $archivedFrom,
         private bool $hiddenByCategory,
         private bool $hiddenByBrand,
+        // How it is sold, after its price (shop-design.md §10.1): a piece unless chosen.
+        private ProductUnit $unit = ProductUnit::Piece,
     ) {
         $this->changes = new ChangeLog;
     }
@@ -66,8 +69,9 @@ final class Product
         ?ProductStage $archivedFrom,
         bool $hiddenByCategory,
         bool $hiddenByBrand,
+        ProductUnit $unit = ProductUnit::Piece,
     ): self {
-        return new self($id, $name, $slugs, $descriptionAr, $descriptionEn, $brandId, $categoryId, $warrantyId, $stage, $archivedFrom, $hiddenByCategory, $hiddenByBrand);
+        return new self($id, $name, $slugs, $descriptionAr, $descriptionEn, $brandId, $categoryId, $warrantyId, $stage, $archivedFrom, $hiddenByCategory, $hiddenByBrand, $unit);
     }
 
     /**
@@ -83,6 +87,7 @@ final class Product
         string $brandId,
         ?string $categoryId,
         ?string $warrantyId,
+        ?ProductUnit $unit = null,
     ): void {
         $before = $this->snapshot();
 
@@ -102,6 +107,8 @@ final class Product
         $this->brandId = $brandId;
         $this->categoryId = $categoryId;
         $this->warrantyId = $warrantyId;
+        // None given keeps it: the forms that predate the unit send none.
+        $this->unit = $unit ?? $this->unit;
 
         foreach ($this->snapshot() as $column => $now) {
             $this->changes->record($column, $before[$column], $now);
@@ -200,6 +207,11 @@ final class Product
         return $this->warrantyId;
     }
 
+    public function unit(): ProductUnit
+    {
+        return $this->unit;
+    }
+
     public function stage(): ProductStage
     {
         return $this->stage;
@@ -296,6 +308,7 @@ final class Product
             'brand_id' => $this->brandId,
             'category_id' => $this->categoryId,
             'warranty_id' => $this->warrantyId,
+            'unit' => $this->unit->value,
             'stage' => $this->stage->value,
             'hidden_by_category' => $this->hiddenByCategory,
             'hidden_by_brand' => $this->hiddenByBrand,

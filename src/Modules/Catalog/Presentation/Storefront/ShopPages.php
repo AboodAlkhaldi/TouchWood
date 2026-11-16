@@ -239,6 +239,7 @@ final readonly class ShopPages
         $sections = $this->sections->read($store, $locale === 'ar' ? 'ar' : 'en', $owner['id'], $customerId, $after, $filters, $kept['page']['available'] === true, $viewer, $wholesaleSizes, $sizes, $kept['page']['available'] !== true && ($kept['noindex'] ?? true) === false);
         // The relations' cards are kept with the page; what the modules add to them is this viewer's (amendment 32).
         $related = array_column([...self::listOf($kept['page']['goesWith'] ?? []), ...self::listOf($kept['page']['mayAlsoLike'] ?? [])], 'productId');
+        $lines = $this->visit->productLines($store, $locale);
 
         return [
             ...$kept['page'],
@@ -247,6 +248,9 @@ final readonly class ShopPages
             'sections' => (object) $sections,
             // The same shape as the lists' `cardFacts`: [] when empty.
             'cardFacts' => $this->cardFacts->read($store, $customerId, array_map('strval', $related)),
+            // The delivery and returns lines (shop-design.md §6.3): the store's settings, kept with the menu's copy.
+            'deliveryDays' => $lines['delivery'],
+            'returnDays' => $lines['returns'],
         ];
     }
 
@@ -465,7 +469,11 @@ final readonly class ShopPages
 
         return array_map(static fn (ProductCard $card): ShopCardData => new ShopCardData(
             $card->productId, $card->name, $card->slug, $card->photo, self::labels($card->labels), $card->lastPieces, $card->rating?->average, $card->rating->count ?? 0,
-            $card->price === null ? null : new ShopCardPriceData($price($card->price->now), $price($card->price->before), $price($card->price->from), $price($card->price->wholesaleFrom), $price($card->price->wholesaleFromBefore)),
+            $card->price === null ? null : new ShopCardPriceData(
+                $price($card->price->now), $price($card->price->before), $price($card->price->from), $price($card->price->wholesaleFrom), $price($card->price->wholesaleFromBefore),
+                // «وفّر»: what a piece saves while the price is reduced (shop-design.md §4.2).
+                $card->price->now !== null && $card->price->before !== null && $card->price->before > $card->price->now ? $price($card->price->before - $card->price->now) : null,
+            ),
             $card->brand,
             $card->unit,
             $card->sizes,

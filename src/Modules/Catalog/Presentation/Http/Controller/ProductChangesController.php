@@ -61,7 +61,7 @@ use Shared\Domain\Error\DomainError;
  */
 final readonly class ProductChangesController
 {
-    private const array DETAILS = ['name_ar', 'name_en', 'slug_ar', 'slug_en', 'description_ar', 'description_en'];
+    private const array DETAILS = ['name_ar', 'name_en', 'slug_ar', 'slug_en', 'description_ar', 'description_en', 'unit'];
 
     private const array VARIANT = ['code', 'values', 'details', 'number', 'weight_grams', 'length_mm', 'width_mm', 'height_mm'];
 
@@ -82,6 +82,7 @@ final readonly class ProductChangesController
             descriptionEn: $request->marks('description_en'),
             categoryId: $request->optionalText('category_id'),
             warrantyId: $request->optionalText('warranty_id'),
+            unit: $request->optionalText('unit'),
         )), 'catalog::admin_products.toast.details', self::DETAILS);
     }
 

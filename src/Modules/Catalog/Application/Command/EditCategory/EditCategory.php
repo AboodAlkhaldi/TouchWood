@@ -16,5 +16,9 @@ final readonly class EditCategory
         public ?string $slugAr = null,
         public ?string $slugEn = null,
         public ?string $imageMediaId = null,
+        /** The line under its shop page's heading (shop-design.md §10.5): each optional; null for both keeps them. */
+        public ?string $descriptionAr = null,
+        public ?string $descriptionEn = null,
+        public bool $withDescription = false,
     ) {}
 }

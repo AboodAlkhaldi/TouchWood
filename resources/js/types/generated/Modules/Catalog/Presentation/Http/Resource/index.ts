@@ -93,6 +93,8 @@ storeRank: number | null,
 baseRank: number | null,
 forIndividuals: boolean,
 forCompanies: boolean,
+descriptionAr: string | null,
+descriptionEn: string | null,
 };
 export type CategoryOptionData = {
 id: string,
@@ -270,6 +272,7 @@ hiddenByCategory: boolean,
 hiddenByBrand: boolean,
 codes: string[],
 counts: ProductCountsData,
+unit: string,
 };
 export type ProductPage = {
 product: ProductHeadData,
@@ -396,6 +399,7 @@ before: MoneyData | null,
 from: MoneyData | null,
 wholesaleFrom: MoneyData | null,
 wholesaleFromBefore: MoneyData | null,
+saving: MoneyData | null,
 };
 export type ShopCategoryPage = {
 name: string,
@@ -481,6 +485,8 @@ selling: ShopSellingData | null,
 goesWith: ShopCardData[],
 mayAlsoLike: ShopCardData[],
 address: ShopAddressData,
+deliveryDays: number,
+returnDays: number,
 };
 export type ShopSearchPage = {
 query: string,

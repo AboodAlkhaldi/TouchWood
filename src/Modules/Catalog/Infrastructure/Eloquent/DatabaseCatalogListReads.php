@@ -67,7 +67,7 @@ final readonly class DatabaseCatalogListReads implements CatalogListReads
     public function categories(?string $storeId, ?string $baseStoreId): array
     {
         $rows = $this->db->table('catalog.categories as c')
-            ->select(['c.id', 'c.parent_id', 'c.name_ar', 'c.name_en', 'c.is_active', 'c.deactivated_with_parent', 'c.image_media_id'])
+            ->select(['c.id', 'c.parent_id', 'c.name_ar', 'c.name_en', 'c.is_active', 'c.deactivated_with_parent', 'c.image_media_id', 'c.description_ar', 'c.description_en'])
             ->selectRaw("(SELECT s.slug FROM catalog.category_slugs s WHERE s.category_id = c.id AND s.locale = 'ar' AND s.is_current) as slug_ar")
             ->selectRaw("(SELECT s.slug FROM catalog.category_slugs s WHERE s.category_id = c.id AND s.locale = 'en' AND s.is_current) as slug_en")
             ->selectRaw('(SELECT count(*) FROM catalog.products p WHERE p.category_id = c.id) as products')
@@ -94,6 +94,8 @@ final readonly class DatabaseCatalogListReads implements CatalogListReads
             $row->base_rank === null ? null : (int) $row->base_rank,
             (bool) $row->for_individuals,
             (bool) $row->for_companies,
+            self::text($row->description_ar),
+            self::text($row->description_en),
         ))->all());
     }
 

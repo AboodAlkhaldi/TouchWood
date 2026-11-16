@@ -62,6 +62,8 @@ final readonly class FileProduct
         public ?string $fillCategoryId = null,
         public array $fillSearchWords = [],
         public array $fillFilterValueIds = [],
+        // How it is sold (shop-design.md §10.1): one of ProductUnit's values; none leaves the catalog's as it is.
+        public ?string $unit = null,
     ) {}
 
     /**
@@ -175,6 +177,7 @@ final readonly class FileProduct
             'fill_category_id' => $this->fillCategoryId,
             'fill_search_words' => $this->fillSearchWords,
             'fill_filter_value_ids' => $this->fillFilterValueIds,
+            'unit' => $this->unit,
         ];
     }
 
@@ -240,6 +243,7 @@ final readonly class FileProduct
             self::text($data['fill_category_id'] ?? null),
             $fillSearchWords,
             $fillFilterValueIds,
+            self::text($data['unit'] ?? null),
         );
     }
 
