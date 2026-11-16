@@ -17,6 +17,7 @@ use Modules\Catalog\Public\Events\StoreListingChanged;
 use Modules\Content\Application\ContentCache;
 use Modules\Content\Application\ContentJobs;
 use Modules\Content\Application\ContentPermissions;
+use Modules\Content\Application\ContentSettings;
 use Modules\Content\Application\Query\ScreenReads;
 use Modules\Content\Application\Query\Shop\ShopDocuments;
 use Modules\Content\Application\Query\Shop\ShopReads;
@@ -87,6 +88,7 @@ use Modules\Content\Public\Contracts\CampaignNotices;
 use Modules\Content\Public\Contracts\ContentApi;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
+use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Contracts\ShopFrameParts;
 use Modules\Platform\Public\Contracts\UnmatchedAddresses;
 use Modules\Platform\Public\Dto\MenuEntryDto;
@@ -159,6 +161,8 @@ final class ContentServiceProvider extends ServiceProvider
         // Content sits above Access, so it declares its own permissions through Access's public catalog
         // (Access spec §2.2); Access checks them at boot like its own.
         $this->app->make(PermissionCatalog::class)->declare('content', ...ContentPermissions::definitions());
+        // The product page's delivery line, in working days (shop-design.md §10.2).
+        $this->app->make(SettingsRegistry::class)->define('content', ...ContentSettings::definitions());
 
         // Every file an item names has its RESTRICT key; Platform asks before deleting one (§1.1 rule 10), and
         // Catalog before deleting a category a banner or a smart bar names (§1.1 rule 17).

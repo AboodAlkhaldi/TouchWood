@@ -63,7 +63,9 @@ final readonly class DatabaseListingRows implements ListingRows
         .' for_individuals boolean, for_companies boolean, sells_retail boolean, sells_wholesale boolean,'
         .' card_variant_id text, retail_card_variant_id text, ending_soon_companies boolean, ending_soon_individuals boolean,'
         .' price_minor bigint, price_before_minor bigint, retail_price_minor bigint, retail_price_before_minor bigint,'
-        .' retail_from_minor bigint, wholesale_from_minor bigint, wholesale_from_before_minor bigint';
+        .' retail_from_minor bigint, wholesale_from_minor bigint, wholesale_from_before_minor bigint,'
+        .' brand_name text, unit text, sizes_individuals smallint, sizes_companies smallint, one_size_individuals jsonb,'
+        .' one_size_companies jsonb, more_photos jsonb, listed_at timestamptz';
 
     /** The columns written, in the order the insert names them. */
     private const array COLUMNS = [
@@ -73,6 +75,7 @@ final readonly class DatabaseListingRows implements ListingRows
         'for_individuals', 'for_companies', 'sells_retail', 'sells_wholesale', 'card_variant_id', 'retail_card_variant_id',
         'ending_soon_companies', 'ending_soon_individuals', 'price_before_minor', 'retail_price_minor', 'retail_price_before_minor',
         'retail_from_minor', 'wholesale_from_minor', 'wholesale_from_before_minor',
+        'brand_name', 'unit', 'sizes_individuals', 'sizes_companies', 'one_size_individuals', 'one_size_companies', 'more_photos', 'listed_at',
     ];
 
     public function __construct(
@@ -144,7 +147,8 @@ final readonly class DatabaseListingRows implements ListingRows
             ." r.search_text, {$document},"
             .' r.for_individuals, r.for_companies, r.sells_retail, r.sells_wholesale, r.card_variant_id, r.retail_card_variant_id,'
             .' r.ending_soon_companies, r.ending_soon_individuals, r.price_before_minor, r.retail_price_minor, r.retail_price_before_minor,'
-            .' r.retail_from_minor, r.wholesale_from_minor, r.wholesale_from_before_minor'
+            .' r.retail_from_minor, r.wholesale_from_minor, r.wholesale_from_before_minor,'
+            .' r.brand_name, r.unit, r.sizes_individuals, r.sizes_companies, r.one_size_individuals, r.one_size_companies, r.more_photos, r.listed_at'
             .' FROM jsonb_to_recordset(?::jsonb) AS r('.self::RECORD.')'
             .' ON CONFLICT (store_id, locale, product_id) DO UPDATE SET '.$list('%1$s = EXCLUDED.%1$s')
             // Unchanged, it is not written at all.
@@ -169,7 +173,7 @@ final readonly class DatabaseListingRows implements ListingRows
             // its being active says whether it hid the product.
             ->where('b.is_active', true)
             ->orderBy('p.id')
-            ->get(['p.id', 'p.name_ar', 'p.name_en', 'p.brand_id', 'p.category_id', 'b.show_in_default_listings', 'c.is_active as category_active'])
+            ->get(['p.id', 'p.name_ar', 'p.name_en', 'p.brand_id', 'p.category_id', 'p.unit', 'b.name_ar as brand_ar', 'b.name_en as brand_en', 'b.show_in_default_listings', 'c.is_active as category_active'])
             ->all();
 
         if ($products === []) {
@@ -208,7 +212,8 @@ final readonly class DatabaseListingRows implements ListingRows
                 continue;
             }
 
-            $card = $this->cardPhoto($id);
+            $photos = $this->photos($id);
+            $card = $photos[0] ?? [];
             $categoryId = (string) $product->category_id;
             $searched = ['ar' => SearchTerms::canonical((string) $product->name_ar), 'en' => SearchTerms::canonical((string) $product->name_en)];
 
@@ -256,6 +261,18 @@ final readonly class DatabaseListingRows implements ListingRows
                     'wholesale_from_minor' => $wholesaleFrom === [] ? null : min($wholesaleFrom),
                     // Crossed out beside it only while it is lower (amendment 45).
                     'wholesale_from_before_minor' => $wholesaleBefore,
+                    // The card's Add to cart or Choose options (shop-design.md §4.1, D3): how many sizes each side
+                    // can order now, and for one, what the product page would start with - its way of buying and
+                    // that way's minimum.
+                    'sizes_individuals' => count($retail),
+                    'sizes_companies' => count($variants),
+                    'one_size_individuals' => count($retail) === 1 ? self::oneSize($retail[0], true) : null,
+                    'one_size_companies' => count($variants) === 1 ? self::oneSize($variants[0], $variants[0]['retail']) : null,
+                    'unit' => (string) $product->unit,
+                    // The desktop's hover (§4.1, P4): the next ready photos, up to 3 after the card's.
+                    'more_photos' => array_map(static fn (array $photo): array => $photo[1], array_slice($photos, 1, 3)),
+                    // When it was first chosen in this store: New arrival's clock (§10.4).
+                    'listed_at' => $sizes[0]['listedAt'],
                 ];
 
                 foreach (self::LOCALES as $locale) {
@@ -269,6 +286,7 @@ final readonly class DatabaseListingRows implements ListingRows
                         'name' => $name,
                         'slug' => $slug,
                         'brand_id' => (string) $product->brand_id,
+                        'brand_name' => (string) ($product->{"brand_{$locale}"} ?? $product->brand_ar),
                         'brand_visible_by_default' => (bool) $product->show_in_default_listings,
                         'category_id' => $categoryId,
                         'category_path' => $paths[$categoryId]['ids'],
@@ -299,7 +317,7 @@ final readonly class DatabaseListingRows implements ListingRows
      * now (amendment 39); whether it is ending soon, and its price there, as pushed (P22, amendment 16(h)).
      *
      * @param  list<string>  $productIds
-     * @return array<string, array<string, non-empty-list<array{id: string, retail: bool, wholesale: bool, orderable: bool, ending: bool, price: int|null, before: int|null, wholesaleFrom: int|null, wholesaleFromBefore: int|null}>>> product => store => variants
+     * @return array<string, array<string, non-empty-list<array{id: string, retail: bool, wholesale: bool, orderable: bool, ending: bool, price: int|null, before: int|null, wholesaleFrom: int|null, wholesaleFromBefore: int|null, retailMinimum: int, wholesaleMinimum: int|null, listedAt: string|null}>>> product => store => variants
      */
     private function sellableVariants(array $productIds): array
     {
@@ -317,7 +335,7 @@ final readonly class DatabaseListingRows implements ListingRows
             ->where('sp.not_available_now', false)
             ->where('v.is_archived', false)
             ->orderBy('sv.product_id')->orderBy('sv.store_id')->orderBy('v.position')->orderBy('v.id')
-            ->get(['sv.product_id', 'sv.store_id', 'sv.variant_id', 'sv.sells_retail', 'sv.sells_wholesale', 'f.orderable', 'f.ending_soon', 'f.price_minor', 'f.price_before_minor', 'f.wholesale_from_minor', 'f.wholesale_from_before_minor']);
+            ->get(['sv.product_id', 'sv.store_id', 'sv.variant_id', 'sv.sells_retail', 'sv.sells_wholesale', 'f.orderable', 'f.ending_soon', 'f.price_minor', 'f.price_before_minor', 'f.wholesale_from_minor', 'f.wholesale_from_before_minor', 'sp.retail_minimum', 'sp.wholesale_minimum', 'sp.created_at as listed_at']);
 
         $sellable = [];
 
@@ -333,6 +351,9 @@ final readonly class DatabaseListingRows implements ListingRows
                 'before' => $row->price_before_minor === null ? null : (int) $row->price_before_minor,
                 'wholesaleFrom' => $row->wholesale_from_minor === null ? null : (int) $row->wholesale_from_minor,
                 'wholesaleFromBefore' => $row->wholesale_from_before_minor === null ? null : (int) $row->wholesale_from_before_minor,
+                'retailMinimum' => (int) $row->retail_minimum,
+                'wholesaleMinimum' => $row->wholesale_minimum === null ? null : (int) $row->wholesale_minimum,
+                'listedAt' => $row->listed_at === null ? null : (string) $row->listed_at,
             ];
         }
 
@@ -458,22 +479,42 @@ final readonly class DatabaseListingRows implements ListingRows
     }
 
     /**
-     * The first gallery photo whose sizes are ready, and their addresses.
+     * What a card's Add to cart adds of a product's one size (shop-design.md §4.1, D3): its way of buying as the product
+     * page would start - retail where it sells retail - and that way's minimum.
      *
-     * @return array{0: string, 1: array<string, array<string, string>>}|array{}
+     * @param  array{id: string, retail: bool, retailMinimum: int, wholesaleMinimum: int|null}  $variant
+     * @return array{variant: string, mode: string, minimum: int}
      */
-    private function cardPhoto(string $productId): array
+    private static function oneSize(array $variant, bool $retail): array
+    {
+        return $retail
+            ? ['variant' => $variant['id'], 'mode' => 'RETAIL', 'minimum' => max(1, $variant['retailMinimum'])]
+            : ['variant' => $variant['id'], 'mode' => 'WHOLESALE', 'minimum' => max(1, $variant['wholesaleMinimum'] ?? 1)];
+    }
+
+    /**
+     * The gallery's photos whose sizes are ready, in order, up to 4: the first is the card's (with its media id), the
+     * rest the desktop's hover (shop-design.md §4.1).
+     *
+     * @return list<array{0: string, 1: array<string, array<string, string>>}>
+     */
+    private function photos(string $productId): array
     {
         $gallery = $this->db->table('catalog.product_photos')->where('product_id', $productId)->orderBy('position')->pluck('media_id');
+        $ready = [];
 
         foreach ($gallery as $mediaId) {
             $urls = $this->platform->mediaUrls((string) $mediaId);
 
             if ($urls !== null && $urls->variants !== []) {
-                return [(string) $mediaId, $urls->variants];
+                $ready[] = [(string) $mediaId, $urls->variants];
+
+                if (count($ready) === 4) {
+                    break;
+                }
             }
         }
 
-        return [];
+        return $ready;
     }
 }

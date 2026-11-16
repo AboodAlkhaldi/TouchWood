@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Presentation\Storefront;
 
+use Carbon\CarbonImmutable;
 use Closure;
 use Modules\Catalog\Application\Api\ApiReads;
 use Modules\Catalog\Application\Products\InMemoryShopCardFacts;
@@ -325,7 +326,8 @@ final readonly class ShopPages
      */
     public function suggest(StoreId $store, string $locale, string $typed): array
     {
-        return $this->cards($store, $locale, $this->search->suggest($store, $locale, $this->visit->viewer(), $typed));
+        // A suggestion is a photo and a name: it wears no flags, so it reads none of their settings.
+        return $this->cards($store, $locale, $this->search->suggest($store, $locale, $this->visit->viewer(), $typed), flags: false);
     }
 
     /**
@@ -453,13 +455,25 @@ final readonly class ShopPages
      * @param  list<ProductCard>  $cards
      * @return list<ShopCardData>
      */
-    private function cards(StoreId $store, string $locale, array $cards): array
+    private function cards(StoreId $store, string $locale, array $cards, bool $flags = true): array
     {
         $price = $cards === [] ? static fn (?int $minor): ?MoneyData => null : $this->money($store, $locale);
+        // The card's own flags (shop-design.md §10.4): compared here with the store's settings, never stored, so neither
+        // goes stale; the settings ride in the menu's cached copy, read already (the owner's option (a)).
+        ['top' => $top, 'days' => $days] = $cards === [] || ! $flags ? ['top' => 0, 'days' => 0] : $this->visit->cardFlags($store, $locale);
+        $since = CarbonImmutable::now()->subDays($days);
 
         return array_map(static fn (ProductCard $card): ShopCardData => new ShopCardData(
             $card->productId, $card->name, $card->slug, $card->photo, self::labels($card->labels), $card->lastPieces, $card->rating?->average, $card->rating->count ?? 0,
             $card->price === null ? null : new ShopCardPriceData($price($card->price->now), $price($card->price->before), $price($card->price->from), $price($card->price->wholesaleFrom), $price($card->price->wholesaleFromBefore)),
+            $card->brand,
+            $card->unit,
+            $card->sizes,
+            $card->oneSize,
+            $card->sellsWholesale,
+            $card->morePhotos,
+            $top > 0 && $card->salesRank !== null && $card->salesRank <= $top,
+            $days > 0 && $card->listedAt !== null && CarbonImmutable::parse($card->listedAt)->greaterThanOrEqualTo($since),
         ), $cards);
     }
 

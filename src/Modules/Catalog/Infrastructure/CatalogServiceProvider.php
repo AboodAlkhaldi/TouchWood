@@ -15,6 +15,7 @@ use Modules\Catalog\Application\Api\ApiReads;
 use Modules\Catalog\Application\Api\ApiSearches;
 use Modules\Catalog\Application\CatalogApiImpl;
 use Modules\Catalog\Application\CatalogPermissions;
+use Modules\Catalog\Application\CatalogSettings;
 use Modules\Catalog\Application\Import\ImportArchives;
 use Modules\Catalog\Application\Import\ImportQueue;
 use Modules\Catalog\Application\Import\Imports;
@@ -95,9 +96,11 @@ use Modules\Catalog\Public\Contracts\ShopProductSections;
 use Modules\Catalog\Public\Contracts\StoreWiring;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
+use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Contracts\ShopFrameParts;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Events\MediaVariantsReady;
+use Modules\Platform\Public\Events\SettingChanged;
 
 /**
  * What is sold, and where (catalog.md). Registered after Access: Catalog uses Access's public
@@ -178,6 +181,8 @@ final class CatalogServiceProvider extends ServiceProvider
         // Catalog sits above Access, so it declares its own permissions through Access's public
         // catalog (Access spec §2.2); Access checks them at boot like its own.
         $this->app->make(PermissionCatalog::class)->declare('catalog', ...CatalogPermissions::definitions());
+        // The card's two flags of its own, each store's (shop-design.md §10.4).
+        $this->app->make(SettingsRegistry::class)->define('catalog', ...CatalogSettings::definitions());
 
         // Brand logos and category photos: deleting the media leaves them without (§2.4).
         $this->app->make(MediaUsages::class)->register('catalog', CatalogImagesUsage::class);
@@ -186,6 +191,13 @@ final class CatalogServiceProvider extends ServiceProvider
 
         // A photo whose sizes became ready may be a card's photo now (§6.2).
         Event::listen(MediaVariantsReady::class, [RefreshCardPhotos::class, 'handle']);
+
+        // The card flags' settings ride in the menu's kept copy (shop-design.md §10.4): a change to either clears it.
+        Event::listen(SettingChanged::class, function (SettingChanged $changed): void {
+            if (in_array($changed->key, [CatalogSettings::BEST_SELLER_TOP, CatalogSettings::NEW_ARRIVAL_DAYS], true)) {
+                $this->app->make(ShopPagesCache::class)->invalidate();
+            }
+        });
 
         // A deploy may change what a kept page holds: none outlives the migrations (as Platform's caches).
         Event::listen(MigrationsEnded::class, function (): void {

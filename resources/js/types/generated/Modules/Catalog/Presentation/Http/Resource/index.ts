@@ -377,6 +377,18 @@ lastPieces: boolean,
 rating: number | null,
 ratingCount: number,
 price: ShopCardPriceData | null,
+brand: string | null,
+unit: string,
+sizes: number,
+oneSize: {
+variant: string,
+mode: string,
+minimum: number,
+} | null,
+sellsWholesale: boolean,
+morePhotos: Record<string, Record<string, string>>[],
+bestSeller: boolean,
+newArrival: boolean,
 };
 export type ShopCardPriceData = {
 now: MoneyData | null,

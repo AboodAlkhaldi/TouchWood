@@ -851,8 +851,33 @@ final readonly class DatabaseShopReader implements ShopReader
                     // Its normal price, crossed out beside it while an offer takes it lower (amendment 45).
                     self::minor($row->wholesale_from_before_minor),
                 ),
+                // The card to the design (shop-design.md §4.1, §10.6), each side's.
+                ($row->brand_name ?? null) === null ? null : (string) $row->brand_name,
+                (string) ($row->unit ?? 'PIECE'),
+                // Each read with a fallback: a row written before these facts existed, or a read that names its columns, has none.
+                (int) (($individual ? ($row->sizes_individuals ?? null) : ($row->sizes_companies ?? null)) ?? 0),
+                self::oneSize(self::json($individual ? ($row->one_size_individuals ?? null) : ($row->one_size_companies ?? null))),
+                (bool) ($row->sells_wholesale ?? false),
+                array_values(self::json($row->more_photos ?? null) ?? []),
+                ($row->sales_rank ?? null) === null ? null : (int) $row->sales_rank,
+                ($row->listed_at ?? null) === null ? null : (string) $row->listed_at,
             );
         }, $rows);
+    }
+
+    /**
+     * What a card's Add to cart adds of a product's one size, as the row keeps it: none unless it is whole.
+     *
+     * @param  array<array-key, mixed>|null  $kept
+     * @return array{variant: string, mode: string, minimum: int}|null
+     */
+    private static function oneSize(?array $kept): ?array
+    {
+        $variant = $kept['variant'] ?? null;
+        $mode = $kept['mode'] ?? null;
+        $minimum = $kept['minimum'] ?? null;
+
+        return is_string($variant) && in_array($mode, ['RETAIL', 'WHOLESALE'], true) && is_int($minimum) ? ['variant' => $variant, 'mode' => $mode, 'minimum' => $minimum] : null;
     }
 
     private static function minor(mixed $amount): ?int
