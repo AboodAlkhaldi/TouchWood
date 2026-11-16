@@ -13,6 +13,7 @@ final readonly class SaveBanner
 {
     /**
      * @param  array<string, string|null>  $images
+     * @param  array<string, string|null>  $words  a home banner's title, line and button's text: `title_ar` ... `button_en`
      */
     public function __construct(
         public ?string $bannerId,
@@ -30,5 +31,6 @@ final readonly class SaveBanner
         public array $images,
         public bool $translated = false,
         public bool $read = false,
+        public array $words = [],
     ) {}
 }

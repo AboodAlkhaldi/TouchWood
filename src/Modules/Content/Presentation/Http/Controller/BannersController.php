@@ -47,6 +47,7 @@ final readonly class BannersController
     /** @var list<string> */
     private const array BOXES = [
         'name', 'link', 'alt_ar', 'alt_en', 'category', 'placement', 'images', 'starts_at', 'ends_at',
+        'title_ar', 'title_en', 'line_ar', 'line_en', 'button_ar', 'button_en',
         'desktop_image', 'desktop_image_ar', 'desktop_image_en', 'phone_image', 'phone_image_ar', 'phone_image_en',
     ];
 
@@ -155,6 +156,11 @@ final readonly class BannersController
                 Inputs::map($request, 'images'),
                 Inputs::flag($request, 'translated'),
                 Inputs::flag($request, 'read'),
+                [
+                    'title_ar' => Inputs::typed($request, 'title_ar'), 'title_en' => Inputs::typed($request, 'title_en'),
+                    'line_ar' => Inputs::typed($request, 'line_ar'), 'line_en' => Inputs::typed($request, 'line_en'),
+                    'button_ar' => Inputs::typed($request, 'button_ar'), 'button_en' => Inputs::typed($request, 'button_en'),
+                ],
             ));
         } catch (DomainError $error) {
             return Refusals::back($request, $error, self::BOXES);

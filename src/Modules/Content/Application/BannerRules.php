@@ -14,8 +14,8 @@ use Modules\Content\Domain\Model\BannerPlacement;
 /**
  * A banner's artwork and scheduling rules (content.md §1.6, §1.1 rules 2 and 10):
  *
- * - **Which images a placement takes**: `HOME_HERO` a desktop one only, `HOME_PHONE` a phone one only, `LISTING`
- *   both. **Artwork with words on it takes an Arabic and an English image each**; artwork without words one image
+ * - **Which images a placement takes**: both, a desktop one and a phone one (`HOME_PHONE` is gone, shop-design.md
+ *   §3.1). **Artwork with words on it takes an Arabic and an English image each**; artwork without words one image
  *   for both languages (`any`).
  * - **A draft may lack any of them.** Scheduling - and saving a banner already scheduled - needs every image its
  *   placement takes, each ready, both descriptions, and an end after the start and not already past.
@@ -78,6 +78,13 @@ final readonly class BannerRules
 
         if ($banner->altEn === null) {
             throw new MissingEnglish('alt');
+        }
+
+        // A home banner's own words: each typed in Arabic needs its English to go live (§1.1 rule 2).
+        foreach (['title', 'line', 'button'] as $word) {
+            if (($banner->words["{$word}_ar"] ?? null) !== null && ($banner->words["{$word}_en"] ?? null) === null) {
+                throw new MissingEnglish($word);
+            }
         }
 
         $boxes = [];

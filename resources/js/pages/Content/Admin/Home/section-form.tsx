@@ -65,7 +65,14 @@ let next = 0;
 export function SectionForm({ store, section, logos: savedLogos, icons, translationReady }: HomeSectionPageData) {
     const t = useTranslator();
     const { errors } = usePage<SharedProps>().props as unknown as { errors: Record<string, string | undefined> };
-    const [settings, setSettings] = useState<Settings>(() => (Array.isArray(section.settings) ? {} : (section.settings as Settings)));
+    const [settings, setSettings] = useState<Settings>(() => {
+        const saved = Array.isArray(section.settings) ? {} : (section.settings as Settings);
+
+        // A fact saved before 2026-11-16 is a caption alone ({ar, en}); here it becomes a caption with an empty figure.
+        return Array.isArray(saved.facts)
+            ? { ...saved, facts: (saved.facts as Settings[]).map((fact) => ('caption' in fact ? fact : { figure: { ar: '', en: '' }, caption: fact })) }
+            : saved;
+    });
     const [logos, setLogos] = useState<Logo[]>(() => savedLogos.map((logo) => ({ key: `logo-${++next}`, image: logo.image, mediaId: logo.mediaId, name: { ar: logo.nameAr, en: logo.nameEn ?? '' }, link: logo.link ?? '' })));
     const [dirty, setDirty] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -91,7 +98,10 @@ export function SectionForm({ store, section, logos: savedLogos, icons, translat
                   { name: 'line', box: 'line', path: ['line'], label: f('line'), max: 160, rows: 2 },
                   button('main', ['main'], 'main_button', f('main_button')),
                   button('second', ['second'], 'second_button', f('second_button')),
-                  ...facts.map((_, index) => ({ name: `fact${index}`, box: 'fact', path: ['facts', index], label: `${f('fact')} ${index + 1}`, max: 40 })),
+                  ...facts.flatMap((_, index) => [
+                      { name: `fact${index}figure`, box: 'fact_figure', path: ['facts', index, 'figure'], label: `${f('fact_figure')} ${index + 1}`, max: 16 },
+                      { name: `fact${index}`, box: 'fact', path: ['facts', index, 'caption'], label: `${f('fact')} ${index + 1}`, max: 40 },
+                  ]),
               ]
             : type === 'PROMISES'
               ? promises.flatMap((_, index) => [
@@ -234,9 +244,10 @@ export function SectionForm({ store, section, logos: savedLogos, icons, translat
                             <FieldDescription>{f('facts_helper')}</FieldDescription>
                             {/* A fact's own refusal is said under its row (pairOf); only the list's is said here. */}
                             {errors.facts ? <p className="text-copy-14 text-bad">{errors.facts}</p> : null}
-                            {specs.slice(5).map((spec, index) => (
-                                <div key={spec.name} className="grid gap-2">
-                                    {pairOf(spec)}
+                            {facts.map((_, index) => (
+                                <div key={`fact${index}`} className="grid gap-2">
+                                    {pairOf(specs[5 + index * 2] as Spec)}
+                                    {pairOf(specs[6 + index * 2] as Spec)}
                                     <div>
                                         <Button type="button" variant="ghost" size="sm" onClick={() => change(['facts'], facts.filter((_, i) => i !== index))}>
                                             <Trash2 aria-hidden />
@@ -247,7 +258,7 @@ export function SectionForm({ store, section, logos: savedLogos, icons, translat
                             ))}
                             {facts.length < 3 ? (
                                 <div>
-                                    <Button type="button" variant="outline" size="sm" onClick={() => change(['facts'], [...facts, { ar: '', en: '' }])} data-test="add-fact">
+                                    <Button type="button" variant="outline" size="sm" onClick={() => change(['facts'], [...facts, { figure: { ar: '', en: '' }, caption: { ar: '', en: '' } }])} data-test="add-fact">
                                         <Plus aria-hidden />
                                         {f('add_fact')}
                                     </Button>

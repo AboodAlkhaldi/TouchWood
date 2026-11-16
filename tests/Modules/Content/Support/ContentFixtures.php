@@ -130,7 +130,7 @@ final class ContentFixtures
             'bannerId' => null,
             'storeId' => Fx::storeId($code),
             'version' => 0,
-            'placement' => 'HOME_PHONE',
+            'placement' => 'HOME_HERO',
             'categoryId' => null,
             'name' => 'Summer',
             'link' => '/categories/summer',
@@ -139,7 +139,7 @@ final class ContentFixtures
             'altEn' => 'Summer sale',
             'startsAt' => null,
             'endsAt' => null,
-            'images' => ['PHONE:any' => self::image()],
+            'images' => ['DESKTOP:any' => self::image(), 'PHONE:any' => self::image()],
             ...$with,
         ]));
     }

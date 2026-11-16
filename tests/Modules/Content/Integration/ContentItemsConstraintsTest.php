@@ -49,7 +49,7 @@ function constraintRow(string $table): array
         'home_sections' => ['id' => $id, 'store_id' => $store, 'type' => 'HERO', 'position' => 0, 'settings' => '{}', 'created_at' => $now, 'updated_at' => $now],
         'bars' => ['store_id' => $store, 'text_ar' => 'نص', 'text_en' => 'Text', 'is_on' => true, 'updated_at' => $now],
         'footers' => ['store_id' => $store, 'columns' => '[]', 'updated_at' => $now],
-        'banners' => ['id' => $id, 'store_id' => $store, 'placement' => 'HOME_PHONE', 'name' => 'Banner', 'position' => 0, 'created_at' => $now, 'updated_at' => $now],
+        'banners' => ['id' => $id, 'store_id' => $store, 'placement' => 'HOME_HERO', 'name' => 'Banner', 'position' => 0, 'created_at' => $now, 'updated_at' => $now],
         'popups' => ['id' => $id, 'store_id' => $store, 'name' => 'Popup', 'title_ar' => 'عنوان', 'text_ar' => 'نص', 'created_at' => $now, 'updated_at' => $now],
         'smart_bars' => ['id' => $id, 'store_id' => $store, 'scope' => 'CATEGORY', 'category_id' => constraintCategory(), 'message_ar' => 'رسالة', 'message_en' => 'Message', 'created_at' => $now, 'updated_at' => $now],
         'pages', 'projects' => ['id' => $id, 'store_id' => $store, 'created_at' => $now, 'updated_at' => $now],

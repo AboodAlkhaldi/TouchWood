@@ -159,6 +159,16 @@ describe('§1.4 the home page', function () {
         homeFill($promises->id, ['promises' => [$promise]]);
         expect(homeRefusal(fn () => app(ShowHomeSectionHandler::class)->handle(new ShowHomeSection($promises->id, true))))->toBe('promises:too_few');
 
+        // A fact is a figure and its caption (shop-design.md §10.9, P24): 16 and 40 characters; one saved before
+        // 2026-11-16 as a caption alone reads as one with no figure.
+        expect(homeRefusal(fn () => homeFill($hero->id, ['facts' => [['figure' => ['ar' => str_repeat('٩', 17)], 'caption' => ['ar' => 'وكيل']]]])))->toBe('fact_figure_ar:too_long');
+        homeFill($hero->id, ['facts' => [['figure' => ['ar' => 'TALLSEN', 'en' => 'TALLSEN'], 'caption' => ['ar' => 'وكيل معتمد', 'en' => 'Authorised dealer']], ['ar' => 'جدة', 'en' => 'Jeddah']]]);
+        $facts = json_decode((string) DB::table('content.home_sections')->where('id', $hero->id)->value('settings'), true)['facts'];
+        expect($facts)->toBe([
+            ['figure' => ['ar' => 'TALLSEN', 'en' => 'TALLSEN'], 'caption' => ['ar' => 'وكيل معتمد', 'en' => 'Authorised dealer']],
+            ['figure' => ['ar' => null, 'en' => null], 'caption' => ['ar' => 'جدة', 'en' => 'Jeddah']],
+        ]);
+
         homeFill($sellers->id, ['heading' => ['ar' => 'الأكثر مبيعًا', 'en' => 'Best sellers'], 'count' => 20]);
         homeFill($categories->id, ['heading' => ['ar' => 'الفئات', 'en' => 'Categories']]);
 
@@ -210,9 +220,9 @@ describe('§1.4 the home page', function () {
 
         // Compared key by key with toBe: a swapped from and to must fail (lesson 105).
         expect($first['title.ar'])->toBe([null, 'أول'])
-            ->and($first['facts.0.ar'])->toBe([null, 'حقيقة'])
+            ->and($first['facts.0.caption.ar'])->toBe([null, 'حقيقة'])
             ->and($second['title.ar'])->toBe(['أول', 'ثان'])
-            ->and($second)->not->toHaveKey('facts.0.ar');
+            ->and($second)->not->toHaveKey('facts.0.caption.ar');
     });
 
     it('refuses a fill over a newer version (§1.1 rule 12)', function () {

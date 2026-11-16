@@ -53,7 +53,7 @@ final readonly class BannerBackToDraftHandler
                 throw new InvalidContentInput('state', InvalidContentInput::STATE);
             }
 
-            $banner = new Banner($was->id, $was->storeId, $was->placement, $was->categoryId, $was->name, $was->link, $was->hasWords, $was->altAr, $was->altEn, new Schedule(false, $was->schedule->startsAt, $was->schedule->endsAt), $was->position, $was->images, $was->version + 1, $staffId, $now);
+            $banner = new Banner($was->id, $was->storeId, $was->placement, $was->categoryId, $was->name, $was->link, $was->hasWords, $was->altAr, $was->altEn, new Schedule(false, $was->schedule->startsAt, $was->schedule->endsAt), $was->position, $was->images, $was->version + 1, $staffId, $now, $was->words);
             $this->banners->update($banner);
             $this->platform->recordAudit(ContentAudit::entry('content.banner.unscheduled', 'content.banner', $was->id, $store->id, ContentAudit::diff($was->fields(), $banner->fields())));
             $this->cache->invalidate();

@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react';
+import { type ComponentType, type ReactNode, useEffect, useState } from 'react';
 import { Link, usePage } from '@inertiajs/react';
+import { type Banner, BannerSlide } from '@/components/content/BannerSlide';
 import { ContentLink } from '@/components/content/ContentLink';
 import { promiseIcon } from '@/components/content/promise-icons';
 import { ProductCards, useCardFacts } from '@/components/shop/ProductCards';
@@ -14,14 +15,15 @@ import type { ShopHomePageData } from '@/types/generated/Modules/Content/Present
 import type { SharedProps } from '@/types/page';
 
 /*
-| H1, a store's home (content.md §1.4, §4.5), to the design's home: the sections staff show, in their order - the hero
-| (on a phone the swiped banners instead, with the design's dots), the promises row, the categories as tiles, the best
-| sellers, the newest project with two guides, the two audiences, the Points band and the client logos. A section with
-| nothing to show draws nothing. A live theme dresses the promises, Points and logos bands with its artwork (the
-| server's custom properties) and may give their words.
+| H1, a store's home (content.md §1.4, §4.5), to the design (shop-design.md §3): the sections staff show, in their order -
+| **the banners** (news, events, big sales: one list for every width, turning every 5 seconds) with the store's title
+| under them, the promises row with the hero's facts, the categories as tiles, the best sellers, the newest project with
+| two guides, the two audiences, the Points band and the client logos. Each band brings its own 1400 px box, so its ground
+| reaches the screen's edges. A section with nothing to show draws nothing. A live theme dresses the promises, Points
+| and logos bands with its artwork (the server's custom properties) and may give their words.
 |
-| **The first image is fetched at once, never lazily**, and each picture only at its own width: the desktop hero's file
-| never reaches a phone, nor the phone's banner a desktop (a `<source>` of an empty image for the other width).
+| **The first image is fetched at once, never lazily**, and each picture only at its own width: the wide picture's file
+| never reaches a phone, nor the phone's a desktop (a `<source>` of an empty image for the other width).
 */
 
 type Words = Record<string, unknown>;
@@ -29,11 +31,9 @@ type ButtonWords = { text: string | null; link: string | null } | null;
 type Section = { type: string; words: Words; project?: Document; guides?: Document[]; logos?: Logo[] };
 type Document = { title: string; slug: string; line: string | null; image: PhotoSizes | [] };
 type Logo = { name: string | null; link: string | null; image: PhotoSizes };
-type Banner = { id: string; link: string | null; alt: string | null; image: PhotoSizes };
-type Tile = { name: string; slug: string; photo: PhotoSizes | null };
+type Fact = { figure: string | null; caption: string | null } | string | null;
 
-/** An image no width asks for: the `<source>` that keeps a picture's file from the other width. */
-const NOTHING = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+type Tile = { name: string; slug: string; photo: PhotoSizes | null };
 
 const text = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
 
@@ -42,13 +42,16 @@ export default function Home(props: ShopHomePageData) {
     const store = shop?.code ?? '';
     const sections = props.sections as unknown as Section[];
     const facts = useCardFacts(props.cardFacts, (props.bestSellers as unknown as ShopCardData[])[0]?.productId);
+    // The hero's facts are drawn in the promises row (shop-design.md §3.1, P3); with no promises row, alone there.
+    const heroFacts = factsOf(sections.find((section) => section.type === 'HERO')?.words.facts);
+    const hasPromises = sections.some((section) => section.type === 'PROMISES');
 
     const draw = (section: Section): ReactNode => {
         switch (section.type) {
             case 'HERO':
-                return <Hero key="hero" words={section.words} banner={props.heroBanner as Banner | null} phone={props.phoneBanners as unknown as Banner[]} store={store} locale={locale} />;
+                return <Hero key="hero" words={section.words} banners={props.banners as unknown as Banner[]} store={store} locale={locale} />;
             case 'PROMISES':
-                return <Promises key="promises" words={section.words} theme={props.themeParts} />;
+                return <Promises key="promises" words={section.words} facts={heroFacts} theme={props.themeParts} />;
             case 'CATEGORIES':
                 return <Tiles key="categories" heading={text(section.words.heading)} tiles={props.categoryTiles as unknown as Tile[]} />;
             case 'BEST_SELLERS':
@@ -71,21 +74,28 @@ export default function Home(props: ShopHomePageData) {
     };
 
     return (
-        <StorefrontLayout title={props.head.title} address={props.address} head={props.head}>
-            <div className="grid gap-10 sm:gap-16" data-test="home">
-                {sections.map(draw)}
+        <StorefrontLayout title={props.head.title} address={props.address} head={props.head} bands>
+            <div className="grid gap-6 sm:gap-16" data-test="home">
+                {sections.map((section) => (section.type === 'HERO' && !hasPromises ? [draw(section), <Promises key="facts" words={{}} facts={heroFacts} theme={props.themeParts} />] : draw(section)))}
             </div>
         </StorefrontLayout>
     );
 }
 
-/** A section's frame: its heading, then what it holds. */
+/** The hero's facts, each a figure and its caption (§10.9); one saved before 2026-11-16 is a caption alone. */
+function factsOf(value: unknown): { figure: string | null; caption: string }[] {
+    return (Array.isArray(value) ? (value as Fact[]) : [])
+        .map((fact) => (typeof fact === 'string' ? { figure: null, caption: fact } : { figure: text(fact?.figure), caption: text(fact?.caption) ?? '' }))
+        .filter((fact) => fact.caption !== '' || fact.figure !== null);
+}
+
+/** A section's frame, in its own 1400 px box: its heading at the design's 28 px, then what it holds. */
 function Band({ heading, children, test, aside }: { heading: string | null; children: ReactNode; test: string; aside?: ReactNode }) {
     return (
-        <section className="grid min-w-0 gap-4" data-test={test}>
+        <section className="shop-box grid min-w-0 gap-4" data-test={test}>
             {heading || aside ? (
                 <div className="flex items-center justify-between gap-3">
-                    {heading ? <h2 className="text-heading-20 text-ink sm:text-heading-24">{heading}</h2> : <span />}
+                    {heading ? <h2 className="text-heading-20 text-ink sm:text-[28px] sm:leading-tight sm:font-semibold">{heading}</h2> : <span />}
                     {aside}
                 </div>
             ) : null}
@@ -94,125 +104,89 @@ function Band({ heading, children, test, aside }: { heading: string | null; chil
     );
 }
 
-/** A picture drawn at one width only: at the other, its `<source>` is an empty image, so its file is never fetched. */
-function WidthPicture({ photo, alt, wide, first, className }: { photo: PhotoSizes; alt: string; wide: boolean; first: boolean; className: string }) {
-    const formats = photo.detail ?? photo.zoom ?? photo.card ?? {};
-    const src = formats.jpg ?? formats.webp ?? formats.avif;
-    const media = wide ? '(max-width: 640px)' : '(min-width: 641px)';
-
-    if (src === undefined) {
-        return null;
-    }
-
-    return (
-        <picture>
-            <source media={media} srcSet={NOTHING} />
-            {formats.avif ? <source type="image/avif" srcSet={formats.avif} /> : null}
-            {formats.webp ? <source type="image/webp" srcSet={formats.webp} /> : null}
-            <img src={src} alt={alt} loading={first ? 'eager' : 'lazy'} decoding="async" {...(first ? { fetchPriority: 'high' as const } : {})} className={className} />
-        </picture>
-    );
-}
-
-function Hero({ words, banner, phone, store, locale }: { words: Words; banner: Banner | null; phone: Banner[]; store: string; locale: string }) {
-    const t = useTranslator();
-    const main = words.main as ButtonWords;
-    const second = words.second as ButtonWords;
-    const facts = Array.isArray(words.facts) ? (words.facts as unknown[]).map(text).filter((fact): fact is string => fact !== null) : [];
+function Hero({ words, banners, store, locale }: { words: Words; banners: Banner[]; store: string; locale: string }) {
     const title = text(words.title);
 
     return (
-        <section className="grid gap-4" data-test="home-hero">
-            {/* A phone: the swiped banners (§1.6 HOME_PHONE), the design's dots under them. */}
-            {phone.length > 0 ? (
-                <div className="grid gap-2 sm:hidden">
-                    <ul className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 [scrollbar-width:none]" aria-label={t('content::shop.home.banners')} data-test="home-phone-banners">
-                        {phone.map((item, index) => (
-                            <li key={item.id} className="w-[calc(100%-1rem)] shrink-0 snap-center">
-                                <ContentLink link={item.link} store={store} locale={locale} className="block overflow-hidden rounded-lg">
-                                    <WidthPicture photo={item.image} alt={item.alt ?? t('content::shop.home.banner_of', { number: figure(locale, index + 1), count: figure(locale, phone.length) })} wide={false} first={index === 0} className="aspect-[2/1] w-full object-cover" />
-                                </ContentLink>
-                            </li>
-                        ))}
-                    </ul>
-                    {phone.length > 1 ? (
-                        <div className="flex justify-center gap-1.5" aria-hidden="true">
-                            {phone.map((item) => (
-                                <i key={item.id} className="block h-1.5 w-1.5 rounded-full bg-line-strong" />
-                            ))}
-                        </div>
-                    ) : null}
-                </div>
-            ) : null}
-
-            {/* From a tablet up: the hero's words beside its artwork. */}
-            {title || banner ? (
-                <div className="hidden overflow-hidden rounded-xl bg-surface-sunken sm:grid sm:grid-cols-2 sm:items-center">
-                    <div className="grid content-center gap-4 p-8 lg:p-12">
-                        {text(words.eyebrow) ? <span className="text-label-13 text-ink-muted">{text(words.eyebrow)}</span> : null}
-                        {title ? <h1 className="text-heading-32 text-ink lg:text-heading-48">{title}</h1> : null}
-                        {text(words.line) ? <p className="text-copy-16 text-ink-muted">{text(words.line)}</p> : null}
-                        <div className="flex flex-wrap gap-3">
-                            {main?.text && main.link ? (
-                                <Button asChild size="lg">
-                                    <ContentLink link={main.link} store={store} locale={locale}>{main.text}</ContentLink>
-                                </Button>
-                            ) : null}
-                            {second?.text && second.link ? (
-                                <Button asChild size="lg" variant="outline">
-                                    <ContentLink link={second.link} store={store} locale={locale}>{second.text}</ContentLink>
-                                </Button>
-                            ) : null}
-                        </div>
-                        {facts.length > 0 ? (
-                            <ul className="flex flex-wrap gap-x-6 gap-y-2 border-t border-line pt-4">
-                                {facts.map((fact) => (
-                                    <li key={fact} className="text-label-13 text-ink">
-                                        {fact}
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : null}
-                    </div>
-                    {banner ? (
-                        <ContentLink link={banner.link} store={store} locale={locale} className="block h-full min-h-[420px]">
-                            <WidthPicture photo={banner.image} alt={banner.alt ?? ''} wide first className="h-full min-h-[420px] w-full object-cover" />
-                        </ContentLink>
-                    ) : null}
-                </div>
-            ) : null}
-            {/* A phone with no banner still says what the store is. */}
-            {phone.length === 0 && title ? <h1 className="text-heading-24 text-ink sm:hidden">{title}</h1> : null}
+        <section className="grid gap-4 pt-4 sm:pt-6" data-test="home-hero">
+            {banners.length > 0 ? <Banners banners={banners} store={store} locale={locale} /> : null}
+            {/* The store's title stays the page's H1, a slim line under the banners (option (b); P16: alone with none). */}
+            {title ? <h1 className="shop-box text-heading-20 text-ink sm:text-heading-24" data-test="home-title">{title}</h1> : null}
         </section>
     );
 }
 
-function Promises({ words, theme }: { words: Words; theme: ShopHomePageData['themeParts'] }) {
+type BannersView = ComponentType<{ banners: Banner[]; store: string; locale: string }>;
+
+/**
+ * The banners (shop-design.md §3.1): the first drawn as it is, by the server too, until the carousel's own file
+ * (HomeBanners, on shadcn's Carousel) has loaded after the page shows and turns them (frontend.md §5).
+ */
+function Banners({ banners, store, locale }: { banners: Banner[]; store: string; locale: string }) {
+    const [View, setView] = useState<BannersView | null>(null);
+
+    useEffect(() => {
+        if (banners.length > 1) {
+            void import('@/components/content/HomeBanners').then((loaded) => setView(() => loaded.default));
+        }
+    }, [banners.length]);
+
+    if (View !== null) {
+        return <View banners={banners} store={store} locale={locale} />;
+    }
+
+    const first = banners[0];
+
+    return first === undefined ? null : (
+        <div className="shop-box relative max-sm:px-0!" data-test="home-banners">
+            <div data-test="home-banner">
+                <BannerSlide banner={first} first store={store} locale={locale} />
+            </div>
+            {/* The dots' room is kept, so nothing moves when the carousel comes. */}
+            {banners.length > 1 ? <div className="mt-3 h-1.5" aria-hidden="true" /> : null}
+        </div>
+    );
+}
+
+function Promises({ words, facts, theme }: { words: Words; facts: { figure: string | null; caption: string }[]; theme: ShopHomePageData['themeParts'] }) {
     const promises = Array.isArray(words.promises) ? (words.promises as { icon: string; title: string | null; line: string | null }[]) : [];
 
-    if (promises.length === 0) {
+    if (promises.length === 0 && facts.length === 0) {
         return null;
     }
 
+    // The design's service strip: edge to edge, a line under it; 4 columns, 2 up to 820 px; the hero's facts one slim row under them.
     return (
-        <section className={`-mx-4 overflow-x-auto px-4 sm:mx-0 sm:rounded-xl sm:border sm:border-line ${theme.promisesArt ? 'bg-cover bg-center [background-image:var(--tw-theme-promises)]' : ''}`} data-test="home-promises">
-            <ul className="flex gap-3 py-1 sm:grid sm:grid-cols-4 sm:gap-0 sm:py-0">
-                {promises.map((promise, index) => {
-                    const Icon = promiseIcon(promise.icon);
-                    // A theme may give each promise its own words (§1.8 part 3).
-                    const title = theme.promises[`promise_${index + 1}`] ?? promise.title;
+        <section className={`border-b border-line ${theme.promisesArt ? 'bg-cover bg-center [background-image:var(--tw-theme-promises)]' : ''}`} data-test="home-promises">
+            {promises.length > 0 ? (
+                <ul className="shop-box grid grid-cols-2 gap-3 py-4 min-[821px]:grid-cols-4 sm:gap-0 sm:py-2">
+                    {promises.map((promise, index) => {
+                        const Icon = promiseIcon(promise.icon);
+                        // A theme may give each promise its own words (§1.8 part 3).
+                        const title = theme.promises[`promise_${index + 1}`] ?? promise.title;
 
-                    return (
-                        <li key={index} className="flex shrink-0 items-center gap-3 rounded-full border border-line bg-surface px-3 py-2 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-5">
-                            <Icon aria-hidden className="size-5 shrink-0 text-brand" />
-                            <span className="grid">
-                                <span className="text-label-13 text-ink sm:text-label-14">{title}</span>
-                                {promise.line ? <span className="hidden text-copy-13 text-ink-muted sm:block">{promise.line}</span> : null}
-                            </span>
+                        return (
+                            <li key={index} className="flex items-center gap-3 sm:p-4">
+                                <Icon aria-hidden className="size-5 shrink-0 text-accent" />
+                                <span className="grid">
+                                    <span className="text-label-13 text-ink sm:text-label-14">{title}</span>
+                                    {promise.line ? <span className="hidden text-copy-13 text-ink-muted sm:block">{promise.line}</span> : null}
+                                </span>
+                            </li>
+                        );
+                    })}
+                </ul>
+            ) : null}
+            {facts.length > 0 ? (
+                <ul className="shop-box flex flex-wrap gap-x-8 gap-y-2 border-t border-line py-3" data-test="home-facts">
+                    {facts.map((fact) => (
+                        <li key={`${fact.figure ?? ''}${fact.caption}`} className="flex items-baseline gap-2">
+                            {fact.figure ? <span className="text-label-14 font-semibold text-ink">{fact.figure}</span> : null}
+                            <span className="text-copy-13 text-ink-muted">{fact.caption}</span>
                         </li>
-                    );
-                })}
-            </ul>
+                    ))}
+                </ul>
+            ) : null}
         </section>
     );
 }
@@ -222,12 +196,12 @@ function Tiles({ heading, tiles }: { heading: string | null; tiles: Tile[] }) {
 
     return (
         <Band heading={heading} test="home-categories">
-            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                 {tiles.map((tile) => (
                     <li key={tile.slug}>
-                        <Link href={link('storefront.catalog.category', { slug: tile.slug })} className="material-small group grid gap-2 overflow-hidden bg-surface p-3 hover:shadow-[0_0_0_1px_var(--tw-line-strong)]" data-test="home-tile">
-                            <ShopPhoto photo={tile.photo} size="card" alt="" className="aspect-[4/3] w-full rounded-md" />
-                            <span className="truncate text-label-14 text-ink group-hover:underline">{tile.name}</span>
+                        <Link href={link('storefront.catalog.category', { slug: tile.slug })} className="material-small group grid overflow-hidden bg-surface hover:shadow-[0_0_0_1px_var(--tw-line-strong)]" data-test="home-tile">
+                            <ShopPhoto photo={tile.photo} size="card" alt="" className="aspect-[4/3] w-full" />
+                            <span className="truncate p-3 text-label-14 text-ink group-hover:underline">{tile.name}</span>
                         </Link>
                     </li>
                 ))}
@@ -254,7 +228,7 @@ function Projects({ heading, project, guides }: { heading: string | null; projec
                 </Link>
             }
         >
-            <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+            <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
                 <Link href={link('storefront.content.project', { slug: project.slug })} className="group relative block overflow-hidden rounded-xl" data-test="home-project">
                     <ShopPhoto photo={Array.isArray(project.image) ? null : project.image} size="detail" alt="" className="aspect-[2/1] w-full" />
                     {/* The design's caption: the sidebar's navy, dark in both modes, solid behind the words and fading out above them; the words light (shop-design.md §12, bug 1). */}
@@ -282,15 +256,16 @@ function Projects({ heading, project, guides }: { heading: string | null; projec
 function Audience({ words, store, locale }: { words: Words; store: string; locale: string }) {
     const blocks = [words.individuals, words.companies] as ({ title: string | null; line: string | null; button: ButtonWords } | undefined)[];
 
+    // The design's two blocks (H4): small headings, one button each; the companies' block warm, its button copper.
     return (
-        <section className="grid gap-4 sm:grid-cols-2" data-test="home-audience">
+        <section className="shop-box grid gap-4 sm:grid-cols-2" data-test="home-audience">
             {blocks.map((block, index) =>
                 block?.title ? (
-                    <div key={index} className="grid content-start gap-3 rounded-xl border border-line bg-surface p-6">
-                        <h3 className="text-heading-20 text-ink">{block.title}</h3>
-                        {block.line ? <p className="text-copy-14 text-ink-muted">{block.line}</p> : null}
+                    <div key={index} className={`grid content-start gap-3 rounded-xl border p-6 ${index === 1 ? 'border-line-warm bg-sand text-sand-ink' : 'border-line bg-surface'}`} data-test={index === 1 ? 'audience-companies' : 'audience-individuals'}>
+                        <h3 className={`text-heading-16 ${index === 1 ? 'text-sand-ink' : 'text-ink'}`}>{block.title}</h3>
+                        {block.line ? <p className={`text-copy-14 ${index === 1 ? 'text-sand-ink' : 'text-ink-muted'}`}>{block.line}</p> : null}
                         {block.button?.text && block.button.link ? (
-                            <Button asChild variant={index === 0 ? 'default' : 'outline'} className="justify-self-start">
+                            <Button asChild className={`h-[46px] justify-self-start ${index === 1 ? 'bg-accent text-ink-on-brand hover:bg-accent/90' : ''}`}>
                                 <ContentLink link={block.button.link} store={store} locale={locale}>{block.button.text}</ContentLink>
                             </Button>
                         ) : null}
@@ -305,38 +280,56 @@ function Points({ words, points, theme, locale }: { words: Words; points: NonNul
     const t = useTranslator();
     const heading = theme.pointsHeading ?? text(words.heading);
 
+    // The design's band (H5): a warm ground, a 30 px heading, and two cards whose figures are the store's settings, never typed (Q16 (b)).
     return (
-        <section className={`grid gap-4 rounded-xl border border-line bg-surface-sunken p-6 sm:grid-cols-[3fr_2fr] sm:items-center sm:p-10 ${theme.pointsArt ? 'bg-cover bg-center [background-image:var(--tw-theme-points)]' : ''}`} data-test="home-points">
-            <div className="grid gap-2">
-                {text(words.small_heading) ? <span className="text-label-13 text-ink-muted">{text(words.small_heading)}</span> : null}
-                {heading ? <h2 className="text-heading-24 text-ink">{heading}</h2> : null}
-                {text(words.line) ? <p className="text-copy-14 text-ink-muted">{text(words.line)}</p> : null}
+        <section className={`bg-sand text-sand-ink ${theme.pointsArt ? 'bg-cover bg-center [background-image:var(--tw-theme-points)]' : ''}`} data-test="home-points">
+            <div className="shop-box grid gap-6 py-8 sm:grid-cols-[3fr_2fr] sm:items-center sm:py-12">
+                <div className="grid gap-2">
+                    {text(words.small_heading) ? <span className="text-label-13 text-accent">{text(words.small_heading)}</span> : null}
+                    {heading ? <h2 className="text-heading-24 sm:text-[30px] sm:leading-tight sm:font-semibold">{heading}</h2> : null}
+                    {text(words.line) ? <p className="text-copy-14">{text(words.line)}</p> : null}
+                </div>
+                <ul className="grid grid-cols-2 gap-3">
+                    <li className="grid gap-1 rounded-xl border border-line-warm bg-surface p-4 text-ink" data-test="points-earn">
+                        <span className="tw-figure text-heading-24 text-accent">{figure(locale, points.earn)}</span>
+                        <span className="text-copy-13 text-ink-muted">{t('content::shop.home.points_earn', { points: figure(locale, points.earn), currency: points.currency })}</span>
+                    </li>
+                    <li className="grid gap-1 rounded-xl border border-line-warm bg-surface p-4 text-ink" data-test="points-off">
+                        <span className="tw-figure text-heading-24 text-accent">{figure(locale, points.off)}</span>
+                        <span className="text-copy-13 text-ink-muted">{t('content::shop.home.points_off', { points: figure(locale, points.off), currency: points.currency })}</span>
+                    </li>
+                </ul>
             </div>
-            {/* The figures are the store's settings, never typed (Q16 (b)). */}
-            <ul className="grid gap-3">
-                <li className="text-label-14 text-ink" data-test="points-earn">
-                    {t('content::shop.home.points_earn', { points: figure(locale, points.earn), currency: points.currency })}
-                </li>
-                <li className="text-label-14 text-ink" data-test="points-off">
-                    {t('content::shop.home.points_off', { points: figure(locale, points.off), currency: points.currency })}
-                </li>
-            </ul>
         </section>
     );
 }
 
+const TILE = 'grid h-[78px] w-[180px] place-items-center rounded-lg border border-line bg-surface grayscale transition hover:grayscale-0';
+
 function Logos({ heading, logos, art, store, locale }: { heading: string | null; logos: Logo[]; art: boolean; store: string; locale: string }) {
+    // The design's band (H7): edge to edge, the logos as tiles, grey until hovered, moving slowly - twice over, so the
+    // row joins itself - and still for a person who asked for less motion; the second copy is for the eye only.
+    const tile = (logo: Logo, index: number, copy: boolean) => (
+        <li key={`${copy ? 'copy' : 'logo'}${index}`} className="shrink-0" aria-hidden={copy || undefined}>
+            {/* The copy is a picture only, so the keyboard meets each logo once. */}
+            {copy ? (
+                <span className={TILE}>
+                    <ShopPhoto photo={logo.image} size="card" alt="" className="h-[62px] w-[164px] object-contain" />
+                </span>
+            ) : (
+                <ContentLink link={logo.link} store={store} locale={locale} className={TILE}>
+                    <ShopPhoto photo={logo.image} size="card" alt={logo.name ?? ''} className="h-[62px] w-[164px] object-contain" />
+                </ContentLink>
+            )}
+        </li>
+    );
+
     return (
-        <section className={`-mx-4 grid gap-4 border-y border-line bg-surface-sunken px-4 py-8 ${art ? 'bg-cover bg-center [background-image:var(--tw-theme-logos)]' : ''}`} data-test="home-logos">
-            {heading ? <h2 className="text-heading-20 text-ink">{heading}</h2> : null}
-            <ul className="flex flex-wrap items-center justify-center gap-6">
-                {logos.map((logo, index) => (
-                    <li key={index}>
-                        <ContentLink link={logo.link} store={store} locale={locale} className="block">
-                            <ShopPhoto photo={logo.image} size="card" alt={logo.name ?? ''} className="h-[78px] w-[180px] object-contain" />
-                        </ContentLink>
-                    </li>
-                ))}
+        <section className={`grid gap-4 overflow-hidden border-y border-line bg-surface-sunken py-8 ${art ? 'bg-cover bg-center [background-image:var(--tw-theme-logos)]' : ''}`} data-test="home-logos">
+            {heading ? <h2 className="shop-box text-heading-20 text-ink">{heading}</h2> : null}
+            <ul className="flex w-max animate-[tw-marquee_40s_linear_infinite] gap-4 hover:[animation-play-state:paused] motion-reduce:animate-none">
+                {logos.map((logo, index) => tile(logo, index, false))}
+                {logos.map((logo, index) => tile(logo, index, true))}
             </ul>
         </section>
     );

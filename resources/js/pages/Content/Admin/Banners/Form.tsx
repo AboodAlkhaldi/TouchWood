@@ -32,12 +32,12 @@ import type { BannerFormPageData, ContentImageData } from '@/types/generated/Mod
 const LIST = '/admin/content/banners';
 
 /**
- * The sizes to upload (§1.6), by placement and kind, and the largest each is shown at where the spec gives it: the hero
- * 772x420 (at 820), the phone banner 347x174 (at 375). A listing banner's shown size is not given: its upload is twice it.
+ * The sizes to upload (§1.6; shop-design.md §10.3, P10), by placement and kind, and the largest each is shown at where
+ * the spec gives it: the home's wide picture 1320x440, its phone picture 347x174 (at 375). A listing banner's shown size
+ * is not given: its upload is twice it.
  */
 const SIZES: Record<string, Partial<Record<'DESKTOP' | 'PHONE', { width: number; height: number; shown?: { width: number; height: number } }>>> = {
-    HOME_HERO: { DESKTOP: { width: 1600, height: 1040, shown: { width: 772, height: 420 } } },
-    HOME_PHONE: { PHONE: { width: 1200, height: 600, shown: { width: 347, height: 174 } } },
+    HOME_HERO: { DESKTOP: { width: 2400, height: 800, shown: { width: 1320, height: 440 } }, PHONE: { width: 1200, height: 600, shown: { width: 347, height: 174 } } },
     LISTING: { DESKTOP: { width: 1600, height: 300 }, PHONE: { width: 1200, height: 300 } },
 };
 
@@ -67,6 +67,12 @@ export default function Form({ store, storeTimezone, placement: asked, banner, i
         link: banner?.link ?? '',
         alt_ar: banner?.altAr ?? '',
         alt_en: banner?.altEn ?? '',
+        title_ar: banner?.titleAr ?? '',
+        title_en: banner?.titleEn ?? '',
+        line_ar: banner?.lineAr ?? '',
+        line_en: banner?.lineEn ?? '',
+        button_ar: banner?.buttonAr ?? '',
+        button_en: banner?.buttonEn ?? '',
     });
     const [onCategory, setOnCategory] = useState(banner?.categoryId != null);
     const [images, setImages] = useState<Record<string, ContentImageData>>(savedImages);
@@ -85,6 +91,16 @@ export default function Form({ store, storeTimezone, placement: asked, banner, i
         { id: 'alt_ar', label: t('content::admin_banners.fields.alt_ar'), value: form.data.alt_ar, rules: { required: true, length: { max: 200 } } },
         { id: 'alt_en', label: t('content::admin_banners.fields.alt_en'), value: form.data.alt_en, rules: { required: scheduled, length: { max: 200 } } },
         { id: 'category_id', label: t('content::admin_banners.fields.category'), value: form.data.category_id, rules: { required: form.data.placement === 'LISTING' && onCategory } },
+        ...(['title', 'line', 'button'] as const).flatMap((word) => {
+            const max = { title: 60, line: 120, button: 24 }[word];
+
+            return (['ar', 'en'] as const).map((language) => ({
+                id: `${word}_${language}`,
+                label: t(`content::admin_banners.fields.${word}_${language}`),
+                value: form.data[`${word}_${language}`],
+                rules: { required: language === 'en' && scheduled && form.data[`${word}_ar`] !== '', length: { max } },
+            }));
+        }),
         momentBox(starts, { id: 'starts', label: t('content::admin_shared.starts'), kind: 'start', zone }),
         momentBox(ends, { id: 'ends', label: t('content::admin_shared.ends'), kind: 'end', zone, after: starts }),
     ]);
@@ -100,7 +116,6 @@ export default function Form({ store, storeTimezone, placement: asked, banner, i
     };
     const placements: Record<string, string> = {
         HOME_HERO: t('content::admin_banners.placement.HOME_HERO'),
-        HOME_PHONE: t('content::admin_banners.placement.HOME_PHONE'),
         LISTING: t('content::admin_banners.placement.LISTING'),
     };
 
@@ -245,6 +260,24 @@ export default function Form({ store, storeTimezone, placement: asked, banner, i
                         })}
                     </div>
 
+                    {/* A home banner's own words over its picture (shop-design.md §3.1): real text, read and translated. */}
+                    {form.data.placement === 'HOME_HERO'
+                        ? (['title', 'line', 'button'] as const).map((word) => (
+                              <PairFields
+                                  key={word}
+                                  name={word}
+                                  labelAr={t(`content::admin_banners.fields.${word}_ar`)}
+                                  labelEn={t(`content::admin_banners.fields.${word}_en`)}
+                                  helper={t(`content::admin_banners.fields.${word}_rule`)}
+                                  ar={form.data[`${word}_ar`]}
+                                  en={form.data[`${word}_en`]}
+                                  onChange={(language, value) => form.setData(`${word}_${language}`, value)}
+                                  errors={errors}
+                                  checks={checks}
+                                  translation={translation}
+                              />
+                          ))
+                        : null}
                     <TextField id="link" dir="ltr" label={t('content::admin_shared.link')} helper={t('content::admin_shared.link_helper')} error={errors.link} value={form.data.link} onChange={(event) => form.setData('link', toLatinDigits(event.target.value))} data-test="link" />
                     <PairFields
                         name="alt"

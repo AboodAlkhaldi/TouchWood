@@ -18,8 +18,7 @@ final class ShopHomePageData extends Data
 {
     /**
      * @param  list<array<string, mixed>>  $sections
-     * @param  array<string, mixed>|null  $heroBanner
-     * @param  list<array<string, mixed>>  $phoneBanners
+     * @param  list<array<string, mixed>>  $banners  the first section's, in order, both widths' pictures and their words
      * @param  list<array<string, mixed>>  $bestSellers
      * @param  array<string, mixed>  $cardFacts
      * @param  list<array<string, mixed>>  $categoryTiles
@@ -28,8 +27,7 @@ final class ShopHomePageData extends Data
      */
     public function __construct(
         public array $sections,
-        public ?array $heroBanner,
-        public array $phoneBanners,
+        public array $banners,
         public array $bestSellers,
         public array $cardFacts,
         public array $categoryTiles,

@@ -76,8 +76,8 @@ it('§1.1 rule 1: belongs to one store - another store\'s item is not found, its
 
     expect(fn () => app(BannersHandler::class)->banner($banner))->toThrow(ContentNotFound::class)
         ->and(fn () => app(ScheduleBannerHandler::class)->handle(new ScheduleBanner($banner, 1)))->toThrow(ContentNotFound::class)
-        ->and(fn () => app(BannersHandler::class)->list(Fx::storeId('sa'), 'HOME_PHONE'))->toThrow(Unauthorized::class)
-        ->and(app(BannersHandler::class)->list(Fx::storeId('ae'), 'HOME_PHONE')['rows'])->toBe([]);
+        ->and(fn () => app(BannersHandler::class)->list(Fx::storeId('sa'), 'HOME_HERO'))->toThrow(Unauthorized::class)
+        ->and(app(BannersHandler::class)->list(Fx::storeId('ae'), 'HOME_HERO')['rows'])->toBe([]);
 });
 
 it('§1.1 rule 2: saves with Arabic alone, publishes only with English, and refuses English blanked on what is published', function () {
@@ -151,12 +151,12 @@ it('§1.1 rule 7: refuses an off store to whoever may not switch stores, lets on
     $before = DB::table('content.banners')->where('id', $banner)->first(['starts_at', 'ends_at', 'is_scheduled']);
     $eg = Cx::switchOff('eg');
 
-    expect(fn () => app(BannersHandler::class)->list($eg, 'HOME_PHONE'))->toThrow(StoreOff::class)
+    expect(fn () => app(BannersHandler::class)->list($eg, 'HOME_HERO'))->toThrow(StoreOff::class)
         ->and(fn () => app(BannersHandler::class)->banner($banner))->toThrow(StoreOff::class)
         ->and(DB::table('content.banners')->where('id', $banner)->first(['starts_at', 'ends_at', 'is_scheduled']))->toEqual($before);
 
     Fx::actAsStaff(Fx::staff(superAdmin: true));
-    expect(app(BannersHandler::class)->list($eg, 'HOME_PHONE')['rows'])->toHaveCount(1);
+    expect(app(BannersHandler::class)->list($eg, 'HOME_HERO')['rows'])->toHaveCount(1);
 });
 
 it('§1.1 rule 8: keeps no colour - no Content table has a column for one', function () {
@@ -186,7 +186,7 @@ it('§1.1 rule 10: takes only public JPEG, PNG or WebP images of the library', f
 
 it('§1.1 rule 10: refuses Schedule while an image\'s sizes are being made, and asks for it again when they failed', function (string $sizes, bool $failed) {
     Cx::editor([ContentPermissions::BANNER_MANAGE]);
-    $banner = Cx::banner(['images' => ['PHONE:any' => Cx::image($sizes)]]);
+    $banner = Cx::banner(['images' => ['DESKTOP:any' => Cx::image(), 'PHONE:any' => Cx::image($sizes)]]);
 
     try {
         app(ScheduleBannerHandler::class)->handle(new ScheduleBanner($banner, 1));

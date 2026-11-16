@@ -35,9 +35,9 @@ it('moves a banner to the bottom, opens one, and deletes a draft', function () {
     $first = Fx::asSystem(fn (): string => Cx::banner(['name' => "First {$run}"], 'ae'));
     $second = Fx::asSystem(fn (): string => Cx::banner(['name' => "Second {$run}"], 'ae'));
 
-    $page->navigate('/admin/content/banners?store=ae&placement=HOME_PHONE', BROWSER_SLOW_PAGE_LOAD);
+    $page->navigate('/admin/content/banners?store=ae&placement=HOME_HERO', BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"banner-{$second}\"]') !== null"))->toBeTrue()
-        ->and((string) $page->script("document.querySelector('[data-test=\"tab-HOME_PHONE\"]').textContent"))->toContain('2');
+        ->and((string) $page->script("document.querySelector('[data-test=\"tab-HOME_HERO\"]').textContent"))->toContain('2');
 
     $page->click("[data-test=\"banner-{$first}\"] [data-test=\"more-{$first}\"]")->click('[data-test="move-bottom"]');
     // The row moves at once, and the whole order reaches the server.
@@ -51,7 +51,7 @@ it('moves a banner to the bottom, opens one, and deletes a draft', function () {
     $page->click('[data-test="has-words"]');
     expect(browserSoon($page, "document.querySelector('[data-test=\"image-phone_image_ar\"]') !== null && document.querySelector('[data-test=\"image-phone_image_en\"]') !== null"))->toBeTrue();
 
-    $page->navigate('/admin/content/banners?store=ae&placement=HOME_PHONE', BROWSER_SLOW_PAGE_LOAD);
+    $page->navigate('/admin/content/banners?store=ae&placement=HOME_HERO', BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"banner-{$first}\"]') !== null"))->toBeTrue();
     $page->click("[data-test=\"banner-{$first}\"] [data-test=\"more-{$first}\"]")->click('[data-test="menu-delete"]');
     expect(browserSoon($page, "document.querySelector('[data-test=\"confirm-delete\"]') !== null"))->toBeTrue();
@@ -66,7 +66,7 @@ it('draws right to left in Arabic, in Latin digits, and fits a phone with its ro
     $banner = Fx::asSystem(fn (): string => Cx::banner(['name' => "Banner with a long name that does not break {$run}"], 'ae'));
     $page->resize(375, 812);
 
-    $page->navigate('/admin/content/banners?store=ae&placement=HOME_PHONE', BROWSER_SLOW_PAGE_LOAD);
+    $page->navigate('/admin/content/banners?store=ae&placement=HOME_HERO', BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.documentElement.dir === 'rtl' && document.querySelector('[data-test=\"banner-card-{$banner}\"]') !== null"))->toBeTrue()
         ->and(Cb::latinDigits($page))->toBeTrue()
         ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page))

@@ -172,7 +172,7 @@ describe('the store\'s list locks', function () {
         expect(lockedFirst(locksTaken(function () use (&$banner): void {
             $banner = Cx::banner();
         }), lockKey('banners')))->toBeTrue()
-            ->and(lockedFirst(locksTaken(fn () => app(OrderBannersHandler::class)->handle(new OrderBanners(Fx::storeId('sa'), 'HOME_PHONE', [(string) $banner]))), lockKey('banners')))->toBeTrue()
+            ->and(lockedFirst(locksTaken(fn () => app(OrderBannersHandler::class)->handle(new OrderBanners(Fx::storeId('sa'), 'HOME_HERO', [(string) $banner]))), lockKey('banners')))->toBeTrue()
             ->and(lockedFirst(locksTaken(fn () => app(DeleteBannerHandler::class)->handle(new DeleteBanner((string) $banner))), lockKey('banners')))->toBeTrue();
     });
 
@@ -228,7 +228,7 @@ describe('a scheduled pop-up changed', function () {
 
 describe('a file or a category deleted after its check', function () {
     it('refuses the row naming a file that is gone in the check\'s words', function () {
-        $banner = new Banner(strtolower((string) Str::ulid()), Fx::storeId('sa'), BannerPlacement::HomePhone, null, 'Gone', null, false, 'وصف', null, new Schedule(false, null, null), 0, ['PHONE:any' => strtolower((string) Str::ulid())], 1, null, Cx::now());
+        $banner = new Banner(strtolower((string) Str::ulid()), Fx::storeId('sa'), BannerPlacement::HomeHero, null, 'Gone', null, false, 'وصف', null, new Schedule(false, null, null), 0, ['PHONE:any' => strtolower((string) Str::ulid())], 1, null, Cx::now());
 
         try {
             DB::transaction(fn () => app(Banners::class)->add($banner));

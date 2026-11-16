@@ -16,7 +16,7 @@ use Modules\Content\Domain\ValueObject\Words;
  *
  * | Type | Settings |
  * |---|---|
- * | `HERO` | eyebrow, title, line; main and second button (text pair and link); up to 3 short facts |
+ * | `HERO` | eyebrow, title, line; main and second button (text pair and link); up to 3 short facts, each a figure (16) and a caption (40) per language (shop-design.md §10.9, P24) |
  * | `PROMISES` | 2 to 4 promises, each an icon of the fixed list, a title and a line |
  * | `CATEGORIES` | heading; how many tiles, 4 to 12 (8) |
  * | `BEST_SELLERS` | heading; how many, 4 to 20 (8) |
@@ -65,7 +65,12 @@ final class HomeSectionSettings
                 'line' => self::pair('line', $input['line'] ?? null, 160),
                 'main' => self::button('main_button', $input['main'] ?? null),
                 'second' => self::button('second_button', $input['second'] ?? null),
-                'facts' => self::list('facts', $input['facts'] ?? [], self::MAX_FACTS, static fn (mixed $fact): array => self::pair('fact', $fact, 40)),
+                // A fact saved before 2026-11-16 is a caption alone ({ar, en}); it reads as one with no figure.
+                'facts' => self::list('facts', $input['facts'] ?? [], self::MAX_FACTS, static function (mixed $fact): array {
+                    $fact = is_array($fact) ? $fact : [];
+
+                    return ['figure' => self::pair('fact_figure', $fact['figure'] ?? null, 16), 'caption' => self::pair('fact', array_key_exists('caption', $fact) ? $fact['caption'] : $fact, 40)];
+                }),
             ],
             HomeSectionType::Promises => [
                 'promises' => self::list('promises', $input['promises'] ?? [], self::MAX_PROMISES, static function (mixed $promise): array {

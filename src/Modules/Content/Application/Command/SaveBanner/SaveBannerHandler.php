@@ -84,7 +84,7 @@ final readonly class SaveBannerHandler
             if ($command->bannerId === null) {
                 $this->locks->lock($store->id, ContentLocks::BANNERS);
                 $id = strtolower((string) Str::ulid());
-                $banner = new Banner($id, $store->id, $placement, $fields['category'], $fields['name'], $fields['link'], $command->hasWords, $fields['alt']['ar'], $fields['alt']['en'], new Schedule(false, $fields['starts'], $fields['ends']), count($this->banners->inPlacement($store->id, $placement)), $fields['images'], 1, $staffId, $now);
+                $banner = new Banner($id, $store->id, $placement, $fields['category'], $fields['name'], $fields['link'], $command->hasWords, $fields['alt']['ar'], $fields['alt']['en'], new Schedule(false, $fields['starts'], $fields['ends']), count($this->banners->inPlacement($store->id, $placement)), $fields['images'], 1, $staffId, $now, $fields['words']);
                 $this->banners->add($banner);
                 $this->marks->saved(UnreadTranslations::BANNER, $id, $store->id, $command->translated, $command->read, false);
                 $this->platform->recordAudit(ContentAudit::entry('content.banner.created', 'content.banner', $id, $store->id, ContentAudit::diff([], $banner->fields())));
@@ -102,7 +102,7 @@ final readonly class SaveBannerHandler
             }
             // A scheduled banner always has a start: left blank, it is Now (W3's default).
             $starts = $fields['starts'] ?? ($was->schedule->isScheduled ? $now : null);
-            $banner = new Banner($was->id, $was->storeId, $placement, $fields['category'], $fields['name'], $fields['link'], $command->hasWords, $fields['alt']['ar'], $fields['alt']['en'], new Schedule($was->schedule->isScheduled, $starts, $fields['ends']), $was->position, $fields['images'], $was->version + 1, $staffId, $now);
+            $banner = new Banner($was->id, $was->storeId, $placement, $fields['category'], $fields['name'], $fields['link'], $command->hasWords, $fields['alt']['ar'], $fields['alt']['en'], new Schedule($was->schedule->isScheduled, $starts, $fields['ends']), $was->position, $fields['images'], $was->version + 1, $staffId, $now, $fields['words']);
 
             // Scheduled or live, it stays held to Schedule's rules.
             if ($was->schedule->state($now) !== ScheduleState::Draft) {
@@ -119,7 +119,7 @@ final readonly class SaveBannerHandler
     }
 
     /**
-     * @return array{category: string|null, name: string, link: string|null, alt: array{ar: string, en: string|null}, starts: \DateTimeImmutable|null, ends: \DateTimeImmutable|null, images: array<string, string>}
+     * @return array{category: string|null, name: string, link: string|null, alt: array{ar: string, en: string|null}, starts: \DateTimeImmutable|null, ends: \DateTimeImmutable|null, images: array<string, string>, words: array<string, string|null>}
      *
      * @throws ContentError
      */
@@ -132,6 +132,17 @@ final readonly class SaveBannerHandler
         }
 
         [$starts, $ends] = Moments::range($command->startsAt, $command->endsAt, $store);
+        $words = [];
+
+        // A home banner's own words (shop-design.md §3.1, P9): a title of 60, a line of 120, a button's text of 24; a
+        // list's banner takes none.
+        foreach (['title' => 60, 'line' => 120, 'button' => 24] as $word => $max) {
+            $pair = $placement->takesWords()
+                ? Words::pair($word, $command->words["{$word}_ar"] ?? null, $command->words["{$word}_en"] ?? null, $max)
+                : ['ar' => null, 'en' => null];
+            $words["{$word}_ar"] = $pair['ar'];
+            $words["{$word}_en"] = $pair['en'];
+        }
 
         return [
             'category' => $category,
@@ -141,6 +152,7 @@ final readonly class SaveBannerHandler
             'starts' => $starts,
             'ends' => $ends,
             'images' => $this->rules->images($placement, $command->hasWords, $command->images),
+            'words' => $words,
         ];
     }
 }
