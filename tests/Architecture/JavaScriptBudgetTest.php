@@ -35,6 +35,13 @@ const SHARED_BUDGET = 200_000;
 */
 const FRAMELESS_PAGES = ['resources/js/pages/Ops/Storefront/EmailLink.tsx'];
 const PAGE_BUDGET = 60_000;
+
+/*
+| Pages the owner allowed over the page budget, each by name with its own ceiling (frontend.md §5). The company's edit page
+| holds the shop's whole frame and the company's long form: the frame's growth to the design (shop-design.md PR A) took it
+| to 60.3 KB, and the owner chose its own ceiling over loading parts of the site later (owner, 2026-11-16).
+*/
+const PAGE_BUDGET_EXCEPTIONS = ['resources/js/pages/B2B/Storefront/Company/Edit.tsx' => 62_000];
 const APP_ENTRY = 'resources/js/app.tsx';
 
 /**
@@ -246,12 +253,14 @@ it('keeps the JavaScript within the budgets of frontend.md §5', function () {
         fn (string $source): bool => preg_match('/^export\s+(default\b|\{[^}]*\bas\s+default\b)/m', (string) file_get_contents(dirname(__DIR__, 2).'/'.$source)) === 1,
         FRAMELESS_PAGES,
     );
-    $overPages = array_filter($sizes['pages'], fn (int $size): bool => $size > PAGE_BUDGET);
+    $overPages = array_filter($sizes['pages'], fn (int $size, string $page): bool => $size > (PAGE_BUDGET_EXCEPTIONS[$page] ?? PAGE_BUDGET), ARRAY_FILTER_USE_BOTH);
     arsort($overPages);
 
     expect($sizes['pages'])->not->toBeEmpty('no page chunks found: are the pages still bundled eagerly?')
         ->and($sizes['shared'])->toBeLessThanOrEqual(SHARED_BUDGET, sprintf('shared JavaScript is %.1f KB gzipped, over the 200 KB budget', $sizes['shared'] / 1000))
-        ->and(array_map(fn (int $size): string => sprintf('%.1f KB', $size / 1000), $overPages))->toBe([]);
+        ->and(array_map(fn (int $size): string => sprintf('%.1f KB', $size / 1000), $overPages))->toBe([])
+        // An exception names a page that is still measured: a renamed or removed page takes its allowance with it.
+        ->and(array_diff(array_keys(PAGE_BUDGET_EXCEPTIONS), array_keys($sizes['pages'])))->toBe([]);
 });
 
 it('lists as frameless only pages that load neither the shop\'s frame nor the panel\'s', function () {
