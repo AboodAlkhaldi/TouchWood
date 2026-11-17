@@ -9,7 +9,7 @@ import type { SharedProps } from '@/types/page';
 /*
 | The phone's tab bar (content.md §1.5): the design's five, fixed at the bottom under 641 px, icons with their names;
 | the page's own tab filled. **Explore opens search** (the owner, 2026-11-11): it brings the search row's box into view
-| and puts the cursor in it. The cart's tab is Sales' (with its pieces), and not in a staff view, which orders nothing.
+| and puts the cursor in it. The cart's tab is Sales' (with its count of products), and not in a staff view, which orders nothing.
 |
 | Its own file, drawn once the page is in the browser (as Ops' newsletter box): the layout keeps its room at the bottom
 | from the first paint, so nothing moves when it comes, and no shop page carries it before it shows.
@@ -59,9 +59,9 @@ export default function TabBar({ House, shop, locale, url, words, sales, staffVi
                     <Link href={`${base}/cart`} className={tab} aria-current={on(`${base}/cart`) ? 'page' : undefined} data-test="tab-cart">
                         <span className="relative">
                             <ShoppingCart aria-hidden="true" className={icon(on(`${base}/cart`))} />
-                            {sales.pieces > 0 ? (
-                                <Badge className="tw-figure absolute -end-2 -top-1.5 h-4 min-w-4 rounded-full bg-accent px-1 text-[10px] leading-none text-ink-on-brand" data-test="tab-cart-pieces">
-                                    {sales.pieces > 99 ? '99+' : figure(locale, sales.pieces)}
+                            {sales.products > 0 ? (
+                                <Badge className="tw-figure absolute -end-2 -top-1.5 h-4 min-w-4 rounded-full bg-accent px-1 text-[10px] leading-none text-ink-on-brand" data-test="tab-cart-count">
+                                    {sales.products > 99 ? '99+' : figure(locale, sales.products)}
                                 </Badge>
                             ) : null}
                         </span>

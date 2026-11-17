@@ -75,6 +75,16 @@ return [
         'confirming' => 'A payment is being confirmed.',
         'cannot_cancel' => 'Shipped orders can\'t be cancelled. You can ask for a return after delivery.',
         'cannot_cancel_closed' => 'This order can no longer be cancelled.',
+        // The order page to the design (shop-design.md §15.2).
+        'mode' => ['RETAIL' => 'Retail', 'WHOLESALE' => 'Wholesale'],
+        'cancel_note' => 'You can cancel until it ships. After that, ask for a return.',
+        'address_copy' => 'The address is kept as a copy in the order: changing it in your address book does not change this order.',
+        'items' => ['zero' => ':count items', 'one' => ':count item', 'two' => ':count items', 'few' => ':count items', 'many' => ':count items', 'other' => ':count items'],
+        'pieces' => ['zero' => ':count pieces', 'one' => ':count piece', 'two' => ':count pieces', 'few' => ':count pieces', 'many' => ':count pieces', 'other' => ':count pieces'],
+        'points_title' => 'Points from this order',
+        'points_count' => ['zero' => ':count points', 'one' => ':count point', 'two' => ':count points', 'few' => ':count points', 'many' => ':count points', 'other' => ':count points'],
+        'points_later' => 'Added to your balance when the order is delivered, and taken back on a cancel or a return.',
+        'points_added' => 'Added to your balance when the order was delivered.',
     ],
     'cancel' => [
         'title' => 'Cancel this order?',

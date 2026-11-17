@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonImmutable;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -24,6 +25,7 @@ use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
+use Tests\Modules\Loyalty\Support\LoyaltyFixtures as Lx;
 use Tests\Modules\Sales\Support\CheckoutFixtures as Cx;
 
 use function Pest\Laravel\seed;
@@ -53,12 +55,17 @@ beforeEach(function () {
  *
  * @return array{0: string, 1: string, 2: AdminBrowser, 3: array{customer: string, address: string, variants: list<string>, product: string}}
  */
-function shopOrdersScreensOrder(bool $delivered = false): array
+function shopOrdersScreensOrder(bool $delivered = false, ?string $unit = null): array
 {
     $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
 
     try {
         $ready = Cx::ready();
+
+        if ($unit !== null) {
+            DB::table('catalog.products')->where('id', $ready['product'])->update(['unit' => $unit]);
+        }
+
         $placed = Cx::place(Cx::start($ready['address'])->id);
 
         if ($delivered) {
@@ -196,4 +203,29 @@ it('finds another customer\'s order and return nowhere', function () {
 
     $other->get("/sa/en/account/orders/{$number}")->assertNotFound();
     $other->get("/sa/en/account/orders/{$number}/return")->assertNotFound();
+});
+
+it('gives the order page the design\'s facts: Approved\'s time, the points it earns, each line\'s unit as ordered and its values as chips (shop-design.md §15.2)', function () {
+    // Sold by the pair when ordered; by the set later: the order keeps the pair (P25).
+    [$id, $number, $browser, $ready] = shopOrdersScreensOrder(delivered: true, unit: 'PAIR');
+    DB::table('catalog.products')->where('id', $ready['product'])->update(['unit' => 'SET']);
+    // The store's points switched on, the real ActorContext given back after (as shopOrdersScreensOrder does).
+    $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
+
+    try {
+        Lx::programme();
+    } finally {
+        app()->scoped(ActorContext::class, $previous);
+        app()->forgetScopedInstances();
+    }
+
+    $order = shopOrdersScreensProps($browser, "/sa/en/account/orders/{$number}", 'Sales/Storefront/Order');
+    $decided = (string) DB::table('sales.orders')->where('id', $id)->value('decided_at');
+
+    expect($order['approvedAt'])->toBeString()
+        ->and(CarbonImmutable::parse((string) $order['approvedAt'])->equalTo(CarbonImmutable::parse($decided)))->toBeTrue()
+        ->and($order['pointsEarned'])->toBeGreaterThan(0)
+        ->and(array_values(array_unique(array_column($order['lines'], 'saleUnit'))))->toBe(['PAIR'])
+        ->and(count($order['lines'][0]['chosen']))->toBeGreaterThan(0)
+        ->and(DB::table('sales.order_lines')->where('order_id', $id)->pluck('sale_unit')->unique()->values()->all())->toBe(['PAIR']);
 });

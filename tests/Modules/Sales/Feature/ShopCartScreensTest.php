@@ -178,14 +178,16 @@ describe('S3, S4 · The cart', function () {
             ->and([$cart['nextGift']['amount']['minor'], $cart['nextGift']['missing']['minor']])->toBe([400_00, 150_00])
             ->and($cart['pointsToEarn'])->toBeGreaterThan(0)
             ->and([$cart['mayNotOrder'], $cart['bestSellers']])->toBe([null, []])
-            ->and($cart['frame']['sales']['pieces'])->toBe(3)
+            // The header counts products - the cart's 2 lines, 3 pieces (shop-design.md Q2).
+            ->and($cart['frame']['sales']['products'])->toBe(2)
             ->and($cart['translations']['sales::shop_cart.extras.for_free_shipping'] ?? null)->toBe('more for free shipping.');
 
         // Past the free-above amount: nothing missing, the bar full.
         $browser->post('/sa/en/cart/lines/change', ['variant' => $ready['variants'][1], 'mode' => 'RETAIL', 'quantity' => 2])->assertRedirect();
         $free = shopCartScreensProps($browser, '/sa/en/cart', 'Sales/Storefront/Cart');
 
-        expect([$free['freeMissing'], $free['freeShare'], $free['frame']['sales']['pieces']])->toBe([null, 100, 4]);
+        // Still 2 products: a line's pieces changed, not the lines.
+        expect([$free['freeMissing'], $free['freeShare'], $free['frame']['sales']['products']])->toBe([null, 100, 2]);
     });
 
     it('shows the store\'s best sellers under an empty cart, and an account that may not order why, with its fix (B12, B14)', function () {
@@ -200,7 +202,7 @@ describe('S3, S4 · The cart', function () {
             ->and($blocked['bestSellers'])->toBe([])
             ->and($empty['lines'])->toBe([])
             ->and(array_column($empty['bestSellers'], 'productId'))->toContain($ready['product'])
-            ->and($empty['frame']['sales']['pieces'])->toBe(0);
+            ->and($empty['frame']['sales']['products'])->toBe(0);
     });
 
     it('closes the notice of the lines that left at a sign-in for good (R2-8; B17)', function () {

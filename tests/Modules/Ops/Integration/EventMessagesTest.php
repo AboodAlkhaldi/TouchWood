@@ -274,7 +274,7 @@ describe('messages to customers (§1.5)', function () {
         event(new OrderEdited(eventMessagesId(), strtolower((string) Str::ulid()), $couponed->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
         $changed = CapturedEmails::installed()->last();
 
-        expect($plain)->toContain('Chair (Brown) x 2: 200.00 SAR')->toContain('Subtotal: 200.00 SAR')->toContain('Shipping: 25.00 SAR')
+        expect($plain)->toContain('Chair (Brown) x 2 · per piece: 200.00 SAR')->toContain('Subtotal: 200.00 SAR')->toContain('Shipping: 25.00 SAR')
             ->toContain('VAT: 33.75 SAR')->toContain('Total: 258.75 SAR')->toContain('Payment: Bank transfer')
             ->and(str_contains($plain, 'Coupon'))->toBeFalse()
             ->and($changed->subject)->toBe('Your order SA-0007 was changed')

@@ -388,6 +388,8 @@ return [
     'open' => 'عرض التفاصيل',
     'summary' => [
         'gift' => 'هدية مجانية',
+        // A line's unit of sale, as ordered (shop-design.md §10.7).
+        'unit' => ['PIECE' => 'للحبة', 'SET' => 'للطقم', 'PAIR' => 'للزوج', 'METRE' => 'للمتر', 'CARTON' => 'للكرتون', 'BOX' => 'للعلبة'],
         'subtotal' => 'المجموع الفرعي',
         'coupon' => 'القسيمة',
         'points' => 'النقاط',

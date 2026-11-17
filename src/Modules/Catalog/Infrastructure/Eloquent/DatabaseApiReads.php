@@ -208,7 +208,7 @@ final readonly class DatabaseApiReads implements ApiReads
 
         $found = [];
 
-        foreach ($this->db->table('catalog.products')->whereIn('id', $ids)->get(['id', 'name_ar', 'name_en', 'stage', 'brand_id', 'category_id', 'warranty_id']) as $row) {
+        foreach ($this->db->table('catalog.products')->whereIn('id', $ids)->get(['id', 'name_ar', 'name_en', 'stage', 'brand_id', 'category_id', 'warranty_id', 'unit']) as $row) {
             $found[(string) $row->id] = new ProductDto(
                 (string) $row->id,
                 (string) $row->name_ar,
@@ -217,6 +217,7 @@ final readonly class DatabaseApiReads implements ApiReads
                 (string) $row->brand_id,
                 $row->category_id === null ? null : (string) $row->category_id,
                 $row->warranty_id === null ? null : (string) $row->warranty_id,
+                (string) $row->unit,
             );
         }
 
@@ -322,7 +323,9 @@ final readonly class DatabaseApiReads implements ApiReads
                 $join->on('s.product_id', '=', 'p.id')->where('s.locale', $locale)->where('s.is_current', true);
             })
             ->whereIn('p.id', $ids)
-            ->selectRaw("p.id, coalesce(p.name_{$locale}, p.name_{$other}) as name, s.slug, p.stage")
+            ->selectRaw("p.id, coalesce(p.name_{$locale}, p.name_{$other}) as name, s.slug, p.stage, p.unit")
+            // The brand's name, as the cart's lines show it (shop-design.md §7, §10.7).
+            ->selectRaw("(SELECT coalesce(b.name_{$locale}, b.name_{$other}) FROM catalog.brands b WHERE b.id = p.brand_id) as brand")
             ->selectRaw('(SELECT ph.media_id FROM catalog.product_photos ph WHERE ph.product_id = p.id ORDER BY ph.position LIMIT 1) as photo')
             ->get();
         $cards = [];
@@ -336,6 +339,8 @@ final readonly class DatabaseApiReads implements ApiReads
                 $row->photo === null ? null : (string) $row->photo,
                 ProductStage::from((string) $row->stage),
                 isset($sold[$id]),
+                $row->brand === null ? null : (string) $row->brand,
+                (string) $row->unit,
             );
         }
 

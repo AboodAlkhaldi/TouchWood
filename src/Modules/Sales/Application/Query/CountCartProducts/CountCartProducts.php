@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Modules\Sales\Application\Query\CountCartPieces;
+namespace Modules\Sales\Application\Query\CountCartProducts;
 
-final readonly class CountCartPieces
+final readonly class CountCartProducts
 {
     public function __construct(
         public string $storeId,

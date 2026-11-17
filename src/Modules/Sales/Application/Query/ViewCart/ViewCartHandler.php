@@ -157,6 +157,7 @@ final readonly class ViewCartHandler
                 $card?->slug, $card?->photoMediaId === null ? null : ($photos[strtolower($card->photoMediaId)]->variants ?? null),
                 $record['code'], $record['values'], $line->mode->value, $line->quantity,
                 $price?->unit, $price?->listUnit, $price?->total, $problem, $least, $most,
+                $card?->brand, $card->unit ?? 'PIECE',
             );
         }
 

@@ -481,7 +481,8 @@ final readonly class MessageWriter
 
         foreach ($order->lines as $line) {
             $values = implode(' - ', array_map(static fn (array $value): string => $value['value'], $line->values));
-            $label = $line->name.($values === '' ? '' : " ({$values})").' x '.$line->quantity;
+            // With its unit of sale, as ordered (shop-design.md §10.7): "x 3 · per pair".
+            $label = $line->name.($values === '' ? '' : " ({$values})").' x '.$line->quantity.' · '.$word('unit.'.$line->saleUnit);
             $rows[] = ['label' => $line->gift ? $label.' - '.$word('gift') : $label, 'value' => self::money($line->total, $store, $locale)];
         }
 

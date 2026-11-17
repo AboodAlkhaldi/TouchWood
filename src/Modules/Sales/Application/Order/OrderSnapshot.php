@@ -68,6 +68,7 @@ final readonly class OrderSnapshot
                 $priced->mode->value, $priced->kind->value, $priced->quantity, $priced->unit->minorUnits, $priced->listUnit->minorUnits, $priced->total->minorUnits,
                 $shares[$index]['coupon']->minorUnits, $shares[$index]['points']->minorUnits, $shares[$index]['vat']->minorUnits,
                 $stock[$priced->variantId]->countsOnStock ?? ! $wired,
+                saleUnit: $size['unit'],
             );
         }
 
@@ -76,6 +77,7 @@ final readonly class OrderSnapshot
             $lines[] = new NewOrderLine(
                 strtolower((string) Str::ulid()), $size['productId'], $quote->giftVariantId, true, $size['nameAr'], $size['nameEn'], $size['values'], $size['code'],
                 SaleMode::Retail->value, null, 1, 0, 0, 0, 0, 0, 0, true,
+                saleUnit: $size['unit'],
             );
         }
 

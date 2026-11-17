@@ -197,7 +197,7 @@ export type SharedProps = {
      * Shop pages under a store: what modules put in the frame, by module (catalog.md §4.5) - Catalog's
      * category menu and search box.
      */
-    frame?: { catalog?: ShopFrameData; sales?: { pieces: number; words: { cart: string; pieces: Record<string, string> } }; ops?: { unread: number | null; words: BellWords | null; newsletter: NewsletterWords | null }; content?: ContentFrame };
+    frame?: { catalog?: ShopFrameData; sales?: { products: number; words: { cart: string; products: Record<string, string> } }; ops?: { unread: number | null; words: BellWords | null; newsletter: NewsletterWords | null }; content?: ContentFrame };
     /** Panel pages, for a signed-in staff member: what modules put in the frame, by module (ops.md §4.15 O1). */
     panelFrame?: { ops?: { unread: number; manyStores: boolean; words: BellWords } };
     /** Whether the sidebar starts open or shut down to its rail; this browser's own choice. */

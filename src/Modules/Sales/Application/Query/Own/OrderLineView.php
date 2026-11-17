@@ -32,5 +32,7 @@ final readonly class OrderLineView
         public Money $total,
         /** How many pieces may still be asked back now; 0 outside the return window. */
         public int $returnable,
+        /** The product's unit of sale when it was ordered (shop-design.md §10.7, P25). */
+        public string $saleUnit = 'PIECE',
     ) {}
 }

@@ -57,7 +57,7 @@ export function CompanySide({ page }: { page: CompanyPage }) {
     const decisionLine = stage === 'decision' ? (approved ? t('b2b::company.steps.decision_approved') : t('b2b::company.steps.decision_rejected')) : null;
 
     return (
-        <aside className="grid content-start gap-4">
+        <aside className="grid content-start gap-4 lg:sticky lg:top-36 lg:self-start" data-test="company-side">
             <Card data-test="steps" className="material-base gap-0 border-0 py-0">
                 <CardHeader className="gap-1 px-5 pt-5 pb-4">
                     <CardTitle className="text-heading-16 text-ink">

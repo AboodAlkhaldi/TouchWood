@@ -33,18 +33,28 @@ export default function Placed(page: PlacedPage) {
 
     return (
         <StorefrontLayout title={t(`${W}.placed.title`)}>
-            <div className="mx-auto grid w-full max-w-xl grid-cols-[minmax(0,1fr)] gap-4">
+            <div className="mx-auto grid w-full max-w-3xl grid-cols-[minmax(0,1fr)] gap-4">
                 <FormError />
-                <Card className="material-base gap-3 border-0 py-6" data-test="order-placed">
-                    <CardContent className="grid justify-items-center gap-3 px-6 text-center">
-                        <CircleCheck aria-hidden="true" className="size-10 text-ink" />
+                {/* The design's green band (shop-design.md §15.1): the tick, the title and the review line, the number at 20 px. */}
+                <section className="grid gap-4 rounded-xl border border-good/30 bg-good-soft p-5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:p-6" data-test="order-placed">
+                    <span className="grid size-12 place-items-center rounded-full bg-good text-ink-on-brand" aria-hidden="true">
+                        <CircleCheck className="size-7" />
+                    </span>
+                    <div className="grid gap-1">
                         <h1 className="text-heading-24 text-ink">{t(`${W}.placed.title`)}</h1>
+                        <p className="text-copy-14 text-ink">{page.paid ? t(`${W}.placed.paid_next`) : t(`${W}.placed.next`)}</p>
+                    </div>
+                    <div className="grid gap-0.5 sm:justify-items-end sm:text-end">
+                        <span className="text-label-12 text-ink-muted">{t(`${W}.placed.number`, { number: '' }).trim()}</span>
+                        <bdi dir="ltr" className="tw-figure text-[20px] leading-tight font-semibold text-brand" data-test="placed-number">
+                            {page.number}
+                        </bdi>
+                    </div>
+                </section>
+                <Card className="material-base gap-3 border-0 py-5">
+                    <CardContent className="grid justify-items-center gap-3 px-6 text-center">
                         <p className="text-label-16 text-ink">
-                            {t(`${W}.placed.number`, { number: '' })}
-                            <bdi dir="ltr" className="tw-figure">
-                                {page.number}
-                            </bdi>{' '}
-                            · <Money value={page.total} />
+                            <Money value={page.total} />
                             {page.shippingPending ? <span className="text-copy-14 text-ink-muted"> {t(`${W}.placed.before_shipping`)}</span> : null}
                         </p>
                         {page.paid ? (
@@ -52,7 +62,6 @@ export default function Placed(page: PlacedPage) {
                                 {t(`${W}.placed.paid`)}
                             </Badge>
                         ) : null}
-                        <p className="text-copy-14 text-ink-muted">{page.paid ? t(`${W}.placed.paid_next`) : t(`${W}.placed.next`)}</p>
                         {page.shippingPending ? (
                             <p className="text-copy-14 text-ink-muted" data-test="placed-fee-note">
                                 {t(`${W}.placed.fee_note`)}

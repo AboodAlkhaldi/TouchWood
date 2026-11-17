@@ -47,7 +47,8 @@ export function Card({ title, hint, children, test }: { title?: string; hint?: s
 export function StatusBox({ tone, title, children }: { tone: Tone; title: string; children?: ReactNode }) {
     return (
         <div data-test="status-box" data-tone={tone}>
-            <Note variant={NOTE[tone]} label={title}>
+            {/* The design's banner (§15.4): the status's colour on its icon and a thin edge of it round the box. */}
+            <Note variant={NOTE[tone]} label={title} className="border border-current/25 px-5 py-4">
                 {children}
             </Note>
         </div>

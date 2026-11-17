@@ -37,5 +37,7 @@ final readonly class NewOrderLine
         public bool $countsOnStock,
         /** The edit that added this part; none for a part placed with the order. */
         public ?string $editId = null,
+        /** The product's unit of sale when it was ordered (shop-design.md §10.7, P25); not its price's `unit`. */
+        public string $saleUnit = 'PIECE',
     ) {}
 }

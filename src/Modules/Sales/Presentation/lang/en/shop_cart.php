@@ -6,6 +6,8 @@ declare(strict_types=1);
 return [
     'title' => 'Cart',
     'header' => 'Cart',
+    // The header's count of products (its lines, shop-design.md Q2).
+    'products' => ['zero' => ':count products', 'one' => ':count product', 'two' => ':count products', 'few' => ':count products', 'many' => ':count products', 'other' => ':count products'],
     'pieces' => ['zero' => ':count pieces', 'one' => ':count piece', 'two' => ':count pieces', 'few' => ':count pieces', 'many' => ':count pieces', 'other' => ':count pieces'],
     'empty' => 'Your cart is empty',
     'continue' => 'Continue Shopping',
@@ -54,6 +56,8 @@ return [
         'checkout' => 'Checkout',
         'fix_first' => 'Fix the marked lines first',
         'sign_in_first' => 'Sign in or register to check out. Your cart comes with you.',
+        // The phone's Checkout bar (shop-design.md §7).
+        'before_vat' => 'before VAT',
     ],
     // Why this account may not order yet, and its one fix (R1-17; §4.2 B12).
     'block' => [

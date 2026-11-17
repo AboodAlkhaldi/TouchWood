@@ -40,7 +40,7 @@ final readonly class ShopOrdersController
     public const string SKIPPED = 'sales.buy_again_skipped';
 
     /** @var list<string> */
-    private const array WORDS = [...StorefrontArea::WORDS, 'sales::shop_orders', 'sales::shop_checkout', 'sales::errors'];
+    private const array WORDS = [...StorefrontArea::WORDS, 'sales::shop_orders', 'sales::shop_checkout', 'sales::errors', 'catalog::shop'];
 
     /** The most photos a return asks with (R2-23). */
     private const int PHOTOS = 3;
