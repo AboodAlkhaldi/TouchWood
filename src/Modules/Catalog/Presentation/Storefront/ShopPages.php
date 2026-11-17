@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Presentation\Storefront;
 
+use Carbon\CarbonImmutable;
 use Closure;
 use Modules\Catalog\Application\Api\ApiReads;
 use Modules\Catalog\Application\Products\InMemoryShopCardFacts;
@@ -105,6 +106,8 @@ final readonly class ShopPages
             $this->facts($store, $page->products->cards),
             $page->soldOut,
             $ids,
+            $page->description,
+            $page->total,
         );
     }
 
@@ -155,7 +158,7 @@ final readonly class ShopPages
         }
 
         $viewer = $this->visit->viewer();
-        /** @var array{page: array<string, mixed>|null, other: string|null, category: string|null, companies?: bool|null, noindex?: bool, trail?: list<array{name: string, slug: string}>|null} $kept */
+        /** @var array{page: array<string, mixed>|null, other: string|null, category: string|null, companies?: bool|null, noindex?: bool, trail?: list<array{name: string, slug: string}>|null, rank?: int|null, listed?: string|null, related?: array<string, array{int|null, string|null}>} $kept */
         $kept = $this->cache->remember("product:{$store->value}:{$locale}:{$viewer->value}:{$owner['id']}", function () use ($store, $locale, $viewer, $owner): array {
             $page = $this->catalog->productPage($store, $locale, $viewer, $owner['id'], $owner['slug']);
 
@@ -189,11 +192,18 @@ final readonly class ShopPages
                 $this->cards($store, $locale, $relations === null ? [] : $relations->goesWith),
                 $this->cards($store, $locale, $relations === null ? [] : $relations->mayAlsoLike),
                 new ShopAddressData('', null, null, true),
+                unit: $page->unit,
             ))->toArray(), 'other' => $page->otherSlug, 'category' => $page->categoryId,
                 // A guest's: whether companies may buy it here, so whether its wholesale is shown (amendment 35).
                 // Kept with the page: a change of who sees its category is a Catalog change, a new version.
                 'companies' => $viewer === ShopperKind::Guest ? $this->openToCompanies($store, $owner['id']) : null,
                 'noindex' => $page->noindex(),
+                // What its own Best seller and New arrival compare, each time it is shown (shop-design.md §6.3): a rank
+                // pushed by Sales replaces the kept pages' version, so the rank kept here is current.
+                'rank' => $page->salesRank,
+                'listed' => $page->listedAt,
+                // The related cards' too: their flags are compared as the page is shown, never kept (§10.4).
+                'related' => array_column(array_map(static fn (ProductCard $card): array => [$card->productId, [$card->salesRank, $card->listedAt]], [...($relations->goesWith ?? []), ...($relations->mayAlsoLike ?? [])]), 1, 0),
                 // Its category out of this viewer's menu but still answering, emptied by stock or prices: the way to it
                 // (amendment 42). Kept with the page, as the menu it was read against is in the same cache.
                 'trail' => $this->wayToEmptied($store, $locale, $viewer, $page->categoryId)];
@@ -238,14 +248,33 @@ final readonly class ShopPages
         $sections = $this->sections->read($store, $locale === 'ar' ? 'ar' : 'en', $owner['id'], $customerId, $after, $filters, $kept['page']['available'] === true, $viewer, $wholesaleSizes, $sizes, $kept['page']['available'] !== true && ($kept['noindex'] ?? true) === false);
         // The relations' cards are kept with the page; what the modules add to them is this viewer's (amendment 32).
         $related = array_column([...self::listOf($kept['page']['goesWith'] ?? []), ...self::listOf($kept['page']['mayAlsoLike'] ?? [])], 'productId');
+        $lines = $this->visit->productLines($store, $locale);
+        // Compared now, never kept: New arrival runs out with the days (the settings ride in the menu's copy, read already).
+        ['top' => $top, 'days' => $days] = $this->visit->cardFlags($store, $locale);
+        $rank = $kept['rank'] ?? null;
+        $listed = $kept['listed'] ?? null;
+        $since = CarbonImmutable::now()->subDays($days);
+        $flagged = static fn (?int $rank, ?string $listed): array => [
+            'bestSeller' => $top > 0 && $rank !== null && $rank <= $top,
+            'newArrival' => $days > 0 && $listed !== null && CarbonImmutable::parse($listed)->greaterThanOrEqualTo($since),
+        ];
+        // A kept card keeps what it was read with; its flags are this moment's.
+        $keptFacts = $kept['related'] ?? [];
+        $reflag = static fn (array $cards): array => array_map(static fn (array $card): array => isset($keptFacts[$card['productId'] ?? '']) ? [...$card, ...$flagged(...$keptFacts[$card['productId']])] : $card, $cards);
 
         return [
             ...$kept['page'],
+            'goesWith' => $reflag(self::listOf($kept['page']['goesWith'] ?? [])),
+            'mayAlsoLike' => $reflag(self::listOf($kept['page']['mayAlsoLike'] ?? [])),
             'path' => array_map(static fn (ShopLinkData $link): array => $link->toArray(), $path),
             'address' => $address->toArray(),
             'sections' => (object) $sections,
             // The same shape as the lists' `cardFacts`: [] when empty.
             'cardFacts' => $this->cardFacts->read($store, $customerId, array_map('strval', $related)),
+            // The delivery and returns lines (shop-design.md §6.3): the store's settings, kept with the menu's copy.
+            'deliveryDays' => $lines['delivery'],
+            'returnDays' => $lines['returns'],
+            ...$flagged(is_int($rank) ? $rank : null, is_string($listed) ? $listed : null),
         ];
     }
 
@@ -325,7 +354,8 @@ final readonly class ShopPages
      */
     public function suggest(StoreId $store, string $locale, string $typed): array
     {
-        return $this->cards($store, $locale, $this->search->suggest($store, $locale, $this->visit->viewer(), $typed));
+        // A suggestion is a photo and a name: it wears no flags, so it reads none of their settings.
+        return $this->cards($store, $locale, $this->search->suggest($store, $locale, $this->visit->viewer(), $typed), flags: false);
     }
 
     /**
@@ -453,13 +483,31 @@ final readonly class ShopPages
      * @param  list<ProductCard>  $cards
      * @return list<ShopCardData>
      */
-    private function cards(StoreId $store, string $locale, array $cards): array
+    private function cards(StoreId $store, string $locale, array $cards, bool $flags = true): array
     {
         $price = $cards === [] ? static fn (?int $minor): ?MoneyData => null : $this->money($store, $locale);
+        // The card's own flags (shop-design.md §10.4): compared here with the store's settings, never stored, so neither
+        // goes stale; the settings ride in the menu's cached copy, read already (the owner's option (a)).
+        ['top' => $top, 'days' => $days] = $cards === [] || ! $flags ? ['top' => 0, 'days' => 0] : $this->visit->cardFlags($store, $locale);
+        $since = CarbonImmutable::now()->subDays($days);
+        $individual = $cards !== [] && $this->visit->viewer() === ShopperKind::Individual;
 
         return array_map(static fn (ProductCard $card): ShopCardData => new ShopCardData(
             $card->productId, $card->name, $card->slug, $card->photo, self::labels($card->labels), $card->lastPieces, $card->rating?->average, $card->rating->count ?? 0,
-            $card->price === null ? null : new ShopCardPriceData($price($card->price->now), $price($card->price->before), $price($card->price->from), $price($card->price->wholesaleFrom), $price($card->price->wholesaleFromBefore)),
+            $card->price === null ? null : new ShopCardPriceData(
+                $price($card->price->now), $price($card->price->before), $price($card->price->from), $price($card->price->wholesaleFrom), $price($card->price->wholesaleFromBefore),
+                // «وفّر»: what a piece saves while the price is reduced (shop-design.md §4.2).
+                $card->price->now !== null && $card->price->before !== null && $card->price->before > $card->price->now ? $price($card->price->before - $card->price->now) : null,
+            ),
+            $card->brand,
+            $card->unit,
+            $card->sizes,
+            $card->oneSize,
+            // An individual's card says companies can buy it wholesale (§4.1); a company's or a guest's shows its wholesale price instead.
+            $individual && $card->sellsWholesale,
+            $card->morePhotos,
+            $top > 0 && $card->salesRank !== null && $card->salesRank <= $top,
+            $days > 0 && $card->listedAt !== null && CarbonImmutable::parse($card->listedAt)->greaterThanOrEqualTo($since),
         ), $cards);
     }
 

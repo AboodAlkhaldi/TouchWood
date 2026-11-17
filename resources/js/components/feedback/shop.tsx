@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { RequestPayload } from '@inertiajs/core';
 import { Link, router, usePage } from '@inertiajs/react';
 import { Heart, Star } from 'lucide-react';
+import { toast } from 'sonner';
 import { ActionButton } from '@/components/ActionButton';
 import { Messages, TextareaField } from '@/components/Fields';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
@@ -188,23 +189,62 @@ function useSectionRows<T>(rows: T[], next: string | null, key: (row: T) => stri
 }
 
 /** Beside the choices (§4.1 F5, Q17, Q18): Save, filled once saved; a guest is sent to sign in and comes back with it saved. */
-export function SaveHeart({ wishlist, productId, name }: { wishlist: ShopWishlistData | null | undefined; productId: string; name: string }) {
+export function SaveHeart({ wishlist, productId, name, className, test = 'save-heart' }: { wishlist: ShopWishlistData | null | undefined; productId: string; name: string; className?: string; test?: string }) {
     const t = useTranslator();
     const link = useLink();
-    const [busy, setBusy] = useState(false);
+    const { shopper } = usePage<SharedProps>().props;
     const saved = wishlist?.saved === true;
+    // Icon only, with no spinner (shop-design.md §4.4, §6.3): filled or emptied at once, the save going in the background;
+    // a failed one put back and said. Pressed twice quickly, the last press wins. A guest's press still goes to sign in.
+    const [on, setOn] = useState(saved);
+    const pressing = useRef(0);
+
+    useEffect(() => setOn(saved), [saved]);
 
     function press() {
-        const route = saved ? 'storefront.feedback.remove' : 'storefront.feedback.save';
+        const was = on;
+        const mine = ++pressing.current;
+        // Only the last press may undo: an earlier one's answer must not overturn a later choice.
+        const undo = (say: boolean) => {
+            if (shopper && mine === pressing.current) {
+                setOn(was);
 
-        router.post(link(route, { product: productId }), { back: window.location.pathname + window.location.search }, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) });
+                if (say) {
+                    toast.error(t('catalog::shop.card.save_failed', { name }));
+                }
+            }
+        };
+
+        if (shopper) {
+            setOn(!was);
+        }
+
+        router.post(
+            link(was ? 'storefront.feedback.remove' : 'storefront.feedback.save', { product: productId }),
+            { back: window.location.pathname + window.location.search },
+            {
+                preserveScroll: true,
+                // A refusal is said by the shop's toasts from its errors; a server error or a lost connection, here.
+                onError: () => undo(false),
+                onHttpException: () => undo(true),
+                onNetworkError: () => undo(true),
+            },
+        );
     }
 
     return (
-        <ActionButton type="button" variant="outline" className="w-fit" loading={busy} aria-pressed={saved} aria-label={saved ? t(`${W}.save.remove`, { name }) : t(`${W}.save.add`, { name })} onClick={press} data-test="save-heart">
-            <Heart aria-hidden="true" className={saved ? 'fill-red-500 text-red-500' : undefined} />
-            {saved ? t(`${W}.save.saved`) : t(`${W}.save.save`)}
-        </ActionButton>
+        <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className={`size-12 shrink-0 ${className ?? ''}`}
+            aria-pressed={on}
+            aria-label={on ? t(`${W}.save.remove`, { name }) : t(`${W}.save.add`, { name })}
+            onClick={press}
+            data-test={test}
+        >
+            <Heart aria-hidden="true" className={`size-5 ${on ? 'fill-red-500 text-red-500' : ''}`} />
+        </Button>
     );
 }
 
@@ -238,8 +278,9 @@ export function ReviewsSection({ reviews, url, productId }: { reviews: ShopRevie
             {total === 0 ? (
                 <p className="text-copy-14 text-ink-muted">{t(`${W}.reviews.none`)}</p>
             ) : (
-                <div className="grid gap-6 md:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
-                    <div className="grid content-start gap-3">
+                // The summary above, the reviews under it as two-column cards (shop-design.md §6.5).
+                <div className="grid gap-6">
+                    <div className="grid max-w-md content-start gap-3">
                         {reviews.average === null ? null : (
                             <p className="flex items-center gap-2">
                                 <span className="tw-figure text-heading-32 text-ink">{average(locale, reviews.average)}</span>
@@ -290,9 +331,9 @@ export function ReviewsSection({ reviews, url, productId }: { reviews: ShopRevie
                         {list.rows.length === 0 ? (
                             <p className="text-copy-14 text-ink-muted">{t(`${W}.reviews.none_with`, { star: figure(locale, reviews.star ?? 0) })}</p>
                         ) : (
-                            <ul className="grid gap-4" data-test="review-list">
+                            <ul className="grid gap-4 md:grid-cols-2" data-test="review-list">
                                 {list.rows.map((review) => (
-                                    <li key={review.reviewId} className="grid gap-2 border-b border-line pb-4 last:border-b-0" data-test="review">
+                                    <li key={review.reviewId} className="grid content-start gap-2 rounded-xl border border-line bg-surface p-4" data-test="review">
                                         <div className="flex flex-wrap items-center gap-2">
                                             <ShopStars rating={review.rating} />
                                             <span className="text-label-14 text-ink">{authorName(t, review.author)}</span>

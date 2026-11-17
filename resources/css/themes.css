@@ -85,6 +85,10 @@
     --tw-logo-copper-deep: #864720;
     --tw-logo-copper-light: #dca071;
 
+    /* An icon on a white button over a photo (the card's heart, the product page's heart and back): the
+    | button stays white in both modes, so its ink stays dark too (shop-design.md, PR B). */
+    --tw-on-photo-ink: #2c2c2a;
+
     /* The admin sidebar, which is dark in both themes by design. */
     --tw-sidebar: #01233c;
     --tw-sidebar-ink: #ffffff;
@@ -170,6 +174,8 @@
     --tw-logo-cream: #f6efe8;
     --tw-logo-copper-deep: #864720;
     --tw-logo-copper-light: #dca071;
+
+    --tw-on-photo-ink: #2c2c2a;
 
     --tw-sidebar: #0a151e;
     --tw-sidebar-ink: #eaf2f8;

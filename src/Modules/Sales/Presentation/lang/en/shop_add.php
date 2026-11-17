@@ -15,6 +15,11 @@ return [
         'choose' => 'Choose a size first',
         'added' => 'Added to cart · :pieces',
         'view' => 'View Cart',
+        // The buy row's stepper and the total under it (shop-design.md §6.3).
+        'less' => 'One piece less',
+        'more' => 'One piece more',
+        'total' => 'Total',
+        'before_vat' => 'before VAT',
         'not_sold' => 'This size can\'t be ordered now.',
         'out_of_stock' => 'Out of stock',
         'full' => 'Your cart already holds the most you can buy of this size.',

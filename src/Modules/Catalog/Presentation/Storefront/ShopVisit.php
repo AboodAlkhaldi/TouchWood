@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Presentation\Storefront;
 
+use Modules\Catalog\Application\CatalogSettings;
 use Modules\Catalog\Application\Query\Shop\MenuCategory;
 use Modules\Catalog\Application\Query\Shop\ShopCatalog;
 use Modules\Catalog\Application\Query\Shop\ShopPagesCache;
 use Modules\Catalog\Presentation\Http\Resource\ShopLinkData;
 use Modules\Catalog\Presentation\Http\Resource\ShopMenuItemData;
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\ShopperType;
 use Modules\Platform\Public\Enums\ShopperKind;
 use Shared\Domain\ValueObject\StoreId;
@@ -21,6 +23,10 @@ use Shared\Domain\ValueObject\StoreId;
  * The menu comes from the never-stale cache, per store, language and viewer — and the base store,
  * whose order a store follows until its admins place it (P20, P21). The cache holds plain arrays
  * only (config/cache.php: no objects are read back), which are made the menu's items again here.
+ *
+ * **The card's two flags' settings ride in the same copy** (shop-design.md §10.4; the owner's option (a), 2026-11-16):
+ * Best seller's top N and New arrival's days, so a page of cards reads no settings of its own. A change to either
+ * clears the copy (CatalogServiceProvider, on Platform's `SettingChanged`).
  */
 final class ShopVisit
 {
@@ -34,10 +40,22 @@ final class ShopVisit
     /** @var array<string, list<array<array-key, mixed>>> the menus as the cache keeps them, photos included */
     private array $kept = [];
 
+    /**
+     * The other modules' settings the product page's lines say (shop-design.md §6.3, §10.8): read by their keys, as
+     * Content reads Loyalty's - Catalog names none of their code.
+     */
+    public const string DELIVERY_DAYS = 'content.delivery.working_days';
+
+    public const string RETURN_DAYS = 'sales.returns.window_days';
+
+    /** @var array<string, array{top: int, days: int, delivery: int, returns: int}> the settings kept with each menu */
+    private array $flags = [];
+
     public function __construct(
         private readonly ShopperType $shoppers,
         private readonly ShopCatalog $catalog,
         private readonly ShopPagesCache $pages,
+        private readonly PlatformApi $platform,
     ) {}
 
     public function viewer(): ShopperKind
@@ -59,8 +77,15 @@ final class ShopVisit
             $this->viewer = null;
             $this->menus = [];
             $this->kept = [];
+            $this->flags = [];
             $this->readFor = is_object($request) ? $request : null;
         }
+    }
+
+    /** A kept copy in this release's shape: the menu with the settings beside it. Read as mixed - the cache keeps what any release wrote. */
+    private static function whole(mixed $copy): bool
+    {
+        return is_array($copy) && isset($copy['menu'], $copy['top'], $copy['days'], $copy['delivery'], $copy['returns']);
     }
 
     /**
@@ -72,12 +97,23 @@ final class ShopVisit
         $key = $this->key($store, $locale);
 
         if (! isset($this->menus[$key])) {
-            /** @var list<array{id: string, name: string, slug: string, image: string|null, products: int, children: list<mixed>}> $kept */
-            $kept = $this->pages->remember($key, fn (): array => array_map(
-                static fn (MenuCategory $category): array => self::kept($category),
-                $this->catalog->menu($store, $locale, $viewer),
-            ));
+            $fresh = fn (): array => [
+                'menu' => array_map(static fn (MenuCategory $category): array => self::kept($category), $this->catalog->menu($store, $locale, $viewer)),
+                'top' => $this->platform->setting(CatalogSettings::BEST_SELLER_TOP, $store)->int(),
+                'days' => $this->platform->setting(CatalogSettings::NEW_ARRIVAL_DAYS, $store)->int(),
+                'delivery' => $this->platform->setting(self::DELIVERY_DAYS, $store)->int(),
+                'returns' => $this->platform->setting(self::RETURN_DAYS, $store)->int(),
+            ];
+            $copy = $this->pages->remember($key, $fresh);
+
+            // A copy an older release wrote - the menu alone, while a deploy rolls out - is read afresh for this request.
+            if (! self::whole($copy)) {
+                $copy = $fresh();
+            }
+
+            $kept = $copy['menu'];
             $this->kept[$key] = $kept;
+            $this->flags[$key] = ['top' => (int) $copy['top'], 'days' => (int) $copy['days'], 'delivery' => (int) $copy['delivery'], 'returns' => (int) $copy['returns']];
             $this->menus[$key] = array_map(self::item(...), $kept);
         }
 
@@ -109,6 +145,35 @@ final class ShopVisit
         $key = $this->key($store, $locale);
 
         return array_slice(array_map(static fn (array $top): array => ['name' => (string) ($top['name'] ?? ''), 'slug' => (string) ($top['slug'] ?? ''), 'image' => is_string($top['image'] ?? null) ? $top['image'] : null], $this->kept[$key] ?? []), 0, max($limit, 0));
+    }
+
+    /**
+     * The card flags' settings for this store (shop-design.md §10.4): Best seller's top N and New arrival's days, 0 being
+     * off - read with the menu's copy, so they cost no query of their own.
+     *
+     * @return array{top: int, days: int}
+     */
+    public function cardFlags(StoreId $store, string $locale): array
+    {
+        $this->menu($store, $locale);
+
+        $kept = $this->flags[$this->key($store, $locale)] ?? null;
+
+        return $kept === null ? ['top' => 0, 'days' => 0] : ['top' => $kept['top'], 'days' => $kept['days']];
+    }
+
+    /**
+     * The product page's delivery and returns lines (shop-design.md §6.3, §10.8): the working days a delivery takes and
+     * the days after delivery a return may be asked - read with the menu's copy, so they cost no query of their own.
+     *
+     * @return array{delivery: int, returns: int}
+     */
+    public function productLines(StoreId $store, string $locale): array
+    {
+        $this->menu($store, $locale);
+        $kept = $this->flags[$this->key($store, $locale)] ?? null;
+
+        return ['delivery' => $kept['delivery'] ?? 0, 'returns' => $kept['returns'] ?? 0];
     }
 
     private function key(StoreId $store, string $locale): string

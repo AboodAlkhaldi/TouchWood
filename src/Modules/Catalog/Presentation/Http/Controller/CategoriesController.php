@@ -44,7 +44,7 @@ final readonly class CategoriesController
     /** @var list<string> */
     private const array WORDS = ['catalog::admin', 'catalog::admin_categories', 'admin'];
 
-    private const array FIELDS = ['name_ar', 'name_en', 'slug_ar', 'slug_en', 'parent_id', 'image_media_id'];
+    private const array FIELDS = ['name_ar', 'name_en', 'slug_ar', 'slug_en', 'parent_id', 'image_media_id', 'description_ar', 'description_en'];
 
     // What asks who is acting - the pages, the store choices - is taken by each action, never kept here:
     // a controller is kept on its route, longer than one request.
@@ -82,6 +82,9 @@ final readonly class CategoriesController
             slugAr: $request->optionalText('slug_ar'),
             slugEn: $request->optionalText('slug_en'),
             imageMediaId: self::image($request, $upload),
+            descriptionAr: $request->optionalText('description_ar'),
+            descriptionEn: $request->optionalText('description_en'),
+            withDescription: $request->has('description_ar') || $request->has('description_en'),
         )), 'catalog::admin_categories.toast.edited', self::FIELDS);
     }
 

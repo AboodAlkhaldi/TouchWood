@@ -38,6 +38,11 @@ final readonly class ProductPage
         public ?ShopWarranty $warranty = null,
         public ?SellingTerms $selling = null,
         public bool $soldOut = false,
+        /** Its rank in the store's best sellers and when it was first listed here: what its own flags compare (shop-design.md §6.3). */
+        public ?int $salesRank = null,
+        public ?string $listedAt = null,
+        /** Its unit of sale, beside the price (shop-design.md §10.1). */
+        public string $unit = 'PIECE',
     ) {}
 
     /** Kept out of search engines: a page with nothing to order, unless only stock or a price is missing (§1.4). */

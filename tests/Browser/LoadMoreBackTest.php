@@ -232,7 +232,8 @@ it('keeps a customer\'s hearts through Show More and Back, on every page of the 
     expect((int) $page->script("{$cards}.length"))->toBe(26);
 
     // Into a card, and Back: every card, each heart as it was.
-    $page->script("(() => { {$cards}[3].click(); })()");
+    // The card holds its own button, so its photo is the link into it (shop-design.md §4.1).
+    $page->script("(() => { {$cards}[3].querySelector('a').click(); })()");
     expect(browserSoon($page, "location.pathname.includes('/products/')"))->toBeTrue();
     $page->script('(() => { history.back(); })()');
     // Counted once the card's page is gone: its own related cards carry the same mark.

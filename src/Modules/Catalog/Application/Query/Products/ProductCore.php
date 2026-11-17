@@ -46,5 +46,7 @@ final readonly class ProductCore
         public array $onIn,
         public bool $hasVariant,
         public array $counts,
+        /** How it is sold (shop-design.md §10.1). */
+        public string $unit = 'PIECE',
     ) {}
 }

@@ -60,9 +60,10 @@ interface ShopReader
      * the filter attributes' values present and Retail and Wholesale for a company or a guest, each
      * with how many products picking it would show — every other kind of choice the shopper made kept,
      * its own kind's left out. A choice the page no longer offers (a brand not listed here, a value
-     * switched off or held by nothing here, a side nothing here is sold on) counts as not made.
+     * switched off or held by nothing here, a side nothing here is sold on) counts as not made. With its
+     * description in this language and how many products the choices show (shop-design.md §5.1).
      *
-     * @return array{id: string, slug: string, other_slug: string|null, name: string, lists: bool, ratings_shown: bool, filters: CategoryFilters}|null
+     * @return array{id: string, slug: string, other_slug: string|null, name: string, lists: bool, ratings_shown: bool, description: string|null, total: int, filters: CategoryFilters}|null
      */
     public function categoryHead(string $storeId, string $locale, ShopperKind $viewer, string $slug, ShopFilters $filters): ?array;
 
@@ -134,14 +135,18 @@ interface ShopReader
      * A product as its page needs it, in that language, whatever its stage: its brand — its name and
      * current slug — its warranty, and its slug now in the other language.
      *
-     * @return array{stage: string, archived_from: string|null, name: string|null, description: array<string, mixed>|null, brand_id: string, category_id: string|null, brand: ShopLink|null, warranty: ShopWarranty|null, other_slug: string|null}|null
+     * @return array{stage: string, unit: string, archived_from: string|null, name: string|null, description: array<string, mixed>|null, brand_id: string, category_id: string|null, brand: ShopLink|null, warranty: ShopWarranty|null, other_slug: string|null}|null
      */
     public function product(string $productId, string $locale): ?array;
 
     /**
-     * Whether this viewer can find the product in this store now — listed, or left and so reachable.
+     * Whether this viewer can find the product in this store now — listed, or left and so reachable — and, in the
+     * same read, what its own flags are compared with (shop-design.md §6.3, §10.4): its rank in the store's best
+     * sellers and when it was first listed here. Null when it is not listed for this viewer.
+     *
+     * @return array{sales_rank: int|null, listed_at: string|null}|null
      */
-    public function isListed(string $storeId, string $locale, ShopperKind $viewer, string $productId): bool;
+    public function listedFacts(string $storeId, string $locale, ShopperKind $viewer, string $productId): ?array;
 
     /**
      * @return list<string> the gallery's media ids, in order

@@ -13,7 +13,7 @@ import type { MoneyData } from '@/types/generated/Modules/Platform/Public/Dto';
 */
 
 /** The percent a sale takes off, whole and between 1 and 99 - never "−0%" on a sale, nor "−100%" on what still costs; none unless the old price is higher. */
-function percentOff(now: MoneyData, before: MoneyData | null): number {
+export function percentOff(now: MoneyData, before: MoneyData | null): number {
     return before === null || before.minor <= now.minor ? 0 : Math.min(99, Math.max(1, Math.round(((before.minor - now.minor) * 100) / before.minor)));
 }
 

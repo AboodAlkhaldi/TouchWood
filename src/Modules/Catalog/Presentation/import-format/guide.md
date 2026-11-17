@@ -50,6 +50,7 @@ unless this guide says otherwise.
 | `brand` | No | number or text | The brand's **number** as the panel shows it (`2`) — best, no typo possible — or its name in Arabic or English. Left out, the default brand (TouchWood). The brand must already be in the catalog. |
 | `category` | No | text | The path from the top, names separated by ` / ` (space, slash, space): `"Kitchens / Drawers / Runners"`. It must end at a category with **no sub-categories**. **Needed for the product to be ready.** |
 | `warranty` | No | text | A warranty's name. It must already be in the catalog. |
+| `unit` | No | text | How it is sold, shown after its price in the shop: one of `PIECE`, `SET`, `PAIR`, `METRE`, `CARTON`, `BOX`. Left out, a new product is sold by the piece and an updated one keeps its own. (Added 2026-11-16, shop-design.md §10.1.) |
 | `variants` | **Yes** | list | **At least one.** See §1.2. |
 | `photos` | No | list of text | The gallery, in order: **paths inside the zip**, at most 20, each once. **At least one is needed for the product to be ready.** Leave out when uploading the JSON alone. |
 | `search_words` | No | list of text | Extra words shoppers might type, either language. At most 30, each at most 50 characters. |

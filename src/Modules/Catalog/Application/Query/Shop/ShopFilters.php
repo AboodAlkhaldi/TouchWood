@@ -26,7 +26,15 @@ final readonly class ShopFilters
      */
     public const string RATING = 'rating';
 
-    public const array SORTS = [self::BEST_SELLING, self::NEWEST, self::RATING];
+    /**
+     * By this viewer's card price (shop-design.md §5.3, C8): the least a size costs - "From" where sizes
+     * differ - lowest or highest first, products with no price last.
+     */
+    public const string PRICE_LOW = 'price-low';
+
+    public const string PRICE_HIGH = 'price-high';
+
+    public const array SORTS = [self::BEST_SELLING, self::NEWEST, self::RATING, self::PRICE_LOW, self::PRICE_HIGH];
 
     public const string RETAIL = 'retail';
 

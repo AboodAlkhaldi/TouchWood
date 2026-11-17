@@ -41,5 +41,14 @@ final class ShopProductPage extends Data
         public array $goesWith,
         public array $mayAlsoLike,
         public ShopAddressData $address,
+        /** The delivery line's working days (shop-design.md §6.3, §10.2): the store's setting, filled as the page is shown. */
+        public int $deliveryDays = 0,
+        /** The returns line's days after delivery (§6.3; sales.returns.window_days), filled likewise. */
+        public int $returnDays = 0,
+        /** Its own flags beside the others (shop-design.md §6.3, §10.4): compared as it is shown, never kept. */
+        public bool $bestSeller = false,
+        public bool $newArrival = false,
+        /** Its unit of sale, beside the price (shop-design.md §10.1): PIECE, SET, PAIR, METRE, CARTON or BOX. */
+        public string $unit = 'PIECE',
     ) {}
 }

@@ -93,6 +93,8 @@ storeRank: number | null,
 baseRank: number | null,
 forIndividuals: boolean,
 forCompanies: boolean,
+descriptionAr: string | null,
+descriptionEn: string | null,
 };
 export type CategoryOptionData = {
 id: string,
@@ -270,6 +272,7 @@ hiddenByCategory: boolean,
 hiddenByBrand: boolean,
 codes: string[],
 counts: ProductCountsData,
+unit: string,
 };
 export type ProductPage = {
 product: ProductHeadData,
@@ -377,6 +380,18 @@ lastPieces: boolean,
 rating: number | null,
 ratingCount: number,
 price: ShopCardPriceData | null,
+brand: string | null,
+unit: string,
+sizes: number,
+oneSize: {
+variant: string,
+mode: string,
+minimum: number,
+} | null,
+sellsWholesale: boolean,
+morePhotos: Record<string, Record<string, string>>[],
+bestSeller: boolean,
+newArrival: boolean,
 };
 export type ShopCardPriceData = {
 now: MoneyData | null,
@@ -384,6 +399,7 @@ before: MoneyData | null,
 from: MoneyData | null,
 wholesaleFrom: MoneyData | null,
 wholesaleFromBefore: MoneyData | null,
+saving: MoneyData | null,
 };
 export type ShopCategoryPage = {
 name: string,
@@ -396,6 +412,8 @@ filters: ShopFiltersData,
 address: ShopAddressData,
 cardFacts: Record<string, Record<string, Record<string, any>>>,
 soldOut: boolean,
+description: string | null,
+total: number,
 };
 export type ShopChoiceData = {
 id: string,
@@ -469,6 +487,11 @@ selling: ShopSellingData | null,
 goesWith: ShopCardData[],
 mayAlsoLike: ShopCardData[],
 address: ShopAddressData,
+deliveryDays: number,
+returnDays: number,
+bestSeller: boolean,
+newArrival: boolean,
+unit: string,
 };
 export type ShopSearchPage = {
 query: string,

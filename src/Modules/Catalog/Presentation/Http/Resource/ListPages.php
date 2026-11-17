@@ -115,6 +115,7 @@ final readonly class ListPages
                 $category->products, $below[$category->id] ?? $category->products,
                 $category->storeRank, $category->baseRank,
                 $category->forIndividuals, $category->forCompanies,
+                $category->descriptionAr, $category->descriptionEn,
             ), $list->categories),
             $chosen?->code,
             $chosen?->name->in($this->locale()),

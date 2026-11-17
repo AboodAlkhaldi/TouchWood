@@ -42,5 +42,7 @@ final class ProductHeadData extends Data
         public bool $hiddenByBrand,
         public array $codes,
         public ProductCountsData $counts,
+        /** How it is sold (shop-design.md §10.1): one of PIECE, SET, PAIR, METRE, CARTON, BOX. */
+        public string $unit = 'PIECE',
     ) {}
 }

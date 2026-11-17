@@ -36,5 +36,8 @@ final class CategoryData extends Data
         public bool $forIndividuals,
         /** Companies see it in the store shown. */
         public bool $forCompanies,
+        /** The line under its shop page's heading (shop-design.md §10.5). */
+        public ?string $descriptionAr = null,
+        public ?string $descriptionEn = null,
     ) {}
 }

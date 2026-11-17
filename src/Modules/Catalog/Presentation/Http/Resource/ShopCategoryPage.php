@@ -38,5 +38,9 @@ final class ShopCategoryPage extends Data
         /** @var list<string> the category's id and those above it, from the top: what the slots above its list are asked with (amendment 41(a)) */
         #[Hidden, TypeScriptHidden]
         public array $categoryPath = [],
+        /** The line under its heading (shop-design.md §5.1). */
+        public ?string $description = null,
+        /** How many products the chosen filters show, every page of them: «Showing 1–24 of 918». */
+        public int $total = 0,
     ) {}
 }

@@ -41,6 +41,9 @@ return [
         'parent' => 'Under',
         'top' => 'The top of the tree',
         'image' => 'Photo',
+        'description_ar' => 'Arabic Description',
+        'description_en' => 'English Description',
+        'description_helper' => "One line under the category's name in the shop, 300 characters at most. Optional.",
     ],
     'toast' => [
         'added' => 'Category added',

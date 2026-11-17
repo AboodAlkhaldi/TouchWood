@@ -78,6 +78,8 @@ describe('the guide\'s examples', function () {
             ->and($runner->descriptionEn['blocks'][0] ?? null)->toBe(['type' => 'heading', 'runs' => [['text' => 'Soft-close drawer runner']]])
             ->and($runner->descriptionEn['blocks'][2]['items'][0] ?? null)->toBe([['text' => 'Holds up to '], ['text' => '35 kg', 'bold' => true]])
             ->and([$runner->brand, $runner->brandNumber, $runner->category, $runner->warranty])->toBe(['TouchWood', null, ['Kitchens', 'Drawers', 'Runners'], 'Two years'])
+            // How it is sold (shop-design.md §10.1); the others name none.
+            ->and([$runner->unit, $hinge->unit])->toBe(['PAIR', null])
             ->and($runner->codes())->toBe(['1304', '1314', '1305'])
             ->and($runner->variants[0]->values)->toBe(['Length' => '45 cm', 'Finish' => 'Zinc'])
             ->and($runner->variants[0]->details)->toBe(['Load' => '35', 'Material' => ['ar' => 'فولاذ', 'en' => 'Steel']])
@@ -141,6 +143,13 @@ describe('the guide\'s examples', function () {
 });
 
 describe('what refuses a product file', function () {
+    it('refuses a unit outside the fixed list, naming the list (shop-design.md §10.1)', function () {
+        $problems = catalogImportProblems([[...catalogImportProduct(), 'unit' => 'DOZEN']]);
+
+        expect(array_column($problems, 'at'))->toBe(['product 1 › unit'])
+            ->and($problems[0]['problem'])->toContain('PIECE, SET, PAIR, METRE, CARTON, BOX');
+    });
+
     it('refuses it for each rule broken, naming where', function (Closure $break, string $at, string $problem) {
         $product = catalogImportProduct();
         $products = $break($product);

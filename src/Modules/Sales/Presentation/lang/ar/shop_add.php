@@ -15,6 +15,11 @@ return [
         'choose' => 'اختر المقاس أولًا',
         'added' => 'أُضيف إلى السلة · :pieces',
         'view' => 'عرض السلة',
+        // The buy row's stepper and the total under it (shop-design.md §6.3).
+        'less' => 'قطعة أقل',
+        'more' => 'قطعة أكثر',
+        'total' => 'المجموع',
+        'before_vat' => 'قبل الضريبة',
         'not_sold' => 'لا يمكن طلب هذا المقاس الآن.',
         'out_of_stock' => 'نفدت الكمية',
         'full' => 'سلتك تحوي أقصى ما يمكنك شراؤه من هذا المقاس.',

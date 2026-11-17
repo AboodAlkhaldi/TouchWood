@@ -16,6 +16,7 @@ use Modules\Catalog\Domain\Exception\SlugTaken;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
 use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Catalog\Domain\Repository\ProductRepository;
+use Modules\Catalog\Domain\ValueObject\CatalogText;
 use Shared\Application\Unauthorized;
 
 /**
@@ -26,6 +27,9 @@ use Shared\Application\Unauthorized;
  */
 final readonly class EditCategoryHandler
 {
+    /** The longest a category's description may be, each language (shop-design.md §10.5). */
+    public const int DESCRIPTION_MAX = 300;
+
     public const string PERMISSION = CatalogPermissions::CATEGORY_MANAGE;
 
     public function __construct(
@@ -44,15 +48,20 @@ final readonly class EditCategoryHandler
     {
         $this->change->authorize(self::PERMISSION);
         [$name, $slugs] = $this->input->names($command->nameAr, $command->nameEn, $command->slugAr, $command->slugEn);
+        // One line each, 300 characters at most (shop-design.md §10.5, P23: set here only, never by the import).
+        $description = $command->withDescription ? [
+            'ar' => $command->descriptionAr === null || trim($command->descriptionAr) === '' ? null : CatalogText::oneLine('description_ar', $command->descriptionAr, self::DESCRIPTION_MAX),
+            'en' => $command->descriptionEn === null || trim($command->descriptionEn) === '' ? null : CatalogText::oneLine('description_en', $command->descriptionEn, self::DESCRIPTION_MAX),
+        ] : null;
 
-        $this->change->runAfterProducts(ListLocks::CATEGORIES, function () use ($name, $slugs, $command): array {
+        $this->change->runAfterProducts(ListLocks::CATEGORIES, function () use ($name, $slugs, $command, $description): array {
             // Inside, so a retried attempt asks again: the file may have been deleted meanwhile.
             $image = $this->images->check('image_media_id', $command->imageMediaId);
             $category = $this->categories->byId($command->categoryId) ?? throw new CategoryNotFound($command->categoryId);
             $this->input->requireFreeSlugs($slugs, $category->id());
 
             $before = $category->snapshot();
-            $category->edit($name, $slugs, $image);
+            $category->edit($name, $slugs, $image, $description);
             $entry = ListAudit::changed('category', 'edited', $category->id(), $category->pullChanges(), $category->snapshot());
 
             if ($entry === null) {

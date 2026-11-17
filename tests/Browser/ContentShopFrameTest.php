@@ -258,12 +258,13 @@ it('marks only a reduced price with the theme\'s flag and badge on its card, and
     try {
         $page = visit('/sa/en/categories/'.$slug('category', $category));
         expect(browserSoon($page, "document.querySelectorAll('[data-test=\"card\"]').length === 2"))->toBeTrue()
-            // The card with a price before wears the flag and the badge; the other neither.
-            ->and($page->script("[...document.querySelectorAll('[data-test=\"card\"]')].map((card) => [card.querySelector('[data-test=\"price-before\"]') !== null, card.querySelector('[data-test=\"theme-flag\"]') !== null, card.querySelector('[data-test=\"theme-badge\"]')?.textContent ?? null]).sort((a, b) => Number(b[0]) - Number(a[0]))"))->toBe([[true, true, 'Offer'], [false, false, null]]);
+            // The card with a price before wears the theme's word as a flag, never its artwork (shop-design.md §4.3); the other neither.
+            ->and($page->script("[...document.querySelectorAll('[data-test=\"card\"]')].map((card) => [card.querySelector('[data-test=\"price-before\"]') !== null, card.querySelector('[data-test=\"theme-flag\"]') !== null, card.querySelector('[data-test=\"theme-badge\"]')?.textContent ?? null]).sort((a, b) => Number(b[0]) - Number(a[0]))"))->toBe([[true, false, 'Offer'], [false, false, null]]);
 
         $page->navigate('/sa/en/products/'.$slug('product', $sale['product']), BROWSER_PAGE_LOAD);
         expect(browserSoon($page, "document.querySelector('[data-test=\"gallery\"] [data-test=\"theme-ribbon\"]') !== null"))->toBeTrue()
-            ->and($page->script("document.querySelector('[data-test=\"gallery\"] [data-test=\"theme-flag\"]') !== null && document.querySelector('[data-test=\"theme-badge\"]')?.textContent === 'Offer'"))->toBeTrue();
+            // The ribbon stays on the photo; the theme's flag left it for the details' flags beside the brand (shop-design.md §6.2, §6.3).
+            ->and($page->script("document.querySelector('[data-test=\"gallery\"] [data-test=\"theme-flag\"]') === null && document.querySelector('[data-test=\"product-flags\"] [data-test=\"theme-badge\"]')?.textContent === 'Offer'"))->toBeTrue();
 
         $page->navigate('/sa/en/products/'.$slug('product', $plain['product']), BROWSER_PAGE_LOAD);
         expect(browserSoon($page, "document.querySelector('[data-test=\"gallery\"]') !== null"))->toBeTrue()

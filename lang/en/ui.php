@@ -13,6 +13,8 @@ return [
     // An en dash inside the range (Geist's table rules).
     'range' => ':from–:to of :total',
     // The owner's word for the next page of a keyset list (frontend.md E7), in Title Case.
+    // A phone's compact top bar (shop-design.md §5.4).
+    'back' => 'Back',
     'load_more' => 'Show More',
     // A busy button's spinner, which shadcn names in English; given as a prop, not edited.
     'loading' => 'Loading',
