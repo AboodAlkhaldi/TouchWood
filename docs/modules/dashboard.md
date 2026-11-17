@@ -4,9 +4,9 @@ The admin panel's Home (`/admin`) turned from three cards into a dashboard: a qu
 period chosen, then the work waiting. It changes no module's rules of business: every figure is one a module
 already counts for the daily report (ops.md §1.11), read the same way, plus the few reads listed in §6.
 
-**State:** draft, written 2026-11-18 from the owner's answers of 2026-11-17 and 2026-11-18. **Not accepted.**
-Points marked **[PROPOSED Dn]** are the builder's picks, listed in §9 for the owner; every other point is the
-owner's answer. Not built.
+**State:** written 2026-11-18 from the owner's answers of 2026-11-17 and 2026-11-18. **Accepted by the owner,
+2026-11-18, with all 11 picks** ("Accept all picks"). Points marked **[PROPOSED Dn]** are the builder's picks,
+listed in §9, now accepted; every other point is the owner's answer. Not built.
 
 **Sources:**
 - **The owner's references** (2026-10-13): shadcndashboard.dev's e-commerce dashboard, an "EzMart" light
@@ -198,7 +198,7 @@ new:
 
 ---
 
-## 9 · The builder's picks, for the owner
+## 9 · The builder's picks (accepted 2026-11-18)
 
 | # | Pick |
 |---|---|
