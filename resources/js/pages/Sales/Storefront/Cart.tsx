@@ -1,6 +1,6 @@
 import { Suspense, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
-import { Minus, Plus, X } from 'lucide-react';
+import { Minus, Plus } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
 import { ThemeCartMessage } from '@/components/content/ThemeMarks';
 import { TextField } from '@/components/Fields';
@@ -11,9 +11,7 @@ import { ShopPhoto, type PhotoSizes } from '@/components/shop/ShopPhoto';
 import { ClosedStore, PaymentInTheWay } from '@/components/sales/payment/lazy';
 import { C, plural, Price, useLocale } from '@/components/sales/shop';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Progress } from '@/components/ui/progress';
 import { StorefrontLayout } from '@/layouts/StorefrontLayout';
@@ -34,6 +32,12 @@ import type { SharedProps } from '@/types/page';
 | store's best sellers under it (R2-9, R3). How much more ships free, with a bar (R1-12), the next gift (R1-13)
 | and the points to earn (R1-14); the shipping in the summary (R2-12); what the account still needs, with its
 | link (R1-17) - each from §4.2 B12, B14.
+|
+| To the design (shop-design.md §7): a 34 px heading with the count of products, as the header's; the lines as one
+| bordered list (a 96 px photo, the brand, a chip per chosen value and for the way of buying, one stepper box, Remove as
+| text) with Continue Shopping under it; one sticky 392 px summary box holding the free-shipping bar, the coupon, a
+| 25 px subtotal and a 50 px Checkout. On a phone: a grey page, the compact top bar, and the summary's Checkout pinned to
+| the bottom with the subtotal before VAT - the same button, so it is one - the tab bar hidden.
 */
 
 export default function Cart(cart: CartPage) {
@@ -53,9 +57,12 @@ export default function Cart(cart: CartPage) {
     }
 
     return (
-        <StorefrontLayout title={t(`${C}.title`)}>
-            <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
-                <h1 className="text-heading-24 text-ink">{t(`${C}.title`)}</h1>
+        <StorefrontLayout title={t(`${C}.title`)} compact={{ back: home }} tabBar={cart.lines.length === 0}>
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-6 max-sm:-mx-4 max-sm:-my-6 max-sm:bg-surface-sunken max-sm:px-4 max-sm:py-5">
+                <h1 className="flex flex-wrap items-baseline gap-x-3 text-[26px] leading-tight font-semibold text-ink sm:text-[34px]" data-test="cart-heading">
+                    {t(`${C}.title`)}
+                    {cart.lines.length > 0 ? <span className="tw-figure text-copy-16 font-normal text-ink-muted">{plural(t, locale, `${C}.products`, cart.lines.length)}</span> : null}
+                </h1>
                 {/* A live theme's cart message (content.md §1.8 part 9), from the frame. */}
                 <ThemeCartMessage />
                 <FormError />
@@ -84,17 +91,18 @@ export default function Cart(cart: CartPage) {
                 ) : null}
                 {cart.lines.length === 0 && cart.bestSellers.length > 0 ? <BestSellers cards={cart.bestSellers as unknown as ShopCardData[]} facts={cart.cardFacts as CardFacts} /> : null}
                 {cart.lines.length === 0 ? null : (
-                    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-                        <ul className="grid min-w-0 content-start gap-3" aria-label={t(`${C}.line.lines`)} data-test="cart-lines">
-                            {cart.lines.map((line) => (
-                                <Line key={`${line.variantId}-${line.mode}`} line={line} />
-                            ))}
-                        </ul>
+                    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_392px] lg:gap-8">
                         <div className="grid min-w-0 content-start gap-4">
-                            <Extras cart={cart} />
-                            <Coupon code={cart.couponCode} />
-                            <Summary cart={cart} checkout={link('storefront.sales.cart.sign-in')} />
+                            <ul className="grid min-w-0 content-start divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface" aria-label={t(`${C}.line.lines`)} data-test="cart-lines">
+                                {cart.lines.map((line) => (
+                                    <Line key={`${line.variantId}-${line.mode}`} line={line} />
+                                ))}
+                            </ul>
+                            <Link href={home} className="w-fit text-label-14 text-brand underline-offset-4 hover:underline" data-test="continue-shopping">
+                                {t(`${C}.continue`)}
+                            </Link>
                         </div>
+                        <Summary cart={cart} checkout={link('storefront.sales.cart.sign-in')} />
                     </div>
                 )}
             </div>
@@ -125,13 +133,15 @@ function Line({ line }: { line: CartLineData }) {
     const problem = line.problem;
     // Its one fix (R2-10): to the limit it passed, else off the cart.
     const fixTo = problem === 'BELOW_MINIMUM' ? line.minimum : problem === 'ABOVE_MAXIMUM' ? most : null;
+    const chosen = (line.chosen as string[] | undefined) ?? [];
 
     return (
-        <li className="material-base grid grid-cols-[4.5rem_minmax(0,1fr)] gap-3 p-3 sm:grid-cols-[6rem_minmax(0,1fr)]" data-test={`cart-line-${line.code}`}>
-            <ShopPhoto photo={line.photo as PhotoSizes | null} size="thumb" alt="" className="aspect-square w-full rounded-md object-cover" />
+        <li className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-3 p-3 sm:grid-cols-[6rem_minmax(0,1fr)] sm:gap-4 sm:p-4" data-test={`cart-line-${line.code}`}>
+            <ShopPhoto photo={line.photo as PhotoSizes | null} size="thumb" alt="" className="aspect-square w-full rounded-lg bg-surface-sunken object-contain" />
             <div className="grid min-w-0 gap-2">
-                <div className="flex min-w-0 items-start justify-between gap-2">
-                    <div className="grid min-w-0 gap-0.5">
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="grid min-w-0 gap-1">
+                        {line.brand ? <span className="text-label-12 text-ink-muted" data-test="line-brand">{line.brand}</span> : null}
                         {line.slug === null ? (
                             <span className="text-label-14 text-ink">{line.name}</span>
                         ) : (
@@ -139,39 +149,44 @@ function Line({ line }: { line: CartLineData }) {
                                 {line.name}
                             </Link>
                         )}
-                        {line.values === '' ? null : <span className="text-copy-13 text-ink-muted">{line.values}</span>}
-                        <span className="flex flex-wrap items-center gap-2 text-copy-13 text-ink-muted">
-                            <Badge variant="outline">{t(`${C}.mode.${line.mode}`)}</Badge>
-                            <bdi dir="ltr" className="tw-figure">
-                                {line.code}
-                            </bdi>
+                        {/* A chip for each chosen value and for the way of buying (§7). */}
+                        <span className="flex flex-wrap items-center gap-1.5" data-test="line-chips">
+                            {chosen.map((value) => (
+                                <span key={value} className="rounded-full bg-surface-sunken px-2.5 py-0.5 text-label-12 text-ink">
+                                    {value}
+                                </span>
+                            ))}
+                            <span className={`rounded-full px-2.5 py-0.5 text-label-12 ${line.mode === 'WHOLESALE' ? 'bg-accent/10 text-accent' : 'bg-brand/10 text-brand'}`} data-test="line-mode">
+                                {t(`${C}.mode.${line.mode}`)}
+                            </span>
                         </span>
                     </div>
-                    <Button type="button" variant="ghost" size="icon" disabled={busy} onClick={remove} aria-label={`${t(`${C}.line.remove`)}: ${line.name}`} data-test="remove-line">
-                        <X aria-hidden="true" />
-                    </Button>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-1" role="group" aria-label={t(`${C}.line.quantity`, { name: line.name })}>
-                        <Button type="button" variant="outline" size="icon" disabled={busy || line.quantity <= fewest} onClick={() => set(line.quantity - 1)} aria-label={t(`${C}.line.less`)} data-test="less">
-                            <Minus aria-hidden="true" />
-                        </Button>
-                        <output className="tw-figure min-w-10 text-center text-label-14 text-ink" aria-live="polite" data-test="quantity">
-                            {figure(locale, line.quantity)}
-                        </output>
-                        <Button type="button" variant="outline" size="icon" disabled={busy || (most !== null && line.quantity >= most)} onClick={() => set(line.quantity + 1)} aria-label={t(`${C}.line.more`)} data-test="more">
-                            <Plus aria-hidden="true" />
-                        </Button>
-                    </div>
                     <div className="grid justify-items-end gap-0.5 text-end">
-                        {line.total === null ? <span className="text-copy-14 text-ink-muted">{t(`${C}.line.no_price`)}</span> : <Money value={line.total} className="text-label-14 text-ink" />}
+                        {line.total === null ? <span className="text-copy-14 text-ink-muted">{t(`${C}.line.no_price`)}</span> : <Money value={line.total} className="text-label-16 font-semibold text-ink" />}
                         {line.unit === null ? null : (
                             <span className="text-copy-13 text-ink-muted">
-                                <Price now={line.unit} before={line.before} /> {t(`${C}.line.unit`)}
+                                <Price now={line.unit} before={line.before} /> · {t(`catalog::shop.unit.${line.saleUnit}`)}
                             </span>
                         )}
                     </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    {/* One stepper box (§7). */}
+                    <div className="flex h-10 items-center rounded-md border border-line" role="group" aria-label={t(`${C}.line.quantity`, { name: line.name })}>
+                        <Button type="button" variant="ghost" size="icon" className="h-full w-9 rounded-none" disabled={busy || line.quantity <= fewest} onClick={() => set(line.quantity - 1)} aria-label={t(`${C}.line.less`)} data-test="less">
+                            <Minus aria-hidden="true" />
+                        </Button>
+                        <output className="tw-figure grid h-full min-w-11 place-items-center border-x border-line text-label-14 text-ink" aria-live="polite" data-test="quantity">
+                            {figure(locale, line.quantity)}
+                        </output>
+                        <Button type="button" variant="ghost" size="icon" className="h-full w-9 rounded-none" disabled={busy || (most !== null && line.quantity >= most)} onClick={() => set(line.quantity + 1)} aria-label={t(`${C}.line.more`)} data-test="more">
+                            <Plus aria-hidden="true" />
+                        </Button>
+                    </div>
+                    <Button type="button" variant="link" className="h-auto p-0 text-copy-14 text-ink-muted hover:text-bad" disabled={busy} onClick={remove} aria-label={`${t(`${C}.line.remove`)}: ${line.name}`} data-test="remove-line">
+                        {t(`${C}.line.remove`)}
+                    </Button>
                 </div>
 
                 <p className="text-copy-13 text-ink-muted">
@@ -256,7 +271,7 @@ function Skipped({ lines }: { lines: BuyAgainSkippedData[] }) {
     );
 }
 
-/** The coupon kept on the cart for checkout to apply or refuse (R1-15); a guest's box asks them to sign in. */
+/** The coupon kept on the cart for checkout to apply or refuse (R1-15); a guest's box asks them to sign in. Inside the summary (§7). */
 function Coupon({ code }: { code: string | null }) {
     const t = useTranslator();
     const link = useLink();
@@ -265,41 +280,44 @@ function Coupon({ code }: { code: string | null }) {
     const { busy, post } = usePost();
 
     return (
-        <Card className="material-base gap-3 border-0 py-4" data-test="coupon">
-            <CardContent className="grid gap-3 px-4">
-                {shopper ? (
-                    <form
-                        className="flex items-end gap-2"
-                        onSubmit={(event) => {
-                            event.preventDefault();
-                            post('storefront.sales.cart.coupon', { code: typed });
-                        }}
-                    >
-                        <TextField id="coupon-code" className="min-w-0 flex-1" label={t(`${C}.coupon.label`)} value={typed} maxLength={64} onChange={(event) => setTyped(event.target.value)} data-test="coupon-code" />
-                        <ActionButton type="submit" variant="outline" loading={busy} data-test="apply-coupon">
-                            {t(`${C}.coupon.apply`)}
-                        </ActionButton>
-                    </form>
-                ) : (
-                    <Link href={link('storefront.sales.cart.sign-in')} className="text-copy-14 text-ink underline underline-offset-4" data-test="coupon-sign-in">
-                        {t(`${C}.coupon.sign_in`)}
-                    </Link>
-                )}
-                {code === null ? null : (
-                    <p className="flex flex-wrap items-center justify-between gap-2 text-copy-13 text-ink-muted">
-                        <span>
-                            <bdi className="text-label-14 text-ink">{code}</bdi> · {t(`${C}.coupon.kept_for`)}
-                        </span>
-                        <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => post('storefront.sales.cart.coupon', { code: '' })} data-test="remove-coupon">
-                            {t(`${C}.coupon.remove`)}
-                        </Button>
-                    </p>
-                )}
-            </CardContent>
-        </Card>
+        <div className="grid gap-3 border-t border-line pt-4" data-test="coupon">
+            {shopper ? (
+                <form
+                    className="flex items-end gap-2"
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        post('storefront.sales.cart.coupon', { code: typed });
+                    }}
+                >
+                    <TextField id="coupon-code" className="min-w-0 flex-1" label={t(`${C}.coupon.label`)} value={typed} maxLength={64} onChange={(event) => setTyped(event.target.value)} data-test="coupon-code" />
+                    <ActionButton type="submit" variant="outline" loading={busy} data-test="apply-coupon">
+                        {t(`${C}.coupon.apply`)}
+                    </ActionButton>
+                </form>
+            ) : (
+                <Link href={link('storefront.sales.cart.sign-in')} className="text-copy-14 text-ink underline underline-offset-4" data-test="coupon-sign-in">
+                    {t(`${C}.coupon.sign_in`)}
+                </Link>
+            )}
+            {code === null ? null : (
+                <p className="flex flex-wrap items-center justify-between gap-2 text-copy-13 text-ink-muted">
+                    <span>
+                        <bdi className="text-label-14 text-ink">{code}</bdi> · {t(`${C}.coupon.kept_for`)}
+                    </span>
+                    <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => post('storefront.sales.cart.coupon', { code: '' })} data-test="remove-coupon">
+                        {t(`${C}.coupon.remove`)}
+                    </Button>
+                </p>
+            )}
+        </div>
     );
 }
 
+/**
+ * One sticky box (§7): the free-shipping bar, the next gift and the points (R1-12 to R1-14), the subtotal at 25 px, the
+ * shipping worked out at checkout, the coupon, and a 50 px Checkout. On a phone the Checkout row is pinned to the bottom
+ * of the screen with the subtotal before VAT - the same button, so a phone and a computer press one Checkout.
+ */
 function Summary({ cart, checkout }: { cart: CartPage; checkout: string }) {
     const t = useTranslator();
     const locale = useLocale();
@@ -309,95 +327,89 @@ function Summary({ cart, checkout }: { cart: CartPage; checkout: string }) {
     const reason = cart.problems ? t(`${C}.summary.fix_first`) : block !== null ? t(`${C}.block.${block}`) : undefined;
     // Each reason's one fix (R1-17): verifying (or changing the phone) on the account page, the company's own page; none for an account closed to orders.
     const fix = block === 'EMAIL_UNVERIFIED' ? link('storefront.account') : block === 'PHONE_UNVERIFIED' || block === 'PHONE_COUNTRY_NOT_SERVED' ? link('storefront.account', { tab: 'phone' }) : block === 'COMPANY_NOT_APPROVED' ? link('storefront.company') : null;
-
-    return (
-        <Card className="material-base gap-3 border-0 py-4" data-test="cart-summary">
-            <CardHeader className="px-4">
-                <CardTitle>
-                    <h2 className="text-heading-16 text-ink">{t(`${C}.summary.title`)}</h2>
-                </CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3 px-4">
-                <dl className="grid gap-1.5 text-copy-14">
-                    <div className="flex items-baseline justify-between gap-3">
-                        <dt className="text-ink-muted">
-                            {t(`${C}.summary.subtotal`)} <span className="text-copy-13">({plural(t, locale, `${C}.pieces`, cart.pieces)})</span>
-                        </dt>
-                        <dd>{cart.subtotal === null ? '—' : <Money value={cart.subtotal} className="text-label-14 text-ink" />}</dd>
-                    </div>
-                    {/* The fee needs the address: worked out at checkout (gap 6.6). */}
-                    <div className="flex items-baseline justify-between gap-3" data-test="summary-shipping">
-                        <dt className="text-ink-muted">{t(`${C}.summary.shipping`)}</dt>
-                        <dd className="text-copy-13 text-ink-muted">{t(`${C}.summary.shipping_later`)}</dd>
-                    </div>
-                </dl>
-                <p className="text-copy-13 text-ink-muted">{t(`${C}.summary.later`)}</p>
-
-                {shopper ? (
-                    <ActionButton disabledReason={reason} onClick={() => router.get(link('storefront.sales.checkout'))} data-test="checkout">
-                        {t(`${C}.summary.checkout`)}
-                    </ActionButton>
-                ) : (
-                    <>
-                        <Button asChild>
-                            <Link href={checkout} data-test="checkout">
-                                {t(`${C}.summary.checkout`)}
-                            </Link>
-                        </Button>
-                        <p className="text-copy-13 text-ink-muted">{t(`${C}.summary.sign_in_first`)}</p>
-                    </>
-                )}
-                {block === null ? null : (
-                    <p className="grid gap-1 text-copy-13 text-ink" role="note" data-test="may-not-order">
-                        <span>{t(`${C}.block.${block}`)}</span>
-                        {fix === null ? null : (
-                            <Link href={fix} className="w-fit underline underline-offset-4" data-test="finish-account">
-                                {t(`${C}.block.fix.${block}`)}
-                            </Link>
-                        )}
-                    </p>
-                )}
-            </CardContent>
-        </Card>
-    );
-}
-
-/** How much more ships free, with a bar - nothing where the store never ships free (R1-12); the next gift (R1-13); the points to earn (R1-14). */
-function Extras({ cart }: { cart: CartPage }) {
-    const t = useTranslator();
-    const locale = useLocale();
     // The bar only while the store ships everything free from an amount: the fee itself is worked out at checkout (gap 6.6).
     const free = cart.freeAbove !== null;
 
-    if (!free && cart.nextGift === null && cart.pointsToEarn === 0) {
-        return null;
-    }
-
     return (
-        <Card className="material-base gap-3 border-0 py-4" data-test="cart-extras">
-            <CardContent className="grid gap-3 px-4 text-copy-14 text-ink">
-                {free ? (
-                    <div className="grid gap-2" data-test="free-shipping">
-                        <p>
-                            {cart.freeShare >= 100 || cart.freeMissing === null ? (
-                                t(`${C}.extras.ships_free`)
-                            ) : (
-                                <>
-                                    {t(`${C}.extras.add_more`)} <Money value={cart.freeMissing} className="font-semibold" /> {t(`${C}.extras.for_free_shipping`)}
-                                </>
-                            )}
+        <section className="grid min-w-0 content-start gap-4 self-start rounded-xl border border-line bg-surface p-4 sm:p-5 lg:sticky lg:top-36" aria-labelledby="cart-summary-title" data-test="cart-summary">
+            <h2 id="cart-summary-title" className="text-heading-16 text-ink">
+                {t(`${C}.summary.title`)}
+            </h2>
+
+            {free || cart.nextGift !== null || cart.pointsToEarn > 0 ? (
+                <div className="grid gap-3 text-copy-14 text-ink" data-test="cart-extras">
+                    {free ? (
+                        <div className="grid gap-2 rounded-lg bg-surface-sunken p-3" data-test="free-shipping">
+                            <p>
+                                {cart.freeShare >= 100 || cart.freeMissing === null ? (
+                                    t(`${C}.extras.ships_free`)
+                                ) : (
+                                    <>
+                                        {t(`${C}.extras.add_more`)} <Money value={cart.freeMissing} className="font-semibold" /> {t(`${C}.extras.for_free_shipping`)}
+                                    </>
+                                )}
+                            </p>
+                            <Progress value={cart.freeShare} aria-label={t(`${C}.extras.free_bar`)} />
+                        </div>
+                    ) : null}
+                    {cart.nextGift === null ? null : (
+                        <p data-test="next-gift">
+                            {t(`${C}.extras.spend_about`)} <Money value={cart.nextGift.missing} className="font-semibold" /> {t(`${C}.extras.for_a_gift`)}
                         </p>
-                        <Progress value={cart.freeShare} aria-label={t(`${C}.extras.free_bar`)} />
-                    </div>
-                ) : null}
-                {cart.nextGift === null ? null : (
-                    <p data-test="next-gift">
-                        {t(`${C}.extras.spend_about`)} <Money value={cart.nextGift.missing} className="font-semibold" /> {t(`${C}.extras.for_a_gift`)}
-                    </p>
+                    )}
+                    {cart.pointsToEarn === 0 ? null : <p data-test="points-to-earn">{plural(t, locale, `${C}.extras.points`, cart.pointsToEarn)}</p>}
+                </div>
+            ) : null}
+
+            <dl className="grid gap-2 text-copy-14">
+                <div className="flex items-baseline justify-between gap-3">
+                    <dt className="text-ink-muted">
+                        {t(`${C}.summary.subtotal`)} <span className="text-copy-13">({plural(t, locale, `${C}.pieces`, cart.pieces)})</span>
+                    </dt>
+                    <dd>{cart.subtotal === null ? '—' : <Money value={cart.subtotal} className="text-[22px] font-semibold text-ink sm:text-[25px]" />}</dd>
+                </div>
+                {/* The fee needs the address: worked out at checkout (gap 6.6). */}
+                <div className="flex items-baseline justify-between gap-3" data-test="summary-shipping">
+                    <dt className="text-ink-muted">{t(`${C}.summary.shipping`)}</dt>
+                    <dd className="text-copy-13 text-ink-muted">{t(`${C}.summary.shipping_later`)}</dd>
+                </div>
+            </dl>
+            <p className="text-copy-13 text-ink-muted">{t(`${C}.summary.later`)}</p>
+
+            {/* A computer's Checkout; on a phone the same row is pinned to the bottom with the subtotal before VAT. */}
+            <div className={`grid gap-2 max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:z-40 ${cart.subtotal === null ? '' : 'max-sm:grid-cols-[auto_minmax(0,1fr)]'} max-sm:items-center max-sm:gap-3 max-sm:border-t max-sm:border-line max-sm:bg-surface max-sm:px-4 max-sm:pt-2 max-sm:pb-[calc(0.5rem+env(safe-area-inset-bottom))]`} data-test="checkout-row">
+                {cart.subtotal === null ? null : (
+                    <span className="grid leading-tight sm:hidden" data-test="checkout-bar-subtotal">
+                        <Money value={cart.subtotal} className="text-label-16 font-semibold text-ink" />
+                        <span className="text-label-12 text-ink-muted">{t(`${C}.summary.before_vat`)}</span>
+                    </span>
                 )}
-                {cart.pointsToEarn === 0 ? null : <p data-test="points-to-earn">{plural(t, locale, `${C}.extras.points`, cart.pointsToEarn)}</p>}
-            </CardContent>
-        </Card>
+                {shopper ? (
+                    <ActionButton className="h-12 w-full text-label-16 sm:h-[50px]" disabledReason={reason} onClick={() => router.get(link('storefront.sales.checkout'))} data-test="checkout">
+                        {t(`${C}.summary.checkout`)}
+                    </ActionButton>
+                ) : (
+                    <Button asChild className="h-12 w-full text-label-16 sm:h-[50px]">
+                        <Link href={checkout} data-test="checkout">
+                            {t(`${C}.summary.checkout`)}
+                        </Link>
+                    </Button>
+                )}
+            </div>
+            {shopper ? null : <p className="text-copy-13 text-ink-muted">{t(`${C}.summary.sign_in_first`)}</p>}
+            {block === null ? null : (
+                <p className="grid gap-1 text-copy-13 text-ink" role="note" data-test="may-not-order">
+                    <span>{t(`${C}.block.${block}`)}</span>
+                    {fix === null ? null : (
+                        <Link href={fix} className="w-fit underline underline-offset-4" data-test="finish-account">
+                            {t(`${C}.block.fix.${block}`)}
+                        </Link>
+                    )}
+                </p>
+            )}
+
+            <Coupon code={cart.couponCode} />
+        </section>
     );
 }
 

@@ -74,7 +74,7 @@ it('lays the product page out to the design, its total following the stepper and
 
     $page->script("document.querySelector('[data-test=\"add\"]').click()");
     expect(browserSoon($page, "document.querySelector('[data-test=\"added\"]') !== null && document.querySelector('[data-test=\"view-cart\"]') !== null"))->toBeTrue('no toast said it was added')
-        ->and(browserSoon($page, "document.querySelector('[data-test=\"header-cart-pieces\"]')?.textContent.trim() === '3'"))->toBeTrue();
+        ->and(browserSoon($page, "document.querySelector('[data-test=\"header-cart-count\"]')?.textContent.trim() === '1'"))->toBeTrue('the header did not count the one product');
 
     // A phone: the buy row fixed at the bottom, no tab bar, the heart over the photo and not in the row.
     $page->resize(375, 812);

@@ -87,7 +87,7 @@ it('draws a reduced price in red with the old one and what it saves, the percent
 
     // Add to cart adds the size and says so; the header's count goes up.
     $page->script("{$sale}.querySelector('[data-test=\"card-add\"]').click()");
-    expect(browserSoon($page, "document.querySelector('[data-test=\"header-cart-pieces\"]')?.textContent.trim() === '1'"))->toBeTrue('the cart did not count the added piece')
+    expect(browserSoon($page, "document.querySelector('[data-test=\"header-cart-count\"]')?.textContent.trim() === '1'"))->toBeTrue('the cart did not count the added piece')
         ->and(browserSoon($page, "document.body.innerText.includes('was added to your cart')"))->toBeTrue('no word that it was added');
 
     // A phone: the cards fit, each with its 32 px «+».

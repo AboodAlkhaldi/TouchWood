@@ -10,7 +10,7 @@ import { Money } from '@/components/Money';
 import { PanelDialog } from '@/components/PanelDialog';
 import { Time, useMoments } from '@/components/Time';
 import { useClock } from '@/components/sales/payment/flow';
-import { O, OrderStatus } from '@/components/sales/shop';
+import { O, OrderStatus, plural, useLocale } from '@/components/sales/shop';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,6 +23,7 @@ import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import type { MoneyData } from '@/types/generated/Modules/Platform/Public/Dto';
 import type { OwnOrderPage } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
+import { ShopPhoto, type PhotoSizes } from '@/components/shop/ShopPhoto';
 import { Bank } from './Checkout';
 
 /*
@@ -32,6 +33,12 @@ import { Bank } from './Checkout';
 | a bank transfer with the store's details and the receipt box while something is owed (§1.9); the shipment as
 | text (R1-29); Cancel… with its reasons, out of reach once shipped with why (R1-30, R2-21); the returns and
 | Ask for a Return… until the window closes (R2-22, R1-32); Buy Again (R1-33). No print, no download (R1-34).
+|
+| To the design (shop-design.md §15.2): the status as a 4-step stepper with a time under each (Approved's the decision's);
+| the lines as one bordered list - a 64 px photo, the name, chips for the code, each value and Retail or Wholesale, the
+| line's total with its unit price and unit of sale; the address with the line that it is kept as a copy; and a 372 px
+| side column that stays in place: the shipment (Track only with a link), the payment, the order's points, then Cancel
+| with its note.
 */
 
 const CANCEL_REASONS = ['CHANGED_MIND', 'ORDERED_BY_MISTAKE', 'FOUND_CHEAPER', 'TOO_SLOW', 'OTHER'];
@@ -69,32 +76,21 @@ export default function Order(order: OwnOrderPage) {
                         <OrderStatus status={order.status} label={t(`${O}.status.${order.status}`)} />
                         <Time value={order.placedAt} />
                     </span>
-                    <div className="flex flex-wrap gap-2">
-                        <ActionButton
-                            variant="outline"
-                            loading={busy}
-                            onClick={() => router.post(link('storefront.sales.order.buy-again', { number: order.number }), {}, { onStart: () => setBusy(true), onFinish: () => setBusy(false) })}
-                            data-test="buy-again"
-                        >
-                            {t(`${O}.order.buy_again`)}
-                        </ActionButton>
-                        {closed ? null : (
-                            <ActionButton variant="outline" disabledReason={order.mayCancel ? undefined : order.paymentBeingConfirmed ? t(`${O}.order.confirming`) : shipped ? t(`${O}.order.cannot_cancel`) : t(`${O}.order.cannot_cancel_closed`)} onClick={() => setCancelling(true)} data-test="cancel-order">
-                                {t(`${O}.order.cancel`)}
-                            </ActionButton>
-                        )}
-                    </div>
+                    <ActionButton
+                        variant="outline"
+                        loading={busy}
+                        onClick={() => router.post(link('storefront.sales.order.buy-again', { number: order.number }), {}, { onStart: () => setBusy(true), onFinish: () => setBusy(false) })}
+                        data-test="buy-again"
+                    >
+                        {t(`${O}.order.buy_again`)}
+                    </ActionButton>
                 </div>
 
                 <Timeline order={order} />
 
-                <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+                <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_372px] lg:gap-6">
                     <div className="grid min-w-0 content-start gap-4">
                         <Lines order={order} />
-                        <Returns order={order} />
-                    </div>
-                    <div className="grid min-w-0 content-start gap-4">
-                        <Payment order={order} />
                         <Section title={t(`${O}.order.address`)} test="order-address">
                             <p className="text-copy-14 text-ink">
                                 <bdi>{order.recipientName}</bdi>
@@ -107,8 +103,25 @@ export default function Order(order: OwnOrderPage) {
                                 </bdi>
                             </p>
                             <p className="text-copy-14 whitespace-pre-line text-ink-muted">{order.address}</p>
+                            <p className="border-t border-line pt-3 text-copy-13 text-ink-muted" data-test="address-copy">
+                                {t(`${O}.order.address_copy`)}
+                            </p>
                         </Section>
+                        <Returns order={order} />
+                    </div>
+                    {/* The side column, staying in place while the main one scrolls (§15.2). */}
+                    <div className="grid min-w-0 content-start gap-4 lg:sticky lg:top-36 lg:self-start" data-test="order-side">
                         <Shipment order={order} />
+                        <Payment order={order} />
+                        <Points order={order} />
+                        {closed ? null : (
+                            <div className="grid gap-2" data-test="order-cancel">
+                                <ActionButton variant="outline" className="h-11 w-full border-bad/40 text-bad hover:text-bad" disabledReason={order.mayCancel ? undefined : order.paymentBeingConfirmed ? t(`${O}.order.confirming`) : shipped ? t(`${O}.order.cannot_cancel`) : t(`${O}.order.cannot_cancel_closed`)} onClick={() => setCancelling(true)} data-test="cancel-order">
+                                    {t(`${O}.order.cancel`)}
+                                </ActionButton>
+                                <p className="text-copy-13 text-ink-muted">{shipped ? t(`${O}.order.cannot_cancel`) : t(`${O}.order.cancel_note`)}</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -130,7 +143,10 @@ function Section({ title, test, children }: { title: string; test: string; child
     );
 }
 
-/** Placed → Approved → Shipped → Delivered, as far as the order has come; or where it ended (R1-28). */
+/**
+ * Placed → Approved → Shipped → Delivered as a 4-step stepper, each with its time - Approved's the decision's (§15.2); or
+ * where it ended (R1-28).
+ */
 function Timeline({ order }: { order: OwnOrderPage }) {
     const t = useTranslator();
     const reached = { NEW: 1, PROCESSING: 2, SHIPPED: 3, DELIVERED: 4, CANCELLED: 0, REFUNDED: 0 }[order.status] ?? 1;
@@ -142,27 +158,25 @@ function Timeline({ order }: { order: OwnOrderPage }) {
               ]
             : [
                   ['placed', order.placedAt],
-                  ['approved', null],
+                  ['approved', order.approvedAt ?? null],
                   ['shipped', order.shippedAt],
                   ['delivered', order.deliveredAt],
               ];
     const done = (index: number) => (reached === 0 ? true : index < reached);
 
     return (
-        <ol className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center" aria-label={t(`${O}.timeline.label`)} data-test="timeline">
+        <ol className={cn('grid gap-3 rounded-xl border border-line bg-surface p-4', steps.length === 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2')} aria-label={t(`${O}.timeline.label`)} data-test="timeline">
             {steps.map(([key, at], index) => (
-                <li key={key} className={cn('flex items-center gap-2 text-copy-13', done(index) ? 'text-ink' : 'text-ink-muted')} aria-current={index === (reached === 0 ? steps.length - 1 : reached - 1) ? 'step' : undefined}>
-                    <span className={cn('flex size-5 items-center justify-center rounded-full', done(index) ? 'bg-ink text-surface' : 'shadow-[inset_0_0_0_1px_var(--tw-line-strong)]')} aria-hidden="true">
-                        {done(index) ? <Check className="size-3" /> : null}
+                <li key={key} className="relative grid justify-items-start gap-2" aria-current={index === (reached === 0 ? steps.length - 1 : reached - 1) ? 'step' : undefined}>
+                    <span className="flex w-full items-center gap-2" aria-hidden="true">
+                        <span className={cn('tw-figure flex size-8 shrink-0 items-center justify-center rounded-full text-label-13 font-semibold', done(index) ? 'bg-brand text-ink-on-brand' : 'bg-surface-sunken text-ink-muted')}>
+                            {done(index) ? <Check className="size-4" /> : index + 1}
+                        </span>
+                        {index < steps.length - 1 ? <i className={cn('h-0.5 flex-1 rounded-full max-sm:hidden', done(index + 1) ? 'bg-brand' : 'bg-line')} /> : null}
                     </span>
-                    <span>
-                        {t(`${O}.timeline.${key}`)}
-                        {at === null ? null : (
-                            <span className="text-ink-muted">
-                                {' · '}
-                                <Time value={at} focusable={false} />
-                            </span>
-                        )}
+                    <span className={cn('grid gap-0.5 text-copy-13', done(index) ? 'text-ink' : 'text-ink-muted')}>
+                        <span className="text-label-14">{t(`${O}.timeline.${key}`)}</span>
+                        <span className="text-ink-muted">{at === null ? '—' : <Time value={at} focusable={false} />}</span>
                     </span>
                 </li>
             ))}
@@ -172,6 +186,7 @@ function Timeline({ order }: { order: OwnOrderPage }) {
 
 function Lines({ order }: { order: OwnOrderPage }) {
     const t = useTranslator();
+    const locale = useLocale();
     const rows: [string, MoneyData | string | null, boolean][] = [
         [t(`${O}.order.subtotal`), order.subtotal, false],
         [t(`${O}.order.savings`), order.savings, true],
@@ -180,30 +195,53 @@ function Lines({ order }: { order: OwnOrderPage }) {
         [t(`${O}.order.shipping`), order.shippingPending ? t(`${O}.order.shipping_pending`) : order.shipping, false],
         [t(`${O}.order.vat`), order.vat, false],
     ];
+    const sold = order.lines.filter((line) => !line.gift);
+    const pieces = sold.reduce((sum, line) => sum + line.quantity, 0);
 
     return (
-        <Section title={t(`${O}.order.lines`)} test="order-lines">
-            <ul className="grid gap-2">
+        <section className="grid gap-0 overflow-hidden rounded-xl border border-line bg-surface" aria-labelledby="order-lines-title" data-test="order-lines">
+            <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-4 py-3">
+                <h2 id="order-lines-title" className="text-heading-16 text-ink">
+                    {t(`${O}.order.lines`)}
+                </h2>
+                <span className="tw-figure text-copy-13 text-ink-muted" data-test="order-lines-count">
+                    {plural(t, locale, `${O}.order.items`, sold.length)} · {plural(t, locale, `${O}.order.pieces`, pieces)}
+                </span>
+            </div>
+            <ul className="grid divide-y divide-line">
                 {order.lines.map((line) => (
-                    <li key={line.id} className="flex min-w-0 items-start justify-between gap-3 text-copy-14">
-                        <span className="grid min-w-0 gap-0.5">
+                    <li key={line.id} className="grid grid-cols-[4rem_minmax(0,1fr)_auto] items-start gap-3 px-4 py-3 text-copy-14" data-test="order-line">
+                        <ShopPhoto photo={(line.photo ?? null) as PhotoSizes | null} size="thumb" alt="" className="size-16 rounded-lg bg-surface-sunken object-contain" />
+                        <span className="grid min-w-0 gap-1">
                             <span className="text-label-14 text-ink">
                                 {line.name}
                                 {line.gift ? <span className="text-copy-13 text-ink-muted"> · {t(`${O}.order.gift`)}</span> : null}
                             </span>
-                            {line.values === '' ? null : <span className="text-copy-13 text-ink-muted">{line.values}</span>}
-                            <span className="text-copy-13 text-ink-muted">
-                                <bdi dir="ltr" className="tw-figure">
+                            {/* Chips for the code, each value and the way of buying (§15.2). */}
+                            <span className="flex flex-wrap items-center gap-1.5" data-test="order-line-chips">
+                                <bdi dir="ltr" className="tw-figure rounded-full bg-surface-sunken px-2.5 py-0.5 text-label-12 text-ink">
                                     {line.code}
-                                </bdi>{' '}
-                                {t(`${O}.order.quantity`, { count: figure('en', line.quantity) })} · <Money value={line.unit} />
+                                </bdi>
+                                {((line.chosen as string[] | undefined) ?? []).map((value) => (
+                                    <span key={value} className="rounded-full bg-surface-sunken px-2.5 py-0.5 text-label-12 text-ink">
+                                        {value}
+                                    </span>
+                                ))}
+                                <span className={cn('rounded-full px-2.5 py-0.5 text-label-12', line.mode === 'WHOLESALE' ? 'bg-accent/10 text-accent' : 'bg-brand/10 text-brand')} data-test="order-line-mode">
+                                    {t(`${O}.order.mode.${line.mode}`)}
+                                </span>
                             </span>
                         </span>
-                        <Money value={line.total} className="shrink-0 text-label-14 text-ink" />
+                        <span className="grid justify-items-end gap-0.5 text-end">
+                            <Money value={line.total} className="text-label-14 font-semibold text-ink" />
+                            <span className="text-copy-13 text-ink-muted">
+                                <Money value={line.unit} /> {t(`${O}.order.quantity`, { count: figure('en', line.quantity) })} · {t(`catalog::shop.unit.${line.saleUnit}`)}
+                            </span>
+                        </span>
                     </li>
                 ))}
             </ul>
-            <dl className="grid gap-1.5 border-t border-line pt-3 text-copy-14">
+            <dl className="grid gap-1.5 border-t border-line px-4 py-3 text-copy-14">
                 {rows
                     .filter(([, value]) => value !== null)
                     .map(([label, value, minus]) => (
@@ -218,10 +256,30 @@ function Lines({ order }: { order: OwnOrderPage }) {
                 <div className="flex items-baseline justify-between gap-3 border-t border-line pt-2">
                     <dt className="text-label-14 text-ink">{order.shippingPending ? t(`${O}.order.total_before`) : t(`${O}.order.total`)}</dt>
                     <dd>
-                        <Money value={order.total} className="text-label-14 text-ink" />
+                        <Money value={order.total} className="text-label-16 font-semibold text-brand" />
                     </dd>
                 </div>
             </dl>
+        </section>
+    );
+}
+
+/** The points this order earns, added at delivery and taken back on a cancel or a return (§15.2). */
+function Points({ order }: { order: OwnOrderPage }) {
+    const t = useTranslator();
+    const locale = useLocale();
+    const earned = order.pointsEarned ?? 0;
+
+    // Before delivery only: once delivered, the points were added with that day's settings, which this figure (worked out
+    // now) may not match - the balance shows what was added.
+    if (earned <= 0 || order.status === 'DELIVERED') {
+        return null;
+    }
+
+    return (
+        <Section title={t(`${O}.order.points_title`)} test="order-points">
+            <p className="tw-figure text-heading-20 text-ink">{plural(t, locale, `${O}.order.points_count`, earned)}</p>
+            <p className="text-copy-13 text-ink-muted">{t(`${O}.order.points_later`)}</p>
         </Section>
     );
 }

@@ -352,16 +352,16 @@ function TopBar({ bar, store, locale, words, children }: { bar: ContentFrame['ba
 
 /** The cart's button, with its pieces (R1-10): in the header from a tablet up - the design's filled navy button with its name (§2.3) - in the tab bar on a phone. */
 function CartButton({ shop, locale, sales, test }: { shop: string; locale: string; sales: NonNullable<NonNullable<SharedProps['frame']>['sales']>; test: string }) {
-    const label = sales.pieces > 0 ? `${sales.words.cart}${locale === 'ar' ? '، ' : ', '}${(sales.words.pieces[new Intl.PluralRules(intlLocale(locale)).select(sales.pieces)] ?? '').replace(':count', figure(locale, sales.pieces))}` : sales.words.cart;
+    const label = sales.products > 0 ? `${sales.words.cart}${locale === 'ar' ? '، ' : ', '}${(sales.words.products[new Intl.PluralRules(intlLocale(locale)).select(sales.products)] ?? '').replace(':count', figure(locale, sales.products))}` : sales.words.cart;
 
     return (
         <Button asChild className="h-[42px] gap-2 px-4">
             <Link href={`/${shop}/${locale}/cart`} aria-label={label} className="relative" data-test={test}>
                 <ShoppingCart aria-hidden="true" />
                 <span aria-hidden="true">{sales.words.cart}</span>
-                {sales.pieces > 0 ? (
-                    <Badge className="tw-figure h-5 min-w-5 rounded-full bg-surface px-1 text-[11px] leading-none text-ink" aria-hidden="true" data-test={`${test}-pieces`}>
-                        {sales.pieces > 99 ? '99+' : figure(locale, sales.pieces)}
+                {sales.products > 0 ? (
+                    <Badge className="tw-figure h-5 min-w-5 rounded-full bg-surface px-1 text-[11px] leading-none text-ink" aria-hidden="true" data-test={`${test}-count`}>
+                        {sales.products > 99 ? '99+' : figure(locale, sales.products)}
                     </Badge>
                 ) : null}
             </Link>
