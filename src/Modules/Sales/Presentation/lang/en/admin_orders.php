@@ -81,6 +81,8 @@ return [
         'RETAIL' => 'Retail',
         'WHOLESALE' => 'Wholesale',
     ],
+    // A line's unit of sale, as ordered (shop-design.md §10.7).
+    'unit' => ['PIECE' => 'per piece', 'SET' => 'per set', 'PAIR' => 'per pair', 'METRE' => 'per metre', 'CARTON' => 'per carton', 'BOX' => 'per box'],
     'cancel_reason' => [
         'CHANGED_MIND' => 'Changed their mind',
         'ORDERED_BY_MISTAKE' => 'Ordered by mistake',

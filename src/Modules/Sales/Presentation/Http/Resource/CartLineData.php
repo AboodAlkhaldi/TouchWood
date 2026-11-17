@@ -35,5 +35,10 @@ final class CartLineData extends Data
         public ?string $problem,
         public int $minimum,
         public ?int $maximum,
+        /** The line to the design (shop-design.md §7, §10.7): its brand, each chosen value for a chip, its unit of sale. */
+        public ?string $brand = null,
+        /** @var list<string> "Attribute: value", one a chip */
+        public array $chosen = [],
+        public string $saleUnit = 'PIECE',
     ) {}
 }

@@ -36,7 +36,7 @@ use Shared\Domain\Error\DomainError;
 final readonly class ShopCartController
 {
     /** @var list<string> */
-    private const array WORDS = [...StorefrontArea::WORDS, 'sales::shop_cart', 'sales::shop_payment', 'sales::errors'];
+    private const array WORDS = [...StorefrontArea::WORDS, 'sales::shop_cart', 'sales::shop_payment', 'sales::errors', 'catalog::shop'];
 
     public function __construct(
         private Page $page,

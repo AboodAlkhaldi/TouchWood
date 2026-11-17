@@ -220,6 +220,7 @@ final readonly class CatalogApiImpl implements CatalogApi
             $product->brandId(),
             $product->categoryId(),
             $product->warrantyId(),
+            $product->unit()->value,
         );
     }
 

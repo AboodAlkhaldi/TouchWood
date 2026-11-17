@@ -391,6 +391,8 @@ return [
     'hour_count' => '{1} 1 hour|[2,*] :count hours',
     'summary' => [
         'gift' => 'Free gift',
+        // A line's unit of sale, as ordered (shop-design.md §10.7).
+        'unit' => ['PIECE' => 'per piece', 'SET' => 'per set', 'PAIR' => 'per pair', 'METRE' => 'per metre', 'CARTON' => 'per carton', 'BOX' => 'per box'],
         'subtotal' => 'Subtotal',
         'coupon' => 'Coupon',
         'points' => 'Points',

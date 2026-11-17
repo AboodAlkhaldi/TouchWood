@@ -19,8 +19,8 @@ interface Carts
     /** The buyer's cart in the store, as it is; null when they have none. Exactly one of the two ids. */
     public function find(StoreId $store, ?string $customerId, ?string $guestId): ?Cart;
 
-    /** The pieces on the buyer's cart lines in the store, over both modes; 0 when they have no cart. Exactly one of the two ids. */
-    public function pieces(StoreId $store, ?string $customerId, ?string $guestId): int;
+    /** The lines on the buyer's cart in the store - the header's count of products; 0 when they have no cart. Exactly one of the two ids. */
+    public function products(StoreId $store, ?string $customerId, ?string $guestId): int;
 
     /**
      * The pieces on the buyer's cart line of each of these sizes in each mode in the store; a size not in

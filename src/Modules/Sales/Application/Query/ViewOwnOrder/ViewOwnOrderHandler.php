@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Modules\Sales\Application\Query\ViewOwnOrder;
 
 use Carbon\CarbonImmutable;
+use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Loyalty\Public\Contracts\LoyaltyApi;
 use Modules\Payments\Public\Contracts\PaymentsApi;
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Sales\Application\Command\UploadTransferDocument\UploadTransferDocumentHandler;
 use Modules\Sales\Application\Order\OrderRequests;
 use Modules\Sales\Application\Query\OrderLines;
@@ -20,9 +23,11 @@ use Modules\Sales\Domain\Exception\OrderNotFound;
 use Modules\Sales\Domain\Model\OrderState;
 use Modules\Sales\Domain\Model\ReturnState;
 use Modules\Sales\Domain\Service\OrderStatuses;
+use Modules\Sales\Public\Enums\CustomerOrderStatus;
 use Modules\Sales\Public\Enums\WayToPay;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\Money;
+use Shared\Domain\ValueObject\StoreId;
 
 /**
  * **The customer's own order** (sales.md §3 ViewOwnOrder), by its number: its lines as sold, its totals, the
@@ -39,6 +44,9 @@ final readonly class ViewOwnOrderHandler
         private OrderLines $lines,
         private OrderRequests $requests,
         private PaymentsApi $payments,
+        private CatalogApi $catalog,
+        private PlatformApi $platform,
+        private LoyaltyApi $loyalty,
     ) {}
 
     /**
@@ -66,11 +74,16 @@ final readonly class ViewOwnOrderHandler
         $confirming = $missing > 0 && $this->payments->paymentOpen($id);
         /** @var array<string, mixed> $address */
         $address = json_decode((string) $order['address'], true, 512, JSON_THROW_ON_ERROR);
+        $store = StoreId::fromString((string) $order['store_id']);
+        $status = OrderStatuses::customer((string) $order['status'], (string) $order['shipment_status'], $payment);
+        // The order's points (shop-design.md §15.2): what its goods earn, added at delivery; none once it ended without them.
+        $points = in_array($status, [CustomerOrderStatus::Cancelled, CustomerOrderStatus::Refunded], true) || in_array($order['status'], [OrderState::REJECTED, OrderState::UNDELIVERED], true)
+            ? 0 : $this->loyalty->earningPreview($store->value, $money($order['goods_total_minor']));
 
         return new OwnOrderView(
             $id,
             (string) $order['number'], (string) $order['store_id'], CarbonImmutable::parse((string) $order['placed_at']),
-            OrderStatuses::customer((string) $order['status'], (string) $order['shipment_status'], $payment), $payment, WayToPay::from((string) $order['way_to_pay']),
+            $status, $payment, WayToPay::from((string) $order['way_to_pay']),
             $lines, $money($order['gross_subtotal_minor']), $money($order['net_subtotal_minor']),
             $order['coupon_code'] === null ? null : (string) $order['coupon_code'], $money($order['coupon_discount_minor']),
             (int) $order['points_used'], $money($order['points_discount_minor']), $money($order['goods_total_minor']), $money($order['shipping_fee_minor']),
@@ -94,6 +107,34 @@ final readonly class ViewOwnOrderHandler
             (bool) $order['is_test'],
             $request === null ? null : new OwnPaymentRequest($request->requestId, $request->amount, $request->expiresAt),
             $confirming,
+            $at($order['decided_at'] ?? null),
+            $points,
+            $this->photos($store, $lines),
         );
+    }
+
+    /**
+     * Each line's product's card photo (shop-design.md §15.2), in two reads: the cards, then their photos' sizes.
+     *
+     * @param  list<OrderLineView>  $lines
+     * @return array<string, array<string, array<string, string>>>
+     */
+    private function photos(StoreId $store, array $lines): array
+    {
+        $productIds = array_values(array_unique(array_map(static fn (OrderLineView $line): string => $line->productId, $lines)));
+        $cards = $productIds === [] ? [] : $this->catalog->productCards($store, 'en', $productIds);
+        $mediaIds = array_values(array_filter(array_map(static fn ($card): ?string => $card->photoMediaId, $cards)));
+        $urls = $mediaIds === [] ? [] : $this->platform->mediaUrlsOf($mediaIds);
+        $photos = [];
+
+        foreach ($cards as $productId => $card) {
+            $variants = $card->photoMediaId === null ? null : ($urls[strtolower($card->photoMediaId)]->variants ?? null);
+
+            if ($variants !== null && $variants !== []) {
+                $photos[(string) $productId] = $variants;
+            }
+        }
+
+        return $photos;
     }
 }

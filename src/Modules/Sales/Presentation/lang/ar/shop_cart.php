@@ -6,6 +6,8 @@ declare(strict_types=1);
 return [
     'title' => 'السلة',
     'header' => 'السلة',
+    // The header's count of products (its lines, shop-design.md Q2).
+    'products' => ['zero' => ':count منتج', 'one' => 'منتج واحد', 'two' => 'منتجان', 'few' => ':count منتجات', 'many' => ':count منتجًا', 'other' => ':count منتج'],
     'pieces' => ['zero' => ':count قطعة', 'one' => 'قطعة واحدة', 'two' => 'قطعتان', 'few' => ':count قطع', 'many' => ':count قطعة', 'other' => ':count قطعة'],
     'empty' => 'سلتك فارغة',
     'continue' => 'متابعة التسوق',
@@ -54,6 +56,8 @@ return [
         'checkout' => 'إتمام الطلب',
         'fix_first' => 'أصلح البنود المعلَّمة أولًا',
         'sign_in_first' => 'سجّل الدخول أو أنشئ حسابًا لإتمام الطلب، وستبقى سلتك معك.',
+        // The phone's Checkout bar (shop-design.md §7).
+        'before_vat' => 'قبل الضريبة',
     ],
     // Why this account may not order yet, and its one fix (R1-17; §4.2 B12).
     'block' => [

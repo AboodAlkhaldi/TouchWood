@@ -20,5 +20,7 @@ final readonly class ProductDto
         public string $brandId,
         public ?string $categoryId,
         public ?string $warrantyId,
+        /** Its unit of sale (shop-design.md §10.1): PIECE, SET, PAIR, METRE, CARTON or BOX. */
+        public string $unit = 'PIECE',
     ) {}
 }

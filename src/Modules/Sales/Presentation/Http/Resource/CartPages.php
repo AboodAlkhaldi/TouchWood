@@ -66,6 +66,9 @@ final readonly class CartPages
                 $line->problem?->value,
                 $line->minimum,
                 $line->maximum,
+                $line->brand,
+                self::chosen($line->values, $locale),
+                $line->saleUnit,
             ), $cart->lines),
             $cart->mayOrder,
             $cart->couponCode,
@@ -93,9 +96,20 @@ final readonly class CartPages
      */
     private static function values(array $values, string $locale): string
     {
+        return implode(' · ', self::chosen($values, $locale));
+    }
+
+    /**
+     * Each chosen value as "Attribute: value", one a chip (shop-design.md §7).
+     *
+     * @param  list<array{attributeAr: string, attributeEn: string, valueAr: string, valueEn: string}>  $values
+     * @return list<string>
+     */
+    private static function chosen(array $values, string $locale): array
+    {
         $en = $locale === 'en';
 
-        return implode(' · ', array_map(static fn (array $value): string => ($en ? $value['attributeEn'] : $value['attributeAr']).': '.($en ? $value['valueEn'] : $value['valueAr']), $values));
+        return array_map(static fn (array $value): string => ($en ? $value['attributeEn'] : $value['attributeAr']).': '.($en ? $value['valueEn'] : $value['valueAr']), $values);
     }
 
     /** An amount in the store's currency: its sign while the store sells in it, else its letters. */
