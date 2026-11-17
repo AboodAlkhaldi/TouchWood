@@ -109,7 +109,7 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
 
                 <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_460px] lg:gap-11">
                     {/* A new set of photos starts at its first. */}
-                    <Gallery key={variant?.id ?? 'product'} photos={photos} name={name} reduced={reduced} back={back} heart={<SaveHeart wishlist={sections['feedback.wishlist']} productId={page.productId} name={name} className="size-10 rounded-full border-0 bg-white text-[#2c2c2a] shadow-sm hover:bg-white/90" test="gallery-heart" />} />
+                    <Gallery key={variant?.id ?? 'product'} photos={photos} name={name} reduced={reduced} back={back} heart={<SaveHeart wishlist={sections['feedback.wishlist']} productId={page.productId} name={name} className="size-10 rounded-full border-0 bg-white text-on-photo-ink shadow-sm hover:bg-white/90" test="gallery-heart" />} />
 
                     <div className="grid content-start gap-4">
                         <div className="flex flex-wrap items-center gap-2">
@@ -309,7 +309,7 @@ function Gallery({ photos, name, reduced, back, heart }: { photos: PhotoSizes[];
                 </div>
                 <ThemeRibbon reduced={reduced} />
                 <span className="absolute inset-x-3 top-3 flex items-center justify-between sm:hidden">
-                    <Link href={back} aria-label={t('ui.back')} className="grid size-10 place-items-center rounded-full bg-white text-[#2c2c2a] shadow-sm" data-test="gallery-back">
+                    <Link href={back} aria-label={t('ui.back')} className="grid size-10 place-items-center rounded-full bg-white text-on-photo-ink shadow-sm" data-test="gallery-back">
                         <ChevronLeft aria-hidden="true" className="size-5 rtl:rotate-180" />
                     </Link>
                     {heart}

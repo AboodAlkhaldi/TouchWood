@@ -360,7 +360,7 @@ function CardHeart({ productId, name, saved }: { productId: string; name: string
             className="absolute end-2 top-2 grid size-8 place-items-center rounded-full bg-white shadow-sm hover:bg-white/90"
             data-test="card-heart"
         >
-            <Heart aria-hidden="true" className={`size-4 ${on ? 'fill-red-500 text-red-500' : 'text-[#2c2c2a]'}`} />
+            <Heart aria-hidden="true" className={`size-4 ${on ? 'fill-red-500 text-red-500' : 'text-on-photo-ink'}`} />
         </button>
     );
 }
