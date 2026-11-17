@@ -44,7 +44,8 @@ export function CompanyShell({ page, children }: { page: CompanyPage; children: 
 
     return (
         <AccountLayout title={t('b2b::company.title')} subtitle={t('b2b::company.subtitle_in_store', { store })} page="b2b.company">
-            <div className={['grid gap-6', suspended ? '' : 'lg:grid-cols-[minmax(0,1fr)_18rem]'].join(' ')}>
+            {/* The design's two columns (shop-design.md §15.4): a 352 px side column that stays in place while scrolling. */}
+            <div className={['grid gap-6', suspended ? '' : 'lg:grid-cols-[minmax(0,1fr)_352px] lg:gap-7'].join(' ')}>
                 <div className="grid content-start gap-6">
                     <FormError />
                     {children}
