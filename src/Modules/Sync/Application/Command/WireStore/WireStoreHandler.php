@@ -74,7 +74,8 @@ final readonly class WireStoreHandler
             $this->input->address($provider, $command->address),
             $this->input->settings($provider, $command->settings),
             $this->input->secret($command->key, 'key'),
-            $this->input->secret($command->secret, 'secret'),
+            // Optional: only the provider's notices use it (flags-2026-11.md S6).
+            $this->input->optionalSecret($command->secret),
             ConnectionState::Ok,
             null,
             $this->staffId(),

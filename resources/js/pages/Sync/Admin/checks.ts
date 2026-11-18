@@ -8,7 +8,8 @@ const P = 'sync::admin_provider';
 
 /**
  * An address as the server takes one (ConnectionInput::address: `https://` then a host with no space, "/",
- * "?", "#" or "@", then anything but a space; 500 characters at most), each rule its own sentence's key.
+ * "?", "#" or "@", then anything but a space; 500 characters at most; Odoo's, a path after the host -
+ * flags-2026-11.md S6), each rule its own sentence's key.
  * An "@" after the host is the server's to take, so it is not refused here.
  */
 export function addressProblem(text: string): string | null {
@@ -24,6 +25,13 @@ export function addressProblem(text: string): string | null {
 
     if (/\s/.test(text) || host.includes('@')) {
         return `${P}.checks.address_plain`;
+    }
+
+    // The API's full address, its path included (flags-2026-11.md S6, F11): a host alone, or "/", is not one.
+    const path = text.slice('https://'.length + host.length).split(/[?#]/)[0] ?? '';
+
+    if (path.replace(/\/+$/, '') === '') {
+        return `${P}.checks.address_path`;
     }
 
     return [...text].length > 500 ? `${P}.checks.address_long` : null;

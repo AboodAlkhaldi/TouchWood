@@ -82,6 +82,15 @@ final readonly class ConnectionInput
     }
 
     /**
+     * **The webhook's secret, optional** (flags-2026-11.md S6, owner 2026-11-18): empty is none (null), else the
+     * secret's own rule.
+     */
+    public function optionalSecret(#[\SensitiveParameter] ?string $value): ?string
+    {
+        return $value === null || trim($value) === '' ? null : $this->secret($value, 'secret');
+    }
+
+    /**
      * Every field the provider asks for, as text, and no other.
      *
      * @param  array<array-key, mixed>  $settings

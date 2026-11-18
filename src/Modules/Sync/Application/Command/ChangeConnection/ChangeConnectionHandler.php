@@ -61,12 +61,12 @@ final readonly class ChangeConnectionHandler
         $address = $this->input->address($provider, $command->address);
         $settings = $this->input->settings($provider, $command->settings);
         $key = $command->key === null || $command->key === '' ? null : $this->input->secret($command->key, 'key');
-        $secret = $command->secret === null || $command->secret === '' ? null : $this->input->secret($command->secret, 'secret');
+        $secret = $this->input->optionalSecret($command->secret);
 
         // Tested before any lock is taken, so nothing waits while the provider answers - and never with the
         // stored key or secret at an address they were not given for.
         $stored = $this->connections->find($store) ?? throw new NotWired;
-        self::typedAgainForNewAddress($stored, $address, $key, $secret);
+        self::typedAgainForNewAddress($stored, $address, $key);
         $tested = $this->changed($stored, $provider, $address, $settings, $key, $secret);
         $this->adapters->for($provider)->test($tested);
 
@@ -74,7 +74,7 @@ final readonly class ChangeConnectionHandler
             // The row as it is now: unwired meanwhile, or changed by someone else, is seen here.
             $before = $this->connections->lockFor($store) ?? throw new NotWired;
             // Its address changed by someone else meanwhile: the same rule against the row as it is now.
-            self::typedAgainForNewAddress($before, $address, $key, $secret);
+            self::typedAgainForNewAddress($before, $address, $key);
             $after = $this->changed($before, $provider, $address, $settings, $key, $secret);
 
             // Another change landed while this one was tested: what is saved is tested again.
@@ -89,23 +89,17 @@ final readonly class ChangeConnectionHandler
     }
 
     /**
-     * A new address - as stored, its closing slash trimmed - takes a key and a secret typed again: each left
-     * empty is refused under its own box, before any call (owner, 2026-10-20).
+     * A new address - as stored, its closing slash trimmed - takes the key typed again, refused under its box
+     * when left empty, before any call (owner, 2026-10-20): the stored key is never sent to an address it was not
+     * given for. **The secret is not asked again** (flags-2026-11.md S6, F12): it is never sent anywhere, only
+     * checked against the notices that come to us.
      *
      * @throws InvalidSyncInput
      */
-    private static function typedAgainForNewAddress(Connection $stored, string $address, #[\SensitiveParameter] ?string $key, #[\SensitiveParameter] ?string $secret): void
+    private static function typedAgainForNewAddress(Connection $stored, string $address, #[\SensitiveParameter] ?string $key): void
     {
-        if ($stored->address === $address) {
-            return;
-        }
-
-        if ($key === null) {
+        if ($stored->address !== $address && $key === null) {
             throw new InvalidSyncInput('key', rule: InvalidSyncInput::KEY_AGAIN);
-        }
-
-        if ($secret === null) {
-            throw new InvalidSyncInput('secret', rule: InvalidSyncInput::SECRET_AGAIN);
         }
     }
 

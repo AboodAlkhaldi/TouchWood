@@ -29,6 +29,7 @@ use Modules\Sync\Domain\Exception\AlreadyWired;
 use Modules\Sync\Domain\Exception\ConnectionFailed;
 use Modules\Sync\Domain\Exception\InvalidSyncInput;
 use Modules\Sync\Domain\Exception\NotWired;
+use Modules\Sync\Domain\Repository\Connections;
 use Modules\Sync\Infrastructure\Queue\ReadStoreJob;
 use Shared\Application\ActorContext;
 use Shared\Application\Unauthorized;
@@ -145,7 +146,7 @@ describe('wiring', function () {
     it('wires to Odoo only when its adapter\'s test call works: a refused token saves nothing (SyncOdooAdapterTest)', function () {
         Http::fake(['odoo.test/*' => Http::response(['error' => 'bad token'], 401)]);
 
-        expect(fn () => syncWire('https://odoo.test'))->toThrow(ConnectionFailed::class, 'The provider could not be read: Odoo refused the token (401).')
+        expect(fn () => syncWire('https://odoo.test/json/2/product.product/read'))->toThrow(ConnectionFailed::class, 'The provider could not be read: Odoo refused the token (401).')
             ->and(DB::table('sync.connections')->count())->toBe(0);
         Http::assertSentCount(1);
     });
@@ -187,7 +188,8 @@ describe('wiring', function () {
         'an address too long' => [['address' => 'https://odoo.test/'.str_repeat('a', 500)], 'address'],
         'a name and password in the address' => [['address' => 'https://admin:pass@odoo.test/api'], 'address'],
         'an empty key' => [['key' => '  '], 'key'],
-        'an empty secret' => [['secret' => ''], 'secret'],
+        // An empty secret is none, and taken (flags-2026-11.md S6); one too long is still refused.
+        'a secret too long' => [['secret' => str_repeat('s', 1001)], 'secret'],
         'a key too long' => [['key' => str_repeat('k', 1001)], 'key'],
         // Each of the provider's settings refused by its own name (Q34).
         'a field the provider does not ask for' => [['settings' => ['company' => '1']], 'settings.company'],
@@ -268,7 +270,7 @@ describe('changing the connection', function () {
             ->and(Crypt::decryptString((string) DB::table('sync.connections')->value('key_encrypted')))->toBe('key-other');
     });
 
-    it('takes a key and a secret typed again for a new address: either left empty refused under its own box, nothing tested (owner, 2026-10-20)', function (?string $key, ?string $secret, string $field, string $rule) {
+    it('takes the key typed again for a new address: left empty, refused under its box, nothing tested (owner, 2026-10-20)', function (?string $key, ?string $secret, string $field, string $rule) {
         $fake = FakeProvider::bind();
         syncWire();
 
@@ -285,8 +287,30 @@ describe('changing the connection', function () {
     })->with([
         'both empty' => [null, null, 'key', 'key_again'],
         'the key empty' => ['', 'secret-2', 'key', 'key_again'],
-        'the secret empty' => ['key-2', '', 'secret', 'secret_again'],
     ]);
+
+    it('keeps the stored secret for a new address when its box is left empty: never sent anywhere, it is not asked again (flags-2026-11.md S6, F12)', function () {
+        $fake = FakeProvider::bind();
+        syncWire();
+
+        app(ChangeConnectionHandler::class)->handle(new ChangeConnection(syncSa(), 'ODOO', 'https://odoo2.test/api', 'key-2', ''));
+
+        expect(DB::table('sync.connections')->value('address'))->toBe('https://odoo2.test/api')
+            ->and(Crypt::decryptString((string) DB::table('sync.connections')->value('secret_encrypted')))->toBe('secret-1')
+            ->and($fake->tested)->toHaveCount(2);
+    });
+
+    it('wires a store with no secret, which then takes no notices; a secret added later is kept (flags-2026-11.md S6)', function () {
+        FakeProvider::bind();
+        syncWire(secret: '');
+
+        expect(DB::table('sync.connections')->value('secret_encrypted'))->toBeNull()
+            ->and(app(Connections::class)->notificationSecret(StoreId::fromString(syncSa())))->toBeNull();
+
+        app(ChangeConnectionHandler::class)->handle(new ChangeConnection(syncSa(), 'ODOO', 'https://odoo.test/api', null, 'secret-2'));
+
+        expect(app(Connections::class)->notificationSecret(StoreId::fromString(syncSa())))->toBe('secret-2');
+    });
 
     it('refuses a change whose address another change moved while it was tested, with the stored key never saved there', function () {
         $fake = FakeProvider::bind();
@@ -405,6 +429,7 @@ describe('the Provider page', function () {
         expect($view->provider)->toBe('ODOO')
             ->and($view->address)->toBe('https://odoo.test/api')
             ->and($view->keySet)->toBeTrue()
+            ->and($view->secretSet)->toBeTrue()
             ->and($view->changedAt)->not->toBeNull()
             ->and($view->state)->toBe('WORKING')
             ->and(str_contains((string) json_encode($view), 'key-1') || str_contains((string) json_encode($view), 'secret-1'))->toBeFalse();

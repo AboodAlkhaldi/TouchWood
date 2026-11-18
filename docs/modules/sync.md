@@ -50,8 +50,10 @@ Odoo is built to §2.4 (2026-10-20) and tested against a faked HTTP API (§9.1 #
 ### 1.2 Wiring a store
 
 A Super Admin opens a store's **Provider** page and enters: the **provider** (Odoo, the one adapter),
-its **address** (for Odoo, the account's own: `https://<account>.odoo.com`, §2.4), the **key** (Odoo's API
-key, sent as its bearer token), the **notification secret** (§1.3), and the fields the adapter asks for
+its **address** (for Odoo, **the API's full address**, its path included:
+`https://<account>.odoo.com/json/2/product.product/read`, §2.4; amendment 6), the **key** (Odoo's API
+key, sent as its bearer token), the **notification secret** (§1.3), **optional** (amendment 6: "Webhook Secret
+(optional)", needed only for Odoo's webhook), and the fields the adapter asks for
 (none for Odoo: the address, the key and the secret are all it needs, §2.4). The key and the secret are
 **kept encrypted in our database with the app's key** (owner, 2026-10-07 and 2026-10-13) and **never
 shown again** — the page shows only that they are set and when; a new value replaces the old one.
@@ -70,12 +72,13 @@ shown again** — the page shows only that they are set and when; a new value re
   run skipping it (Pricing's `CampaignPrices::skipsInStore`); staff are told when the read just queued ends,
   as for any entry (§9.3 #18). *As built (Content PR 8's third review, 2026-11-12).*
 - **Changing the key or the secret** is the same form, tested the same way. A key or a secret left empty is
-  kept - **unless the address changes** (as stored, its closing slash trimmed): then **both are typed again**,
-  each left empty refused under its own box ("Type the key again: the address changed." · "Type the secret
-  again: the address changed.", both languages) before any call, so the stored ones are never sent to a new
-  address (owner, 2026-10-20). *As built (2026-10-20): `ChangeConnection` checks it against the stored row
-  before the test call, and again under the row's lock before saving (`InvalidSyncInput`, `key` or `secret`,
-  rule `key_again` / `secret_again`).*
+  kept - **unless the address changes** (as stored, its closing slash trimmed): then **the key is typed again**,
+  left empty refused under its box ("Type the key again: the address changed.", both languages) before any call,
+  so the stored key is never sent to a new address (owner, 2026-10-20). **The secret is not asked again**: it is
+  never sent anywhere, only checked against the notices that come to us (amendment 6, F12). *As built:
+  `ChangeConnection` checks it against the stored row before the test call, and again under the row's lock
+  before saving (`InvalidSyncInput`, `key`, rule `key_again`).*
+- **A store with no secret takes no notices**, and its Provider page shows no Notice Address (amendment 6).
 
 ### 1.3 When we read
 
@@ -243,7 +246,7 @@ variant, no code covering another. It **only reads**: nothing is ever written to
 
 | | |
 |---|---|
-| Address | **The account's address**, typed by a Super Admin on the Provider page (§1.2): `https://<account>.odoo.com` - HTTPS, a host, **no path, no query, no fragment**, a closing slash dropped. The call goes to it followed by Odoo's standard JSON-2 path, kept in the adapter: `https://<account>.odoo.com/json/2/product.product/read` |
+| Address | **The API's full address** (amendment 6, owner 2026-11-18), typed by a Super Admin on the Provider page (§1.2): `https://<account>.odoo.com/json/2/product.product/read` - HTTPS, a host, **a path required**, no query, no fragment, a closing slash dropped. **The call goes to it exactly as saved**: a new API version, or another service answering as Odoo does, is a new address typed, never a code change |
 | Sign-in | Header `Authorization: Bearer <token>` - the store's key, typed with the address, kept encrypted (§1.2), never in a log, an error or the audit |
 | Method | `POST`, a JSON body (`Content-Type: application/json`, `Accept: application/json`) |
 | Pace | **One call at a time per store, at least 1 second apart** (§9.1 #8) - far under Odoo's 600 a minute. Each call waits **30 seconds** at most for its answer, **10** to reach Odoo |
@@ -536,21 +539,23 @@ Store's order, so the two never deadlock; a read Unwire Store stopped is failed 
   store works once it is ready." The form is drawn; its test is refused with the adapter's reason. Odoo's is
   built (2026-10-20, §2.1): the note is not shown.
 - **A store not wired** - a `Card` **Wire Store**: **Provider** (`NativeSelect`: Odoo) · **Address** ("https://
-  example.odoo.com", the account's address alone; said by the server under the box, §2.4 - "Odoo's address is
-  the account's address alone, with no path: https://example.odoo.com." · "Odoo's address can't hold a query (?)
-  or a fragment (#)."; as typed: "Address must start with https://." · "Address needs a host." · "Address
-  can't hold spaces, a name or a password." · 500 characters) · **the provider's settings** - its own fields
-  (none for Odoo, §2.4), each refused by its own name (Q34) · **Key** and **Secret** (`PasswordInput`, 1,000
-  characters). **Test and Wire Store** (main): `loading` "Testing…" while the test read runs (up to 10
+  example.odoo.com/json/2/product.product/read", the API's full address (amendment 6); said by the server under
+  the box, §2.4 - "Type the API's full address, its path included: https://example.odoo.com/json/2/product.product/read."
+  · "Odoo's address can't hold a query (?) or a fragment (#)."; as typed: "Address must start with https://." ·
+  "Address needs a host." · "Address can't hold spaces, a name or a password." · "Type the API's full address, its
+  path included." · 500 characters) · **the provider's settings** - its own fields (none for Odoo, §2.4), each
+  refused by its own name (Q34) · **Key** and **Webhook Secret (optional)** ("Only for Odoo's webhook. Leave it
+  empty if you don't use one.") (`PasswordInput`, 1,000 characters). **Test and Wire Store** (main): `loading` "Testing…" while the test read runs (up to 10
   seconds); a failure under the form - "Failed to read the provider: <its reason>" - saves nothing; success
   → "Store wired", the page shows the wired store, a Now read is queued.
-- **A wired store** - a `Description`: Provider · Address · its settings · **Key and Secret**: "Set" ·
+- **A wired store** - a `Description`: Provider · Address · its settings · **Key and Secret**: "Set", or "Key set · no webhook secret" (amendment 6) ·
   **Last Changed** (any change of the connection, Q33) · State (badge; the reason when failing) · Last Read
-  · Last Full Read · **Notice Address** (S7): `https://…/sync/notify/<store id>/<secret>` with a `CopyButton`, the
+  · Last Full Read · **Notice Address** (S7), only when a secret is stored (amendment 6): `https://…/sync/notify/<store id>/<secret>` with a `CopyButton`, the
   word `<secret>` left as it is since the secret is never shown again (§1.2), and under it: "Paste this into both
   Odoo webhooks, with this store's secret in place of <secret>." (both languages).
 - **Change Connection** (main): the card turns into the form, filled, **Key** and **Secret** empty ("Leave
-  empty to keep the current key. A new address needs it typed again." - the secret's alike); a new address
+  empty to keep the current key. A new address needs it typed again." · "Leave empty to keep the current secret.");
+  a new address
   with either left empty is refused under that box (§1.2; owner, 2026-10-20); **Test and Save Connection** tests again → "Connection changed" and a
   Now read is queued; **Cancel** returns.
 - ⋯ **Unwire Store…** (destructive, last): `DestructiveActionDialog` - "Unwire Store" · "12 sizes stop being
@@ -608,7 +613,7 @@ Every error extends `SyncError` → `DomainError` ("sync.*"), with both language
 | `EntryNotDismissable` | CONFLICT | Dismissing a failed read's entry: it closes when a read works again (§9.3 #23) |
 | `EntryNotRetryable` | CONFLICT | Retry on an Offer Stopped or an Off or Draft entry, which a read never closes (Q27): staff open the offer or the product instead (screens step 6's review, 2026-10-19) |
 | `StoreOff` | FORBIDDEN | A Sync read or action - the report, a read, Sync now, Retry, Dismiss, the Provider page and its changes - in a store that is off, by someone who may not switch stores (pricing.md §4.3.1 Q1, shared by every stage 5 screen; screens step 6's review, 2026-10-19). The system's own reads of an off store go on (§1.1 rule 8) |
-| `InvalidSyncInput` | INVALID | A store that does not exist, an address that is not HTTPS, an empty key or secret, a provider we do not have — named by its field; an address also by the rule it broke (`address_https`, `address_malformed`, `address_query`, `address_path` - Odoo's takes no path; §2.4); a host that is, or resolves to, a loopback, private, link-local, unique-local or unspecified address (`address_internal`; §2.4); a secret that is not 32 to 128 letters and digits (`secret`, rule `secret_format`) - **[WAITING: built with the webhook, §1.2]** |
+| `InvalidSyncInput` | INVALID | A store that does not exist, an address that is not HTTPS, an empty key (the secret may be empty, amendment 6), a provider we do not have — named by its field; an address also by the rule it broke (`address_https`, `address_malformed`, `address_query`, `address_no_path` - Odoo's is the API's full address, amendment 6; §2.4); a host that is, or resolves to, a loopback, private, link-local, unique-local or unspecified address (`address_internal`; §2.4); a secret that is not 32 to 128 letters and digits (`secret`, rule `secret_format`) - **[WAITING: built with the webhook, §1.2]** |
 
 A notification with a bad signature or an old timestamp is answered `401` with no body: it is not a
 staff error.
@@ -723,4 +728,5 @@ sections named.
 | 2 | §1.4, §1.6, §5, §6 | **A provider's price that makes a campaign skip a size** (content.md §1.7 #17, §9.4 A12; pricing.md §9.6 #5). Accepted with content.md; **built in Content PR 5** (2026-11-10): the entry's `detail` names every run skipping the size (`runs`, in id order), one rejoining leaves the others named, and a run new to an open entry tells staff again. The read writes its entries after Pricing's batch has committed, outside the store's lock, so it keeps only the runs Pricing still has skipping the size (`CampaignPrices::skippingRuns`): a run ended meanwhile is never named, re-opened or told again. An entry left naming no run is closed by `PRICING` (the coordinator's pick, 2026-11-10); the next read naming another run opens it again and tells staff. `DISCOUNT_SKIPPED` has the same window, but Pricing keeps no list of a discount's skips to read: left as it is. (a) **§1.4 #7**: a price that would take a scheduled or live campaign past the store's ceiling on a size is taken, and **the campaign skips that size** while it would be too deep, rejoining once the price allows, as a fixed-amount category discount (§1.4 #6). (b) **§1.6**: a new kind **`CAMPAIGN_SKIPPED`** — opened when a read makes a campaign skip a size, naming the size and the campaign (its run); closed by staff. **Open for the Pricing and Sync builders**: it is meant to close by itself when the size rejoins the campaign, or the campaign ends or is cancelled, but nothing yet tells Sync either moment; a discount's entry closes on Pricing's `DiscountReachChecked` (§6, §9.3 #28), and an event like it owed by Pricing is the likely way, settled when built. **Settled at the build (Content PR 5)**: Pricing's `CampaignReachChecked` (pricing.md §6.1) names the sizes it priced again and the runs still skipping them; Sync closes the rest, by `PRICING` (a read pricing the size within the ceiling closes it by `READ` too). **Not built yet**: the campaign's name and link in the Detail - the name is Content's and Sync has no arrow to Content; the entry keeps the run's id until a name source exists (PR 6). Its badge **Campaign Skipped** amber; its Detail "Past the ceiling at the provider's price." with the campaign named, a link when the reader may open it (both words for the wording review, reminder 16). (c) **`SyncNeedsAttention`** is sent for it as for `SALE_STOPPED`, `DISCOUNT_SKIPPED` and `READ_FAILED` (§6), so S4 reaches holders of `sync.report.view` by their switches (ops.md §1.6). (d) **§5**: `report_entries.kind`'s CHECK gains it, and the entry keeps the run's id in `detail`. Content's campaign page reads its skipped sizes from Pricing (pricing.md §9.6 #8, `CampaignPrices::skippedSizes`), not from Sync (the build coordinator's pick, 2026-11-10). | Owner, 2026-11-10 ("skip it from campaign so the new price active but no campaign and notice the staff about it so nothing is missed") |
 | 3 | §1.2, §1.3, §1.4, §2.1, §2.4, Y3, §9.1 | **Odoo's own API replaces the custom one.** `POST` to the account's `/json/2/product.product/read` with `ids` and `fields`, a plain list back, in Odoo's names (`id`, `list_price`, `free_qty`), which stay in the adapter. Every full read asks by our own codes; the hourly read reads everything; products Odoo has and we lack are not reported. The webhook is Odoo's built-in action, two rules to one address per store, the secret in the address; 600 calls a minute per store. Gone: `/touchwood/v1`, `changed_since`, paging, the signature headers and `{"codes": [...]}`. | Odoo's team has an API already; the custom one was never built. | Owner, 2026-11-09 (the request and answer as pasted; codes are Odoo ids; missing ids left out; `list_price` without VAT; limit raised; "Yes, add a secret") |
 | 4 | §1.2, §2.1, §2.4, Y3, §5, §7 | **The read part built** (2026-11-10): Sync Now, the hourly and the nightly reads call Odoo's `POST /json/2/product.product/read`. (a) **The address typed is the account's alone** (`https://<account>.odoo.com`); the path is Odoo's standard one and lives in the adapter; a path, a query or a fragment is refused under the box. (b) **500 ids a call**. (c) **Every full read asks every size not archived** (drafts and off sizes too), from Catalog's new `variantCodes` (catalog.md amendment 44). (d) **A code Odoo cannot have as an id** (a leading zero) is not sent; the night's read reports a switched-on one as Not at Provider. (e) **`403`** has its own reason, `ODOO_REFUSED_ACCESS`; an answer not a list, or an item with no whole-number id, fails the read (`ODOO_ANSWER_NOT_LIST`, `ODOO_ITEM_WITHOUT_ID`); the old paging reasons are gone. (f) `connections.last_read_at` dropped (the hourly read asked from it). (g) **The webhook waits**: the notice receiver is unchanged until Odoo's side is set up. | The owner's go for the read part (AskUserQuestion, 2026-11-10: "build the READ part now; the webhook receiver waits"); (a)-(f) are the build's picks within §2.4 | Owner, 2026-11-10; picks marked in the build's report |
+| 6 | §1.2, §2.4, Y3, §5, §7 | **The full address and an optional secret** (flags-2026-11.md S6). (a) **The address box takes the API's full address**, its path included, and the read and the test call it exactly as saved; an address with no path is refused, `address_no_path` ("Type the API's full address, its path included: https://example.odoo.com/json/2/product.product/read.", F11). Reverses amendment 4(a). (b) **The secret is optional** ("Webhook Secret (optional)", "Only for Odoo's webhook. Leave it empty if you don't use one."); `secret_encrypted` may be empty. (c) **A new address asks the key again, never the secret** (F12): `secret_again` is gone. (d) **The Notice Address shows only with a secret stored.** (e) The migration gave Odoo's path to Odoo addresses saved as the account's alone (local and test rows only). | The owner's flagged list, answered 2026-11-17/18 | Owner, 2026-11-18 (flags-2026-11.md S6, picks F11, F12) |
 | 5 | §1.2, §2.4, §7 | **The read's review** (2026-11-10). (a) **One id Odoo refuses** (`403`, `400`, another `4xx`; never `401` or `429`) is found by asking halves and reported as a `BAD_VALUE` naming the status (`provider_refused`); the rest of the read goes on; past 10 in a read, or every id of a read of more than one, the read fails. (b) **Ids past 2,147,483,647** (Odoo's int4) are never sent, as other codes that cannot be ids. (c) **An answer past 5 MB** stops (`ODOO_ANSWER_TOO_LARGE`). (d) **No host inside our network** (`address_internal`), checked as saved. (e) **One log line per read**: ids, calls, seconds. (f) A stored reason whose code is gone reads "The provider could not be read." (g) The secret's 32-128 rule (§1.2, §7 `secret_format`) marked as waiting with the webhook. | The build coordinator's review of the read part (PR #377) | The build's picks: the BAD_VALUE kind, 10 ids, 5 MB, a new reason code for (c), the check at save time only |

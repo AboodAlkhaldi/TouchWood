@@ -19,15 +19,16 @@ return [
         'submit' => 'Test and Save Connection',
         'cancel' => 'Cancel',
         'keep_key' => 'Leave empty to keep the current key. A new address needs it typed again.',
-        'keep_secret' => 'Leave empty to keep the current secret. A new address needs it typed again.',
+        'keep_secret' => 'Leave empty to keep the current secret.',
     ],
 
     'fields' => [
         'provider' => 'Provider',
         'address' => 'Address',
-        'address_placeholder' => 'https://example.odoo.com',
+        'address_placeholder' => 'https://example.odoo.com/json/2/product.product/read',
         'key' => 'Key',
-        'secret' => 'Secret',
+        'secret' => 'Webhook Secret (optional)',
+        'secret_help' => 'Only for Odoo\'s webhook. Leave it empty if you don\'t use one.',
         'settings' => 'The provider\'s settings',
     ],
 
@@ -36,6 +37,7 @@ return [
         'address_https' => 'The address must start with https://.',
         'address_host' => 'Address needs a host.',
         'address_plain' => 'Address can\'t hold spaces, a name or a password.',
+        'address_path' => 'Type the API\'s full address, its path included.',
         'address_long' => 'Address can be at most 500 characters.',
         'key_long' => 'The key can be at most 1,000 characters.',
         'secret_long' => 'The secret can be at most 1,000 characters.',
@@ -47,6 +49,8 @@ return [
         'settings' => 'Settings',
         'key_and_secret' => 'Key and Secret',
         'set' => 'Set',
+        // A key and no webhook secret (flags-2026-11.md S6).
+        'key_only' => 'Key set · no webhook secret',
         'last_changed' => 'Last Changed',
         'state' => 'State',
         'last_read' => 'Last Read',

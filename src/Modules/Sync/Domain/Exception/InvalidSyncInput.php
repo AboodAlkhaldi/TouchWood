@@ -24,9 +24,6 @@ final class InvalidSyncInput extends SyncError
     /** A key left empty while the address changes: typed again, never the stored one sent there (owner, 2026-10-20). */
     public const string KEY_AGAIN = 'key_again';
 
-    /** A secret left empty while the address changes, as the key. */
-    public const string SECRET_AGAIN = 'secret_again';
-
     /** An address the HTTP client cannot call: a port that is not one (1-65535), a host it cannot read. */
     public const string ADDRESS_MALFORMED = 'address_malformed';
 
@@ -36,8 +33,8 @@ final class InvalidSyncInput extends SyncError
     /** A host that is, or resolves to, a loopback, private, link-local, unique-local or unspecified address (§2.4). */
     public const string ADDRESS_INTERNAL = 'address_internal';
 
-    /** An address with a path where the provider takes none (Odoo's is the account's address alone, §2.4). */
-    public const string ADDRESS_PATH = 'address_path';
+    /** An address with no path where the provider's is the API's full address (Odoo's, flags-2026-11.md S6, F11). */
+    public const string ADDRESS_NO_PATH = 'address_no_path';
 
     public function __construct(
         public readonly string $attribute,

@@ -13,7 +13,7 @@ const P = 'sync::admin_provider.checks';
 
 describe('the Provider form\'s address', () => {
     it('takes an HTTPS address with a host, a path, a query, and an "@" after the host as the server does', () => {
-        for (const good of ['https://odoo.example.com', 'HTTPS://odoo.example.com/api', 'https://odoo.example.com:8443/api?db=tw#x', 'https://odoo.example.com/a@b']) {
+        for (const good of ['https://odoo.example.com/json/2/product.product/read', 'HTTPS://odoo.example.com/api', 'https://odoo.example.com:8443/api?db=tw#x', 'https://odoo.example.com/a@b']) {
             assert.equal(addressProblem(good), null, good);
         }
     });
@@ -27,6 +27,12 @@ describe('the Provider form\'s address', () => {
         assert.equal(addressProblem('https://odoo.example.com/a b'), `${P}.address_plain`);
         assert.equal(addressProblem('https://user:pass@odoo.example.com'), `${P}.address_plain`);
         assert.equal(addressProblem(`https://odoo.example.com/${'a'.repeat(480)}`), `${P}.address_long`);
+    });
+
+    it("asks for the API's full address, its path included (flags-2026-11.md S6)", () => {
+        for (const bare of ['https://odoo.example.com', 'https://odoo.example.com/', 'https://odoo.example.com//', 'https://odoo.example.com?db=tw']) {
+            assert.equal(addressProblem(bare), `${P}.address_path`, bare);
+        }
     });
 });
 

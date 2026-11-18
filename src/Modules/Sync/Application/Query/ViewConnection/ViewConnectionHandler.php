@@ -83,6 +83,7 @@ final readonly class ViewConnectionHandler
             $notice,
             NotificationReceiver::MOST_CODES,
             $this->stock->stopsWhenUnwired($store),
+            $connection->secret !== null,
         );
     }
 }

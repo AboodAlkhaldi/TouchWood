@@ -62,10 +62,9 @@ return [
             'address_https' => 'The address must start with https://.',
             'address_malformed' => 'The address can\'t be called: check its host and its port.',
             'address_query' => 'Odoo\'s address can\'t hold a query (?) or a fragment (#).',
-            // A key or a secret left empty while the address changes (owner, 2026-10-20).
+            // A key left empty while the address changes (owner, 2026-10-20); the secret is not asked again (flags-2026-11.md S6).
             'key_again' => 'Type the key again: the address changed.',
-            'secret_again' => 'Type the secret again: the address changed.',
-            'address_path' => 'Odoo\'s address is the account\'s address alone, with no path: https://example.odoo.com.',
+            'address_no_path' => 'Type the API\'s full address, its path included: https://example.odoo.com/json/2/product.product/read.',
             // A host inside our network (sync.md §2.4): the key would go to one of our own services.
             'address_internal' => 'The address can\'t point inside our network: its host is a local or private address.',
         ],

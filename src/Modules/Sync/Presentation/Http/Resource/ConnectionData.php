@@ -36,5 +36,7 @@ final class ConnectionData extends Data
         public string $noticeAddress,
         public int $noticeMostCodes,
         public int $stopsWhenUnwired,
+        /** A webhook secret is stored: the Notice Address is shown only then (flags-2026-11.md S6). */
+        public bool $secretSet = false,
     ) {}
 }

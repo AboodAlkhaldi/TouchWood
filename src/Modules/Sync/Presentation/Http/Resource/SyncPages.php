@@ -175,6 +175,7 @@ final readonly class SyncPages
                 $view->noticeAddress,
                 $view->noticeMostCodes,
                 $view->stopsWhenUnwired,
+                $view->secretSet,
             ),
         );
     }
