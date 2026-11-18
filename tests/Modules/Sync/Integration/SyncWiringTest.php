@@ -314,10 +314,13 @@ describe('changing the connection', function () {
         // Removed (owner, 2026-11-19): the webhook is off, the reads go on; audited as removed, never its value.
         app(ChangeConnectionHandler::class)->handle(new ChangeConnection(syncSa(), 'ODOO', 'https://odoo.test/api', removeSecret: true));
 
+        $audit = (string) DB::table('platform.audit_entries')->where('action', 'sync.connection.changed')->orderByDesc('id')->value('changes');
+
         expect(DB::table('sync.connections')->value('secret_encrypted'))->toBeNull()
             ->and(app(Connections::class)->notificationSecret(StoreId::fromString(syncSa())))->toBeNull()
             ->and(syncView()->secretSet)->toBeFalse()
-            ->and((string) DB::table('platform.audit_entries')->where('action', 'sync.connection.changed')->orderByDesc('id')->value('changes'))->toContain('removed')->not->toContain('secret-2');
+            ->and(str_contains($audit, 'removed'))->toBeTrue()
+            ->and(str_contains($audit, 'secret-2'))->toBeFalse();
     });
 
     it('refuses a change whose address another change moved while it was tested, with the stored key never saved there', function () {
