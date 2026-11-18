@@ -68,15 +68,15 @@ final readonly class ChangeConnectionHandler
         // stored key or secret at an address they were not given for.
         $stored = $this->connections->find($store) ?? throw new NotWired;
         self::typedAgainForNewAddress($stored, $address, $key);
-        $tested = $this->changed($stored, $provider, $address, $settings, $key, $secret);
+        $tested = $this->changed($stored, $provider, $address, $settings, $key, $secret, $command->removeSecret);
         $this->adapters->for($provider)->test($tested);
 
-        $this->db->transaction(function () use ($store, $provider, $address, $settings, $key, $secret, $tested): void {
+        $this->db->transaction(function () use ($store, $provider, $address, $settings, $key, $secret, $tested, $command): void {
             // The row as it is now: unwired meanwhile, or changed by someone else, is seen here.
             $before = $this->connections->lockFor($store) ?? throw new NotWired;
             // Its address changed by someone else meanwhile: the same rule against the row as it is now.
             self::typedAgainForNewAddress($before, $address, $key);
-            $after = $this->changed($before, $provider, $address, $settings, $key, $secret);
+            $after = $this->changed($before, $provider, $address, $settings, $key, $secret, $command->removeSecret);
 
             // Another change landed while this one was tested: what is saved is tested again.
             if ($after->key !== $tested->key || $after->secret !== $tested->secret) {
@@ -107,7 +107,7 @@ final readonly class ChangeConnectionHandler
     /**
      * @param  array<string, string>  $settings
      */
-    private function changed(Connection $before, ProviderKind $provider, string $address, array $settings, ?string $key, ?string $secret): Connection
+    private function changed(Connection $before, ProviderKind $provider, string $address, array $settings, ?string $key, ?string $secret, bool $removeSecret = false): Connection
     {
         return new Connection(
             $before->storeId,
@@ -115,7 +115,8 @@ final readonly class ChangeConnectionHandler
             $address,
             $settings,
             $key ?? $before->key,
-            $secret ?? $before->secret,
+            // Removed (owner, 2026-11-19): the webhook is off; the hourly and nightly reads go on.
+            $removeSecret ? null : ($secret ?? $before->secret),
             $before->state,
             $before->lastError,
             $before->createdBy,
@@ -148,7 +149,7 @@ final readonly class ChangeConnectionHandler
         }
 
         if ($before->secret !== $after->secret) {
-            $changes->changed('secret', null, 'replaced');
+            $changes->changed('secret', null, $after->secret === null ? 'removed' : 'replaced');
         }
 
         return $changes;

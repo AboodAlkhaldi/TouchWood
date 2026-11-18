@@ -7,6 +7,8 @@ import { SelectField, TextField } from '@/components/Fields';
 import { FormError, useFreshRefusal } from '@/components/FormError';
 import { Note } from '@/components/Note';
 import { PasswordInput } from '@/components/PasswordInput';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Field, FieldLabel } from '@/components/ui/field';
 import { Guarded, MoreButton } from '@/components/RowMenu';
 import { Time } from '@/components/Time';
 import { CopyButton } from '@/components/geist-only/CopyButton';
@@ -104,6 +106,8 @@ function ConnectionForm({ frame, connection, mode, onDone }: { frame: SyncFrameD
     const [settings, setSettings] = useState<Record<string, string>>(() => Object.fromEntries(connection.fields.map((name) => [name, connection.settings[name] ?? ''])));
     const [key, setKey] = useState('');
     const [secret, setSecret] = useState('');
+    // Remove the stored webhook secret (owner, 2026-11-19): only offered when changing a store that has one.
+    const [removeSecret, setRemoveSecret] = useState(false);
     const [busy, setBusy] = useState(false);
     const changing = mode === 'change';
     const F = `${P}.fields`;
@@ -125,7 +129,7 @@ function ConnectionForm({ frame, connection, mode, onDone }: { frame: SyncFrameD
         checks.submit(() =>
             router.post(
                 `/admin/sync/provider/${mode}`,
-                { store: frame.storeCode, provider, address, key, secret, settings },
+                { store: frame.storeCode, provider, address, key, secret: removeSecret ? '' : secret, settings, remove_secret: removeSecret },
                 {
                     preserveScroll: true,
                     onStart: () => setBusy(true),
@@ -202,16 +206,35 @@ function ConnectionForm({ frame, connection, mode, onDone }: { frame: SyncFrameD
                         check={checks.box(ID.key, error('key'))}
                         dir="ltr"
                     />
-                    <PasswordInput
-                        id={ID.secret}
-                        label={t(`${F}.secret`)}
-                        value={secret}
-                        onChange={(event) => setSecret(event.target.value)}
-                        autoComplete="new-password"
-                        helper={changing && connection.secretSet ? t(`${P}.change.keep_secret`) : t(`${F}.secret_help`)}
-                        check={checks.box(ID.secret, error('secret'))}
-                        dir="ltr"
-                    />
+                    {removeSecret ? null : (
+                        <PasswordInput
+                            id={ID.secret}
+                            label={t(`${F}.secret`)}
+                            value={secret}
+                            onChange={(event) => setSecret(event.target.value)}
+                            autoComplete="new-password"
+                            helper={changing && connection.secretSet ? t(`${P}.change.keep_secret`) : t(`${F}.secret_help`)}
+                            check={checks.box(ID.secret, error('secret'))}
+                            dir="ltr"
+                        />
+                    )}
+                    {changing && connection.secretSet ? (
+                        <Field orientation="horizontal">
+                            <Checkbox
+                                id="provider-remove-secret"
+                                checked={removeSecret}
+                                onCheckedChange={(checked) => {
+                                    setRemoveSecret(checked === true);
+                                    setSecret('');
+                                }}
+                                className="border-ink-subtle"
+                                data-test="remove-secret"
+                            />
+                            <FieldLabel htmlFor="provider-remove-secret" className="text-label-14 font-normal text-ink">
+                                {t(`${P}.change.remove_secret`)}
+                            </FieldLabel>
+                        </Field>
+                    ) : null}
 
                     {formError === undefined ? null : (
                         <Note variant="error" alert data-test="form-error">

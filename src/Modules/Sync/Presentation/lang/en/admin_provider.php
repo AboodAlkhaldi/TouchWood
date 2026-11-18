@@ -20,6 +20,8 @@ return [
         'cancel' => 'Cancel',
         'keep_key' => 'Leave empty to keep the current key. A new address needs it typed again.',
         'keep_secret' => 'Leave empty to keep the current secret.',
+        // Owner, 2026-11-19: the webhook is turned off; the hourly read stays.
+        'remove_secret' => 'Remove the webhook secret: Odoo\'s webhook stops and only the hourly read stays.',
     ],
 
     'fields' => [
