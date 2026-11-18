@@ -556,7 +556,8 @@ Store's order, so the two never deadlock; a read Unwire Store stopped is failed 
 - **Change Connection** (main): the card turns into the form, filled, **Key** and **Secret** empty ("Leave
   empty to keep the current key. A new address needs it typed again." · "Leave empty to keep the current secret.");
   a new address
-  with either left empty is refused under that box (§1.2; owner, 2026-10-20); **Test and Save Connection** tests again → "Connection changed" and a
+  with the key left empty is refused under that box (§1.2; owner, 2026-10-20; the secret is never asked again,
+  amendment 6); with no secret stored, the secret's box shows its "Only for Odoo's webhook…" line instead; **Test and Save Connection** tests again → "Connection changed" and a
   Now read is queued; **Cancel** returns.
 - ⋯ **Unwire Store…** (destructive, last): `DestructiveActionDialog` - "Unwire Store" · "12 sizes stop being
   orderable: with no provider every size counts on its stock, and these have none free." (or "No size stops
@@ -572,7 +573,7 @@ written so a NULL cannot slip through.
 
 | Table | Columns |
 |---|---|
-| `sync.connections` | `store_id` PK FK `platform.stores` RESTRICT · `provider` CHECK (`ODOO`) · `address` · `settings` jsonb (the adapter's fields) · `key_encrypted` · `secret_encrypted` · `state` CHECK (`OK`, `FAILING`) · `last_full_read_at` NULL (`last_read_at`, the time the hourly read asked from, dropped 2026-11-10: Odoo's API reads everything each hour) · `last_error` NULL · `created_by` · `created_at` · `updated_at` |
+| `sync.connections` | `store_id` PK FK `platform.stores` RESTRICT · `provider` CHECK (`ODOO`) · `address` · `settings` jsonb (the adapter's fields) · `key_encrypted` · `secret_encrypted` NULL (no webhook secret, amendment 6) · `state` CHECK (`OK`, `FAILING`) · `last_full_read_at` NULL (`last_read_at`, the time the hourly read asked from, dropped 2026-11-10: Odoo's API reads everything each hour) · `last_error` NULL · `created_by` · `created_at` · `updated_at` |
 | `sync.reads` | `id` ULID PK · `store_id` · `kind` CHECK (`NOTIFIED`, `HOURLY`, `NIGHTLY`, `NOW`, `CODE`) · `requested_by_type`, `requested_by_id` NULL (staff only, and never for a notice's or the hour's read) · `state` CHECK (`QUEUED`, `RUNNING`, `DONE`, `FAILED`) · `prices_changed`, `stock_changed`, `skipped` int ≥ 0 · `error` NULL · `queued_at` · `started_at` NULL · `finished_at` NULL · `codes` jsonb NULL (a notified or one-code read's codes, a list; no other read has them) · **one running per store, one full read of each kind waiting** (unique partial indexes, so two workers never both win) — deleted 90 days after it finished |
 | `sync.read_lines` | `id` bigint PK · `read_id` FK `sync.reads` CASCADE · `kind` CHECK (`PRICE`, `STOCK`) · `variant_id` (no key) · `code` NULL · `before` NULL · `after` — each price and stock number a read changed (§9.3 #19), deleted with its read |
 | `sync.read_reports` | `id` bigint PK · `read_id` FK `sync.reads` CASCADE · `kind` · `code` NULL · `variant_id` NULL · `sale_id` NULL · `detail` jsonb — what each read reported, as it was that day (§9.3 #22), deleted with its read |

@@ -389,10 +389,20 @@ describe('the Provider page (Y3)', function () {
 
         expect([$page['connection']['provider'], $page['connection']['keySet'], $page['connection']['settings'], $page['connection']['fields']])->toBe(['ODOO', true, ['database' => 'tw'], ['database']])
             ->and($page['connection']['noticeAddress'])->toEndWith('/sync/notify/'.Fx::storeId('sa'))
+            ->and($page['connection']['secretSet'])->toBeTrue()
             ->and($page['storeFrame']['mayWire'])->toBeTrue()
             ->and(str_contains((string) json_encode($page['connection']), '"k"'))->toBeFalse();
 
         syncScreens()->get('/admin/sync/provider')->assertForbidden();
+    });
+
+    it('wires a store through its page with the secret left empty: none kept, and the page says so (flags-2026-11.md S6)', function () {
+        $wired = syncScreensSuper()->post('/admin/sync/provider/wire', ['store' => 'sa', 'provider' => 'ODOO', 'address' => 'https://odoo.test/api', 'key' => 'k', 'secret' => '', 'settings' => ['database' => 'tw']]);
+        $page = syncScreensProps(syncScreensSuper()->get('/admin/sync/provider'), 'Sync/Admin/Provider');
+
+        expect(AdminBrowser::flashed($wired, 'status'))->toBe('Store wired')
+            ->and(DB::table('sync.connections')->value('secret_encrypted'))->toBeNull()
+            ->and([$page['connection']['keySet'], $page['connection']['secretSet']])->toBe([true, false]);
     });
 
     it('wires, changes and unwires a store, each said in a toast; a setting refused under its own box (Q34)', function () {

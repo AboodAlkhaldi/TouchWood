@@ -27,8 +27,9 @@ use Shared\Application\Unauthorized;
 
 /**
  * **Changing a store's connection** (sync.md §1.2): the same form, tested the same way before anything
- * is saved; a key or a secret left empty is kept - **unless the address changes**: then both are typed
- * again, so the stored ones are never sent to a new address (owner, 2026-10-20). Saved, a full read is queued, and the change audited -
+ * is saved; a key or a secret left empty is kept - **unless the address changes**: then the key is typed
+ * again, so the stored one is never sent to a new address (owner, 2026-10-20); the secret, never sent anywhere,
+ * is not asked again (sync.md amendment 6). Saved, a full read is queued, and the change audited -
  * a new key or secret only as replaced, never its value. Only what the form holds is written: the
  * connection's state and its last read stay the reads' (step 4).
  */

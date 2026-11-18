@@ -208,7 +208,7 @@ function ConnectionForm({ frame, connection, mode, onDone }: { frame: SyncFrameD
                         value={secret}
                         onChange={(event) => setSecret(event.target.value)}
                         autoComplete="new-password"
-                        helper={changing ? t(`${P}.change.keep_secret`) : t(`${F}.secret_help`)}
+                        helper={changing && connection.secretSet ? t(`${P}.change.keep_secret`) : t(`${F}.secret_help`)}
                         check={checks.box(ID.secret, error('secret'))}
                         dir="ltr"
                     />

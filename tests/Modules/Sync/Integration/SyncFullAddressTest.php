@@ -38,7 +38,7 @@ function fullAddressView(): ConnectionView
     return app(ViewConnectionHandler::class)->handle(new ViewConnection(Fx::storeId('sa')));
 }
 
-it('says whether a webhook secret is stored, so the page shows the Notice Address only with one', function () {
+it('says whether a webhook secret is stored: the page shows the Notice Address only with one (its props: SyncScreensTest)', function () {
     app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('sa'), 'ODOO', 'https://odoo.test/api', 'key', ''));
 
     expect(fullAddressView()->keySet)->toBeTrue()
@@ -53,12 +53,15 @@ it('says whether a webhook secret is stored, so the page shows the Notice Addres
 it('gives Odoo\'s path to an Odoo address saved as the account\'s alone, and leaves a full one as it is', function () {
     app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('sa'), 'ODOO', 'https://odoo.test/api', 'key', 'the-secret'));
     app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('ae'), 'ODOO', 'https://odoo.test/api', 'key', 'the-secret'));
-    // As the old rule saved it: the account's address alone, once with its closing slash.
+    app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('eg'), 'ODOO', 'https://odoo.test/api', 'key', 'the-secret'));
+    // As the old rule saved it: the account's address alone, with and without a closing slash.
     DB::table('sync.connections')->where('store_id', Fx::storeId('sa'))->update(['address' => 'https://example.odoo.com/']);
+    DB::table('sync.connections')->where('store_id', Fx::storeId('eg'))->update(['address' => 'https://eg.example.com:8443']);
 
     $migration = require base_path('src/Modules/Sync/Infrastructure/Persistence/Migrations/2026_11_18_100000_take_the_odoo_api_full_address.php');
     $migration->up();
 
     expect(DB::table('sync.connections')->where('store_id', Fx::storeId('sa'))->value('address'))->toBe('https://example.odoo.com/json/2/product.product/read')
+        ->and(DB::table('sync.connections')->where('store_id', Fx::storeId('eg'))->value('address'))->toBe('https://eg.example.com:8443/json/2/product.product/read')
         ->and(DB::table('sync.connections')->where('store_id', Fx::storeId('ae'))->value('address'))->toBe('https://odoo.test/api');
 });
