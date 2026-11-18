@@ -108,6 +108,7 @@ final readonly class DatabaseOrders implements Orders
             'points_share_minor' => $line->pointsShare,
             'vat_share_minor' => $line->vatShare,
             'counts_on_stock' => $line->countsOnStock,
+            'sale_unit' => $line->saleUnit,
         ], $lines));
     }
 
@@ -339,7 +340,7 @@ final readonly class DatabaseOrders implements Orders
                     (string) $line->id, (string) $line->product_id, (string) $line->variant_id, $line->edit_id === null ? null : (string) $line->edit_id,
                     (bool) $line->is_gift, (string) $line->name_ar, (string) $line->name_en, $values, (string) $line->code, (string) $line->sale_mode,
                     $line->price_kind === null ? null : (string) $line->price_kind, (int) $line->quantity, (int) $line->unit_minor, (int) $line->list_unit_minor,
-                    (int) $line->total_minor, (int) $line->coupon_share_minor, (bool) $line->counts_on_stock,
+                    (int) $line->total_minor, (int) $line->coupon_share_minor, (bool) $line->counts_on_stock, (string) $line->sale_unit,
                 );
             }, $lines->all())),
         );

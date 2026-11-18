@@ -55,7 +55,7 @@ final readonly class EndBannerHandler
             }
 
             [$starts, $ends] = Moments::endNow($was->schedule->startsAt, $now);
-            $banner = new Banner($was->id, $was->storeId, $was->placement, $was->categoryId, $was->name, $was->link, $was->hasWords, $was->altAr, $was->altEn, new Schedule(true, $starts, $ends), $was->position, $was->images, $was->version + 1, $staffId, $now);
+            $banner = new Banner($was->id, $was->storeId, $was->placement, $was->categoryId, $was->name, $was->link, $was->hasWords, $was->altAr, $was->altEn, new Schedule(true, $starts, $ends), $was->position, $was->images, $was->version + 1, $staffId, $now, $was->words);
             $this->banners->update($banner);
             $this->platform->recordAudit(ContentAudit::entry('content.banner.ended', 'content.banner', $was->id, $store->id, ContentAudit::diff($was->fields(), $banner->fields())));
             $this->cache->invalidate();

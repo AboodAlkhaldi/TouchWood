@@ -180,6 +180,8 @@ final readonly class EditOrderHandler
                     $line->id, $line->productId, $line->variantId, false, $line->nameAr, $line->nameEn, $line->variantValues, $line->code,
                     $line->saleMode, $priced->kind->value, $priced->quantity, $priced->unit->minorUnits, $priced->listUnit->minorUnits, $priced->total->minorUnits,
                     $share['coupon']->minorUnits, $share['points']->minorUnits, $share['vat']->minorUnits, $plan->countsOnStock[$line->variantId] ?? true, $line->editId,
+                    // A kept part keeps the unit it was ordered in (P25).
+                    $line->saleUnit,
                 );
 
                 continue;
@@ -193,6 +195,7 @@ final readonly class EditOrderHandler
                 // As the hold counts it (EditPlan::$countsOnStock), kept parts too.
                 $plan->countsOnStock[$priced->variantId] ?? true,
                 $editId,
+                $record['unit'],
             );
         }
 
@@ -200,13 +203,13 @@ final readonly class EditOrderHandler
             $gift = $existingGift;
             $lines[] = new NewOrderLine(
                 $gift->id, $gift->productId, $gift->variantId, true, $gift->nameAr, $gift->nameEn, $gift->variantValues, $gift->code,
-                $gift->saleMode, null, 1, 0, 0, 0, 0, 0, 0, true, $gift->editId,
+                $gift->saleMode, null, 1, 0, 0, 0, 0, 0, 0, true, $gift->editId, $gift->saleUnit,
             );
         } elseif ($plan->giftVariantId !== null) {
             $record = $records[$plan->giftVariantId] ?? throw new NotOrderable([$plan->giftVariantId]);
             $lines[] = new NewOrderLine(
                 strtolower((string) Str::ulid()), $record['productId'], $plan->giftVariantId, true, $record['nameAr'], $record['nameEn'], $record['values'], $record['code'],
-                'RETAIL', null, 1, 0, 0, 0, 0, 0, 0, true, $editId,
+                'RETAIL', null, 1, 0, 0, 0, 0, 0, 0, true, $editId, $record['unit'],
             );
         }
 

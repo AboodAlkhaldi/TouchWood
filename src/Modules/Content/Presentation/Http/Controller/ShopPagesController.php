@@ -17,6 +17,7 @@ use Modules\Content\Application\Query\Shop\ContentFrame;
 use Modules\Content\Application\Query\Shop\ContentHome;
 use Modules\Content\Application\Query\Shop\HomeAlternates;
 use Modules\Content\Application\Query\Shop\ShopDocuments;
+use Modules\Content\Domain\Model\BannerPlacement;
 use Modules\Content\Domain\Model\DocumentKind;
 use Modules\Content\Domain\Model\HomeSectionType;
 use Modules\Content\Domain\Model\ThemePartKind;
@@ -73,12 +74,12 @@ final readonly class ShopPagesController
         $content = $home->for($store, $locale);
         ['kept' => $kept, 'now' => $now] = $frame->of($request, $store, $locale);
         $parts = ContentFrame::theme($kept, $now)['parts'] ?? [];
-        // A live theme's hero artwork replaces the desktop hero's banner and leads the phone's three (§1.6, §1.8 part 2).
+        // A live theme's hero artwork leads the banners at both widths, taking one of the five places (shop-design.md
+        // §3.1, P2; content.md §1.8 part 2 as amended).
         $art = ContentFrame::picture($parts[ThemePartKind::Hero->value]['images'] ?? [], $locale, null, null);
 
         if ($art !== null) {
-            $content['heroBanner'] = ['id' => 'theme', 'link' => null, 'alt' => null, 'image' => $art['desktop']];
-            $content['phoneBanners'] = array_slice([['id' => 'theme', 'link' => null, 'alt' => null, 'image' => $art['phone']], ...$content['phoneBanners']], 0, 3);
+            $content['banners'] = array_slice([['id' => 'theme', 'link' => null, 'alt' => null, 'image' => $art['desktop'], 'phone' => $art['phone'], 'title' => null, 'line' => null, 'button' => null], ...$content['banners']], 0, BannerPlacement::HomeHero->liveAtOnce());
         }
         $bestSeller = $categories = null;
 
@@ -120,8 +121,7 @@ final readonly class ShopPagesController
 
         return $this->page->render('Content/Storefront/Home', (new ShopHomePageData(
             $sections,
-            $content['heroBanner'],
-            $content['phoneBanners'],
+            $content['banners'],
             $sellers['cards'],
             $sellers['cardFacts'],
             $tileRow,

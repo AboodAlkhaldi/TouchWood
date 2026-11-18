@@ -15,7 +15,10 @@ use stdClass;
 /** `Banners` in SQL (content.md §5: `content.banners`, `content.banner_images`). */
 final readonly class DatabaseBanners implements Banners
 {
-    private const string COLUMNS = 'id, store_id, placement, category_id, name, link, has_words, alt_ar, alt_en, is_scheduled, starts_at, ends_at, position, version, updated_by, updated_at';
+    private const string COLUMNS = 'id, store_id, placement, category_id, name, link, has_words, alt_ar, alt_en, is_scheduled, starts_at, ends_at, position, version, updated_by, updated_at, title_ar, title_en, line_ar, line_en, button_ar, button_en';
+
+    /** A home banner's own words (shop-design.md §3.1). */
+    private const array WORDS = ['title_ar', 'title_en', 'line_ar', 'line_en', 'button_ar', 'button_en'];
 
     public function __construct(
         private ConnectionInterface $db,
@@ -107,6 +110,7 @@ final readonly class DatabaseBanners implements Banners
             'version' => $banner->version,
             'updated_by' => $banner->updatedBy,
             'updated_at' => Rows::at($banner->updatedAt),
+            ...array_merge(array_fill_keys(self::WORDS, null), array_intersect_key($banner->words, array_flip(self::WORDS))),
         ];
     }
 
@@ -135,6 +139,7 @@ final readonly class DatabaseBanners implements Banners
             (int) $row->version,
             Rows::text($row->updated_by),
             Rows::moment($row->updated_at) ?? CarbonImmutable::now()->toDateTimeImmutable(),
+            array_combine(self::WORDS, array_map(static fn (string $column): ?string => Rows::text($row->{$column}), self::WORDS)),
         );
     }
 }

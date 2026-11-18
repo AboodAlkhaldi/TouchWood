@@ -323,6 +323,7 @@ final readonly class OrderPages
             $money($line->unit),
             $money($line->listUnit),
             $money($line->total),
+            $line->saleUnit,
         );
     }
 

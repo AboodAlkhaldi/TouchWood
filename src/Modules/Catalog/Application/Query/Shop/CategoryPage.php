@@ -22,5 +22,9 @@ final readonly class CategoryPage
         public ?ShopFilters $chosen = null,
         public bool $ratingSort = false,
         public bool $soldOut = false,
+        /** The line under its heading, in this language (shop-design.md §5.1). */
+        public ?string $description = null,
+        /** How many products the chosen filters show, every page of them (shop-design.md §5.1). */
+        public int $total = 0,
     ) {}
 }

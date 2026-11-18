@@ -120,6 +120,7 @@ final readonly class ProductPages
                 DescriptionText::text($core->descriptionAr), DescriptionText::text($core->descriptionEn),
                 $core->hiddenByCategory, $core->hiddenByBrand, $core->codes,
                 new ProductCountsData(...$core->counts),
+                $core->unit,
             ),
             $view->tab,
             $view->missing,

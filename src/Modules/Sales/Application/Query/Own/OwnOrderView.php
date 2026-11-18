@@ -69,5 +69,11 @@ final readonly class OwnOrderView
         public ?OwnPaymentRequest $paymentRequest = null,
         /** A payment on it is open: the page says so, and `mayCancel` is false until it is answered. */
         public bool $paymentBeingConfirmed = false,
+        /** When staff approved it (or turned it down): the stepper's time for Approved (shop-design.md §15.2). */
+        public ?DateTimeImmutable $decidedAt = null,
+        /** The points it earns, added at delivery (§15.2): none for an order that ended without its goods. */
+        public int $pointsEarned = 0,
+        /** @var array<string, array<string, array<string, string>>> product id => its card photo's sizes, for the lines (§15.2) */
+        public array $photos = [],
     ) {}
 }

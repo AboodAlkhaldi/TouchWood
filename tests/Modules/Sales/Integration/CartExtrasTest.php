@@ -18,8 +18,8 @@ use Modules\Sales\Application\Command\AddCartLine\AddCartLine;
 use Modules\Sales\Application\Command\AddCartLine\AddCartLineHandler;
 use Modules\Sales\Application\Command\SetCartCoupon\SetCartCoupon;
 use Modules\Sales\Application\Command\SetCartCoupon\SetCartCouponHandler;
-use Modules\Sales\Application\Query\CountCartPieces\CountCartPieces;
-use Modules\Sales\Application\Query\CountCartPieces\CountCartPiecesHandler;
+use Modules\Sales\Application\Query\CountCartProducts\CountCartProducts;
+use Modules\Sales\Application\Query\CountCartProducts\CountCartProductsHandler;
 use Modules\Sales\Application\Query\ViewCart\CartView;
 use Modules\Sales\Application\Query\ViewCart\ViewCart;
 use Modules\Sales\Application\Query\ViewCart\ViewCartHandler;
@@ -54,9 +54,9 @@ function cartExtras(): CartView
     return app(ViewCartHandler::class)->handle(new ViewCart(Fx::storeId('sa'), 'en'));
 }
 
-function cartExtrasPieces(string $storeCode = 'sa'): int
+function cartExtrasCount(string $storeCode = 'sa'): int
 {
-    return app(CountCartPiecesHandler::class)->handle(new CountCartPieces(Fx::storeId($storeCode)));
+    return app(CountCartProductsHandler::class)->handle(new CountCartProducts(Fx::storeId($storeCode)));
 }
 
 /** A browser with no guest cookie yet, acting as a guest. */
@@ -251,18 +251,18 @@ describe('why checkout will not take this account', function () {
     });
 });
 
-describe('the header\'s piece count (B13)', function () {
-    it('counts the pieces on every line, over both modes, for a customer or a guest', function () {
+describe('the header\'s count of products (B13; shop-design.md Q2)', function () {
+    it('counts the lines, a size bought both ways twice, for a customer or a guest', function () {
         ['variants' => $variants] = Cx::ready();
         DB::table('catalog.store_variants')->where('variant_id', $variants[0])->update(['not_available_now' => true]);
-        $customer = cartExtrasPieces();
-        $otherStore = cartExtrasPieces('eg');
+        $customer = cartExtrasCount();
+        $otherStore = cartExtrasCount('eg');
         cartExtrasAsGuest();
-        $noGuestYet = cartExtrasPieces();
+        $noGuestYet = cartExtrasCount();
         app(AddCartLineHandler::class)->handle(new AddCartLine(Fx::storeId('sa'), $variants[1], 'RETAIL', 4));
 
-        // 2 + 1, the line that cannot be ordered counted too; the guest's 4 once its first line made it.
-        expect([$customer, $otherStore, $noGuestYet, cartExtrasPieces()])->toBe([3, 0, 0, 4]);
+        // Its 2 lines (3 pieces), the one that cannot be ordered counted too; the guest's 1 line (4 pieces) once it made it.
+        expect([$customer, $otherStore, $noGuestYet, cartExtrasCount()])->toBe([2, 0, 0, 1]);
     });
 
     it('is 0 for staff, who have no cart, and in an off store, rather than refusing a shop page', function () {
@@ -270,18 +270,18 @@ describe('the header\'s piece count (B13)', function () {
         // The base store is never off: Egypt's page, which the cart refuses (`no such store open`).
         $egypt = Fx::storeId('eg');
         Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
-        $off = app(CountCartPiecesHandler::class)->handle(new CountCartPieces($egypt));
+        $off = app(CountCartProductsHandler::class)->handle(new CountCartProducts($egypt));
         Fx::actAsStaff(Fx::staff());
 
-        expect([$off, cartExtrasPieces()])->toBe([0, 0]);
+        expect([$off, cartExtrasCount()])->toBe([0, 0]);
     });
 
     it('reads the count in one query', function () {
         Cx::ready();
-        cartExtrasPieces();
+        cartExtrasCount();
         DB::flushQueryLog();
         DB::enableQueryLog();
-        cartExtrasPieces();
+        cartExtrasCount();
         DB::disableQueryLog();
 
         // Measured 2026-10-27: the store and the permissions come from caches warmed by the first call.

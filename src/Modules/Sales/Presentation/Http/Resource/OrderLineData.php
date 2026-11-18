@@ -24,5 +24,7 @@ final class OrderLineData extends Data
         public MoneyData $unit,
         public MoneyData $listUnit,
         public MoneyData $total,
+        /** Its unit of sale as ordered, beside its price (shop-design.md §10.7). */
+        public string $saleUnit = 'PIECE',
     ) {}
 }

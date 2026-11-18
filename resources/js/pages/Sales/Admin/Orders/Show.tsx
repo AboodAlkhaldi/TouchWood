@@ -275,6 +275,9 @@ function Lines({ order }: { order: OrderPage }) {
                                 <TableCell className="text-end">
                                     {line.listUnit.minor > line.unit.minor ? <Money value={line.listUnit} className="me-2 text-ink-muted line-through" /> : null}
                                     <Money value={line.unit} />
+                                    <span className="ms-1 text-copy-13 text-ink-muted" data-test="line-sale-unit">
+                                        · {t(`${W}.unit.${line.saleUnit}`)}
+                                    </span>
                                 </TableCell>
                                 <TableCell className="text-end">
                                     <Money value={line.total} />

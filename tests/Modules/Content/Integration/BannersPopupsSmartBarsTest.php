@@ -84,12 +84,17 @@ function popupVersion(string $id): int
 }
 
 describe('§1.6 banners', function () {
-    it('takes the images its placement takes: a desktop one behind the hero, a phone one on the phone home, both above lists', function () {
+    it('takes a wide and a phone image in every placement, one per language only when its artwork has words', function () {
         Cx::editor([ContentPermissions::BANNER_MANAGE]);
 
-        expect(bannerRefusal(fn () => Cx::banner(['placement' => 'HOME_HERO', 'images' => ['PHONE:any' => Cx::image()]])))->toBe('images:choice')
-            ->and(bannerRefusal(fn () => Cx::banner(['placement' => 'HOME_PHONE', 'images' => ['DESKTOP:any' => Cx::image()]])))->toBe('images:choice')
+        // shop-design.md §3.1: the home's banners are one list for both widths, `HOME_PHONE` gone.
+        expect(bannerRefusal(fn () => Cx::banner(['placement' => 'HOME_HERO', 'images' => ['PHONE:ar' => Cx::image()]])))->toBe('images:choice')
+            ->and(bannerRefusal(fn () => Cx::banner(['placement' => 'HOME_HERO', 'hasWords' => true, 'images' => ['DESKTOP:any' => Cx::image()]])))->toBe('images:choice')
+            ->and(bannerRefusal(fn () => Cx::banner(['placement' => 'HOME_PHONE'])))->toBe('placement:choice')
             ->and(bannerRefusal(fn () => Cx::banner(['placement' => 'TOP'])))->toBe('placement:choice');
+
+        $wideOnly = Cx::banner(['placement' => 'HOME_HERO', 'images' => ['DESKTOP:any' => Cx::image()]]);
+        expect(bannerRefusal(fn () => app(ScheduleBannerHandler::class)->handle(new ScheduleBanner($wideOnly, 1))))->toBe('phone_image:required');
 
         $listing = Cx::banner(['placement' => 'LISTING', 'images' => ['DESKTOP:any' => Cx::image()]]);
 
@@ -101,13 +106,13 @@ describe('§1.6 banners', function () {
 
         expect(bannerRefusal(fn () => Cx::banner(['hasWords' => true, 'images' => ['PHONE:any' => Cx::image()]])))->toBe('images:choice');
 
-        $banner = Cx::banner(['hasWords' => true, 'images' => ['PHONE:ar' => Cx::image()]]);
+        $banner = Cx::banner(['hasWords' => true, 'images' => ['DESKTOP:ar' => Cx::image(), 'DESKTOP:en' => Cx::image(), 'PHONE:ar' => Cx::image()]]);
         expect(bannerRefusal(fn () => app(ScheduleBannerHandler::class)->handle(new ScheduleBanner($banner, 1))))->toBe('phone_image_en:required');
 
-        $both = Cx::banner(['hasWords' => true, 'images' => ['PHONE:ar' => Cx::image(), 'PHONE:en' => Cx::image()]]);
+        $both = Cx::banner(['hasWords' => true, 'images' => ['DESKTOP:ar' => Cx::image(), 'DESKTOP:en' => Cx::image(), 'PHONE:ar' => Cx::image(), 'PHONE:en' => Cx::image()]]);
         app(ScheduleBannerHandler::class)->handle(new ScheduleBanner($both, 1));
 
-        expect(DB::table('content.banner_images')->where('banner_id', $both)->orderBy('locale')->pluck('locale')->all())->toBe(['ar', 'en']);
+        expect(DB::table('content.banner_images')->where('banner_id', $both)->where('kind', 'PHONE')->orderBy('locale')->pluck('locale')->all())->toBe(['ar', 'en']);
     });
 
     it('schedules with both descriptions, from now when no start is given, and refuses an end already past', function () {
@@ -122,7 +127,7 @@ describe('§1.6 banners', function () {
         app(ScheduleBannerHandler::class)->handle(new ScheduleBanner($banner, 1));
 
         expect(CarbonImmutable::parse((string) DB::table('content.banners')->where('id', $banner)->value('starts_at'))->equalTo(CarbonImmutable::now()->startOfSecond()))->toBeTrue()
-            ->and(app(BannersHandler::class)->list(Fx::storeId('sa'), 'HOME_PHONE')['rows'][2]['state'])->toBe('LIVE')
+            ->and(app(BannersHandler::class)->list(Fx::storeId('sa'), 'HOME_HERO')['rows'][2]['state'])->toBe('LIVE')
             ->and(Fx::audits('content.banner.scheduled', $banner))->toBe(1);
     });
 
@@ -132,13 +137,14 @@ describe('§1.6 banners', function () {
         app(ScheduleBannerHandler::class)->handle(new ScheduleBanner($banner, 1));
         $image = (string) DB::table('content.banner_images')->where('banner_id', $banner)->value('media_id');
         $change = static fn (array $with) => app(SaveBannerHandler::class)->handle(new SaveBanner(...[
-            'bannerId' => $banner, 'storeId' => null, 'version' => bannerVersion($banner), 'placement' => 'HOME_PHONE', 'categoryId' => null,
+            'bannerId' => $banner, 'storeId' => null, 'version' => bannerVersion($banner), 'placement' => 'HOME_HERO', 'categoryId' => null,
             'name' => 'Summer', 'link' => null, 'hasWords' => false, 'altAr' => 'تخفيضات', 'altEn' => 'Sale', 'startsAt' => null, 'endsAt' => null,
-            'images' => ['PHONE:any' => $image], ...$with,
+            'images' => ['DESKTOP:any' => $image, 'PHONE:any' => $image], ...$with,
         ]));
 
         expect(bannerRefusal(fn () => $change(['altEn' => null])))->toBe('alt:english')
-            ->and(bannerRefusal(fn () => $change(['images' => []])))->toBe('phone_image:required')
+            ->and(bannerRefusal(fn () => $change(['images' => []])))->toBe('desktop_image:required')
+            ->and(bannerRefusal(fn () => $change(['images' => ['DESKTOP:any' => $image]])))->toBe('phone_image:required')
             ->and(bannerRefusal(fn () => $change(['placement' => 'LISTING'])))->toBe('placement:choice');
 
         $change(['name' => 'Summer 2027']);
@@ -163,7 +169,7 @@ describe('§1.6 banners', function () {
 
         app(DeleteBannerHandler::class)->handle(new DeleteBanner($later));
 
-        $states = array_column(app(BannersHandler::class)->list(Fx::storeId('sa'), 'HOME_PHONE')['rows'], 'state', 'id');
+        $states = array_column(app(BannersHandler::class)->list(Fx::storeId('sa'), 'HOME_HERO')['rows'], 'state', 'id');
         expect($states)->toBe([$live => 'ENDED'])
             ->and(DB::table('content.banner_images')->where('banner_id', $later)->exists())->toBeFalse();
     });
@@ -172,15 +178,38 @@ describe('§1.6 banners', function () {
         Cx::editor([ContentPermissions::BANNER_MANAGE]);
         $first = Cx::banner();
         $second = Cx::banner();
-        Cx::banner(['placement' => 'HOME_HERO', 'images' => ['DESKTOP:any' => Cx::image()]]);
+        Cx::banner(['placement' => 'LISTING', 'images' => ['DESKTOP:any' => Cx::image(), 'PHONE:any' => Cx::image()]]);
 
-        expect(bannerRefusal(fn () => app(OrderBannersHandler::class)->handle(new OrderBanners(Fx::storeId('sa'), 'HOME_PHONE', [$second]))))->toBe('banners:order');
+        expect(bannerRefusal(fn () => app(OrderBannersHandler::class)->handle(new OrderBanners(Fx::storeId('sa'), 'HOME_HERO', [$second]))))->toBe('banners:order');
 
-        app(OrderBannersHandler::class)->handle(new OrderBanners(Fx::storeId('sa'), 'HOME_PHONE', [$second, $first]));
-        $list = app(BannersHandler::class)->list(Fx::storeId('sa'), 'HOME_PHONE');
+        app(OrderBannersHandler::class)->handle(new OrderBanners(Fx::storeId('sa'), 'HOME_HERO', [$second, $first]));
+        $list = app(BannersHandler::class)->list(Fx::storeId('sa'), 'HOME_HERO');
 
         expect(array_column($list['rows'], 'id'))->toBe([$second, $first])
-            ->and($list['counts'])->toBe(['HOME_HERO' => 1, 'HOME_PHONE' => 2, 'LISTING' => 0]);
+            ->and($list['counts'])->toBe(['HOME_HERO' => 2, 'LISTING' => 1]);
+    });
+
+    it('keeps the own words of a home banner - a title, a line and a button per language - and none on a list banner', function () {
+        Cx::editor([ContentPermissions::BANNER_MANAGE]);
+        $words = ['title_ar' => 'عروض اليوم الوطني', 'title_en' => 'National Day Offers', 'line_ar' => 'حتى 30٪', 'line_en' => 'Up to 30% off', 'button_ar' => 'تسوّق', 'button_en' => 'Shop Now'];
+
+        // shop-design.md §3.1, P9: a title of 60, a line of 120, a button's text of 24.
+        expect(bannerRefusal(fn () => Cx::banner(['words' => ['title_ar' => str_repeat('ع', 61)]])))->toBe('title_ar:too_long')
+            ->and(bannerRefusal(fn () => Cx::banner(['words' => ['button_en' => 'Shop', 'button_ar' => null]])))->toBe('button_ar:required');
+
+        $home = Cx::banner(['words' => $words]);
+        $list = Cx::banner(['placement' => 'LISTING', 'words' => $words]);
+        expect((array) DB::table('content.banners')->where('id', $home)->first(['title_ar', 'title_en', 'line_ar', 'line_en', 'button_ar', 'button_en']))->toBe($words)
+            ->and(DB::table('content.banners')->where('id', $list)->value('title_ar'))->toBeNull();
+
+        // Its English is needed to go live, as the description's is (§1.1 rule 2).
+        $noEnglish = Cx::banner(['words' => ['line_ar' => 'سطر']]);
+        expect(bannerRefusal(fn () => app(ScheduleBannerHandler::class)->handle(new ScheduleBanner($noEnglish, 1))))->toBe('line:english');
+
+        // Scheduling, ending and the way back to draft keep them: each writes the whole banner again.
+        app(ScheduleBannerHandler::class)->handle(new ScheduleBanner($home, 1));
+        app(EndBannerHandler::class)->handle(new EndBanner($home));
+        expect((array) DB::table('content.banners')->where('id', $home)->first(['title_ar', 'title_en', 'line_ar', 'line_en', 'button_ar', 'button_en']))->toBe($words);
     });
 });
 
@@ -192,8 +221,8 @@ describe('§1.1 rule 11 and §4.1: an ended banner or pop-up is history', functi
         app(EndBannerHandler::class)->handle(new EndBanner($banner));
         $image = (string) DB::table('content.banner_images')->where('banner_id', $banner)->value('media_id');
 
-        expect(bannerRefusal(fn () => app(SaveBannerHandler::class)->handle(new SaveBanner($banner, null, bannerVersion($banner), 'HOME_PHONE', null, 'Summer', null, false, 'تخفيضات', 'Sale', Cx::typed(1), Cx::typed(600), ['PHONE:any' => $image]))))->toBe('state:state')
-            ->and(app(BannersHandler::class)->list(Fx::storeId('sa'), 'HOME_PHONE')['rows'][0]['state'])->toBe('ENDED');
+        expect(bannerRefusal(fn () => app(SaveBannerHandler::class)->handle(new SaveBanner($banner, null, bannerVersion($banner), 'HOME_HERO', null, 'Summer', null, false, 'تخفيضات', 'Sale', Cx::typed(1), Cx::typed(600), ['PHONE:any' => $image]))))->toBe('state:state')
+            ->and(app(BannersHandler::class)->list(Fx::storeId('sa'), 'HOME_HERO')['rows'][0]['state'])->toBe('ENDED');
     });
 
     it('refuses a change to an ended pop-up', function () {

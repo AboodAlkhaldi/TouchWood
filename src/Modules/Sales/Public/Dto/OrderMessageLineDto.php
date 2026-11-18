@@ -20,5 +20,7 @@ final readonly class OrderMessageLineDto
         /** The line's total as sold, before the coupon and the points; 0 for the gift. */
         public Money $total,
         public bool $gift,
+        /** The product's unit of sale when it was ordered (shop-design.md §10.7, P25): PIECE, SET, PAIR, METRE, CARTON or BOX. */
+        public string $saleUnit = 'PIECE',
     ) {}
 }

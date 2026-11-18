@@ -71,7 +71,7 @@ return [
         ],
         'where' => [
             'ANNOUNCEMENT' => 'Above the header, over the store\'s own bar.',
-            'HERO' => 'Replaces the home hero\'s banner and leads the phone\'s swiped row.',
+            'HERO' => 'Leads the home banners at every width, in one of their 5 places.',
             'PROMISES' => 'The ground of the home page\'s promises row.',
             'POINTS' => 'The ground of the home page\'s points band.',
             'LOGOS' => 'The ground of the home page\'s logos band.',

@@ -35,6 +35,9 @@ total: MoneyData | null,
 problem: string | null,
 minimum: number,
 maximum: number | null,
+brand: string | null,
+chosen: string[],
+saleUnit: string,
 };
 export type CartNoticeData = {
 variantId: string,
@@ -285,6 +288,7 @@ quantity: number,
 unit: MoneyData,
 listUnit: MoneyData,
 total: MoneyData,
+saleUnit: string,
 };
 export type OrderPage = {
 id: string,
@@ -415,6 +419,9 @@ quantity: number,
 unit: MoneyData,
 total: MoneyData,
 returnable: number,
+saleUnit: string,
+photo: Record<string, Record<string, string>> | null,
+chosen: string[],
 };
 export type OwnOrderPage = {
 number: string,
@@ -455,6 +462,8 @@ shippingPending: boolean,
 isTest: boolean,
 paymentRequest: OwnRequestData | null,
 paymentBeingConfirmed: boolean,
+approvedAt: string | null,
+pointsEarned: number,
 };
 export type OwnOrderRowData = {
 number: string,

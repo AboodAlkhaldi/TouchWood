@@ -124,7 +124,7 @@ final readonly class DatabaseShopReader implements ShopReader
         // counts under a value of one of them only when that one is all it misses (several values of one
         // attribute show any of them; two attributes, both).
         $rows = $this->db->select(
-            "WITH head AS (SELECT t.category_id AS id, now.slug, other.slug AS other_slug, c.{$name} AS name"
+            "WITH head AS (SELECT t.category_id AS id, now.slug, other.slug AS other_slug, c.{$name} AS name, c.".self::column('description', $locale).' AS description'
             .' FROM catalog.category_slugs t'
             .' JOIN catalog.category_slugs now ON now.category_id = t.category_id AND now.locale = t.locale AND now.is_current'
             .' JOIN catalog.categories c ON c.id = t.category_id'
@@ -144,11 +144,13 @@ final readonly class DatabaseShopReader implements ShopReader
             .' (NOT EXISTS (SELECT 1 FROM brands) OR listed.brand_id IN (SELECT brand_id FROM brands)) AS by_brand,'
             ." CASE (SELECT side FROM side) WHEN 'retail' THEN listed.sells_retail WHEN 'wholesale' THEN listed.sells_wholesale ELSE true END AS by_side"
             .' FROM listed)'
-            ." SELECT 'head' AS kind, head.id::text AS id, head.name AS name, head.other_slug::text AS swatch, head.slug::text AS group_id, NULL::text AS group_name,"
+            // The head's spare columns carry its description and how many products the choices show (shop-design.md §5.1).
+            ." SELECT 'head' AS kind, head.id::text AS id, head.name AS name, head.other_slug::text AS swatch, head.slug::text AS group_id, head.description::text AS group_name,"
             // The head's spare column carries whether the store's lists show ratings (amendment 25), so
             // the page reads it in this same query (P21).
             .' (EXISTS (SELECT 1 FROM listed))::int AS found,'
-            .' (COALESCE((SELECT d.shown FROM catalog.store_rating_display d WHERE d.store_id = ?), true))::int AS group_position, 0 AS position FROM head'
+            .' (COALESCE((SELECT d.shown FROM catalog.store_rating_display d WHERE d.store_id = ?), true))::int AS group_position,'
+            .' (SELECT count(*) FROM base WHERE base.by_brand AND base.by_side AND cardinality(base.missed) = 0)::int AS position FROM head'
             ." UNION ALL SELECT 'brand', b.id::text, b.{$name}, NULL, NULL, NULL,"
             .' count(*) FILTER (WHERE base.by_side AND cardinality(base.missed) = 0), b.position, b.position'
             .' FROM base JOIN catalog.brands b ON b.id = base.brand_id GROUP BY b.id'
@@ -198,6 +200,8 @@ final readonly class DatabaseShopReader implements ShopReader
             'name' => (string) $head->name,
             'lists' => (int) $head->found === 1,
             'ratings_shown' => (int) $head->group_position === 1,
+            'description' => $head->group_name === null || $head->group_name === '' ? null : (string) $head->group_name,
+            'total' => (int) $head->position,
             'filters' => new CategoryFilters(
                 $brandChoices,
                 array_map(static fn (string $id, string $name): FilterGroup => new FilterGroup($id, $name, $values[$id]), array_keys($names), $names),
@@ -349,7 +353,7 @@ final readonly class DatabaseShopReader implements ShopReader
             })
             ->where('p.id', strtolower($productId))
             ->first([
-                'p.stage', 'p.archived_from', "p.{$name} as name", 'p.'.self::column('description', $locale).' as description', 'p.brand_id', 'p.category_id',
+                'p.stage', 'p.archived_from', 'p.unit', "p.{$name} as name", 'p.'.self::column('description', $locale).' as description', 'p.brand_id', 'p.category_id',
                 "b.{$name} as brand_name", 'b.is_active as brand_active', 'bs.slug as brand_slug',
                 'w.id as warranty_id', "w.{$name} as warranty_name", 'w.period_months', 'w.'.self::column('terms', $locale).' as warranty_terms',
                 'os.slug as other_slug',
@@ -361,6 +365,8 @@ final readonly class DatabaseShopReader implements ShopReader
 
         return [
             'stage' => (string) $row->stage,
+            // Its unit of sale, beside the price (shop-design.md §10.1).
+            'unit' => (string) ($row->unit ?? 'PIECE'),
             'archived_from' => $row->archived_from === null ? null : (string) $row->archived_from,
             'name' => $row->name === null ? null : (string) $row->name,
             'description' => self::json($row->description),
@@ -373,9 +379,15 @@ final readonly class DatabaseShopReader implements ShopReader
         ];
     }
 
-    public function isListed(string $storeId, string $locale, ShopperKind $viewer, string $productId): bool
+    public function listedFacts(string $storeId, string $locale, ShopperKind $viewer, string $productId): ?array
     {
-        return $this->listed($storeId, $locale, $viewer)->where('product_id', $productId)->exists();
+        $row = $this->listed($storeId, $locale, $viewer)->where('product_id', $productId)->first(['sales_rank', 'listed_at']);
+
+        return $row instanceof stdClass ? [
+            'sales_rank' => $row->sales_rank === null ? null : (int) $row->sales_rank,
+            // A row written before the column existed has none (filled by catalog:listing:rebuild).
+            'listed_at' => ($row->listed_at ?? null) === null ? null : (string) $row->listed_at,
+        ] : null;
     }
 
     public function onlySoldOut(string $storeId, string $locale, ShopperKind $viewer, string $kind, string $id): bool
@@ -615,6 +627,8 @@ final readonly class DatabaseShopReader implements ShopReader
             'SELECT * FROM (SELECT found.*, CASE WHEN tier = 3 THEN -near ELSE 0 END AS k2, COALESCE(sales_rank::bigint, '.SearchCursor::UNRANKED.') AS k3 FROM ('
             .'SELECT l.product_id, l.name, l.slug, l.card_photo, l.sales_rank, l.card_variant_id, l.retail_card_variant_id,'
             .' l.ending_soon_companies, l.ending_soon_individuals, l.retail_price_minor, l.retail_price_before_minor, l.retail_from_minor, l.wholesale_from_minor, l.wholesale_from_before_minor, l.for_companies,'
+            // The card's facts, as every list's card has them (shop-design.md §4).
+            .' l.brand_name, l.unit, l.sizes_individuals, l.sizes_companies, l.one_size_individuals, l.one_size_companies, l.sells_wholesale, l.more_photos, l.listed_at,'
             .' '.self::labelsOf($locale, 'l').' AS labels, '.self::ratingOf('l').','
             .' CASE WHEN split_part(l.search_text, chr(10), 1) = ?::text OR split_part(l.search_text, chr(10), 2) = ?::text THEN 1'
             ." WHEN l.search_document @@ to_tsquery('simple', ?) THEN 2"
@@ -751,6 +765,10 @@ final readonly class DatabaseShopReader implements ShopReader
             return $this->ratedPage($storeId, $query, $viewer, $after, $limit);
         }
 
+        if ($sort === ShopFilters::PRICE_LOW || $sort === ShopFilters::PRICE_HIGH) {
+            return $this->pricedPage($query, $viewer, $after, $limit, $sort === ShopFilters::PRICE_HIGH);
+        }
+
         // Newest: by id alone, a ULID being in the order it was made (P15).
         $newest = $sort === ShopFilters::NEWEST;
 
@@ -812,6 +830,39 @@ final readonly class DatabaseShopReader implements ShopReader
     }
 
     /**
+     * By price (shop-design.md §5.3): the card's price - the least a retail size costs, "From" where they
+     * differ, and for a company or a guest the wholesale "from" where nothing sells retail - lowest or
+     * highest first, products with no price last, ties newest first; keyset on (key, id) as the rating
+     * sort's. A price changed between two pages moves a product as a rank does (accepted the same way).
+     */
+    private function pricedPage(Builder $query, ShopperKind $viewer, ?Cursor $after, int $limit, bool $highest): CardPage
+    {
+        $key = $viewer === ShopperKind::Individual
+            ? 'COALESCE(retail_from_minor, retail_price_minor)'
+            : 'COALESCE(retail_from_minor, retail_price_minor, wholesale_from_minor)';
+        $priced = $this->db->table($query->selectRaw("{$key} AS price_key"), 'priced');
+        $beyond = $highest ? '<' : '>';
+
+        if ($after !== null && $after->salesRank === null) {
+            $priced->whereNull('price_key')->where('product_id', '<', $after->productId);
+        } elseif ($after !== null) {
+            $priced->where(static fn (Builder $where): Builder => $where->where('price_key', $beyond, $after->salesRank)
+                ->orWhere(static fn (Builder $tie): Builder => $tie->where('price_key', $after->salesRank)->where('product_id', '<', $after->productId))
+                ->orWhereNull('price_key'));
+        }
+
+        $rows = $priced->orderByRaw('price_key '.($highest ? 'DESC' : 'ASC').' NULLS LAST')->orderByDesc('product_id')->limit($limit + 1)->get()->all();
+        $more = count($rows) > $limit;
+        $rows = array_slice($rows, 0, $limit);
+        $last = $rows === [] ? null : $rows[count($rows) - 1];
+
+        return new CardPage(
+            $this->cards($rows, $viewer),
+            $more && $last instanceof stdClass ? Cursor::after($last->price_key === null ? null : (int) $last->price_key, (string) $last->product_id)->text() : null,
+        );
+    }
+
+    /**
      * Each card with the variant it shows to this viewer (amendment 14(f)): the first an individual can
      * buy — a retail one — or, for a company or a guest, the first on sale here (§2.2: companies and
      * guests share a card); its labels, read with it; its side's "Last pieces" (amendment 16(h)); and its
@@ -851,8 +902,33 @@ final readonly class DatabaseShopReader implements ShopReader
                     // Its normal price, crossed out beside it while an offer takes it lower (amendment 45).
                     self::minor($row->wholesale_from_before_minor),
                 ),
+                // The card to the design (shop-design.md §4.1, §10.6), each side's.
+                ($row->brand_name ?? null) === null ? null : (string) $row->brand_name,
+                (string) ($row->unit ?? 'PIECE'),
+                // Each read with a fallback: a row written before these facts existed, or a read that names its columns, has none.
+                (int) (($individual ? ($row->sizes_individuals ?? null) : ($row->sizes_companies ?? null)) ?? 0),
+                self::oneSize(self::json($individual ? ($row->one_size_individuals ?? null) : ($row->one_size_companies ?? null))),
+                (bool) ($row->sells_wholesale ?? false),
+                array_values(self::json($row->more_photos ?? null) ?? []),
+                ($row->sales_rank ?? null) === null ? null : (int) $row->sales_rank,
+                ($row->listed_at ?? null) === null ? null : (string) $row->listed_at,
             );
         }, $rows);
+    }
+
+    /**
+     * What a card's Add to cart adds of a product's one size, as the row keeps it: none unless it is whole.
+     *
+     * @param  array<array-key, mixed>|null  $kept
+     * @return array{variant: string, mode: string, minimum: int}|null
+     */
+    private static function oneSize(?array $kept): ?array
+    {
+        $variant = $kept['variant'] ?? null;
+        $mode = $kept['mode'] ?? null;
+        $minimum = $kept['minimum'] ?? null;
+
+        return is_string($variant) && in_array($mode, ['RETAIL', 'WHOLESALE'], true) && is_int($minimum) ? ['variant' => $variant, 'mode' => $mode, 'minimum' => $minimum] : null;
     }
 
     private static function minor(mixed $amount): ?int

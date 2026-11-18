@@ -75,7 +75,23 @@ it('adds a piece in the cart, checks out and places the order at a phone\'s widt
     expect(browserUntil($page, "document.querySelector('[data-test=\"tab-cart\"]') !== null"))->toBeTrue();
     $page->click('[data-test="tab-cart"]');
     expect(browserUntil($page, "location.pathname === '/sa/en/cart'"))->toBeTrue()
-        ->and(salesShopWide($page))->toBe('', 'the cart scrolls sideways');
+        ->and(salesShopWide($page))->toBe('', 'the cart scrolls sideways')
+        // To the design on a phone (shop-design.md §7): no tab bar, Checkout pinned to the bottom with the subtotal before VAT.
+        ->and($page->script("document.querySelector('[data-test=\"tab-bar\"]') === null"))->toBeTrue()
+        ->and($page->script("getComputedStyle(document.querySelector('[data-test=\"checkout-row\"]')).position"))->toBe('fixed')
+        ->and($page->script("Math.round(window.innerHeight - document.querySelector('[data-test=\"checkout-row\"]').getBoundingClientRect().bottom)"))->toBe(0)
+        ->and($page->script("document.querySelector('[data-test=\"checkout-bar-subtotal\"]')?.textContent.includes('before VAT') === true"))->toBeTrue();
+
+    // At a computer's width: the 34 px heading with the count of products, the 392 px summary, the 50 px Checkout, the line's chips.
+    $page->resize(1440, 1000);
+    expect(browserSoon($page, "getComputedStyle(document.querySelector('[data-test=\"cart-heading\"]')).fontSize === '34px'"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=\"cart-heading\"]').textContent"))->toContain('products')
+        ->and($page->script("Math.round(document.querySelector('[data-test=\"cart-summary\"]').getBoundingClientRect().width)"))->toBe(392)
+        // 50 px once the button's height transition from the phone's 48 px has run (it animates, `transition-all`).
+        ->and(browserSoon($page, "Math.round(document.querySelector('[data-test=\"checkout\"]').getBoundingClientRect().height) === 50"))->toBeTrue('Checkout is not 50 px')
+        ->and($page->script("document.querySelector('[data-test=\"line-mode\"]')?.textContent.trim()"))->toBe('Retail')
+        ->and($page->script("document.querySelector('[data-test=\"cart-lines\"]').textContent.includes('per piece')"))->toBeTrue();
+    $page->resize(375, 812);
 
     $page->click('[data-test="cart-lines"] li:first-child [data-test="more"]');
     expect(browserUntil($page, "document.querySelector('[data-test=\"cart-lines\"] li:first-child [data-test=\"quantity\"]')?.textContent === '3'"))->toBeTrue();
@@ -159,7 +175,8 @@ it('draws the cart\'s shipping, how much more ships free and the header\'s piece
         ->type('#password', Fx::CUSTOMER_PASSWORD)
         ->click('button[type="submit"]');
     expect(browserUntil($page, "location.pathname === '/sa/en'"))->toBeTrue()
-        ->and($text($page, '[data-test="header-cart-pieces"]'))->toBe('3');
+        // Its count of products: 2 lines (3 pieces), shop-design.md Q2.
+        ->and($text($page, '[data-test="header-cart-count"]'))->toBe('2');
 
     // The goods, 250.00: 50.00 short of free shipping at 300.00; no fee before checkout (gap 6.6).
     $page->resize(375, 812);

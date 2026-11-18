@@ -49,6 +49,7 @@ final readonly class OrderLines
                 $values, (string) $line['code'], (string) $line['sale_mode'], (bool) $line['is_gift'], (int) $line['quantity'],
                 $money($line['unit_minor']), $money($line['list_unit_minor']), $money($line['total_minor']),
                 $held === null ? 0 : max(0, $held['quantity'] - $held['counted']),
+                (string) ($line['sale_unit'] ?? 'PIECE'),
             );
         }, $rows), $inWindow, $counting];
     }

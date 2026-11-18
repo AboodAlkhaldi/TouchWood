@@ -26,6 +26,8 @@ type CategoryForm = {
     slug_en: string;
     parent_id: string;
     image_media_id: string;
+    description_ar: string;
+    description_en: string;
     image: File | null;
     remove_image: boolean;
 };
@@ -60,6 +62,8 @@ export function CategoryDialog({
         slug_en: category?.slugEn ?? '',
         parent_id: mode === 'add' ? (parent ?? '') : (category?.parentId ?? ''),
         image_media_id: category?.imageMediaId ?? '',
+        description_ar: category?.descriptionAr ?? '',
+        description_en: category?.descriptionEn ?? '',
         image: null,
         remove_image: false,
     });
@@ -146,6 +150,13 @@ export function CategoryDialog({
                             onRemove={(remove) => form.setData('remove_image', remove)}
                             error={form.errors.image_media_id}
                         />
+                        {/* The line under its shop page's heading, each language optional (shop-design.md §10.5): set here only. */}
+                        {mode === 'edit' ? (
+                            <>
+                                <TextField id="category-description-ar" dir="rtl" label={t('catalog::admin_categories.field.description_ar')} helper={t('catalog::admin_categories.field.description_helper')} value={form.data.description_ar} error={form.errors.description_ar} onChange={(event) => form.setData('description_ar', event.target.value)} data-test="category-description-ar" />
+                                <TextField id="category-description-en" dir="ltr" label={t('catalog::admin_categories.field.description_en')} helper={t('catalog::admin_categories.field.description_helper')} value={form.data.description_en} error={form.errors.description_en} onChange={(event) => form.setData('description_en', event.target.value)} data-test="category-description-en" />
+                            </>
+                        ) : null}
                         <Collapsible open={addresses || addressRefused || slugsWrong(form.data.slug_ar, form.data.slug_en)} onOpenChange={setAddresses}>
                             <CollapsibleTrigger asChild>
                                 <Button type="button" variant="ghost" size="sm" className="justify-start px-0" data-test="category-addresses">

@@ -16,10 +16,12 @@ return [
         'category_search' => 'Search categories',
         'category_none' => 'No category matches ":query".',
         'warranty' => 'Warranty',
+        'unit' => 'Sold By',
         'description_ar' => 'Arabic Description',
         'description_en' => 'English Description',
     ],
     'none' => 'None',
+    'unit' => ['PIECE' => 'Piece', 'SET' => 'Set', 'PAIR' => 'Pair', 'METRE' => 'Metre', 'CARTON' => 'Carton', 'BOX' => 'Box'],
     'filters' => [
         'title' => 'Filters',
         'search' => 'Name or Code',

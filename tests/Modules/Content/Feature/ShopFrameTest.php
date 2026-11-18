@@ -252,8 +252,8 @@ describe('Content\'s part of the frame (§1.5)', function () {
             ->and($en)->not->toContain('image/jpeg')
             ->and($en)->toContain('type("image/avif")')
             // The start side's image ends at the column's start edge: on the left in English, on the right in Arabic.
-            ->and(strpos($en, 'calc(50% - 36rem - 240px)'))->toBeLessThan((int) strpos($en, 'calc(50% + 36rem + 240px)'))
-            ->and(strpos($ar, 'calc(50% + 36rem + 240px)'))->toBeLessThan((int) strpos($ar, 'calc(50% - 36rem - 240px)'))
+            ->and(strpos($en, 'calc(50% - 700px - 240px)'))->toBeLessThan((int) strpos($en, 'calc(50% + 700px + 240px)'))
+            ->and(strpos($ar, 'calc(50% + 700px + 240px)'))->toBeLessThan((int) strpos($ar, 'calc(50% - 700px - 240px)'))
             // Hidden at 1024 and under; softened in dark by half the overlay token.
             ->and($en)->toContain('@media (min-width: 1025px)')
             ->and($en)->toContain("html[data-mode='dark']");

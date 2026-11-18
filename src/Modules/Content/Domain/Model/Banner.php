@@ -10,12 +10,14 @@ use Modules\Content\Domain\ValueObject\Schedule;
 /**
  * A banner (content.md §1.6): its placement, the staff's name for it, a listing banner's category (none: every
  * list), its link, whether its artwork has words (then one image per language), its description per language, its
- * dates and its place in the order. `images` is `{DESKTOP|PHONE}:{any|ar|en}` => media id.
+ * dates and its place in the order. `images` is `{DESKTOP|PHONE}:{any|ar|en}` => media id. A home banner's `words`
+ * are its title, line and button's text per language (`title_ar` ... `button_en`), each null when not typed.
  */
 final readonly class Banner
 {
     /**
      * @param  array<string, string>  $images
+     * @param  array<string, string|null>  $words
      */
     public function __construct(
         public string $id,
@@ -33,6 +35,7 @@ final readonly class Banner
         public int $version,
         public ?string $updatedBy,
         public DateTimeImmutable $updatedAt,
+        public array $words = [],
     ) {}
 
     /**
@@ -55,6 +58,7 @@ final readonly class Banner
             'starts_at' => $this->schedule->startsAt?->format(DATE_ATOM),
             'ends_at' => $this->schedule->endsAt?->format(DATE_ATOM),
             'images' => http_build_query($images, '', ','),
+            ...$this->words,
         ];
     }
 }

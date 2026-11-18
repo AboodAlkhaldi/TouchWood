@@ -25,6 +25,7 @@ use Modules\Sales\Application\Query\ViewOwnOrder\ViewOwnOrderHandler;
 use Modules\Sales\Application\Query\ViewOwnReturn\ViewOwnReturn;
 use Modules\Sales\Application\Query\ViewOwnReturn\ViewOwnReturnHandler;
 use Modules\Sales\Domain\Exception\OrderNotFound;
+use Modules\Sales\Public\Enums\CustomerOrderStatus;
 use Modules\Sales\Public\Enums\WayToPay;
 use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
@@ -104,7 +105,7 @@ final readonly class OwnPages
             $order->payment->value,
             $money(Money::of(max(0, $order->due->minorUnits - $held), $currency)),
             $money(Money::of(max(0, $held - $order->due->minorUnits), $currency)),
-            self::lines($order->lines, $money, $locale),
+            self::lines($order->lines, $money, $locale, $order->photos),
             $money($order->grossSubtotal),
             $some(Money::of(max(0, $order->grossSubtotal->minorUnits - $order->netSubtotal->minorUnits), $currency)),
             $order->couponCode,
@@ -138,6 +139,9 @@ final readonly class OwnPages
             $order->isTest,
             $order->paymentRequest === null ? null : new OwnRequestData($order->paymentRequest->requestId, $money($order->paymentRequest->amount), self::moment($order->paymentRequest->expiresAt)),
             $order->paymentBeingConfirmed,
+            // Approved's time: a decision that turned it down shows none (its step is not drawn).
+            $order->decidedAt === null || in_array($order->status, [CustomerOrderStatus::New, CustomerOrderStatus::Cancelled, CustomerOrderStatus::Refunded], true) ? null : self::moment($order->decidedAt),
+            $order->pointsEarned,
         );
     }
 
@@ -205,15 +209,17 @@ final readonly class OwnPages
 
     /**
      * @param  list<OrderLineView>  $lines
+     * @param  array<string, array<string, array<string, string>>>  $photos
      * @param  callable(Money): MoneyData  $money
      * @return list<OwnLineData>
      */
-    private static function lines(array $lines, callable $money, string $locale): array
+    private static function lines(array $lines, callable $money, string $locale, array $photos = []): array
     {
         $en = $locale === 'en';
         $rows = array_map(static fn (OrderLineView $line): OwnLineData => new OwnLineData(
             $line->lineId, $en ? $line->nameEn : $line->nameAr, self::values($line->values, $locale), $line->code, $line->mode, $line->gift,
-            $line->quantity, $money($line->unit), $money($line->total), $line->returnable,
+            $line->quantity, $money($line->unit), $money($line->total), $line->returnable, $line->saleUnit,
+            $photos[$line->productId] ?? null, self::chosen($line->values, $locale),
         ), $lines);
 
         // The gift last (S8).
@@ -227,9 +233,20 @@ final readonly class OwnPages
      */
     private static function values(array $values, string $locale): string
     {
+        return implode(' · ', self::chosen($values, $locale));
+    }
+
+    /**
+     * Each chosen value as "Attribute: value", one a chip (shop-design.md §15.2).
+     *
+     * @param  list<array{attributeAr: string, attributeEn: string, valueAr: string, valueEn: string}>  $values
+     * @return list<string>
+     */
+    private static function chosen(array $values, string $locale): array
+    {
         $en = $locale === 'en';
 
-        return implode(' · ', array_map(static fn (array $value): string => ($en ? $value['attributeEn'] : $value['attributeAr']).': '.($en ? $value['valueEn'] : $value['valueAr']), $values));
+        return array_map(static fn (array $value): string => ($en ? $value['attributeEn'] : $value['attributeAr']).': '.($en ? $value['valueEn'] : $value['valueAr']), $values);
     }
 
     /** An amount in the order's currency: the store's sign while the store still sells in it, else its letters. */

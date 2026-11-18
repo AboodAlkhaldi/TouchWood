@@ -56,7 +56,7 @@ final readonly class DatabaseSalesReports implements SalesReports
         /** @var array<string, mixed> $address */
         $address = json_decode((string) $order->address, true, 512, JSON_THROW_ON_ERROR);
         $lines = $this->db->table('sales.order_lines')->where('order_id', $order->id)->orderBy('is_gift')->orderBy('id')
-            ->get(['name_ar', 'name_en', 'variant_values', 'quantity', 'total_minor', 'is_gift'])->all();
+            ->get(['name_ar', 'name_en', 'variant_values', 'quantity', 'total_minor', 'is_gift', 'sale_unit'])->all();
 
         return new OrderMessageDto(
             (string) $order->id, (string) $order->number, (string) $order->store_id, (string) $order->customer_id, (string) $order->locale,
@@ -71,7 +71,7 @@ final readonly class DatabaseSalesReports implements SalesReports
                         'attribute' => $arabic ? $value['attributeAr'] : $value['attributeEn'],
                         'value' => $arabic ? $value['valueAr'] : $value['valueEn'],
                     ], $values),
-                    (int) $line->quantity, $money($line->total_minor), (bool) $line->is_gift,
+                    (int) $line->quantity, $money($line->total_minor), (bool) $line->is_gift, (string) $line->sale_unit,
                 );
             }, $lines)),
             $money($order->net_subtotal_minor), $money($order->coupon_discount_minor), $money($order->points_discount_minor),

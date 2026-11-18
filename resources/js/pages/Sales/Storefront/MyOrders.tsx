@@ -32,16 +32,17 @@ export default function MyOrders(page: MyOrdersPage) {
                         </EmptyHeader>
                     </Empty>
                 ) : (
-                    <ul className="grid gap-2" data-test="my-orders">
+                    // One bordered list, as the cart's and the order's lines (shop-design.md §15.3).
+                    <ul className="grid divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface" data-test="my-orders">
                         {list.rows.map((order) => (
                             <li key={order.number}>
-                                <Link href={link('storefront.sales.order', { number: order.number })} className="material-base grid gap-1 px-4 py-3" data-test={`my-order-${order.number}`}>
+                                <Link href={link('storefront.sales.order', { number: order.number })} className="grid gap-1 px-4 py-3.5 hover:bg-surface-sunken" data-test={`my-order-${order.number}`}>
                                     <span className="flex flex-wrap items-baseline justify-between gap-2">
-                                        <bdi dir="ltr" className="tw-figure text-label-14 text-ink">
+                                        <bdi dir="ltr" className="tw-figure text-label-16 font-semibold text-brand">
                                             {order.number}
                                         </bdi>
                                         <span>
-                                            <Money value={order.total} className="text-label-14 text-ink" />
+                                            <Money value={order.total} className="text-label-14 font-semibold text-ink" />
                                             {order.shippingPending ? (
                                                 <span className="text-copy-13 text-ink-muted" data-test="before-shipping">
                                                     {' '}
@@ -68,7 +69,7 @@ export default function MyOrders(page: MyOrdersPage) {
                         ))}
                     </ul>
                 )}
-                {page.next !== null ? <LoadMoreButton loading={list.loading} onClick={() => list.more(link('storefront.sales.orders'), { after: page.next ?? '' }, ['orders', 'next'])} /> : null}
+                {page.next !== null ? <LoadMoreButton shop loading={list.loading} onClick={() => list.more(link('storefront.sales.orders'), { after: page.next ?? '' }, ['orders', 'next'])} /> : null}
             </div>
         </AccountLayout>
     );

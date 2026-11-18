@@ -11,6 +11,8 @@ return [
     'home' => [
         'banners' => 'Offers',
         'banner_of' => 'Offer :number of :count',
+        'banner_previous' => 'Previous Offer',
+        'banner_next' => 'Next Offer',
         'all_projects' => 'All Projects',
         'guides' => 'Guides',
         'points_earn' => ':points points for every 1 :currency you spend',

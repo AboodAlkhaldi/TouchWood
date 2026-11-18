@@ -65,5 +65,9 @@ final class OwnOrderPage extends Data
         public ?OwnRequestData $paymentRequest = null,
         /** A payment on it is open: said on the page, and `mayCancel` is false until it is answered. */
         public bool $paymentBeingConfirmed = false,
+        /** The stepper's time for Approved (shop-design.md §15.2). */
+        public ?string $approvedAt = null,
+        /** The points it earns, added at delivery (§15.2). */
+        public int $pointsEarned = 0,
     ) {}
 }

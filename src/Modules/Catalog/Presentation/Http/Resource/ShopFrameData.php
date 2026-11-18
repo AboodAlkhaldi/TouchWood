@@ -21,5 +21,7 @@ final class ShopFrameData extends Data
     public function __construct(
         public array $menu,
         public array $words,
+        /** Whether the row ends with «Order wholesale»: a guest or an individual, not a company (shop-design.md P21). */
+        public bool $wholesale = true,
     ) {}
 }

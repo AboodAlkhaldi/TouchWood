@@ -14,6 +14,7 @@ return [
         'search_placeholder' => 'Search products…',
         'see_all' => 'See All Results',
         'no_suggestions' => 'No products match yet.',
+        'order_wholesale' => 'Order Wholesale',
         'all_of' => 'All of :name',
     ],
     'home' => 'Home',
@@ -30,6 +31,8 @@ return [
         'remove' => 'Remove :name',
         'none' => 'Nothing here matches these filters.',
         'open' => 'Show Filters',
+        // The phone's sticky bar (shop-design.md §5.4).
+        'filter' => 'Filter',
     ],
     'sort' => [
         'label' => 'Sort',
@@ -37,7 +40,15 @@ return [
         'newest' => 'Newest',
         // Where the store's lists show ratings (amendment 25; feedback.md §4.1 F7).
         'rating' => 'Best Rated',
+        // By this viewer's card price (shop-design.md §5.3, C8).
+        'price-low' => 'Price: Low to High',
+        'price-high' => 'Price: High to Low',
+        'by' => 'Sort by:',
     ],
+    // «Showing 1–24 of 918» under a category's name (shop-design.md §5.1).
+    'showing' => 'Showing 1–:shown of :total',
+    // The grid or the technical list (shop-design.md §5.3, C7).
+    'view' => ['label' => 'View', 'grid' => 'Grid', 'list' => 'List', 'photo' => 'Photo', 'product' => 'Product', 'size' => 'Size', 'price' => 'Price', 'buy' => 'Buy', 'one_size' => 'One size', 'sizes' => ':count sizes'],
     // A card's stars, read aloud (feedback.md §4.1 F7).
     'card_rating' => ['zero' => ':rating out of 5 stars, :count reviews', 'one' => ':rating out of 5 stars, :count review', 'two' => ':rating out of 5 stars, :count reviews', 'few' => ':rating out of 5 stars, :count reviews', 'many' => ':rating out of 5 stars, :count reviews', 'other' => ':rating out of 5 stars, :count reviews'],
     // A card's Save heart (feedback.md §4.1 F7; amendment 32).
@@ -46,6 +57,10 @@ return [
     'nothing_now' => 'Nothing here is available right now.',
     // The shop's prices, without VAT (amendment 35; sales.md §4.1 S1).
     'price' => ['from' => 'From', 'wholesale_from' => 'Wholesale from', 'was' => 'Was', 'off' => '−:percent%'],
+    'card' => ['add' => 'Add to Cart', 'choose' => 'Choose Options', 'add_name' => 'Add :name to the cart', 'choose_name' => 'Choose the options of :name', 'added' => ':name was added to your cart.', 'wholesale_individual' => 'Wholesale for company accounts', 'save_failed' => "Couldn't save :name. Try again."],
+    'flag' => ['best_seller' => 'Best Seller', 'new_arrival' => 'New Arrival'],
+    'unit' => ['PIECE' => 'per piece', 'SET' => 'per set', 'PAIR' => 'per pair', 'METRE' => 'per metre', 'CARTON' => 'per carton', 'BOX' => 'per box'],
+    'saving' => 'Save :amount',
     'product' => [
         'photo' => 'Photo :number of :total',
         'details' => 'Details',
@@ -69,6 +84,15 @@ return [
         'not_available_text' => 'This product cannot be ordered here now.',
         'unavailable_value' => ':name, not available',
         'other_option_value' => ':name, available in another option',
+        // The product page to the design (shop-design.md §6).
+        'tax_note' => 'Prices before VAT',
+        'wholesale_note' => 'Wholesale from :count pieces',
+        'delivery' => 'Delivery within :count working days',
+        'returns' => 'Returns within :count days of delivery',
+        'specs' => 'Specifications',
+        'returns_warranty' => 'Returns & Warranty',
+        'no_warranty' => 'No warranty is given with this product.',
+        'photo_count' => ':number / :total',
     ],
     'search' => [
         'title' => 'Search',

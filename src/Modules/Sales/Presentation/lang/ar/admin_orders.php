@@ -81,6 +81,8 @@ return [
         'RETAIL' => 'تجزئة',
         'WHOLESALE' => 'جملة',
     ],
+    // A line's unit of sale, as ordered (shop-design.md §10.7).
+    'unit' => ['PIECE' => 'للحبة', 'SET' => 'للطقم', 'PAIR' => 'للزوج', 'METRE' => 'للمتر', 'CARTON' => 'للكرتون', 'BOX' => 'للعلبة'],
     'cancel_reason' => [
         'CHANGED_MIND' => 'غيّر رأيه',
         'ORDERED_BY_MISTAKE' => 'طلب بالخطأ',

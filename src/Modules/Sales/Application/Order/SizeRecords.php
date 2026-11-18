@@ -19,7 +19,7 @@ final readonly class SizeRecords
 
     /**
      * @param  list<string>  $variantIds
-     * @return array<string, array{productId: string, nameAr: string, nameEn: string, values: list<array{attributeAr: string, attributeEn: string, valueAr: string, valueEn: string}>, code: string}>
+     * @return array<string, array{productId: string, nameAr: string, nameEn: string, values: list<array{attributeAr: string, attributeEn: string, valueAr: string, valueEn: string}>, code: string, unit: string}>
      */
     public function of(array $variantIds): array
     {
@@ -43,6 +43,8 @@ final readonly class SizeRecords
                         'attributeAr' => $value->attribute->ar, 'attributeEn' => $value->attribute->en, 'valueAr' => $value->value->ar, 'valueEn' => $value->value->en,
                     ], $variant->values),
                     'code' => $variant->code,
+                    // Its unit of sale, kept on the line as it is now (shop-design.md §10.7, P25).
+                    'unit' => $product->unit,
                 ];
             }
         }

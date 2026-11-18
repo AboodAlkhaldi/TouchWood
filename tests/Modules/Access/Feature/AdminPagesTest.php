@@ -7,7 +7,6 @@ use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
@@ -259,22 +258,13 @@ describe('the admin panel itself', function () {
             });
     });
 
-    it('reads back which areas of the sidebar this browser left open, keeping only what can be an area', function () {
+    it('remembers no open sidebar areas: on each page only the area of that page opens (shop-design.md §8)', function () {
         $browser = signedInBrowser();
 
-        $browser->get('/admin')->assertInertia(fn (AssertableInertia $inertia) => $inertia
-            ->where('sidebarSections', fn (Collection $keys): bool => $keys->isEmpty())
-        );
+        // The old cookie of open areas is read by nothing now (owner, 2026-11-15: one area open at a time).
+        $browser->setPlainCookie('sidebar_sections', 'companies.staff_and_permissions');
 
-        // Written by the sidebar in the browser, unencrypted, the keys joined by dots (frontend.md
-        // §1.11, the owner's fix list, 2026-10-04). What it carries is typed by whoever holds the
-        // browser: anything that cannot be an area's key goes - a key with a newline after it too -
-        // and so does a repeat.
-        $browser->setPlainCookie(HandleInertiaRequests::SIDEBAR_SECTIONS_COOKIE, "companies.staff_and_permissions.<b>.companies.system\n");
-
-        $browser->get('/admin')->assertInertia(fn (AssertableInertia $inertia) => $inertia
-            ->where('sidebarSections', fn (Collection $keys): bool => $keys->all() === ['companies', 'staff_and_permissions'])
-        );
+        $browser->get('/admin')->assertInertia(fn (AssertableInertia $inertia) => $inertia->missing('sidebarSections'));
     });
 
     it('tells the panel who is looking at it, their stores for View Store, and the base store\'s time zone', function () {

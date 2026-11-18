@@ -209,8 +209,8 @@ final readonly class DatabaseShopReads implements ShopReads
 
         /** @var list<stdClass> $banners */
         $banners = $this->db->select(
-            "SELECT id, placement, link, alt_ar, alt_en, starts_at, ends_at FROM content.banners
-             WHERE store_id = ? AND placement IN ('HOME_HERO', 'HOME_PHONE') AND is_scheduled AND (ends_at IS NULL OR ends_at > ?::timestamptz) ORDER BY position, id",
+            "SELECT id, placement, link, alt_ar, alt_en, starts_at, ends_at, title_ar, title_en, line_ar, line_en, button_ar, button_en FROM content.banners
+             WHERE store_id = ? AND placement = 'HOME_HERO' AND is_scheduled AND (ends_at IS NULL OR ends_at > ?::timestamptz) ORDER BY position, id",
             [$storeId, $now],
         );
 
@@ -277,6 +277,12 @@ final readonly class DatabaseShopReads implements ShopReads
                 'images' => $bannerImages[(string) $banner->id] ?? [],
                 'starts' => self::iso($banner->starts_at),
                 'ends' => self::iso($banner->ends_at),
+                'title_ar' => Rows::text($banner->title_ar),
+                'title_en' => Rows::text($banner->title_en),
+                'line_ar' => Rows::text($banner->line_ar),
+                'line_en' => Rows::text($banner->line_en),
+                'button_ar' => Rows::text($banner->button_ar),
+                'button_en' => Rows::text($banner->button_en),
             ], $banners),
             'projects' => array_map($document, $projects),
             'posts' => array_map($document, $posts),

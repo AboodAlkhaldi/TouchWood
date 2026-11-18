@@ -23,5 +23,11 @@ final class OwnLineData extends Data
         public MoneyData $unit,
         public MoneyData $total,
         public int $returnable,
+        /** Its unit of sale as ordered, beside its price (shop-design.md §10.7). */
+        public string $saleUnit = 'PIECE',
+        /** @var array<string, array<string, string>>|null its product's card photo, by size (shop-design.md §15.2) */
+        public ?array $photo = null,
+        /** @var list<string> "Attribute: value", one a chip (§15.2) */
+        public array $chosen = [],
     ) {}
 }

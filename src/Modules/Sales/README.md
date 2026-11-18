@@ -98,7 +98,7 @@ fee to be set by staff; no VAT on shipping), and since steps 11 and 12 a custome
   `CustomerOrderStatus`); `Query/ListOwnOrders`, `Query/ViewOwnOrder`, `Query/ViewOwnReturn` through
   `Query/Own/OwnReader` (`sales.order.view_own`), SQL in `Infrastructure/Eloquent/DatabaseOwnReads`;
   `Query/ViewCart` (S11b-2: each line's card, today's prices, `CartLineProblem`, the subtotal; §4.2 B12: `CartBlock`,
-  the goods total after the coupon typed, the shipping, the next gift, the points); `Query/CountCartPieces` (B13,
+  the goods total after the coupon typed, the shipping, the next gift, the points); `Query/CountCartProducts` (B13, the header's count of products - its lines,
   the header's count, through `CartBuyer::who`, which reads no customer); `Presentation/Storefront/CartSection`
   (B15, the shop product page's `sales.cart`: Add to Cart per size); `OwnReturnRow.staffReason` (B16, the refusal's
   words on the order's returns); `Command/DismissCartNotice` (B17, Close on the cart's notice, for good).

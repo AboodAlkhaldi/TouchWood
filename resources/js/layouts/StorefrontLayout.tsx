@@ -1,6 +1,6 @@
 import { type ComponentType, lazy, type ReactNode, Suspense, useEffect, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ChevronDown, Heart, House, LayoutDashboard, LogOut, Menu, Moon, ShoppingCart, Sun, UserRound } from 'lucide-react';
+import { ChevronDown, ChevronLeft, Heart, House, LayoutDashboard, LogOut, Menu, Moon, Search, ShoppingCart, Sun, UserRound } from 'lucide-react';
 import { Bell } from '@/components/ops/Bell';
 import { Toasts } from '@/components/Toasts';
 import { SyncDocument } from '@/components/SyncDocument';
@@ -68,11 +68,20 @@ type Props = {
     address?: ShopAddressData & { alternates?: ContentAlternateData[] };
     /** Content's pages: the description and share image search engines and shared links read (content.md §1.14). */
     head?: ContentHeadData;
+    /** The page's bands bring their own box, so their grounds reach the screen's edges (the home, shop-design.md §2.1). */
+    bands?: boolean;
+    /**
+     * A phone's compact top bar (shop-design.md §2.6, §5.4, C12): back to `back`, the page's title, and the search behind
+     * an icon, in place of the menu, the logo and the search row. From 640 px up the header is the same as everywhere.
+     */
+    compact?: { back: string };
+    /** A product's page hides the phone's tab bar: its buy bar takes the bottom (shop-design.md §6.6). */
+    tabBar?: boolean;
 };
 
 type PopupView = ComponentType<{ popup: NonNullable<ContentFrame['popup']> }>;
 
-export function StorefrontLayout({ title, children, address, head }: Props) {
+export function StorefrontLayout({ title, children, address, head, bands = false, compact, tabBar = true }: Props) {
     const page = usePage<SharedProps>();
     const { shop, shopper, shopperLines, staffView, locale, frame, theme } = page.props;
     const link = useLink();
@@ -87,6 +96,9 @@ export function StorefrontLayout({ title, children, address, head }: Props) {
     // Once drawn in this tab it stays: each page draws its own layout, and the box would go and come back on every visit.
     const [drawn, setDrawn] = useState(boxDrawn);
     const [drawer, setDrawer] = useState(false);
+    // The compact bar's search, opened by its icon.
+    const [searching, setSearching] = useState(false);
+    const t = useTranslator();
     const [Popup, setPopup] = useState<PopupView | null>(null);
     useEffect(() => {
         boxDrawn = true;
@@ -130,6 +142,7 @@ export function StorefrontLayout({ title, children, address, head }: Props) {
         <Button
             variant="ghost"
             size="icon"
+            className={`size-10 sm:size-[42px] ${compact ? 'max-sm:hidden' : ''}`}
             aria-label={dark ? words.light : words.dark}
             data-test="theme-quick"
             onClick={() => choosePreference('theme', dark ? 'light' : 'dark', '/preferences')}
@@ -138,7 +151,7 @@ export function StorefrontLayout({ title, children, address, head }: Props) {
         </Button>
     );
     const favourites = inStore && !staffView && words.favourites ? (
-        <Button asChild variant="ghost" size="icon">
+        <Button asChild variant="ghost" size="icon" className="size-10 sm:size-[42px]">
             <Link href={link('storefront.feedback.wishlist')} aria-label={words.favourites} data-test="header-favourites">
                 <Heart aria-hidden="true" />
             </Link>
@@ -161,17 +174,21 @@ export function StorefrontLayout({ title, children, address, head }: Props) {
 
             {/* The page's ground: the theme's edges where it has some (`--tw-backdrop`, a whole background value). On a
                 phone the tab bar's room is kept at the bottom. */}
-            <div className="flex min-h-screen flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] text-ink [background:var(--tw-backdrop)] sm:pb-0">
-                {inStore && content?.bar ? <AnnouncementBar bar={content.bar} store={shop.code} locale={locale} /> : null}
+            <div className={`flex min-h-screen flex-col ${tabBar ? 'pb-[calc(3.5rem+env(safe-area-inset-bottom))]' : 'pb-[calc(4.5rem+env(safe-area-inset-bottom))]'} text-ink [background:var(--tw-backdrop)] sm:pb-0`}>
+                {inStore ? (
+                    <TopBar bar={content?.bar ?? null} store={shop.code} locale={locale} words={words}>
+                        <LanguageSwitch shop={shop} locale={locale} url={page.url} alternate={address?.alternate ?? null} />
+                    </TopBar>
+                ) : null}
 
                 <header className="sticky top-0 z-40 border-b border-line bg-surface">
-                    <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-1 px-2 sm:gap-4 sm:px-4 sm:py-3">
+                    <div className="shop-box flex flex-wrap items-center gap-x-1 max-sm:px-2! sm:h-[78px] sm:flex-nowrap sm:gap-4 lg:gap-9" data-test="header-row">
                         {/* The menu: the drawer on a phone and a tablet (Catalog's category row takes over from 768). */}
                         {inStore ? (
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="md:hidden"
+                                className={`size-10 md:hidden ${compact ? 'max-sm:hidden' : ''}`}
                                 aria-label={catalog?.words.open_menu ?? words.menu}
                                 data-test="category-sheet-open"
                                 onPointerEnter={() => void import('@/components/content/ShopDrawer')}
@@ -180,23 +197,43 @@ export function StorefrontLayout({ title, children, address, head }: Props) {
                                 <Menu aria-hidden="true" />
                             </Button>
                         ) : null}
-                        <Link href={home} className="flex h-13 min-w-0 flex-1 items-center gap-2 sm:h-auto sm:flex-none sm:gap-3">
-                            <Logo tone="auto" decorative />
-                            <span className="text-heading-16">TouchWood</span>
+                        {compact ? (
+                            <>
+                                <Button asChild variant="ghost" size="icon" className="size-10 sm:hidden">
+                                    <Link href={compact.back} aria-label={t('ui.back')} data-test="compact-back">
+                                        <ChevronLeft aria-hidden="true" className="rtl:rotate-180" />
+                                    </Link>
+                                </Button>
+                                <span className="flex h-13 min-w-0 flex-1 items-center truncate text-label-16 font-semibold text-ink sm:hidden" data-test="compact-title">
+                                    {title}
+                                </span>
+                                {catalog ? (
+                                    <Button variant="ghost" size="icon" className="size-10 sm:hidden" aria-label={catalog.words.search_placeholder} aria-expanded={searching} onClick={() => setSearching(!searching)} data-test="compact-search">
+                                        <Search aria-hidden="true" />
+                                    </Button>
+                                ) : null}
+                            </>
+                        ) : null}
+                        <Link href={home} className={`flex h-13 min-w-0 flex-1 items-center gap-2 sm:h-auto sm:flex-none sm:gap-3 ${compact ? 'max-sm:hidden' : ''}`} data-test="header-logo">
+                            <Logo tone="auto" decorative className="sm:size-[46px]" />
+                            {/* The design's wordmark (H8): the name in Latin capitals, the Arabic under it. */}
+                            <span className="grid leading-none" lang="en">
+                                <span className="text-label-14 font-semibold tracking-[0.14em] text-ink sm:text-label-16">TOUCHWOOD</span>
+                                <span lang="ar" className="mt-1 text-label-12 text-ink-muted">تاتش وود</span>
+                            </span>
                         </Link>
 
                         {/* The search box, between the logo and the shopper's own things; on a phone, its own row under them. */}
                         {catalog ? (
-                            <div className="order-last w-full px-1 pb-2 sm:order-none sm:w-auto sm:min-w-0 sm:flex-1 sm:px-0 sm:pb-0 md:max-w-md" data-test="search-row">
+                            <div className={`order-last w-full px-1 pb-2 sm:order-none sm:w-auto sm:min-w-0 sm:flex-1 sm:px-0 sm:pb-0 ${compact && !searching ? 'max-sm:hidden' : ''}`} data-test="search-row">
                                 <SearchBox words={catalog.words} />
                             </div>
                         ) : null}
 
-                        <div className="flex items-center gap-1 sm:ms-auto sm:gap-3">
+                        <div className="flex items-center gap-1 sm:ms-auto sm:gap-2">
                             {inStore ? (
-                                <span className="hidden items-center gap-3 sm:flex">
+                                <span className="hidden items-center sm:flex">
                                     <CountrySwitch shop={shop} locale={locale} />
-                                    <LanguageSwitch shop={shop} locale={locale} url={page.url} alternate={address?.alternate ?? null} />
                                 </span>
                             ) : null}
                             {themeButton}
@@ -216,36 +253,40 @@ export function StorefrontLayout({ title, children, address, head }: Props) {
                             )}
                         </div>
                     </div>
-                    {catalog ? <CategoryMenuBar menu={catalog.menu} words={catalog.words} /> : null}
+                    {catalog ? <CategoryMenuBar menu={catalog.menu} words={catalog.words} wholesale={catalog.wholesale} /> : null}
                 </header>
 
                 {staffView ? <StaffViewLine /> : null}
                 {inStore && content?.preview ? <PreviewLine name={content.preview} words={words} store={shop.code} locale={locale} /> : null}
                 <ShopperLines lines={shopperLines ?? []} />
 
-                <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:py-8">{children}</main>
+                <main className={bands ? 'w-full flex-1 pb-6 sm:pb-8' : 'shop-box flex-1 py-6 sm:py-8'}>{children}</main>
 
-                <footer className="border-t border-line bg-surface">
+                {/* The design's dark footer, in the sidebar's colours in both modes (shop-design.md §2.5). */}
+                <footer className="bg-sidebar text-sidebar-ink" data-test="shop-footer">
                     {/* The theme's footer artwork at its top edge (content.md §1.8 part 10). */}
                     {content?.theme?.footerArt ? <div aria-hidden="true" className="h-16 bg-cover bg-center [background-image:var(--tw-theme-footer)] sm:h-24" data-test="footer-art" /> : null}
                     {/* Ops' part of the frame (ops.md §4.15 O11): the newsletter box, for a guest only. */}
                     {drawn && newsletter ? (
                         <Suspense fallback={null}>
-                            <div className="mx-auto w-full max-w-6xl border-b border-line px-4 py-6">
-                                <NewsletterBox words={newsletter} />
+                            {/* The newsletter as a sand card at the footer's top (H6), its own colours in both modes. */}
+                            <div className="shop-box pt-8">
+                                <div className="rounded-xl bg-sand p-5 text-sand-ink sm:p-6" data-test="newsletter-card">
+                                    <NewsletterBox words={newsletter} />
+                                </div>
                             </div>
                         </Suspense>
                     ) : null}
                     {inStore && content?.footer ? <StoreFooter footer={content.footer} store={shop.code} locale={locale} words={words} /> : null}
-                    <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-6">
-                        <span className="text-label-12 text-muted-foreground">{content?.footer?.copyright ?? 'TouchWood'}</span>
+                    <div className="shop-box flex items-center justify-between gap-4 border-t border-sidebar-line py-6">
+                        <span className="text-label-12 text-sidebar-ink-muted">{content?.footer?.copyright ?? 'TouchWood'}</span>
                         {/* The shop's one theme switch, small, as Geist sizes it for a footer. */}
                         <ThemeToggle to="/preferences" size="small" />
                     </div>
                 </footer>
 
                 {/* The phone's tab bar, once the page is in the browser: its room is kept above from the first paint. */}
-                {inStore && drawn ? (
+                {inStore && drawn && tabBar ? (
                     <Suspense fallback={null}>
                         <TabBar House={House} shop={shop.code} locale={locale} url={page.url} words={words} sales={staffView ? undefined : frame?.sales} staffView={Boolean(staffView)} />
                     </Suspense>
@@ -276,33 +317,51 @@ export function StorefrontLayout({ title, children, address, head }: Props) {
 }
 
 /**
- * The announcement bar (content.md §1.5): one line, full width, above the header at every width, cut with an ellipsis
- * on a phone; its link's page holds the whole text. A live theme's strip is its ground (§1.8 part 1), the words in the
- * bar's fixed colours.
+ * The top bar (shop-design.md §2.2; content.md §1.5): 38 px, the announcement at its start - one line, cut with an
+ * ellipsis, its link's page holding the whole text - and Track Order and the language at its end from a tablet up; it
+ * shows with no announcement too. A live theme's strip is its ground (§1.8 part 1), the words in the bar's fixed
+ * colours. Navy in light mode, the sidebar's deep navy in dark, light words on both (§12, bug 2: the brand token turns
+ * light blue in dark mode).
  */
-function AnnouncementBar({ bar, store, locale }: { bar: NonNullable<ContentFrame['bar']>; store: string; locale: string }) {
+function TopBar({ bar, store, locale, words, children }: { bar: ContentFrame['bar'] | null; store: string; locale: string; words: Record<string, string>; children: ReactNode }) {
+    const link = useLink();
+
     return (
-        <div className={`bg-brand text-ink-on-brand ${bar.art ? 'bg-cover bg-center [background-image:var(--tw-theme-bar)]' : ''}`} data-test="announcement-bar">
-            <p className="mx-auto flex h-9 w-full max-w-6xl items-center justify-center px-4 text-copy-13">
-                <ContentLink link={bar.link} store={store} locale={locale} className="min-w-0 truncate underline-offset-4 hover:underline">
-                    <span className="block truncate">{bar.text}</span>
-                </ContentLink>
-            </p>
+        <div className={`bg-brand text-ink-on-brand dark:bg-sidebar dark:text-sidebar-ink ${bar ? '' : 'max-sm:hidden'} ${bar?.art ? 'bg-cover bg-center [background-image:var(--tw-theme-bar)]' : ''}`} data-test="top-bar">
+            <div className="shop-box flex h-[38px] items-center justify-between gap-4 text-copy-13">
+                {bar ? (
+                    <p className="min-w-0 flex-1 truncate" data-test="announcement-bar">
+                        <ContentLink link={bar.link} store={store} locale={locale} className="min-w-0 truncate underline-offset-4 hover:underline">
+                            <span className="block truncate">{bar.text}</span>
+                        </ContentLink>
+                    </p>
+                ) : (
+                    <span className="flex-1" />
+                )}
+                {/* Track Order opens the customer's orders; a guest is asked to sign in first (P13). */}
+                <span className="hidden shrink-0 items-center gap-4 sm:flex">
+                    <Link href={link('storefront.sales.orders')} className="underline-offset-4 hover:underline" data-test="track-order">
+                        {words.track_order}
+                    </Link>
+                    {children}
+                </span>
+            </div>
         </div>
     );
 }
 
-/** The cart's button, with its pieces (R1-10): in the header from a tablet up, in the tab bar on a phone. */
+/** The cart's button, with its pieces (R1-10): in the header from a tablet up - the design's filled navy button with its name (§2.3) - in the tab bar on a phone. */
 function CartButton({ shop, locale, sales, test }: { shop: string; locale: string; sales: NonNullable<NonNullable<SharedProps['frame']>['sales']>; test: string }) {
-    const label = sales.pieces > 0 ? `${sales.words.cart}${locale === 'ar' ? '، ' : ', '}${(sales.words.pieces[new Intl.PluralRules(intlLocale(locale)).select(sales.pieces)] ?? '').replace(':count', figure(locale, sales.pieces))}` : sales.words.cart;
+    const label = sales.products > 0 ? `${sales.words.cart}${locale === 'ar' ? '، ' : ', '}${(sales.words.products[new Intl.PluralRules(intlLocale(locale)).select(sales.products)] ?? '').replace(':count', figure(locale, sales.products))}` : sales.words.cart;
 
     return (
-        <Button asChild variant="ghost" size="icon">
+        <Button asChild className="h-[42px] gap-2 px-4">
             <Link href={`/${shop}/${locale}/cart`} aria-label={label} className="relative" data-test={test}>
                 <ShoppingCart aria-hidden="true" />
-                {sales.pieces > 0 ? (
-                    <Badge className="tw-figure absolute -end-1 -top-1 h-5 min-w-5 rounded-full px-1 text-[11px] leading-none" aria-hidden="true" data-test={`${test}-pieces`}>
-                        {sales.pieces > 99 ? '99+' : figure(locale, sales.pieces)}
+                <span aria-hidden="true">{sales.words.cart}</span>
+                {sales.products > 0 ? (
+                    <Badge className="tw-figure h-5 min-w-5 rounded-full bg-surface px-1 text-[11px] leading-none text-ink" aria-hidden="true" data-test={`${test}-count`}>
+                        {sales.products > 99 ? '99+' : figure(locale, sales.products)}
                     </Badge>
                 ) : null}
             </Link>
@@ -318,22 +377,27 @@ function StoreFooter({ footer, store, locale, words }: { footer: NonNullable<Con
     const contact = [footer.phone, footer.email, footer.address].filter((line): line is string => line !== null && line !== '');
 
     return (
-        <div className="mx-auto grid w-full max-w-6xl gap-6 border-b border-line px-4 py-6 sm:grid-cols-[1.4fr_repeat(3,1fr)] sm:gap-10 sm:py-10" data-test="store-footer">
+        <div className="shop-box grid gap-6 py-8 sm:grid-cols-[1.4fr_repeat(3,1fr)] sm:gap-10 sm:py-12" data-test="store-footer">
             <div className="grid content-start gap-3">
-                {footer.about ? <p className="max-w-[34ch] text-copy-14 text-ink-muted">{footer.about}</p> : null}
+                {/* The design's footer opens with the logo (§2.5). */}
+                <span className="flex items-center gap-3" aria-hidden="true">
+                    <Logo tone="navy" decorative className="size-10" />
+                    <span className="text-label-14 font-semibold tracking-[0.14em]">TOUCHWOOD</span>
+                </span>
+                {footer.about ? <p className="max-w-[34ch] text-copy-14 text-sidebar-ink-muted">{footer.about}</p> : null}
                 {contact.map((line) => (
-                    <bdi key={line} dir={line === footer.address ? undefined : 'ltr'} className="block text-copy-13 text-ink-muted">
+                    <bdi key={line} dir={line === footer.address ? undefined : 'ltr'} className="block text-copy-13 text-sidebar-ink-muted">
                         {line}
                     </bdi>
                 ))}
             </div>
             {footer.columns.map((column, index) => (
                 <nav key={index} aria-label={column.title || words.footer_links} className="grid content-start gap-2">
-                    <span className="hidden text-label-13 font-semibold text-ink sm:block">{column.title}</span>
+                    <span className="hidden text-label-13 font-semibold text-sidebar-ink sm:block">{column.title}</span>
                     <ul className="grid sm:gap-2">
                         {column.links.map((item) => (
                             <li key={item.link + item.text}>
-                                <ContentLink link={item.link} store={store} locale={locale} className="flex min-h-10 items-center text-copy-14 text-ink-muted hover:text-ink sm:min-h-0">
+                                <ContentLink link={item.link} store={store} locale={locale} className="flex min-h-10 items-center text-copy-14 text-sidebar-ink-muted hover:text-sidebar-ink sm:min-h-0">
                                     {item.text}
                                 </ContentLink>
                             </li>
@@ -349,7 +413,7 @@ function StoreFooter({ footer, store, locale, words }: { footer: NonNullable<Con
 function PreviewLine({ name, words, store, locale }: { name: string; words: Record<string, string>; store: string; locale: string }) {
     return (
         <div className="border-b border-line bg-accent-soft text-ink" data-test="preview-line">
-            <p className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-copy-14">
+            <p className="shop-box flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-copy-14">
                 <span>{(words.previewing ?? ':name').replace(':name', name)}</span>
                 <button type="button" className="font-medium underline underline-offset-4" data-test="stop-preview" onClick={() => router.post(`/${store}/${locale}/theme-preview/stop`)}>
                     {words.stop_preview}
@@ -467,7 +531,7 @@ function StaffViewLine() {
 
     return (
         <div className="border-b border-line bg-brand-soft text-ink" data-test="staff-view-line">
-            <p className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-copy-14">
+            <p className="shop-box flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-copy-14">
                 <span>{t('admin.staff_view.line')}</span>
                 <a href="/admin" className="font-medium underline underline-offset-4" data-test="staff-view-back">
                     {t('admin.staff_view.back')}
@@ -507,7 +571,7 @@ function ShopperLines({ lines }: { lines: ShopperLine[] }) {
                     data-tone={line.tone}
                     className={['block border-b border-line', tones[line.tone]].join(' ')}
                 >
-                    <span className="mx-auto block w-full max-w-6xl px-4 py-2 text-copy-14 hover:underline">{line.text}</span>
+                    <span className="shop-box block py-2 text-copy-14 hover:underline">{line.text}</span>
                 </Link>
             ))}
         </div>
@@ -562,8 +626,8 @@ function LanguageSwitch({
             {shop.languages
                 .filter((language) => language !== locale)
                 .map((language) => (
-                    // The owner's #3 (2026-10-02): one button showing the other language's name.
-                    <Button key={language} variant="outline" size="sm" asChild>
+                    // The owner's #3 (2026-10-02): one link showing the other language's name, in the top bar (§2.2).
+                    <Button key={language} variant="link" size="sm" asChild className="h-auto p-0 text-copy-13 text-inherit">
                         <Link
                             data-test={`language-${language}`}
                             // The language is the second segment: /sa/ar/account becomes /sa/en/account.

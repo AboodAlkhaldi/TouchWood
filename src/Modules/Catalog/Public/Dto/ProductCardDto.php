@@ -21,5 +21,8 @@ final readonly class ProductCardDto
         public ?string $photoMediaId,
         public ProductStage $stage,
         public bool $sold,
+        /** Its brand's name in the page's language, and its unit of sale (shop-design.md §7, §10.7). */
+        public ?string $brand = null,
+        public string $unit = 'PIECE',
     ) {}
 }

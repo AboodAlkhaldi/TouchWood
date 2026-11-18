@@ -235,6 +235,8 @@ final readonly class DatabaseCategoryRepository implements CategoryRepository
             $row->image_media_id === null ? null : (string) $row->image_media_id,
             (bool) $row->is_active,
             (bool) $row->deactivated_with_parent,
+            ($row->description_ar ?? null) === null ? null : (string) $row->description_ar,
+            ($row->description_en ?? null) === null ? null : (string) $row->description_en,
         ), $rows);
     }
 
@@ -248,6 +250,8 @@ final readonly class DatabaseCategoryRepository implements CategoryRepository
             'name_ar' => $category->name()->ar,
             'name_en' => $category->name()->en,
             'image_media_id' => $category->imageMediaId(),
+            'description_ar' => $category->descriptionAr(),
+            'description_en' => $category->descriptionEn(),
             'is_active' => $category->isActive(),
             'deactivated_with_parent' => $category->deactivatedWithParent(),
         ];

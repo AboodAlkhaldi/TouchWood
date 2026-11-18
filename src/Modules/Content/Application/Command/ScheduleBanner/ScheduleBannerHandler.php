@@ -62,7 +62,7 @@ final readonly class ScheduleBannerHandler
             }
 
             $now = Moments::now();
-            $banner = new Banner($was->id, $was->storeId, $was->placement, $was->categoryId, $was->name, $was->link, $was->hasWords, $was->altAr, $was->altEn, new Schedule(true, $was->schedule->startsAt ?? $now, $was->schedule->endsAt), $was->position, $was->images, $was->version + 1, $staffId, $now);
+            $banner = new Banner($was->id, $was->storeId, $was->placement, $was->categoryId, $was->name, $was->link, $was->hasWords, $was->altAr, $was->altEn, new Schedule(true, $was->schedule->startsAt ?? $now, $was->schedule->endsAt), $was->position, $was->images, $was->version + 1, $staffId, $now, $was->words);
             $this->rules->requireSchedulable($banner, $now);
             $this->marks->showing(UnreadTranslations::BANNER, $was->id, $command->read);
             $this->banners->update($banner);

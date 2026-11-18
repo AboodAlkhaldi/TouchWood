@@ -8,11 +8,12 @@ import { useTranslator } from '@/lib/t';
 | is the owner's: "Show More" (frontend.md E7).
 */
 
-export function LoadMoreButton({ loading, onClick }: { loading: boolean; onClick: () => void }) {
+/** `shop`: the shop's own look (shop-design.md §5.3, C9) - centred, in the brand's colour - in place of the panel's full width. */
+export function LoadMoreButton({ loading, onClick, shop = false }: { loading: boolean; onClick: () => void; shop?: boolean }) {
     const t = useTranslator();
 
     return (
-        <ActionButton type="button" variant="outline" className="w-full" loading={loading} onClick={onClick} data-test="more">
+        <ActionButton type="button" variant="outline" className={shop ? 'h-11 w-full justify-self-center border-brand text-brand hover:text-brand sm:w-auto sm:min-w-64' : 'w-full'} loading={loading} onClick={onClick} data-test="more">
             {t('ui.load_more')}
         </ActionButton>
     );

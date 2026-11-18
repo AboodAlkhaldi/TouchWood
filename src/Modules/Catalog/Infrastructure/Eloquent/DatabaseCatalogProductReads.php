@@ -170,7 +170,7 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
             ->whereIn('p.id', $ids)
             ->select([
                 'p.id', 'p.name_ar', 'p.name_en', 'p.stage', 'p.archived_from', 'p.brand_id', 'b.name_ar as brand_ar', 'b.name_en as brand_en',
-                'p.category_id', 'p.warranty_id',
+                'p.category_id', 'p.warranty_id', 'p.unit',
                 'p.description_ar', 'p.description_en', 'p.hidden_by_category', 'p.hidden_by_brand',
             ])
             ->selectRaw("(SELECT sl.slug FROM catalog.product_slugs sl WHERE sl.product_id = p.id AND sl.locale = 'ar' AND sl.is_current) as slug_ar")
@@ -252,6 +252,7 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
             self::strings($row->on_in),
             (bool) $row->has_variant,
             $counts,
+            (string) ($row->unit ?? 'PIECE'),
         );
     }
 

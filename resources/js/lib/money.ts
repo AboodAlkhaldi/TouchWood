@@ -28,3 +28,22 @@ export function formatMoney(money: Money, locale: string): string {
 
     return `${sign}${grouped}${fraction === undefined ? '' : `${decimal}${fraction}`} ${money.currency}`;
 }
+
+/**
+ * An amount of minor units written as the server writes `template` (Shared Money::format): the same decimals and sign or
+ * letters after it, the whole part grouped with commas. A BigInt, so a large amount keeps its last digits.
+ */
+export function moneyAs(template: { text: string }, minor: bigint): { text: string; minor: number } {
+    const match = /^(-?[\d,]+)(?:\.(\d+))?(.*)$/.exec(template.text);
+    const decimals = match?.[2]?.length ?? 0;
+    const digits = (minor < 0n ? -minor : minor).toString().padStart(decimals + 1, '0');
+    const whole = digits.slice(0, digits.length - decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const fraction = decimals > 0 ? `.${digits.slice(-decimals)}` : '';
+
+    return { text: `${minor < 0n ? '-' : ''}${whole}${fraction}${match?.[3] ?? ''}`, minor: Number(minor) };
+}
+
+/** A server-written amount times a count: the buy box's total (shop-design.md §6.3). */
+export function moneyTimes(value: { text: string; minor: number }, count: number): { text: string; minor: number } {
+    return moneyAs(value, BigInt(Math.round(value.minor)) * BigInt(Math.max(0, Math.trunc(count))));
+}

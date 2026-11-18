@@ -32,7 +32,7 @@ final readonly class ContentHome
     ) {}
 
     /**
-     * @return array{sections: list<array{type: string, words: array<array-key, mixed>, logos?: list<array<string, mixed>>, project?: array<string, mixed>, guides?: list<array<string, mixed>>}>, heroBanner: array<string, mixed>|null, phoneBanners: list<array<string, mixed>>}
+     * @return array{sections: list<array{type: string, words: array<array-key, mixed>, logos?: list<array<string, mixed>>, project?: array<string, mixed>, guides?: list<array<string, mixed>>}>, banners: list<array<string, mixed>>}
      */
     public function for(StoreDto $store, string $locale, ?DateTimeImmutable $now = null): array
     {
@@ -40,13 +40,10 @@ final readonly class ContentHome
         $kept = $this->cache->remember("home:{$store->id}:{$locale}", fn (): array => $this->reads->home($store->id));
 
         $live = array_values(array_filter($kept['banners'], static fn (array $banner): bool => ContentFrame::liveAt($banner, $now)));
-        $banners = [];
-
-        foreach ([BannerPlacement::HomeHero, BannerPlacement::HomePhone] as $placement) {
-            $mine = array_map(static fn (array $banner): array => self::banner($banner, $placement, $locale), array_values(array_filter($live, static fn (array $banner): bool => $banner['placement'] === $placement->value)));
-            // One whose image failed after it was scheduled draws as if it were not there.
-            $banners[$placement->value] = array_slice(array_values(array_filter($mine, static fn (array $banner): bool => $banner['image'] !== [])), 0, $placement->liveAtOnce());
-        }
+        // One list for both widths (shop-design.md §3.1): the first live ones in order, at most five. One whose images
+        // failed after it was scheduled draws as if it were not there.
+        $mine = array_map(static fn (array $banner): array => self::banner($banner, $locale), $live);
+        $banners = array_slice(array_values(array_filter($mine, static fn (array $banner): bool => $banner['image'] !== [] || $banner['phone'] !== [])), 0, BannerPlacement::HomeHero->liveAtOnce());
 
         $sections = [];
 
@@ -74,7 +71,7 @@ final readonly class ContentHome
                 $drawn['logos'] = array_map(static fn (array $logo): array => ['name' => $logo["name_{$locale}"], 'link' => $logo['link'], 'image' => $logo['image']], $logos);
             }
 
-            if ($type === HomeSectionType::Hero && $banners[BannerPlacement::HomeHero->value] === [] && $banners[BannerPlacement::HomePhone->value] === [] && ($drawn['words']['title'] ?? null) === null) {
+            if ($type === HomeSectionType::Hero && $banners === [] && ($drawn['words']['title'] ?? null) === null) {
                 continue;
             }
 
@@ -83,8 +80,7 @@ final readonly class ContentHome
 
         return [
             'sections' => $sections,
-            'heroBanner' => $banners[BannerPlacement::HomeHero->value][0] ?? null,
-            'phoneBanners' => $banners[BannerPlacement::HomePhone->value],
+            'banners' => $banners,
         ];
     }
 
@@ -92,16 +88,22 @@ final readonly class ContentHome
      * @param  array<string, mixed>  $banner
      * @return array<string, mixed>
      */
-    private static function banner(array $banner, BannerPlacement $placement, string $locale): array
+    private static function banner(array $banner, string $locale): array
     {
         $images = is_array($banner['images']) ? $banner['images'] : [];
-        $kind = $placement === BannerPlacement::HomeHero ? 'DESKTOP' : 'PHONE';
+        $wide = $images["DESKTOP:{$locale}"] ?? $images['DESKTOP:any'] ?? [];
+        $phone = $images["PHONE:{$locale}"] ?? $images['PHONE:any'] ?? [];
 
+        // Each width falls back on the other's picture, so a banner moved from the old phone list still shows wide.
         return [
             'id' => $banner['id'],
             'link' => $banner['link'],
             'alt' => $banner["alt_{$locale}"],
-            'image' => $images["{$kind}:{$locale}"] ?? $images["{$kind}:any"] ?? [],
+            'image' => $wide !== [] ? $wide : $phone,
+            'phone' => $phone !== [] ? $phone : $wide,
+            'title' => $banner["title_{$locale}"] ?? null,
+            'line' => $banner["line_{$locale}"] ?? null,
+            'button' => $banner["button_{$locale}"] ?? null,
         ];
     }
 

@@ -11,6 +11,8 @@ return [
     'home' => [
         'banners' => 'العروض',
         'banner_of' => 'العرض :number من :count',
+        'banner_previous' => 'العرض السابق',
+        'banner_next' => 'العرض التالي',
         'all_projects' => 'كل المشاريع',
         'guides' => 'أدلة',
         'points_earn' => ':points نقطة لكل 1 :currency تنفقه',

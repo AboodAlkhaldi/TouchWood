@@ -26,6 +26,7 @@ use Modules\Catalog\Domain\Exception\ProductNotReady;
 use Modules\Catalog\Domain\Exception\SlugTaken;
 use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Catalog\Domain\Repository\ProductRepository;
+use Modules\Catalog\Public\Enums\ProductUnit;
 use Shared\Application\Unauthorized;
 
 /**
@@ -58,8 +59,9 @@ final readonly class EditProductDetailsHandler
         [$name, $slugs] = ProductInput::names($command->nameAr, $command->nameEn, $command->slugAr, $command->slugEn);
         $descriptionAr = ProductInput::description('description_ar', $command->descriptionAr);
         $descriptionEn = ProductInput::description('description_en', $command->descriptionEn);
+        $unit = $command->unit === null ? null : (ProductUnit::tryFrom($command->unit) ?? throw new InvalidCatalogAttribute('unit', 'one of the units'));
 
-        $this->change->run(ListLocks::PRODUCTS, function () use ($command, $name, $slugs, $descriptionAr, $descriptionEn): array {
+        $this->change->run(ListLocks::PRODUCTS, function () use ($command, $name, $slugs, $descriptionAr, $descriptionEn, $unit): array {
             $product = $this->products->byId($command->productId) ?? throw new ProductNotFound($command->productId);
             $this->access->authorizeFor(self::PERMISSION, $product->id());
             $this->input->requireFreeSlugs($slugs, $product->id());
@@ -72,6 +74,7 @@ final readonly class EditProductDetailsHandler
                 $this->references->brand($command->brandId, $product->brandId()),
                 $this->references->category($command->categoryId, $product->categoryId()),
                 $this->references->warranty($command->warrantyId, $product->warrantyId()),
+                $unit,
             );
             $entry = ListAudit::changed('product', 'edited', $product->id(), $product->pullChanges(), $product->snapshot());
 

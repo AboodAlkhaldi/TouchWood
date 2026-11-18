@@ -8,6 +8,7 @@ use Illuminate\Contracts\Translation\Translator;
 use Modules\Catalog\Presentation\Http\Resource\ShopFrameData;
 use Modules\Platform\Public\Contracts\ShopFramePart;
 use Modules\Platform\Public\Dto\StoreDto;
+use Modules\Platform\Public\Enums\ShopperKind;
 
 /**
  * Catalog's part of every shop page's frame (catalog.md §4.5; owner, 2026-10-07, #9): the category
@@ -17,7 +18,7 @@ use Modules\Platform\Public\Dto\StoreDto;
 final readonly class CatalogFramePart implements ShopFramePart
 {
     /** @var list<string> */
-    private const array WORDS = ['all_categories', 'categories', 'open_menu', 'search', 'search_placeholder', 'see_all', 'no_suggestions', 'all_of'];
+    private const array WORDS = ['all_categories', 'categories', 'open_menu', 'search', 'search_placeholder', 'see_all', 'no_suggestions', 'all_of', 'order_wholesale'];
 
     public function __construct(
         private ShopVisit $visit,
@@ -32,6 +33,7 @@ final readonly class CatalogFramePart implements ShopFramePart
             $words[$word] = (string) $this->translator->get("catalog::shop.frame.{$word}", [], $locale);
         }
 
-        return (new ShopFrameData($this->visit->menu($store->storeId(), $locale), $words))->toArray();
+        // «Order wholesale» at the row's end for a guest or an individual; a company buys wholesale already (P21).
+        return (new ShopFrameData($this->visit->menu($store->storeId(), $locale), $words, $this->visit->viewer() !== ShopperKind::Company))->toArray();
     }
 }

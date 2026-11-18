@@ -19,6 +19,7 @@ use Modules\Catalog\Domain\ValueObject\Slug;
 use Modules\Catalog\Domain\ValueObject\StructuredText;
 use Modules\Catalog\Domain\ValueObject\VariantDetail;
 use Modules\Catalog\Domain\ValueObject\VariantMeasures;
+use Modules\Catalog\Public\Enums\ProductUnit;
 use Shared\Domain\Text\LatinDigits;
 
 /**
@@ -48,7 +49,7 @@ final readonly class ProductsFile
     /** As a product's Variants tab takes them (`AddVariantAttributeHandler::MAX_ATTRIBUTES`). */
     public const int VARIANT_ATTRIBUTES_MAX = 10;
 
-    private const array PRODUCT_FIELDS = ['name', 'slug', 'description', 'brand', 'category', 'warranty', 'attribute_set', 'variants', 'photos', 'search_words', 'filters', 'related', 'goes_with', 'stores'];
+    private const array PRODUCT_FIELDS = ['name', 'slug', 'description', 'brand', 'category', 'warranty', 'attribute_set', 'variants', 'photos', 'search_words', 'filters', 'related', 'goes_with', 'unit', 'stores'];
 
     private const array VARIANT_FIELDS = ['code', 'values', 'details', 'weight_g', 'length_mm', 'width_mm', 'height_mm', 'photos'];
 
@@ -196,6 +197,7 @@ final readonly class ProductsFile
             self::codes($raw['related'] ?? null, "{$at} › related", $problems),
             self::codes($raw['goes_with'] ?? null, "{$at} › goes_with", $problems),
             $brandNumber,
+            unit: self::unit($raw['unit'] ?? null, "{$at} › unit", $problems),
         );
     }
 
@@ -346,6 +348,24 @@ final readonly class ProductsFile
         }
 
         return [$documents[0], $documents[1]];
+    }
+
+    /**
+     * How the product is sold (shop-design.md §10.1): one of the fixed list, written in capitals as the guide shows them.
+     */
+    private static function unit(mixed $raw, string $at, FileProblems $problems): ?string
+    {
+        if ($raw === null) {
+            return null;
+        }
+
+        if (is_string($raw) && ProductUnit::tryFrom($raw) !== null) {
+            return $raw;
+        }
+
+        $problems->add($at, 'one of '.implode(', ', array_map(static fn (ProductUnit $unit): string => $unit->value, ProductUnit::cases())));
+
+        return null;
     }
 
     private static function listName(mixed $raw, string $at, FileProblems $problems): ?string

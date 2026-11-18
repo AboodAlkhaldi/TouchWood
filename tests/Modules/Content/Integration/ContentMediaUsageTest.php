@@ -112,7 +112,7 @@ it('§1.1 rule 10: an image refused as failed is uploaded again, made ready, and
 it('blocks the delete of a file a live banner shows, and detaches it from a draft banner', function () {
     Cx::editor([ContentPermissions::BANNER_MANAGE]);
     $shared = Cx::image();
-    $live = Cx::banner(['images' => ['PHONE:any' => $shared]]);
+    $live = Cx::banner(['images' => ['DESKTOP:any' => $shared, 'PHONE:any' => $shared]]);
     app(ScheduleBannerHandler::class)->handle(new ScheduleBanner($live, 1));
     $draft = Cx::banner(['images' => ['PHONE:any' => $shared]]);
 

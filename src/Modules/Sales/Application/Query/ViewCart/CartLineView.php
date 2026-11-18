@@ -34,5 +34,8 @@ final readonly class CartLineView
         public ?CartLineProblem $problem,
         public int $minimum,
         public ?int $maximum,
+        /** Its brand's name and unit of sale, as the cart's line shows them (shop-design.md §7, §10.7). */
+        public ?string $brand = null,
+        public string $saleUnit = 'PIECE',
     ) {}
 }

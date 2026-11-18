@@ -15,6 +15,7 @@ use Modules\Catalog\Domain\ValueObject\ProductSlugs;
 use Modules\Catalog\Domain\ValueObject\StructuredText;
 use Modules\Catalog\Public\Enums\CatalogItem;
 use Modules\Catalog\Public\Enums\ProductStage;
+use Modules\Catalog\Public\Enums\ProductUnit;
 use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
@@ -368,6 +369,7 @@ final readonly class DatabaseProductRepository implements ProductRepository
             $row->archived_from === null ? null : ProductStage::from((string) $row->archived_from),
             (bool) $row->hidden_by_category,
             (bool) $row->hidden_by_brand,
+            ProductUnit::tryFrom((string) ($row->unit ?? '')) ?? ProductUnit::Piece,
         );
     }
 
@@ -384,6 +386,7 @@ final readonly class DatabaseProductRepository implements ProductRepository
             'brand_id' => $product->brandId(),
             'category_id' => $product->categoryId(),
             'warranty_id' => $product->warrantyId(),
+            'unit' => $product->unit()->value,
             'stage' => $product->stage()->value,
             'archived_from' => $product->archivedFrom()?->value,
             'hidden_by_category' => $product->hiddenByCategory(),

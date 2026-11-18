@@ -32,5 +32,7 @@ final readonly class OrderLine
         public int $total,
         public int $couponShare,
         public bool $countsOnStock,
+        /** The product's unit of sale when it was ordered (shop-design.md §10.7, P25). */
+        public string $saleUnit = 'PIECE',
     ) {}
 }

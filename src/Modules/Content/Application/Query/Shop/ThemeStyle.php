@@ -19,7 +19,7 @@ use Modules\Platform\Public\Enums\MediaSize;
  *   transparency white, and AVIF's handling on GD is not verified;
  * - **part 11, the page's edges** (`--tw-backdrop`): the start side's image on the start side, written for the page's
  *   direction since `background-position` has no start or end; tiled down from each side of the content column
- *   (72rem, `max-w-6xl`), so it never sits behind it; **hidden at 1024 px and under** `[ACCEPTED 2026-11-10]`;
+ *   (1400 px, the `shop-box`; shop-design.md §2.1), so it never sits behind it; **hidden at 1024 px and under** `[ACCEPTED 2026-11-10]`;
  * - **one set of artwork for light and dark** (Q8 (a)): in dark the bands' ground is softened by a fixed tint, half the
  *   existing `--tw-overlay` token of that mode (the build coordinator's pick K8: no new colour).
  *
@@ -37,8 +37,8 @@ final class ThemeStyle
         'FOOTER' => '--tw-theme-footer',
     ];
 
-    /** The content column's half width (`max-w-6xl`, 72rem), which the edges' artwork stops at. */
-    private const string HALF_COLUMN = '36rem';
+    /** The content column's half width (the 1400 px `shop-box`, shop-design.md §2.1), which the edges' artwork stops at. */
+    private const string HALF_COLUMN = '700px';
 
     private const string TINT = 'linear-gradient(color-mix(in oklab, var(--tw-overlay) 50%, transparent), color-mix(in oklab, var(--tw-overlay) 50%, transparent))';
 

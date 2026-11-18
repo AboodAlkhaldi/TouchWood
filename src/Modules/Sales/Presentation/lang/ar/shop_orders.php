@@ -75,6 +75,16 @@ return [
         'confirming' => 'يجري تأكيد عملية دفع.',
         'cannot_cancel' => 'لا يمكن إلغاء الطلبات المشحونة. يمكنك طلب إرجاع بعد التوصيل.',
         'cannot_cancel_closed' => 'لم يعد بالإمكان إلغاء هذا الطلب.',
+        // The order page to the design (shop-design.md §15.2).
+        'mode' => ['RETAIL' => 'تجزئة', 'WHOLESALE' => 'جملة'],
+        'cancel_note' => 'الإلغاء متاح حتى شحن الطلب. بعدها يُفتح طلب إرجاع.',
+        'address_copy' => 'العنوان محفوظ كنسخة داخل الطلب — تعديله في دفتر العناوين لا يغيّر هذا الطلب.',
+        'items' => ['zero' => ':count صنف', 'one' => 'صنف واحد', 'two' => 'صنفان', 'few' => ':count أصناف', 'many' => ':count صنفًا', 'other' => ':count صنف'],
+        'pieces' => ['zero' => ':count قطعة', 'one' => 'قطعة واحدة', 'two' => 'قطعتان', 'few' => ':count قطع', 'many' => ':count قطعة', 'other' => ':count قطعة'],
+        'points_title' => 'نقاط هذا الطلب',
+        'points_count' => ['zero' => ':count نقطة', 'one' => 'نقطة واحدة', 'two' => 'نقطتان', 'few' => ':count نقاط', 'many' => ':count نقطة', 'other' => ':count نقطة'],
+        'points_later' => 'تُضاف النقاط إلى رصيدك عند تسليم الطلب، وتُسحب عند الإلغاء أو الإرجاع.',
+        'points_added' => 'أُضيفت النقاط إلى رصيدك عند التسليم.',
     ],
     'cancel' => [
         'title' => 'إلغاء هذا الطلب؟',

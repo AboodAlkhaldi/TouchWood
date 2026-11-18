@@ -24,5 +24,7 @@ final class ShopCardPriceData extends Data
         public ?MoneyData $from,
         public ?MoneyData $wholesaleFrom,
         public ?MoneyData $wholesaleFromBefore,
+        /** What a piece saves on a sale - before less now - for «وفّر» (shop-design.md §4.2); null with no sale. */
+        public ?MoneyData $saving = null,
     ) {}
 }
