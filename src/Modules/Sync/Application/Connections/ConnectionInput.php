@@ -31,7 +31,7 @@ final readonly class ConnectionInput
 
     /**
      * HTTPS with a host and nothing else of a person's, the host never inside our network, then the provider's own shape (Odoo's: no query or
-     * fragment, no path: the account's address alone, sync.md §2.4) - each refused by its own rule's words.
+     * fragment, a path required: the API's full address, sync.md §2.4, amendment 6) - each refused by its own rule's words.
      */
     public function address(ProviderKind $provider, string $address): string
     {
@@ -79,6 +79,15 @@ final readonly class ConnectionInput
         }
 
         return $value;
+    }
+
+    /**
+     * **The webhook's secret, optional** (flags-2026-11.md S6, owner 2026-11-18): empty is none (null), else the
+     * secret's own rule.
+     */
+    public function optionalSecret(#[\SensitiveParameter] ?string $value): ?string
+    {
+        return $value === null || trim($value) === '' ? null : $this->secret($value, 'secret');
     }
 
     /**

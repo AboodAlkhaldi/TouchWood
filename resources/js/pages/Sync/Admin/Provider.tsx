@@ -7,6 +7,8 @@ import { SelectField, TextField } from '@/components/Fields';
 import { FormError, useFreshRefusal } from '@/components/FormError';
 import { Note } from '@/components/Note';
 import { PasswordInput } from '@/components/PasswordInput';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Field, FieldLabel } from '@/components/ui/field';
 import { Guarded, MoreButton } from '@/components/RowMenu';
 import { Time } from '@/components/Time';
 import { CopyButton } from '@/components/geist-only/CopyButton';
@@ -104,6 +106,8 @@ function ConnectionForm({ frame, connection, mode, onDone }: { frame: SyncFrameD
     const [settings, setSettings] = useState<Record<string, string>>(() => Object.fromEntries(connection.fields.map((name) => [name, connection.settings[name] ?? ''])));
     const [key, setKey] = useState('');
     const [secret, setSecret] = useState('');
+    // Remove the stored webhook secret (owner, 2026-11-19): only offered when changing a store that has one.
+    const [removeSecret, setRemoveSecret] = useState(false);
     const [busy, setBusy] = useState(false);
     const changing = mode === 'change';
     const F = `${P}.fields`;
@@ -112,7 +116,8 @@ function ConnectionForm({ frame, connection, mode, onDone }: { frame: SyncFrameD
         { id: ID.address, label: t(`${F}.address`), value: address, rules: { required: true, own: addressProblem } },
         ...connection.fields.map((name): Box => ({ id: settingId(name), label: name, value: settings[name] ?? '', rules: { required: true } })),
         { id: ID.key, label: t(`${F}.key`), value: key, rules: { required: !changing, keepSpaces: true, own: (text) => ([...text].length > 1000 ? `${P}.checks.key_long` : null) } },
-        { id: ID.secret, label: t(`${F}.secret`), value: secret, rules: { required: !changing, keepSpaces: true, own: (text) => ([...text].length > 1000 ? `${P}.checks.secret_long` : null) } },
+        // Optional: only Odoo's webhook uses it (flags-2026-11.md S6).
+        { id: ID.secret, label: t(`${F}.secret`), value: secret, rules: { keepSpaces: true, own: (text) => ([...text].length > 1000 ? `${P}.checks.secret_long` : null) } },
     ];
     const checks = useChecks(boxes);
     const error = (name: string): string | undefined => errors[name] ?? undefined;
@@ -124,7 +129,7 @@ function ConnectionForm({ frame, connection, mode, onDone }: { frame: SyncFrameD
         checks.submit(() =>
             router.post(
                 `/admin/sync/provider/${mode}`,
-                { store: frame.storeCode, provider, address, key, secret, settings },
+                { store: frame.storeCode, provider, address, key, secret: removeSecret ? '' : secret, settings, remove_secret: removeSecret },
                 {
                     preserveScroll: true,
                     onStart: () => setBusy(true),
@@ -201,16 +206,35 @@ function ConnectionForm({ frame, connection, mode, onDone }: { frame: SyncFrameD
                         check={checks.box(ID.key, error('key'))}
                         dir="ltr"
                     />
-                    <PasswordInput
-                        id={ID.secret}
-                        label={t(`${F}.secret`)}
-                        value={secret}
-                        onChange={(event) => setSecret(event.target.value)}
-                        autoComplete="new-password"
-                        helper={changing ? t(`${P}.change.keep_secret`) : undefined}
-                        check={checks.box(ID.secret, error('secret'))}
-                        dir="ltr"
-                    />
+                    {removeSecret ? null : (
+                        <PasswordInput
+                            id={ID.secret}
+                            label={t(`${F}.secret`)}
+                            value={secret}
+                            onChange={(event) => setSecret(event.target.value)}
+                            autoComplete="new-password"
+                            helper={changing && connection.secretSet ? t(`${P}.change.keep_secret`) : t(`${F}.secret_help`)}
+                            check={checks.box(ID.secret, error('secret'))}
+                            dir="ltr"
+                        />
+                    )}
+                    {changing && connection.secretSet ? (
+                        <Field orientation="horizontal">
+                            <Checkbox
+                                id="provider-remove-secret"
+                                checked={removeSecret}
+                                onCheckedChange={(checked) => {
+                                    setRemoveSecret(checked === true);
+                                    setSecret('');
+                                }}
+                                className="border-ink-subtle"
+                                data-test="remove-secret"
+                            />
+                            <FieldLabel htmlFor="provider-remove-secret" className="text-label-14 font-normal text-ink">
+                                {t(`${P}.change.remove_secret`)}
+                            </FieldLabel>
+                        </Field>
+                    ) : null}
 
                     {formError === undefined ? null : (
                         <Note variant="error" alert data-test="form-error">
@@ -274,7 +298,7 @@ function Wired({ connection }: { connection: ConnectionData }) {
                     </span>
                 ),
         },
-        { title: t(`${W}.key_and_secret`), content: connection.keySet ? t(`${W}.set`) : null, 'data-test': 'wired-key' },
+        { title: t(`${W}.key_and_secret`), content: connection.keySet ? t(connection.secretSet ? `${W}.set` : `${W}.key_only`) : null, 'data-test': 'wired-key' },
         { title: t(`${W}.last_changed`), content: connection.changedAt === null ? null : <Time value={connection.changedAt} mode="absolute" /> },
         {
             title: t(`${W}.state`),
@@ -298,6 +322,8 @@ function Wired({ connection }: { connection: ConnectionData }) {
         <Card className="material-base gap-0 border-0 py-0" data-test="wired">
             <CardContent className="grid gap-6 px-5 py-5">
                 <Description items={items} columns={2} />
+                {/* Only a store with a webhook secret takes notices (flags-2026-11.md S6). */}
+                {connection.secretSet ? (
                 <div className="grid gap-2" data-test="notice">
                     <span className="text-label-13 text-ink-muted">{t(`${W}.notice_address`)}</span>
                     <span className="flex items-center gap-1">
@@ -314,6 +340,7 @@ function Wired({ connection }: { connection: ConnectionData }) {
                         <li>{t(`${W}.notice_body`, { most: figure(locale, connection.noticeMostCodes) })}</li>
                     </ul>
                 </div>
+                ) : null}
             </CardContent>
         </Card>
     );

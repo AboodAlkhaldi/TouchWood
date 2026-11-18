@@ -65,6 +65,8 @@ final readonly class ProviderController
                 is_string($request->input('key')) && $request->input('key') !== '' ? $request->input('key') : null,
                 is_string($request->input('secret')) && $request->input('secret') !== '' ? $request->input('secret') : null,
                 SyncForms::settings($request),
+                // Remove the webhook secret (owner, 2026-11-19).
+                $request->boolean('remove_secret'),
             ));
         }, 'sync::admin_provider.toast.connection_changed');
     }

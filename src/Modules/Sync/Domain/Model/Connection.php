@@ -11,7 +11,8 @@ use Modules\Sync\Domain\ValueObject\ProviderKind;
 /**
  * A store's connection to its provider (sync.md §1.2, §5): the store is wired while it exists. The key
  * and the notification secret are plain here, in memory only - kept encrypted with the app's key and
- * never shown, logged or audited (owner, 2026-10-13).
+ * never shown, logged or audited (owner, 2026-10-13). **The secret is optional** (flags-2026-11.md S6, owner
+ * 2026-11-18): it only signs the provider's notices, so a store that takes none has no secret (null).
  */
 final readonly class Connection
 {
@@ -24,7 +25,7 @@ final readonly class Connection
         public string $address,
         public array $settings,
         #[\SensitiveParameter] public string $key,
-        #[\SensitiveParameter] public string $secret,
+        #[\SensitiveParameter] public ?string $secret,
         public ConnectionState $state,
         public ?string $lastError,
         public string $createdBy,

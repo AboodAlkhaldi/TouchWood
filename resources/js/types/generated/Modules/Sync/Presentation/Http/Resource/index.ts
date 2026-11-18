@@ -16,6 +16,7 @@ lastFullReadAt: string | null,
 noticeAddress: string,
 noticeMostCodes: number,
 stopsWhenUnwired: number,
+secretSet: boolean,
 };
 export type FailureData = {
 code: string | null,

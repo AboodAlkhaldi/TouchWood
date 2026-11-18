@@ -389,10 +389,20 @@ describe('the Provider page (Y3)', function () {
 
         expect([$page['connection']['provider'], $page['connection']['keySet'], $page['connection']['settings'], $page['connection']['fields']])->toBe(['ODOO', true, ['database' => 'tw'], ['database']])
             ->and($page['connection']['noticeAddress'])->toEndWith('/sync/notify/'.Fx::storeId('sa'))
+            ->and($page['connection']['secretSet'])->toBeTrue()
             ->and($page['storeFrame']['mayWire'])->toBeTrue()
             ->and(str_contains((string) json_encode($page['connection']), '"k"'))->toBeFalse();
 
         syncScreens()->get('/admin/sync/provider')->assertForbidden();
+    });
+
+    it('wires a store through its page with the secret left empty: none kept, and the page says so (flags-2026-11.md S6)', function () {
+        $wired = syncScreensSuper()->post('/admin/sync/provider/wire', ['store' => 'sa', 'provider' => 'ODOO', 'address' => 'https://odoo.test/api', 'key' => 'k', 'secret' => '', 'settings' => ['database' => 'tw']]);
+        $page = syncScreensProps(syncScreensSuper()->get('/admin/sync/provider'), 'Sync/Admin/Provider');
+
+        expect(AdminBrowser::flashed($wired, 'status'))->toBe('Store wired')
+            ->and(DB::table('sync.connections')->value('secret_encrypted'))->toBeNull()
+            ->and([$page['connection']['keySet'], $page['connection']['secretSet']])->toBe([true, false]);
     });
 
     it('wires, changes and unwires a store, each said in a toast; a setting refused under its own box (Q34)', function () {
@@ -420,10 +430,10 @@ describe('the Provider page (Y3)', function () {
         Http::assertNothingSent();
     })->with([
         'not HTTPS' => ['http://example.odoo.com', 'The address must start with https://.', 'يجب أن يبدأ العنوان بـ https://.'],
-        'a query' => ['https://example.odoo.com?db=tw', 'Odoo\'s address can\'t hold a query (?) or a fragment (#).', 'لا يجوز أن يحوي عنوان Odoo استعلامًا (?) أو جزءًا (#).'],
-        'a fragment' => ['https://example.odoo.com#top', 'Odoo\'s address can\'t hold a query (?) or a fragment (#).', 'لا يجوز أن يحوي عنوان Odoo استعلامًا (?) أو جزءًا (#).'],
-        'the whole call\'s address' => ['https://example.odoo.com/json/2/product.product/read', 'Odoo\'s address is the account\'s address alone, with no path: https://example.odoo.com.', 'عنوان Odoo هو عنوان الحساب وحده، بلا مسار: https://example.odoo.com.'],
-        'the old custom path' => ['https://example.odoo.com/touchwood/v1', 'Odoo\'s address is the account\'s address alone, with no path: https://example.odoo.com.', 'عنوان Odoo هو عنوان الحساب وحده، بلا مسار: https://example.odoo.com.'],
+        'a query' => ['https://example.odoo.com/json/2/product.product/read?db=tw', 'Odoo\'s address can\'t hold a query (?) or a fragment (#).', 'لا يجوز أن يحوي عنوان Odoo استعلامًا (?) أو جزءًا (#).'],
+        'a fragment' => ['https://example.odoo.com/json/2/product.product/read#top', 'Odoo\'s address can\'t hold a query (?) or a fragment (#).', 'لا يجوز أن يحوي عنوان Odoo استعلامًا (?) أو جزءًا (#).'],
+        'the account alone' => ['https://example.odoo.com', 'Type the API\'s full address, its path included: https://example.odoo.com/json/2/product.product/read.', 'اكتب عنوان الواجهة كاملًا مع مساره: https://example.odoo.com/json/2/product.product/read.'],
+        'the account and a slash' => ['https://example.odoo.com/', 'Type the API\'s full address, its path included: https://example.odoo.com/json/2/product.product/read.', 'اكتب عنوان الواجهة كاملًا مع مساره: https://example.odoo.com/json/2/product.product/read.'],
         'a bad port' => ['https://example.odoo.com:99999', 'The address can\'t be called: check its host and its port.', 'لا يمكن الاتصال بهذا العنوان: تحقّق من اسم المضيف والمنفذ.'],
     ]);
 

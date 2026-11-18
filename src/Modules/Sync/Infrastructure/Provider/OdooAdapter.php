@@ -50,7 +50,11 @@ use Psr\Log\LoggerInterface;
  */
 final class OdooAdapter implements ProviderAdapter
 {
-    /** Odoo's standard JSON-2 path for reading variants, after the account's address (§2.4). */
+    /**
+     * Odoo's standard JSON-2 path for reading variants (§2.4). Since flags-2026-11.md S6 the box takes the API's
+     * full address, so this path is only the example shown and what the migration added to addresses saved without
+     * one: the read calls the saved address as it is.
+     */
     public const string PATH = '/json/2/product.product/read';
 
     /** The two fields read, in Odoo's names: the price shown without VAT, and the stock free to order (§2.4). */
@@ -123,8 +127,10 @@ final class OdooAdapter implements ProviderAdapter
     }
 
     /**
-     * The account's address alone - `https://<account>.odoo.com` (§2.4): no path, query or fragment; a closing
-     * slash dropped. The path is Odoo's own and added here. The shared rule has checked HTTPS and the host.
+     * **The API's full address**, its path included - `https://<account>.odoo.com/json/2/product.product/read`
+     * (flags-2026-11.md S6, owner 2026-11-18): a new API version, or another service answering as Odoo does, is a
+     * new address typed, never a code change. No query or fragment; a closing slash dropped; **an address with no
+     * path is refused** (F11), its words naming the full example. The shared rule has checked HTTPS and the host.
      */
     public function address(string $address): string
     {
@@ -140,8 +146,8 @@ final class OdooAdapter implements ProviderAdapter
             throw new InvalidSyncInput('address', rule: InvalidSyncInput::ADDRESS_MALFORMED);
         }
 
-        if (($parts['path'] ?? '') !== '') {
-            throw new InvalidSyncInput('address', rule: InvalidSyncInput::ADDRESS_PATH);
+        if (($parts['path'] ?? '') === '') {
+            throw new InvalidSyncInput('address', rule: InvalidSyncInput::ADDRESS_NO_PATH);
         }
 
         return $address;
@@ -342,7 +348,8 @@ final class OdooAdapter implements ProviderAdapter
                 ->connectTimeout(min($seconds, self::CONNECT_SECONDS))
                 ->timeout($seconds)
                 ->withOptions(['on_headers' => $this->headersCheck(...), 'progress' => $this->progressCheck(...)])
-                ->post(rtrim($connection->address, '/').self::PATH, ['ids' => $ids, 'fields' => self::FIELDS]);
+                // The saved address as it is: the API's full address (flags-2026-11.md S6).
+                ->post(rtrim($connection->address, '/'), ['ids' => $ids, 'fields' => self::FIELDS]);
         } catch (OdooAnswerTooLarge) {
             throw self::failed(new ProviderReason(ProviderReason::ANSWER_TOO_LARGE));
         } catch (RequestException $error) {

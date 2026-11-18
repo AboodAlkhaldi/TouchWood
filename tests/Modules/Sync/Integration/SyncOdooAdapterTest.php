@@ -78,7 +78,7 @@ afterEach(function () {
     Sleep::fake(false);
 });
 
-function odooConnection(string $address = ODOO_BASE, string $store = 'store-1', string $key = ODOO_TOKEN): Connection
+function odooConnection(string $address = ODOO_URL, string $store = 'store-1', string $key = ODOO_TOKEN): Connection
 {
     return new Connection($store, ProviderKind::Odoo, $address, [], $key, 'notice-secret', ConnectionState::Ok, null, 'staff-1');
 }
@@ -236,7 +236,7 @@ function odooDraftSizes(array $codes): array
 /** Wires KSA to Odoo, its test call answered by the fake's first answer. */
 function odooWire(): void
 {
-    app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('sa'), 'ODOO', ODOO_BASE, ODOO_TOKEN, 'notice-secret'));
+    app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('sa'), 'ODOO', ODOO_URL, ODOO_TOKEN, 'notice-secret'));
 }
 
 /** The store's oldest waiting read, run as its job runs it. */
@@ -356,7 +356,7 @@ describe('the calls (§2.4)', function () {
     it('takes an address written with a closing slash', function () {
         Http::fake(['example.odoo.com/*' => Http::response([])]);
 
-        odooAdapter()->test(odooConnection(ODOO_BASE.'/'));
+        odooAdapter()->test(odooConnection(ODOO_URL.'/'));
 
         Http::assertSent(fn (Request $request): bool => $request->url() === ODOO_URL);
     });
@@ -755,15 +755,17 @@ describe('the address (§2.4)', function () {
         'not an IP' => ['odoo', true],
     ]);
 
-    it('takes the account\'s address alone, a closing slash dropped', function (string $given, string $kept) {
+    it('takes the API\'s full address, its path included, a closing slash dropped (flags-2026-11.md S6)', function (string $given, string $kept) {
         expect(odooAdapter()->address($given))->toBe($kept);
     })->with([
-        'as written' => ['https://example.odoo.com', 'https://example.odoo.com'],
-        'a closing slash' => ['https://example.odoo.com/', 'https://example.odoo.com'],
-        'a port' => ['https://odoo.example.com:8443', 'https://odoo.example.com:8443'],
+        'as written' => [ODOO_URL, ODOO_URL],
+        'a closing slash' => [ODOO_URL.'/', ODOO_URL],
+        'another version' => ['https://example.odoo.com/json/3/product.product/read', 'https://example.odoo.com/json/3/product.product/read'],
+        'another service' => ['https://prices.example.com/odoo-like/read', 'https://prices.example.com/odoo-like/read'],
+        'a port' => ['https://odoo.example.com:8443/json/2/product.product/read', 'https://odoo.example.com:8443/json/2/product.product/read'],
     ]);
 
-    it('refuses a path, a query or a fragment, each by its own rule', function (string $given, string $rule) {
+    it('refuses an address with no path, a query or a fragment, each by its own rule', function (string $given, string $rule) {
         try {
             odooAdapter()->address($given);
             $refused = null;
@@ -773,13 +775,12 @@ describe('the address (§2.4)', function () {
 
         expect($refused)->toBe(['address', $rule]);
     })->with([
-        'the whole call\'s address' => ['https://example.odoo.com/json/2/product.product/read', 'address_path'],
-        'another path' => ['https://example.odoo.com/odoo', 'address_path'],
-        'the old custom path' => ['https://example.odoo.com/touchwood/v1', 'address_path'],
-        'two closing slashes' => ['https://example.odoo.com//x', 'address_path'],
-        'a query' => ['https://example.odoo.com?db=tw', 'address_query'],
+        'the account alone' => ['https://example.odoo.com', 'address_no_path'],
+        'the account and a slash' => ['https://example.odoo.com/', 'address_no_path'],
+        'the account and slashes' => ['https://example.odoo.com///', 'address_no_path'],
+        'a query' => ['https://example.odoo.com/json/2/product.product/read?db=tw', 'address_query'],
         'an empty query' => ['https://example.odoo.com/?', 'address_query'],
-        'a fragment' => ['https://example.odoo.com#x', 'address_query'],
+        'a fragment' => [ODOO_URL.'#x', 'address_query'],
         'a port past 65535' => ['https://example.odoo.com:99999', 'address_malformed'],
         'a port not a number' => ['https://example.odoo.com:abc', 'address_malformed'],
     ]);
@@ -803,7 +804,7 @@ describe('through Sync', function () {
 
         odooWire();
 
-        expect(DB::table('sync.connections')->where('store_id', Fx::storeId('sa'))->first(['state', 'address']))->toMatchObject(['state' => 'OK', 'address' => ODOO_BASE])
+        expect(DB::table('sync.connections')->where('store_id', Fx::storeId('sa'))->first(['state', 'address']))->toMatchObject(['state' => 'OK', 'address' => ODOO_URL])
             ->and(Crypt::decryptString((string) DB::table('sync.connections')->value('key_encrypted')))->toBe(ODOO_TOKEN)
             ->and((string) DB::table('sync.connections')->value('key_encrypted'))->not->toContain(ODOO_TOKEN)
             ->and(DB::table('sync.reads')->where('store_id', Fx::storeId('sa'))->pluck('kind')->all())->toBe(['NOW'])
@@ -811,16 +812,16 @@ describe('through Sync', function () {
         Http::assertSent(fn (Request $request): bool => $request->url() === ODOO_URL && $request->header('Authorization') === ['Bearer '.ODOO_TOKEN]);
     });
 
-    it('refuses an address with a path - the whole call\'s too - before any call', function () {
+    it('refuses the account\'s address alone before any call, and calls the full address exactly as saved (flags-2026-11.md S6)', function () {
         Http::fake(['example.odoo.com/*' => Http::response([])]);
 
-        expect(fn () => app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('sa'), 'ODOO', ODOO_URL, ODOO_TOKEN, 'notice-secret')))->toThrow(InvalidSyncInput::class, 'Invalid address. (address_path)');
+        expect(fn () => app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('sa'), 'ODOO', ODOO_BASE, ODOO_TOKEN, 'notice-secret')))->toThrow(InvalidSyncInput::class, 'Invalid address. (address_no_path)');
         Http::assertNothingSent();
 
-        app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('sa'), 'ODOO', ODOO_BASE.'/', ODOO_TOKEN, 'notice-secret'));
+        app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('sa'), 'ODOO', 'https://example.odoo.com/json/3/product.product/read/', ODOO_TOKEN, 'notice-secret'));
 
-        expect(DB::table('sync.connections')->value('address'))->toBe(ODOO_BASE);
-        Http::assertSent(fn (Request $request): bool => $request->url() === ODOO_URL);
+        expect(DB::table('sync.connections')->value('address'))->toBe('https://example.odoo.com/json/3/product.product/read');
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://example.odoo.com/json/3/product.product/read');
     });
 
     it('refuses an address inside our network, as written or as it resolves, before any call (§2.4)', function (string $address, array $resolves) {
@@ -849,7 +850,7 @@ describe('through Sync', function () {
         'IPv6 unique-local' => ['https://[fd12:3456::1]', []],
         'IPv4 written as IPv6' => ['https://[::ffff:10.0.0.1]', []],
         'a name resolving inside' => ['https://odoo.internal', ['odoo.internal' => ['10.0.0.7']]],
-        'a name with one address inside' => ['https://example.odoo.com', ['example.odoo.com' => ['93.184.216.34', '192.168.5.5']]],
+        'a name with one address inside' => [ODOO_URL, ['example.odoo.com' => ['93.184.216.34', '192.168.5.5']]],
     ]);
 
     it('wires an address outside our network, as written or as it resolves', function () {
@@ -857,9 +858,9 @@ describe('through Sync', function () {
         FakeHostAddresses::bound()->names = ['example.odoo.com' => ['93.184.216.34', '2606:2800:220:1::1']];
 
         odooWire();
-        app(ChangeConnectionHandler::class)->handle(new ChangeConnection(Fx::storeId('sa'), 'ODOO', 'https://93.184.216.34', 'new-token', 'new-secret'));
+        app(ChangeConnectionHandler::class)->handle(new ChangeConnection(Fx::storeId('sa'), 'ODOO', 'https://93.184.216.34/json/2/product.product/read', 'new-token', 'new-secret'));
 
-        expect(DB::table('sync.connections')->value('address'))->toBe('https://93.184.216.34');
+        expect(DB::table('sync.connections')->value('address'))->toBe('https://93.184.216.34/json/2/product.product/read');
     });
 
     it('refuses an address the HTTP client cannot call, by its own rule, before any call', function (string $address) {
@@ -882,12 +883,12 @@ describe('through Sync', function () {
         'port 0' => ['https://example.odoo.com:0'],
     ]);
 
-    it('never sends the stored token to a new address: a key or a secret left empty is refused, nothing called (owner, 2026-10-20)', function (?string $key, ?string $secret, string $field) {
+    it('never sends the stored token to a new address: a key left empty is refused, nothing called (owner, 2026-10-20)', function (?string $key, ?string $secret, string $field) {
         Http::fake(['example.odoo.com/*' => Http::response([]), 'other.odoo.com/*' => Http::response([])]);
         odooWire();
 
         try {
-            app(ChangeConnectionHandler::class)->handle(new ChangeConnection(Fx::storeId('sa'), 'ODOO', 'https://other.odoo.com', $key, $secret));
+            app(ChangeConnectionHandler::class)->handle(new ChangeConnection(Fx::storeId('sa'), 'ODOO', 'https://other.odoo.com/json/2/product.product/read', $key, $secret));
             $refused = null;
         } catch (InvalidSyncInput $error) {
             $refused = $error->attribute;
@@ -899,7 +900,6 @@ describe('through Sync', function () {
         Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'other.odoo.com'));
     })->with([
         'the key empty' => ['', 'new-secret', 'key'],
-        'the secret empty' => ['new-token', null, 'secret'],
         'both empty' => [null, null, 'key'],
     ]);
 
@@ -908,9 +908,9 @@ describe('through Sync', function () {
         odooWire();
 
         // The same address, written with a closing slash, the boxes left empty: the stored key is sent there.
-        app(ChangeConnectionHandler::class)->handle(new ChangeConnection(Fx::storeId('sa'), 'ODOO', ODOO_BASE.'/', null, null));
+        app(ChangeConnectionHandler::class)->handle(new ChangeConnection(Fx::storeId('sa'), 'ODOO', ODOO_URL.'/', null, null));
         // A new address, both typed again: the new key goes to it.
-        app(ChangeConnectionHandler::class)->handle(new ChangeConnection(Fx::storeId('sa'), 'ODOO', 'https://other.odoo.com', 'new-token', 'new-secret'));
+        app(ChangeConnectionHandler::class)->handle(new ChangeConnection(Fx::storeId('sa'), 'ODOO', 'https://other.odoo.com/json/2/product.product/read', 'new-token', 'new-secret'));
 
         $sent = Http::recorded()->map(fn (array $pair): array => [$pair[0]->url(), $pair[0]->header('Authorization')[0] ?? null])->values()->all();
 
@@ -919,7 +919,7 @@ describe('through Sync', function () {
             [ODOO_URL, 'Bearer '.ODOO_TOKEN],
             ['https://other.odoo.com/json/2/product.product/read', 'Bearer new-token'],
         ])
-            ->and(DB::table('sync.connections')->value('address'))->toBe('https://other.odoo.com')
+            ->and(DB::table('sync.connections')->value('address'))->toBe('https://other.odoo.com/json/2/product.product/read')
             ->and(Crypt::decryptString((string) DB::table('sync.connections')->value('key_encrypted')))->toBe('new-token')
             ->and(Crypt::decryptString((string) DB::table('sync.connections')->value('secret_encrypted')))->toBe('new-secret');
     });

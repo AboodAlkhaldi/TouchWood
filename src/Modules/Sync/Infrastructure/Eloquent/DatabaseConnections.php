@@ -69,7 +69,7 @@ final readonly class DatabaseConnections implements Connections
             'address' => $connection->address,
             'settings' => json_encode((object) $connection->settings, JSON_THROW_ON_ERROR),
             'key_encrypted' => $this->encrypter->encryptString($connection->key),
-            'secret_encrypted' => $this->encrypter->encryptString($connection->secret),
+            'secret_encrypted' => $connection->secret === null ? null : $this->encrypter->encryptString($connection->secret),
             'updated_at' => $now,
         ];
 
@@ -140,7 +140,7 @@ final readonly class DatabaseConnections implements Connections
             (string) $row->address,
             $settings,
             $this->encrypter->decryptString((string) $row->key_encrypted),
-            $this->encrypter->decryptString((string) $row->secret_encrypted),
+            $row->secret_encrypted === null ? null : $this->encrypter->decryptString((string) $row->secret_encrypted),
             ConnectionState::from((string) $row->state),
             $row->last_error === null ? null : (string) $row->last_error,
             (string) $row->created_by,
