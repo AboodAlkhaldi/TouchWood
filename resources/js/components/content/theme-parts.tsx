@@ -54,7 +54,7 @@ export const PARTS: PartSpec[] = [
     { kind: 'BACKDROP', text: 0, transparent: true, slots: [{ slot: 'START', size: { width: 480, height: 1600, png: true } }, { slot: 'END', size: { width: 480, height: 1600, png: true } }] },
 ];
 
-export const MAX_PROMISES = 4;
+export const MAX_PROMISES = 5;
 
 export type PartState = {
     textAr: string;

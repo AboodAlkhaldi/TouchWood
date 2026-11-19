@@ -89,7 +89,11 @@ it('draws the frame at a computer\'s width and on a phone, both languages and bo
         ->and($page->script("Math.round(document.querySelector('[data-test=\"header-row\"]').getBoundingClientRect().width)"))->toBe(1400)
         ->and($page->script("getComputedStyle(document.querySelector('[data-test=\"header-row\"]')).paddingInlineStart"))->toBe('40px')
         ->and($page->script("Math.round(document.querySelector('[data-test=\"top-bar\"]').getBoundingClientRect().height)"))->toBe(38)
-        ->and($page->script("document.querySelector('[data-test=\"track-order\"]')?.getAttribute('href')"))->toEndWith('/ae/en/account/orders')
+        // The bar holds the announcement alone, centred; the language sits beside the country (flags-2026-11.md S1.1, S1.2).
+        ->and($page->script("document.querySelector('[data-test=\"track-order\"]') === null"))->toBeTrue()
+        ->and($page->script("getComputedStyle(document.querySelector('[data-test=\"top-bar\"] > div')).justifyContent"))->toBe('center')
+        ->and($page->script("document.querySelector('[data-test=\"header-row\"] [data-test=\"language-ar\"]') !== null"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=\"theme-quick\"]') === null && document.querySelector('[data-test=\"shop-footer\"] [data-test=\"theme\"]') === null"))->toBeTrue()
         ->and($page->script("Math.round(document.querySelector('[data-test=\"header-row\"]').getBoundingClientRect().height)"))->toBe(78)
         ->and($page->script("document.querySelector('[data-test=\"header-logo\"]').textContent"))->toContain('TOUCHWOOD')
         ->and($page->script("document.querySelector('[data-test=\"header-cart\"]')?.textContent ?? ''"))->toContain('Cart')
@@ -140,10 +144,11 @@ it('opens the drawer of option C3: categories, then account and settings with th
     expect(browserSoon($page, "document.querySelector('[data-test=\"drawer-country\"]') !== null && document.querySelector('[data-test=\"drawer-sign-in\"]') !== null"))->toBeTrue()
         // The home's other language from its own address (Content's H1 since PR 10: a full address, as Catalog's pages give).
         ->and($page->script("document.querySelector('[data-test=\"drawer-language-en\"]')?.getAttribute('href')"))->toEndWith('/ae/en')
-        ->and($page->script("document.querySelector('[data-test=\"drawer-theme\"]')?.textContent"))->toContain('داكن')
+        // The drawer's theme switch: System, Light, Dark (flags-2026-11.md S1.3, F3).
+        ->and($page->script("document.querySelectorAll('[data-test=\"drawer-theme\"] [data-test^=\"theme-\"]').length"))->toBe(3)
         ->and(browserUntil($page, "(() => { const r = document.querySelector('[data-test=\"category-sheet\"]').getBoundingClientRect(); return r.left >= 0 && r.right <= window.innerWidth; })()"))->toBeTrue();
 
-    $page->click('[data-test="drawer-theme"]');
+    $page->click('[data-test="drawer-theme"] [data-test="theme-dark"]');
     expect(browserUntil($page, "document.documentElement.dataset.mode === 'dark'"))->toBeTrue();
 
     $page->navigate('/ae/en', BROWSER_PAGE_LOAD);

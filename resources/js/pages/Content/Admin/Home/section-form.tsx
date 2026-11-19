@@ -66,12 +66,10 @@ export function SectionForm({ store, section, logos: savedLogos, icons, translat
     const t = useTranslator();
     const { errors } = usePage<SharedProps>().props as unknown as { errors: Record<string, string | undefined> };
     const [settings, setSettings] = useState<Settings>(() => {
-        const saved = Array.isArray(section.settings) ? {} : (section.settings as Settings);
+        // The hero's facts became promises (flags-2026-11.md S1.7): a copy still holding some is shown without them.
+        const { facts: _facts, ...saved } = Array.isArray(section.settings) ? {} : (section.settings as Settings);
 
-        // A fact saved before 2026-11-16 is a caption alone ({ar, en}); here it becomes a caption with an empty figure.
-        return Array.isArray(saved.facts)
-            ? { ...saved, facts: (saved.facts as Settings[]).map((fact) => ('caption' in fact ? fact : { figure: { ar: '', en: '' }, caption: fact })) }
-            : saved;
+        return saved;
     });
     const [logos, setLogos] = useState<Logo[]>(() => savedLogos.map((logo) => ({ key: `logo-${++next}`, image: logo.image, mediaId: logo.mediaId, name: { ar: logo.nameAr, en: logo.nameEn ?? '' }, link: logo.link ?? '' })));
     const [dirty, setDirty] = useState(false);
@@ -85,7 +83,6 @@ export function SectionForm({ store, section, logos: savedLogos, icons, translat
     };
     const f = (key: string) => t(`content::admin_home.fields.${key}`);
     const pairLabel = (field: string) => ({ ar: t('content::admin_home.fields.arabic', { field }), en: t('content::admin_home.fields.english', { field }) });
-    const facts = Array.isArray(settings.facts) ? (settings.facts as unknown[]) : [];
     const promises = Array.isArray(settings.promises) ? (settings.promises as Settings[]) : [];
 
     // The pairs of this type, as HomeSectionSettings reads them: each its own name, the box a refusal names, its length.
@@ -93,12 +90,8 @@ export function SectionForm({ store, section, logos: savedLogos, icons, translat
     const specs: Spec[] =
         type === 'HERO'
             ? [
-                  // The title and the facts only (shop-design.md §3.1): the banners carry their own words and buttons.
+                  // The title only (shop-design.md §3.1; the facts became promises, flags-2026-11.md S1.7).
                   { name: 'title', box: 'title', path: ['title'], label: f('title'), max: 80 },
-                  ...facts.flatMap((_, index) => [
-                      { name: `fact${index}figure`, box: 'fact_figure', path: ['facts', index, 'figure'], label: `${f('fact_figure')} ${index + 1}`, max: 16 },
-                      { name: `fact${index}`, box: 'fact', path: ['facts', index, 'caption'], label: `${f('fact')} ${index + 1}`, max: 40 },
-                  ]),
               ]
             : type === 'PROMISES'
               ? promises.flatMap((_, index) => [
@@ -230,34 +223,6 @@ export function SectionForm({ store, section, logos: savedLogos, icons, translat
                 {type === 'HERO' ? (
                     <>
                         {pairOf(specs[0] as Spec)}
-                        <FieldSet className="gap-3" data-test="facts">
-                            <FieldLegend variant="label" className="text-label-14 text-ink">
-                                {f('facts')}
-                            </FieldLegend>
-                            <FieldDescription>{f('facts_helper')}</FieldDescription>
-                            {/* A fact's own refusal is said under its row (pairOf); only the list's is said here. */}
-                            {errors.facts ? <p className="text-copy-14 text-bad">{errors.facts}</p> : null}
-                            {facts.map((_, index) => (
-                                <div key={`fact${index}`} className="grid gap-2">
-                                    {pairOf(specs[1 + index * 2] as Spec)}
-                                    {pairOf(specs[2 + index * 2] as Spec)}
-                                    <div>
-                                        <Button type="button" variant="ghost" size="sm" onClick={() => change(['facts'], facts.filter((_, i) => i !== index))}>
-                                            <Trash2 aria-hidden />
-                                            {f('remove')}
-                                        </Button>
-                                    </div>
-                                </div>
-                            ))}
-                            {facts.length < 3 ? (
-                                <div>
-                                    <Button type="button" variant="outline" size="sm" onClick={() => change(['facts'], [...facts, { figure: { ar: '', en: '' }, caption: { ar: '', en: '' } }])} data-test="add-fact">
-                                        <Plus aria-hidden />
-                                        {f('add_fact')}
-                                    </Button>
-                                </div>
-                            ) : null}
-                        </FieldSet>
                     </>
                 ) : null}
 
@@ -287,7 +252,7 @@ export function SectionForm({ store, section, logos: savedLogos, icons, translat
                                 </div>
                             </div>
                         ))}
-                        {promises.length < 4 ? (
+                        {promises.length < 5 ? (
                             <div>
                                 <Button type="button" variant="outline" size="sm" onClick={() => change(['promises'], [...promises, { icon: icons[0], title: { ar: '', en: '' }, line: { ar: '', en: '' } }])} data-test="add-promise">
                                     <Plus aria-hidden />

@@ -157,6 +157,8 @@ export type ContentFrame = {
         email: string | null;
         address: string | null;
         copyright: string | null;
+        /** Content's own lists with nothing published (`/projects`, `/blog`): their links are not drawn (flags-2026-11.md S1.4). */
+        hidden?: string[];
         columns: { title: string; links: { text: string; link: string }[] }[];
     } | null;
     popup: { id: string; title: string; text: string; button: string | null; link: string | null; delaySeconds: number; image: ImageSizes } | null;

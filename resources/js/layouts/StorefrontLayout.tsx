@@ -1,10 +1,11 @@
 import { type ComponentType, lazy, type ReactNode, Suspense, useEffect, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ChevronDown, ChevronLeft, Heart, House, LayoutDashboard, LogOut, Menu, Moon, Search, ShoppingCart, Sun, UserRound } from 'lucide-react';
+import { ChevronDown, ChevronLeft, Heart, House, LayoutDashboard, LogOut, Menu, Search, ShoppingCart, UserRound } from 'lucide-react';
 import { Bell } from '@/components/ops/Bell';
 import { Toasts } from '@/components/Toasts';
 import { SyncDocument } from '@/components/SyncDocument';
-import { choosePreference, ThemeToggle } from '@/components/Preferences';
+import { choosePreference } from '@/components/Preferences';
+import { ThemeMenuSwitcher } from '@/components/geist-only/ThemeSwitcher';
 import { Logo } from '@/components/Logo';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -41,10 +42,11 @@ let boxDrawn = false;
 | The shop's frame (frontend.md §2.3; content.md §1.5), on shadcn's code with Geist's rules (§1.11), to the design.
 |
 | From the top: **the announcement bar** (Content's, a live theme's dress over it), **the sticky header** - on a phone
-| (640 or less) 52 px of menu, logo, theme, bell and favourites with the search row under it; wider, the logo, the
-| search box, the country, the language, the theme, the bell, favourites, the cart and the shopper, and Catalog's
-| category row - the staff view's line, the shopper lines, the page, **the footer** per store (Ops' newsletter box and
-| the theme switch kept), and on a phone **the tab bar**: Home, Explore (opens search), Cart, Favourites, My Account.
+| (640 or less) 52 px of menu, logo, bell and favourites with the search row under it; wider, the logo, the
+| search box, the country, the language, the bell, favourites, the cart and the shopper (the theme in its menu,
+| flags-2026-11.md S1.3), and Catalog's
+| category row - the staff view's line, the shopper lines, the page, **the footer** per store (Ops' newsletter box; the
+| theme switch left it, S1.3), and on a phone **the tab bar**: Home, Explore (opens search), Cart, Favourites, My Account.
 | The phone's menu opens **the drawer** (the owner's option C3, `ShopDrawer`), loaded when pressed.
 |
 | What modules put in the frame comes through Platform's list of its parts (`frame`, catalog.md §4.5), in the order
@@ -137,19 +139,6 @@ export function StorefrontLayout({ title, children, address, head, bands = false
         : address
           ? [{ hrefLang: locale, href: address.canonical }, ...(address.alternate ? [{ hrefLang: address.alternateLocale ?? '', href: address.alternate }] : [])]
           : [];
-    const dark = theme.mode === 'dark';
-    const themeButton = (
-        <Button
-            variant="ghost"
-            size="icon"
-            className={`size-10 sm:size-[42px] ${compact ? 'max-sm:hidden' : ''}`}
-            aria-label={dark ? words.light : words.dark}
-            data-test="theme-quick"
-            onClick={() => choosePreference('theme', dark ? 'light' : 'dark', '/preferences')}
-        >
-            {dark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
-        </Button>
-    );
     const favourites = inStore && !staffView && words.favourites ? (
         <Button asChild variant="ghost" size="icon" className="size-10 sm:size-[42px]">
             <Link href={link('storefront.feedback.wishlist')} aria-label={words.favourites} data-test="header-favourites">
@@ -175,11 +164,8 @@ export function StorefrontLayout({ title, children, address, head, bands = false
             {/* The page's ground: the theme's edges where it has some (`--tw-backdrop`, a whole background value). On a
                 phone the tab bar's room is kept at the bottom. */}
             <div className={`flex min-h-screen flex-col ${tabBar ? 'pb-[calc(3.5rem+env(safe-area-inset-bottom))]' : 'pb-[calc(4.5rem+env(safe-area-inset-bottom))]'} text-ink [background:var(--tw-backdrop)] sm:pb-0`}>
-                {inStore ? (
-                    <TopBar bar={content?.bar ?? null} store={shop.code} locale={locale} words={words}>
-                        <LanguageSwitch shop={shop} locale={locale} url={page.url} alternate={address?.alternate ?? null} />
-                    </TopBar>
-                ) : null}
+                {/* The announcement alone, centred; with none, no bar (flags-2026-11.md S1.1). */}
+                {inStore && content?.bar ? <TopBar bar={content.bar} store={shop.code} locale={locale} /> : null}
 
                 <header className="sticky top-0 z-40 border-b border-line bg-surface">
                     <div className="shop-box flex flex-wrap items-center gap-x-1 max-sm:px-2! sm:h-[78px] sm:flex-nowrap sm:gap-4 lg:gap-9" data-test="header-row">
@@ -232,11 +218,12 @@ export function StorefrontLayout({ title, children, address, head, bands = false
 
                         <div className="flex items-center gap-1 sm:ms-auto sm:gap-2">
                             {inStore ? (
-                                <span className="hidden items-center sm:flex">
+                                <span className="hidden items-center gap-1 sm:flex">
                                     <CountrySwitch shop={shop} locale={locale} />
+                                    {/* The other language beside the country (flags-2026-11.md S1.2, F2); the drawer keeps its own. */}
+                                    <LanguageSwitch shop={shop} locale={locale} url={page.url} alternate={address?.alternate ?? null} />
                                 </span>
                             ) : null}
-                            {themeButton}
                             {/* Ops' part of the frame (ops.md §4.15 O2): the bell, before the cart, for a signed-in customer only. */}
                             {!inStore || staffView || bell === undefined || bell.unread === null || bell.words === null ? null : (
                                 <Bell base={`/${shop.code}/${locale}/account/notifications`} unread={bell.unread} words={bell.words} />
@@ -249,7 +236,7 @@ export function StorefrontLayout({ title, children, address, head, bands = false
                                 </span>
                             )}
                             {!inStore ? null : (
-                                <span className="hidden sm:inline-flex">{staffView ? <StaffViewMenu staffView={staffView} shopCode={shop.code} /> : <Shopper shopper={shopper ?? null} />}</span>
+                                <span className="hidden sm:inline-flex">{staffView ? <StaffViewMenu staffView={staffView} shopCode={shop.code} /> : <Shopper shopper={shopper ?? null} themeWord={words.theme ?? ''} />}</span>
                             )}
                         </div>
                     </div>
@@ -269,19 +256,19 @@ export function StorefrontLayout({ title, children, address, head, bands = false
                     {/* Ops' part of the frame (ops.md §4.15 O11): the newsletter box, for a guest only. */}
                     {drawn && newsletter ? (
                         <Suspense fallback={null}>
-                            {/* The newsletter as a sand card at the footer's top (H6), its own colours in both modes. */}
+                            {/* The newsletter as a navy card at the footer's top (flags-2026-11.md S1.5, option A): the
+                                logo's navy and a copper button, the same in both modes. */}
                             <div className="shop-box pt-8">
-                                <div className="rounded-xl bg-sand p-5 text-sand-ink sm:p-6" data-test="newsletter-card">
+                                <div className="rounded-xl bg-logo-navy p-5 text-white sm:p-6" data-test="newsletter-card">
                                     <NewsletterBox words={newsletter} />
                                 </div>
                             </div>
                         </Suspense>
                     ) : null}
                     {inStore && content?.footer ? <StoreFooter footer={content.footer} store={shop.code} locale={locale} words={words} /> : null}
+                    {/* The theme switch left the footer for the account menu and the drawer (flags-2026-11.md S1.3). */}
                     <div className="shop-box flex items-center justify-between gap-4 border-t border-sidebar-line py-6">
                         <span className="text-label-12 text-sidebar-ink-muted">{content?.footer?.copyright ?? 'TouchWood'}</span>
-                        {/* The shop's one theme switch, small, as Geist sizes it for a footer. */}
-                        <ThemeToggle to="/preferences" size="small" />
                     </div>
                 </footer>
 
@@ -317,34 +304,21 @@ export function StorefrontLayout({ title, children, address, head, bands = false
 }
 
 /**
- * The top bar (shop-design.md §2.2; content.md §1.5): 38 px, the announcement at its start - one line, cut with an
- * ellipsis, its link's page holding the whole text - and Track Order and the language at its end from a tablet up; it
- * shows with no announcement too. A live theme's strip is its ground (§1.8 part 1), the words in the bar's fixed
- * colours. Navy in light mode, the sidebar's deep navy in dark, light words on both (§12, bug 2: the brand token turns
- * light blue in dark mode).
+ * The top bar (shop-design.md §2.2; content.md §1.5; flags-2026-11.md S1.1): 38 px, **the announcement alone,
+ * centred** - one line, cut with an ellipsis, its link's page holding the whole text. Track Order and the language
+ * left it (the owner, 2026-11-18: the language sits beside the country picker). Drawn only with an announcement. A
+ * live theme's strip is its ground (§1.8 part 1). **The logo's navy in both modes** (F1), white words: the brand token
+ * turns light blue in dark mode, and the sidebar's navy read as near-black.
  */
-function TopBar({ bar, store, locale, words, children }: { bar: ContentFrame['bar'] | null; store: string; locale: string; words: Record<string, string>; children: ReactNode }) {
-    const link = useLink();
-
+function TopBar({ bar, store, locale }: { bar: NonNullable<ContentFrame['bar']>; store: string; locale: string }) {
     return (
-        <div className={`bg-brand text-ink-on-brand dark:bg-sidebar dark:text-sidebar-ink ${bar ? '' : 'max-sm:hidden'} ${bar?.art ? 'bg-cover bg-center [background-image:var(--tw-theme-bar)]' : ''}`} data-test="top-bar">
-            <div className="shop-box flex h-[38px] items-center justify-between gap-4 text-copy-13">
-                {bar ? (
-                    <p className="min-w-0 flex-1 truncate" data-test="announcement-bar">
-                        <ContentLink link={bar.link} store={store} locale={locale} className="min-w-0 truncate underline-offset-4 hover:underline">
-                            <span className="block truncate">{bar.text}</span>
-                        </ContentLink>
-                    </p>
-                ) : (
-                    <span className="flex-1" />
-                )}
-                {/* Track Order opens the customer's orders; a guest is asked to sign in first (P13). */}
-                <span className="hidden shrink-0 items-center gap-4 sm:flex">
-                    <Link href={link('storefront.sales.orders')} className="underline-offset-4 hover:underline" data-test="track-order">
-                        {words.track_order}
-                    </Link>
-                    {children}
-                </span>
+        <div className={`bg-logo-navy text-white ${bar.art ? 'bg-cover bg-center [background-image:var(--tw-theme-bar)]' : ''}`} data-test="top-bar">
+            <div className="shop-box flex h-[38px] items-center justify-center text-copy-13">
+                <p className="min-w-0 truncate text-center" data-test="announcement-bar">
+                    <ContentLink link={bar.link} store={store} locale={locale} className="min-w-0 truncate underline-offset-4 hover:underline">
+                        <span className="block truncate">{bar.text}</span>
+                    </ContentLink>
+                </p>
             </div>
         </div>
     );
@@ -375,6 +349,13 @@ function CartButton({ shop, locale, sales, test }: { shop: string; locale: strin
  */
 function StoreFooter({ footer, store, locale, words }: { footer: NonNullable<ContentFrame['footer']>; store: string; locale: string; words: Record<string, string> }) {
     const contact = [footer.phone, footer.email, footer.address].filter((line): line is string => line !== null && line !== '');
+    // A link to one of Content's lists with nothing published would answer 404 or an empty page: not drawn (S1.4, F4).
+    const hidden = new Set(footer.hidden ?? []);
+    const columns = footer.columns
+        .map((column) => ({ ...column, links: column.links.filter((item) => !hidden.has(item.link.replace(/\/+$/, ''))) }))
+        .filter((column) => column.links.length > 0);
+    // The phone and the email open the call or the mail app (flags-2026-11.md S1.4).
+    const href = (line: string): string | null => (line === footer.phone ? `tel:${line.replace(/[\s-]/g, '')}` : line === footer.email ? `mailto:${line}` : null);
 
     return (
         <div className="shop-box grid gap-6 py-8 sm:grid-cols-[1.4fr_repeat(3,1fr)] sm:gap-10 sm:py-12" data-test="store-footer">
@@ -385,13 +366,21 @@ function StoreFooter({ footer, store, locale, words }: { footer: NonNullable<Con
                     <span className="text-label-14 font-semibold tracking-[0.14em]">TOUCHWOOD</span>
                 </span>
                 {footer.about ? <p className="max-w-[34ch] text-copy-14 text-sidebar-ink-muted">{footer.about}</p> : null}
-                {contact.map((line) => (
-                    <bdi key={line} dir={line === footer.address ? undefined : 'ltr'} className="block text-copy-13 text-sidebar-ink-muted">
-                        {line}
-                    </bdi>
-                ))}
+                {contact.map((line) => {
+                    const to = href(line);
+
+                    return (
+                        <bdi key={line} dir={line === footer.address ? undefined : 'ltr'} className="block text-copy-13 text-sidebar-ink-muted">
+                            {to === null ? line : (
+                                <a href={to} className="hover:text-sidebar-ink hover:underline" data-test={line === footer.phone ? 'footer-phone' : 'footer-email'}>
+                                    {line}
+                                </a>
+                            )}
+                        </bdi>
+                    );
+                })}
             </div>
-            {footer.columns.map((column, index) => (
+            {columns.map((column, index) => (
                 <nav key={index} aria-label={column.title || words.footer_links} className="grid content-start gap-2">
                     <span className="hidden text-label-13 font-semibold text-sidebar-ink sm:block">{column.title}</span>
                     <ul className="grid sm:gap-2">
@@ -432,7 +421,8 @@ function PreviewLine({ name, words, store, locale }: { name: string; words: Reco
  *
  * A sign-out is a post, because it changes something; destructive, so it is last (Geist's Menu).
  */
-function Shopper({ shopper }: { shopper: SharedProps['shopper'] }) {
+function Shopper({ shopper, themeWord }: { shopper: SharedProps['shopper']; themeWord: string }) {
+    const { theme } = usePage<SharedProps>().props;
     const t = useTranslator();
     const link = useLink();
 
@@ -471,6 +461,12 @@ function Shopper({ shopper }: { shopper: SharedProps['shopper'] }) {
                             {t('access::auth.my_account')}
                         </Link>
                     </DropdownMenuItem>
+                    {/* The shop's one theme switch on a computer (flags-2026-11.md S1.3; Geist: "once per app, in the
+                        footer or settings"): System, Light, Dark as menu items, reachable from the keyboard, the
+                        panel's person menu's own (NavUser). */}
+                    <DropdownMenuSeparator />
+                    <span className="block px-2 pt-1 text-label-12 text-ink-muted" data-test="menu-theme">{themeWord}</span>
+                    <ThemeMenuSwitcher value={theme.choice} onChange={(choice) => choosePreference('theme', choice, '/preferences')} />
                     <DropdownMenuSeparator />
                     <DropdownMenuItem variant="destructive" data-test="sign-out" onSelect={() => router.post(link('storefront.account.sign-out'))}>
                         <LogOut />
@@ -626,8 +622,9 @@ function LanguageSwitch({
             {shop.languages
                 .filter((language) => language !== locale)
                 .map((language) => (
-                    // The owner's #3 (2026-10-02): one link showing the other language's name, in the top bar (§2.2).
-                    <Button key={language} variant="link" size="sm" asChild className="h-auto p-0 text-copy-13 text-inherit">
+                    // The owner's #3 (2026-10-02): one button showing the other language's name; beside the country
+                    // picker since flags-2026-11.md S1.2 (F2), a ghost button its height.
+                    <Button key={language} variant="ghost" size="sm" asChild className="text-label-14">
                         <Link
                             data-test={`language-${language}`}
                             // The language is the second segment: /sa/ar/account becomes /sa/en/account.

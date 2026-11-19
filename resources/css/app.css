@@ -44,6 +44,9 @@
     --color-line-warm: var(--tw-line-warm);
     --color-sand: var(--tw-sand);
     --color-sand-ink: var(--tw-sand-ink);
+    /* The logo's fixed colours, the same in both modes (flags-2026-11.md S1.1, S1.5). */
+    --color-logo-navy: var(--tw-logo-navy);
+    --color-logo-copper-light: var(--tw-logo-copper-light);
     --color-on-photo-ink: var(--tw-on-photo-ink);
 
     --color-sidebar: var(--tw-sidebar);

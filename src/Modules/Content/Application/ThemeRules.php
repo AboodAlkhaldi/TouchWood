@@ -31,7 +31,7 @@ final readonly class ThemeRules
 
     public const int MAX_EXTRA = 80;
 
-    public const int MAX_PROMISES = 4;
+    public const int MAX_PROMISES = 5;
 
     public function __construct(
         private ContentAccess $access,

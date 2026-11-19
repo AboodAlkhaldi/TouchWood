@@ -188,7 +188,7 @@ it('turns the home banners every 5 seconds with their words, the arrows and dots
 
     Fx::asSystem(function () use ($store): void {
         $hero = DB::table('content.home_sections')->where('store_id', $store)->where('type', 'HERO')->first() ?? throw new LogicException('No HERO.');
-        app(FillHomeSectionHandler::class)->handle(new FillHomeSection((string) $hero->id, (int) $hero->version, ['title' => ['ar' => 'إكسسوارات المطابخ', 'en' => 'Kitchen hardware'], 'facts' => [['figure' => ['ar' => 'TALLSEN', 'en' => 'TALLSEN'], 'caption' => ['ar' => 'وكيل معتمد', 'en' => 'Authorised dealer']]]], []));
+        app(FillHomeSectionHandler::class)->handle(new FillHomeSection((string) $hero->id, (int) $hero->version, ['title' => ['ar' => 'إكسسوارات المطابخ', 'en' => 'Kitchen hardware']], []));
         app(ShowHomeSectionHandler::class)->handle(new ShowHomeSection((string) $hero->id, true));
 
         foreach (['A', 'B'] as $name) {
@@ -204,7 +204,6 @@ it('turns the home banners every 5 seconds with their words, the arrows and dots
         ->and($page->script("document.querySelector('h1[data-test=\"home-title\"]')?.textContent"))->toBe('Kitchen hardware')
         ->and($page->script("document.querySelectorAll('[data-test=\"banner-dots\"] button').length"))->toBe(2)
         ->and($page->script("document.querySelector('[data-test=\"home-banner-words\"]')?.textContent"))->toContain('Offer A')
-        ->and($page->script("document.querySelector('[data-test=\"home-facts\"]')?.textContent"))->toContain('TALLSEN')
         // One picture a banner, 3:1 at a computer's width (no box held for the phone's picture).
         ->and($page->script("(() => { const r = document.querySelector('[data-test=\"home-banner\"] [data-test=\"banner-picture\"]').getBoundingClientRect(); return Math.abs(r.width / r.height - 3) < 0.05 && document.querySelectorAll('[data-test=\"home-banner\"]')[0].querySelectorAll('img').length === 1; })()"))->toBeTrue('the banner is not one 3:1 picture')
         // By itself after 5 seconds, the second dot current.

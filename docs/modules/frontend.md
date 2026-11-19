@@ -506,8 +506,8 @@ and examples. Only when neither has it, show the owner what was searched and ask
     sidebar collapsed included. The language is not in that menu: it is its own row of the
     sidebar's footer, above the person, one press, the rail of icons included (#3 below; round 3 #13,
     owner 2026-11-10);
-  - **shop**: the footer, small;
-  - the **panel's** sign-in pages lose it. The shop's pages, its sign-in pages included, keep it in the shop's footer, which every shop page has.
+  - **shop**: ~~the footer, small~~ **the account menu on a computer and the drawer on a phone, never the header or the footer** (flags-2026-11.md S1.3, owner 2026-11-18; Geist's "settings"); a guest on a computer follows the device;
+  - the **panel's** sign-in pages lose it. ~~The shop's pages, its sign-in pages included, keep it in the shop's footer, which every shop page has.~~
   Light and Dark are still rendered by the server. For System, a few lines of script in the page's
   head choose the theme from the device before the first paint (as Geist's own setup does), so
   nothing flashes; campaign themes are unaffected. Access's preferences endpoint accepts `system`

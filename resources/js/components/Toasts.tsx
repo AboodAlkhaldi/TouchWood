@@ -41,6 +41,21 @@ export function Toasts() {
         // thing as the last one.
     }, [visit]);
 
-    // The bottom end of the screen: right on an English page, left on an Arabic one.
-    return <Toaster position={locale === 'ar' ? 'bottom-left' : 'bottom-right'} dir={locale === 'ar' ? 'rtl' : 'ltr'} />;
+    // The bottom end of the screen: right on an English page, left on an Arabic one. **Coloured by kind**
+    // (flags-2026-11.md S1.6, F5: the shop and the panel alike): our good, warn, bad and info pairs, both modes; important,
+    // so they win over sonner's own neutral surface.
+    return (
+        <Toaster
+            position={locale === 'ar' ? 'bottom-left' : 'bottom-right'}
+            dir={locale === 'ar' ? 'rtl' : 'ltr'}
+            toastOptions={{
+                classNames: {
+                    success: 'bg-good-soft! text-good! border-good/30!',
+                    warning: 'bg-warn-soft! text-warn! border-warn/30!',
+                    error: 'bg-bad-soft! text-bad! border-bad/30!',
+                    info: 'bg-info-soft! text-info! border-info/30!',
+                },
+            }}
+        />
+    );
 }

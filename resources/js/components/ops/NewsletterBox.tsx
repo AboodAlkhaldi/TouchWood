@@ -125,21 +125,24 @@ export default function NewsletterBox({ words }: { words: NewsletterWords }) {
     return (
         <section aria-labelledby="newsletter-title" className="grid gap-3" data-test="newsletter-box">
             <div className="grid gap-1">
-                <h2 id="newsletter-title" className="text-heading-16 text-ink">
+                {/* On the footer's navy card (flags-2026-11.md S1.5): white words, the form on a light panel. */}
+                <h2 id="newsletter-title" className="text-heading-16 text-white">
                     {words.title}
                 </h2>
-                <p className="text-copy-14 text-ink-muted">{words.text}</p>
+                <p className="text-copy-14 text-white/80">{words.text}</p>
             </div>
 
             {sent ? (
-                <p ref={sentLine} tabIndex={-1} role="status" className="text-copy-14 text-ink outline-none" data-test="newsletter-sent">
+                <p ref={sentLine} tabIndex={-1} role="status" className="text-copy-14 text-white outline-none" data-test="newsletter-sent">
                     {words.sent}
                 </p>
             ) : (
                 <form
                     ref={form}
                     noValidate
-                    className="grid gap-2"
+                    // Light words and errors whatever the mode: the panel is white on the navy card.
+                    data-mode="light"
+                    className="grid gap-2 rounded-lg bg-white p-3 text-ink [color-scheme:light]"
                     onSubmit={(event) => {
                         event.preventDefault();
 
@@ -175,7 +178,7 @@ export default function NewsletterBox({ words }: { words: NewsletterWords }) {
                         {/* Not a submit button: this box is in the footer of every shop page, and a page's own
                             form keeps the only submit button there. Enter in the box still sends it, the form's
                             one field submitting it implicitly. */}
-                        <ActionButton type="button" loading={sending} onClick={() => form.current?.requestSubmit()} data-test="newsletter-subscribe">
+                        <ActionButton type="button" loading={sending} onClick={() => form.current?.requestSubmit()} className="bg-logo-copper-light text-logo-navy hover:bg-logo-copper-light/90" data-test="newsletter-subscribe">
                             {words.action}
                         </ActionButton>
                     </div>

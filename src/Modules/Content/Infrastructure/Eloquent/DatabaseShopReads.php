@@ -28,6 +28,13 @@ final readonly class DatabaseShopReads implements ShopReads
         $now = Rows::at(Moments::now());
         $bar = $this->db->selectOne('SELECT text_ar, text_en, link, starts_at, ends_at FROM content.bars WHERE store_id = ? AND is_on', [$storeId]);
         $footer = $this->db->selectOne('SELECT about_ar, about_en, phone, email, address_ar, address_en, copyright_ar, copyright_en, columns FROM content.footers WHERE store_id = ?', [$storeId]);
+        // Which of Content's own lists would answer 404 or nothing (flags-2026-11.md S1.4, F4): the footer hides its links
+        // to them. With the cached copy, so no page asks; publishing, unpublishing or deleting forgets the copy.
+        $lists = $this->db->selectOne(
+            "SELECT EXISTS (SELECT 1 FROM content.projects WHERE store_id = ? AND status = 'PUBLISHED') AS projects,
+                    EXISTS (SELECT 1 FROM content.blog_posts WHERE store_id = ? AND status = 'PUBLISHED') AS posts",
+            [$storeId, $storeId],
+        );
         // The SEO defaults (§1.14) Content's own pages name in their heads (H1-H7), kept with the frame.
         $seo = $this->db->selectOne('SELECT site_name_ar, site_name_en, title_pattern_ar, title_pattern_en, description_ar, description_en, share_media_id FROM content.seo_defaults WHERE store_id = ?', [$storeId]);
 
@@ -105,7 +112,11 @@ final readonly class DatabaseShopReads implements ShopReads
                 'ends' => self::iso($banner->ends_at),
             ], $listings),
             'bar' => $bar instanceof stdClass ? ['text_ar' => (string) $bar->text_ar, 'text_en' => (string) $bar->text_en, 'link' => Rows::text($bar->link), 'starts' => self::iso($bar->starts_at), 'ends' => self::iso($bar->ends_at)] : null,
-            'footer' => $footer instanceof stdClass ? [...array_map(Rows::text(...), (array) $footer), 'columns' => Rows::decode($footer->columns)] : null,
+            'footer' => $footer instanceof stdClass ? [
+                ...array_map(Rows::text(...), (array) $footer),
+                'columns' => Rows::decode($footer->columns),
+                'empty' => [...($lists instanceof stdClass && $lists->projects ? [] : ['/projects']), ...($lists instanceof stdClass && $lists->posts ? [] : ['/blog'])],
+            ] : null,
             'seo' => $seo instanceof stdClass ? [...array_map(Rows::text(...), array_diff_key((array) $seo, ['share_media_id' => true])), 'image' => $urls[(string) $seo->share_media_id] ?? []] : null,
             'popups' => array_map(static fn (stdClass $popup): array => [
                 'id' => (string) $popup->id,

@@ -21,6 +21,7 @@ use Modules\Content\Application\Command\ShowHomeSection\ShowHomeSection;
 use Modules\Content\Application\Command\ShowHomeSection\ShowHomeSectionHandler;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\Query\HomePage\HomePageHandler;
+use Modules\Content\Application\Query\Shop\ContentFrame;
 use Modules\Content\Domain\Exception\ContentNotFound;
 use Modules\Content\Domain\Exception\ImageNotReady;
 use Modules\Content\Domain\Exception\InvalidContentInput;
@@ -149,9 +150,8 @@ describe('§1.4 the home page', function () {
         $sellers = homeSection('BEST_SELLERS');
         $promise = ['icon' => 'truck', 'title' => ['ar' => 'شحن سريع', 'en' => 'Fast delivery'], 'line' => ['ar' => 'خلال يومين', 'en' => 'In two days']];
 
-        expect(homeRefusal(fn () => homeFill($hero->id, ['facts' => array_fill(0, 4, ['ar' => 'حقيقة', 'en' => 'Fact'])])))->toBe('facts:too_many')
-            ->and(homeRefusal(fn () => homeFill(homeSection('AUDIENCE')->id, ['companies' => ['button' => ['text' => ['ar' => 'تسوق', 'en' => 'Shop']]]])))->toBe('companies_button_link:required')
-            ->and(homeRefusal(fn () => homeFill($promises->id, ['promises' => array_fill(0, 5, $promise)])))->toBe('promises:too_many')
+        expect(homeRefusal(fn () => homeFill(homeSection('AUDIENCE')->id, ['companies' => ['button' => ['text' => ['ar' => 'تسوق', 'en' => 'Shop']]]])))->toBe('companies_button_link:required')
+            ->and(homeRefusal(fn () => homeFill($promises->id, ['promises' => array_fill(0, 6, $promise)])))->toBe('promises:too_many')
             ->and(homeRefusal(fn () => homeFill($promises->id, ['promises' => [[...$promise, 'icon' => 'rocket']]])))->toBe('promise_icon:choice')
             ->and(homeRefusal(fn () => homeFill($categories->id, ['count' => 13])))->toBe('count:range')
             ->and(homeRefusal(fn () => homeFill($sellers->id, ['count' => 3])))->toBe('count:range');
@@ -159,15 +159,12 @@ describe('§1.4 the home page', function () {
         homeFill($promises->id, ['promises' => [$promise]]);
         expect(homeRefusal(fn () => app(ShowHomeSectionHandler::class)->handle(new ShowHomeSection($promises->id, true))))->toBe('promises:too_few');
 
-        // A fact is a figure and its caption (shop-design.md §10.9, P24): 16 and 40 characters; one saved before
-        // 2026-11-16 as a caption alone reads as one with no figure.
-        expect(homeRefusal(fn () => homeFill($hero->id, ['facts' => [['figure' => ['ar' => str_repeat('٩', 17)], 'caption' => ['ar' => 'وكيل']]]])))->toBe('fact_figure_ar:too_long');
-        homeFill($hero->id, ['facts' => [['figure' => ['ar' => 'TALLSEN', 'en' => 'TALLSEN'], 'caption' => ['ar' => 'وكيل معتمد', 'en' => 'Authorised dealer']], ['ar' => 'جدة', 'en' => 'Jeddah']]]);
-        $facts = json_decode((string) DB::table('content.home_sections')->where('id', $hero->id)->value('settings'), true)['facts'];
-        expect($facts)->toBe([
-            ['figure' => ['ar' => 'TALLSEN', 'en' => 'TALLSEN'], 'caption' => ['ar' => 'وكيل معتمد', 'en' => 'Authorised dealer']],
-            ['figure' => ['ar' => null, 'en' => null], 'caption' => ['ar' => 'جدة', 'en' => 'Jeddah']],
-        ]);
+        // The hero keeps its title only: the facts became promises (flags-2026-11.md S1.7), so facts sent are not kept;
+        // and the row takes up to 5 promises.
+        homeFill($hero->id, ['title' => ['ar' => 'عنوان', 'en' => 'Title'], 'facts' => [['ar' => 'جدة', 'en' => 'Jeddah']]]);
+        expect(json_decode((string) DB::table('content.home_sections')->where('id', $hero->id)->value('settings'), true))->toBe(['title' => ['ar' => 'عنوان', 'en' => 'Title']]);
+        homeFill($promises->id, ['promises' => array_fill(0, 5, $promise)]);
+        expect(json_decode((string) DB::table('content.home_sections')->where('id', $promises->id)->value('settings'), true)['promises'])->toHaveCount(5);
 
         homeFill($sellers->id, ['heading' => ['ar' => 'الأكثر مبيعًا', 'en' => 'Best sellers'], 'count' => 20]);
         homeFill($categories->id, ['heading' => ['ar' => 'الفئات', 'en' => 'Categories']]);
@@ -211,8 +208,8 @@ describe('§1.4 the home page', function () {
     it('audits each box of a section by value, from and to (§1.1 rule 13)', function () {
         Cx::editor([ContentPermissions::HOMEPAGE_MANAGE]);
         $hero = homeSection('HERO');
-        homeFill($hero->id, ['title' => ['ar' => 'أول'], 'facts' => [['ar' => 'حقيقة']]]);
-        homeFill($hero->id, ['title' => ['ar' => 'ثان'], 'facts' => [['ar' => 'حقيقة']]]);
+        homeFill($hero->id, ['title' => ['ar' => 'أول', 'en' => 'One']]);
+        homeFill($hero->id, ['title' => ['ar' => 'ثان', 'en' => 'One']]);
 
         $entries = DB::table('platform.audit_entries')->where('action', 'content.home_section.filled')->where('subject_id', $hero->id)->orderBy('id')->pluck('changes')->all();
         $first = json_decode((string) $entries[0], true);
@@ -220,9 +217,10 @@ describe('§1.4 the home page', function () {
 
         // Compared key by key with toBe: a swapped from and to must fail (lesson 105).
         expect($first['title.ar'])->toBe([null, 'أول'])
-            ->and($first['facts.0.caption.ar'])->toBe([null, 'حقيقة'])
             ->and($second['title.ar'])->toBe(['أول', 'ثان'])
-            ->and($second)->not->toHaveKey('facts.0.caption.ar');
+            // The English title did not change in the second fill: not audited again.
+            ->and($first['title.en'])->toBe([null, 'One'])
+            ->and($second)->not->toHaveKey('title.en');
     });
 
     it('refuses a fill over a newer version (§1.1 rule 12)', function () {
@@ -242,6 +240,17 @@ describe('§1.4 the home page', function () {
 });
 
 describe('§1.5 the frame', function () {
+    it('hides footer links to Content\'s lists with nothing published, and keeps the rest (flags-2026-11.md S1.4)', function () {
+        Cx::editor([ContentPermissions::HOMEPAGE_MANAGE]);
+        $link = static fn (string $to): array => ['textAr' => 'رابط', 'textEn' => 'Link', 'link' => $to];
+        homeFooter([['titleAr' => 'روابط', 'titleEn' => 'Links', 'links' => [$link('/projects'), $link('/blog'), $link('/brands/blum')]]], '+966 11 000 0000', 'hello@example.com', 0);
+
+        $footer = app(ContentFrame::class)->for(Cx::store('sa'), 'en')['footer'] ?? throw new LogicException('No footer.');
+
+        expect($footer)->toMatchArray(['hidden' => ['/projects', '/blog'], 'phone' => '+966 11 000 0000', 'email' => 'hello@example.com'])
+            ->and((string) json_encode($footer['columns'] ?? null, JSON_UNESCAPED_SLASHES))->toContain('/brands/blum');
+    });
+
     it('keeps one announcement bar a store, one line of 120 characters, switched on only with both languages', function () {
         Cx::editor([ContentPermissions::BAR_MANAGE], ['sa', 'ae']);
 

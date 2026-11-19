@@ -301,6 +301,8 @@ final readonly class ContentFrame
             'email' => $footer['email'],
             'address' => $footer["address_{$locale}"],
             'copyright' => $footer["copyright_{$locale}"],
+            // Content's own lists with nothing published: their links are not drawn (flags-2026-11.md S1.4, F4).
+            'hidden' => array_values(array_filter(is_array($footer['empty'] ?? null) ? $footer['empty'] : [], 'is_string')),
             'columns' => array_map(static fn (array $column): array => [
                 'title' => $column['title'][$locale] ?? '',
                 'links' => array_map(static fn (array $link): array => ['text' => $link['text'][$locale] ?? '', 'link' => $link['link'] ?? ''], is_array($column['links'] ?? null) ? $column['links'] : []),

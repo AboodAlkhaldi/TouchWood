@@ -44,12 +44,15 @@ type Props = {
     children: ReactNode;
 };
 
-/** A link in the list, drawn as the line tabs under it are: muted, the current one in ink with its bar. */
+/**
+ * A link in the list, drawn as the tabs under it are (flags-2026-11.md S1.8): the current one filled soft blue, its
+ * words in brand, a 3 px brand bar at its start; the others muted, with a sunken ground on hover.
+ */
 function accountLinkClass(current: boolean): string {
     return cn(
-        'relative flex h-9 w-full items-center rounded-md px-2 text-label-14 font-medium transition-colors',
-        'after:absolute after:inset-y-0 after:-end-1 after:w-0.5 after:bg-ink',
-        current ? 'text-ink after:opacity-100' : 'text-ink-muted after:opacity-0 hover:text-ink',
+        'relative flex h-9 w-full items-center rounded-md px-3 text-label-14 font-medium transition-colors',
+        'before:absolute before:inset-y-1.5 before:start-0 before:w-[3px] before:rounded-full before:bg-brand',
+        current ? 'bg-brand-soft text-brand before:opacity-100' : 'text-ink-muted before:opacity-0 hover:bg-surface-sunken hover:text-ink',
     );
 }
 

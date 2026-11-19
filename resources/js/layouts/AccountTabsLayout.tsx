@@ -44,7 +44,14 @@ export function AccountTabsLayout({ title, subtitle, tab, onTab, children }: Pro
                     <AccountPageLinks />
                     <TabsList variant="line" aria-label={title} className="w-full items-stretch">
                         {(accountMenu?.tabs ?? []).map((each) => (
-                            <TabsTrigger key={each.key} value={each.key} onClick={chosen} data-test={`tab-${each.key}`} className="h-9 flex-none px-2 text-label-14">
+                            <TabsTrigger
+                                key={each.key}
+                                value={each.key}
+                                onClick={chosen}
+                                data-test={`tab-${each.key}`}
+                                // As the account's links (flags-2026-11.md S1.8): the current one filled soft blue with a start bar.
+                                className="relative h-9 flex-none justify-start rounded-md px-3 text-label-14 text-ink-muted after:hidden before:absolute before:inset-y-1.5 before:start-0 before:w-[3px] before:rounded-full before:bg-brand before:opacity-0 hover:bg-surface-sunken hover:text-ink data-[state=active]:shadow-none data-[state=active]:before:opacity-100 group-data-[variant=line]/tabs-list:data-[state=active]:bg-brand-soft group-data-[variant=line]/tabs-list:data-[state=active]:text-brand dark:group-data-[variant=line]/tabs-list:data-[state=active]:bg-brand-soft dark:data-[state=active]:text-brand"
+                            >
                                 {each.label}
                             </TabsTrigger>
                         ))}

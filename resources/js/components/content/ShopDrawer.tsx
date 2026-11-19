@@ -1,6 +1,6 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { LayoutDashboard, LogOut, Moon, Sun, UserRound } from 'lucide-react';
-import { choosePreference } from '@/components/Preferences';
+import { LayoutDashboard, LogOut, UserRound } from 'lucide-react';
+import { ThemeToggle } from '@/components/Preferences';
 import { CategoryTree } from '@/components/shop/CategoryTree';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,7 +30,7 @@ type Props = {
 /** What the drawer holds, under its head; the Sheet itself is the layout's (its parts are every page's already). */
 export default function ShopDrawer({ alternate }: Props) {
     const page = usePage<SharedProps>();
-    const { shop, shopper, staffView, locale, frame, theme } = page.props;
+    const { shop, shopper, staffView, locale, frame } = page.props;
     const t = useTranslator();
     const link = useLink();
     const words = frame?.content?.words ?? {};
@@ -41,7 +41,6 @@ export default function ShopDrawer({ alternate }: Props) {
     }
 
     const other = locale === 'ar' ? 'en' : 'ar';
-    const dark = theme.mode === 'dark';
     const rows = [
         { key: 'orders', text: words.my_orders, href: link('storefront.sales.orders') },
         { key: 'track', text: words.track, href: link('storefront.sales.orders') },
@@ -165,10 +164,10 @@ export default function ShopDrawer({ alternate }: Props) {
                             </Link>
                         </Button>
                     ) : null}
-                    <Button variant="secondary" className="h-10" data-test="drawer-theme" onClick={() => choosePreference('theme', dark ? 'light' : 'dark', '/preferences')}>
-                        {dark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
-                        {dark ? words.light : words.dark}
-                    </Button>
+                    {/* System, Light, Dark, as the account menu has it on a computer (flags-2026-11.md S1.3, F3). */}
+                    <span className="flex items-center justify-center" data-test="drawer-theme">
+                        <ThemeToggle to="/preferences" size="default" />
+                    </span>
                 </div>
         </>
     );

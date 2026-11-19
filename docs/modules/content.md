@@ -104,8 +104,8 @@ On **every box or text that has an Arabic and an English side**, for whoever may
 
 | # | Type | What staff fill | Reads from elsewhere |
 |---|---|---|---|
-| 1 | `HERO` | Desktop: eyebrow, title, one line, main button, second button (each text and link, per language), up to 3 short facts `[ACCEPTED 2026-11-10]`, artwork per §1.6. **Phone: the swiped banners instead** (§1.6 `HOME_PHONE`, up to 3, the design's dots) | Live banners; the live theme's hero artwork |
-| 2 | `PROMISES` | The row of promises: 2 to 4 `[ACCEPTED 2026-11-10]`, each an icon (a fixed list of Lucide icons), a title and a line per language | Theme's promises row |
+| 1 | `HERO` | Desktop: eyebrow, title, one line, main button, second button (each text and link, per language), ~~up to 3 short facts~~ **no facts: they became promises** (flags-2026-11.md S1.7, owner 2026-11-18; a migration moved the saved ones), artwork per §1.6. **Phone: the swiped banners instead** (§1.6 `HOME_PHONE`, up to 3, the design's dots) | Live banners; the live theme's hero artwork |
+| 2 | `PROMISES` | The row of promises: 2 to **5** (flags-2026-11.md S1.7, owner 2026-11-18; was 4), each an icon (a fixed list of Lucide icons), a title and a line per language | Theme's promises row |
 | 3 | `CATEGORIES` | The heading; how many tiles (4 to 12, default 8) `[ACCEPTED 2026-11-10]` | Catalog's top categories in the store's order, for this viewer, with each one's photo (row C4). Nothing to choose by hand: an empty category hides itself (catalog.md §1.5) |
 | 4 | `BEST_SELLERS` | The heading; how many (4 to 20, default 8 `[ACCEPTED 2026-11-10]`) | Catalog's `ShopBestSellers`, as built: only what this shopper can order, best-selling first |
 | 5 | `PROJECTS` | The heading | **The newest published project, and the 2 newest published posts as "guides"** `[ACCEPTED 2026-11-10]`, the design's row. Hidden while no project is published (round 4 #7) |

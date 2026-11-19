@@ -23,6 +23,8 @@ return [
     'country' => 'Country',
     'dark' => 'Dark',
     'light' => 'Light',
+    // The account menu's theme line (flags-2026-11.md S1.3).
+    'theme' => 'Theme',
     'previewing' => 'Previewing :name.',
     'stop_preview' => 'Stop Preview',
     'track_order' => 'Track Order',

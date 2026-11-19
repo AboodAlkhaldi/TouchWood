@@ -23,6 +23,8 @@ return [
     'country' => 'الدولة',
     'dark' => 'داكن',
     'light' => 'فاتح',
+    // The account menu's theme line (flags-2026-11.md S1.3).
+    'theme' => 'المظهر',
     'previewing' => 'معاينة مظهر :name.',
     'stop_preview' => 'إيقاف المعاينة',
     'track_order' => 'تتبع الطلب',

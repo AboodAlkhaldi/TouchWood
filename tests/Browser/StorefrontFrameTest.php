@@ -91,7 +91,14 @@ it('turns the shop dark when the button is pressed', function () {
     // The theme switch is Geist's now: Light and Dark side by side (frontend.md 1.10). Pressing only
     // dispatches the post, and reading the page in the same breath raced and lost, so the page is
     // read until the server's answer has arrived (lesson 121: a promise that answers within 4 s).
-    $page->click('[data-test="theme-dark"]');
+    // The shop's switch for a guest is the phone drawer's (flags-2026-11.md S1.3: the header's and the footer's are gone;
+    // on a computer it is in a signed-in shopper's menu).
+    $page->resize(375, 812);
+    $page->click('[data-test="category-sheet-open"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"drawer-account\"]') !== null"))->toBeTrue();
+    $page->click('[data-test="drawer-account"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"drawer-theme\"] [data-test=\"theme-dark\"]') !== null"))->toBeTrue();
+    $page->click('[data-test="drawer-theme"] [data-test="theme-dark"]');
 
     // Asked for again and answered dark by the server, which is why nothing flashes.
     expect(browserUntil($page, "document.documentElement.dataset.mode === 'dark'"))->toBeTrue();

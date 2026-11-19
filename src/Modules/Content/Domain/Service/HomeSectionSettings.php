@@ -16,8 +16,8 @@ use Modules\Content\Domain\ValueObject\Words;
  *
  * | Type | Settings |
  * |---|---|
- * | `HERO` | eyebrow, title, line; main and second button (text pair and link); up to 3 short facts, each a figure (16) and a caption (40) per language (shop-design.md §10.9, P24) |
- * | `PROMISES` | 2 to 4 promises, each an icon of the fixed list, a title and a line |
+ * | `HERO` | the title (the facts became promises, flags-2026-11.md S1.7) |
+ * | `PROMISES` | 2 to 5 promises, each an icon of the fixed list, a title and a line (5 since flags-2026-11.md S1.7) |
  * | `CATEGORIES` | heading; how many tiles, 4 to 12 (8) |
  * | `BEST_SELLERS` | heading; how many, 4 to 20 (8) |
  * | `PROJECTS` | heading |
@@ -35,11 +35,9 @@ final class HomeSectionSettings
     /** The Lucide icons a promise may wear (§1.4: "a fixed list"). */
     public const array ICONS = ['truck', 'shield-check', 'badge-check', 'headset', 'wrench', 'package', 'credit-card', 'rotate-ccw', 'store', 'clock', 'award', 'leaf'];
 
-    public const int MAX_FACTS = 3;
-
     public const int MIN_PROMISES = 2;
 
-    public const int MAX_PROMISES = 4;
+    public const int MAX_PROMISES = 5;
 
     public const int MIN_LOGOS = 6;
 
@@ -59,16 +57,10 @@ final class HomeSectionSettings
     public static function read(HomeSectionType $type, array $input): array
     {
         return match ($type) {
-            // The title and the facts only (shop-design.md §3.1, option (b)): the eyebrow, the line and the two buttons
-            // went with the banners, which carry their own words.
+            // The title only (shop-design.md §3.1, option (b)): the eyebrow, the line and the two buttons went with the
+            // banners; the facts became promises (flags-2026-11.md S1.7, F6), so one sent is not kept.
             HomeSectionType::Hero => [
                 'title' => self::pair('title', $input['title'] ?? null, 80),
-                // A fact saved before 2026-11-16 is a caption alone ({ar, en}); it reads as one with no figure.
-                'facts' => self::list('facts', $input['facts'] ?? [], self::MAX_FACTS, static function (mixed $fact): array {
-                    $fact = is_array($fact) ? $fact : [];
-
-                    return ['figure' => self::pair('fact_figure', $fact['figure'] ?? null, 16), 'caption' => self::pair('fact', array_key_exists('caption', $fact) ? $fact['caption'] : $fact, 40)];
-                }),
             ],
             HomeSectionType::Promises => [
                 'promises' => self::list('promises', $input['promises'] ?? [], self::MAX_PROMISES, static function (mixed $promise): array {

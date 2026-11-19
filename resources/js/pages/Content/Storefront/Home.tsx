@@ -17,7 +17,7 @@ import type { SharedProps } from '@/types/page';
 /*
 | H1, a store's home (content.md §1.4, §4.5), to the design (shop-design.md §3): the sections staff show, in their order -
 | **the banners** (news, events, big sales: one list for every width, turning every 5 seconds) with the store's title
-| under them, the promises row with the hero's facts, the categories as tiles, the best sellers, the newest project with
+| under them, the promises row (the hero's facts became promises, flags-2026-11.md S1.7), the categories as tiles, the best sellers, the newest project with
 | two guides, the two audiences, the Points band and the client logos. Each band brings its own 1400 px box, so its ground
 | reaches the screen's edges. A section with nothing to show draws nothing. A live theme dresses the promises, Points
 | and logos bands with its artwork (the server's custom properties) and may give their words.
@@ -31,7 +31,6 @@ type ButtonWords = { text: string | null; link: string | null } | null;
 type Section = { type: string; words: Words; project?: Document; guides?: Document[]; logos?: Logo[] };
 type Document = { title: string; slug: string; line: string | null; image: PhotoSizes | [] };
 type Logo = { name: string | null; link: string | null; image: PhotoSizes };
-type Fact = { figure: string | null; caption: string | null } | string | null;
 
 type Tile = { name: string; slug: string; photo: PhotoSizes | null };
 
@@ -44,16 +43,13 @@ export default function Home(props: ShopHomePageData) {
     const facts = useCardFacts(props.cardFacts, (props.bestSellers as unknown as ShopCardData[])[0]?.productId);
     // The best sellers' grid or list, the category page's choice (shop-design.md §3.2, H10; P7).
     const [view, setView] = useShopView();
-    // The hero's facts are drawn in the promises row (shop-design.md §3.1, P3); with no promises row, alone there.
-    const heroFacts = factsOf(sections.find((section) => section.type === 'HERO')?.words.facts);
-    const hasPromises = sections.some((section) => section.type === 'PROMISES');
 
     const draw = (section: Section): ReactNode => {
         switch (section.type) {
             case 'HERO':
                 return <Hero key="hero" words={section.words} banners={props.banners as unknown as Banner[]} store={store} locale={locale} />;
             case 'PROMISES':
-                return <Promises key="promises" words={section.words} facts={heroFacts} theme={props.themeParts} />;
+                return <Promises key="promises" words={section.words} theme={props.themeParts} />;
             case 'CATEGORIES':
                 return <Tiles key="categories" heading={text(section.words.heading)} tiles={props.categoryTiles as unknown as Tile[]} />;
             case 'BEST_SELLERS':
@@ -89,17 +85,10 @@ export default function Home(props: ShopHomePageData) {
     return (
         <StorefrontLayout title={props.head.title} address={props.address} head={props.head} bands>
             <div className="grid gap-6 sm:gap-16" data-test="home">
-                {sections.map((section) => (section.type === 'HERO' && !hasPromises ? [draw(section), <Promises key="facts" words={{}} facts={heroFacts} theme={props.themeParts} />] : draw(section)))}
+                {sections.map((section) => draw(section))}
             </div>
         </StorefrontLayout>
     );
-}
-
-/** The hero's facts, each a figure and its caption (§10.9); one saved before 2026-11-16 is a caption alone. */
-function factsOf(value: unknown): { figure: string | null; caption: string }[] {
-    return (Array.isArray(value) ? (value as Fact[]) : [])
-        .map((fact) => (typeof fact === 'string' ? { figure: null, caption: fact } : { figure: text(fact?.figure), caption: text(fact?.caption) ?? '' }))
-        .filter((fact) => fact.caption !== '' || fact.figure !== null);
 }
 
 /** A section's frame, in its own 1400 px box: its heading at the design's 28 px, then what it holds. */
@@ -161,18 +150,19 @@ function Banners({ banners, store, locale }: { banners: Banner[]; store: string;
     );
 }
 
-function Promises({ words, facts, theme }: { words: Words; facts: { figure: string | null; caption: string }[]; theme: ShopHomePageData['themeParts'] }) {
+function Promises({ words, theme }: { words: Words; theme: ShopHomePageData['themeParts'] }) {
     const promises = Array.isArray(words.promises) ? (words.promises as { icon: string; title: string | null; line: string | null }[]) : [];
 
-    if (promises.length === 0 && facts.length === 0) {
+    if (promises.length === 0) {
         return null;
     }
 
-    // The design's service strip: edge to edge, a line under it; 4 columns, 2 up to 820 px; the hero's facts one slim row under them.
+    // The design's service strip: edge to edge, a line under it; one look for every item (flags-2026-11.md S1.7: the
+    // hero's facts became promises): 2 columns up to 820 px, then 4, and 5 from 1025 px when there are 5.
     return (
         <section className={`border-b border-line ${theme.promisesArt ? 'bg-cover bg-center [background-image:var(--tw-theme-promises)]' : ''}`} data-test="home-promises">
             {promises.length > 0 ? (
-                <ul className="shop-box grid grid-cols-2 gap-3 py-4 min-[821px]:grid-cols-4 sm:gap-0 sm:py-2">
+                <ul className={`shop-box grid grid-cols-2 gap-3 py-4 min-[821px]:grid-cols-4 sm:gap-0 sm:py-2 ${promises.length === 5 ? 'min-[1025px]:grid-cols-5' : ''}`}>
                     {promises.map((promise, index) => {
                         const Icon = promiseIcon(promise.icon);
                         // A theme may give each promise its own words (§1.8 part 3).
@@ -188,16 +178,6 @@ function Promises({ words, facts, theme }: { words: Words; facts: { figure: stri
                             </li>
                         );
                     })}
-                </ul>
-            ) : null}
-            {facts.length > 0 ? (
-                <ul className="shop-box flex flex-wrap gap-x-8 gap-y-2 border-t border-line py-3" data-test="home-facts">
-                    {facts.map((fact) => (
-                        <li key={`${fact.figure ?? ''}${fact.caption}`} className="flex items-baseline gap-2">
-                            {fact.figure ? <span className="text-label-14 font-semibold text-ink">{fact.figure}</span> : null}
-                            <span className="text-copy-13 text-ink-muted">{fact.caption}</span>
-                        </li>
-                    ))}
                 </ul>
             ) : null}
         </section>
@@ -269,14 +249,15 @@ function Projects({ heading, project, guides }: { heading: string | null; projec
 function Audience({ words, store, locale }: { words: Words; store: string; locale: string }) {
     const blocks = [words.individuals, words.companies] as ({ title: string | null; line: string | null; button: ButtonWords } | undefined)[];
 
-    // The design's two blocks (H4): small headings, one button each; the companies' block warm, its button copper.
+    // The design's two blocks (H4): small headings, one button each; the companies' block soft blue, its button copper
+    // (flags-2026-11.md S1.5, option A; the accent is copper in both modes).
     return (
         <section className="shop-box grid gap-4 sm:grid-cols-2" data-test="home-audience">
             {blocks.map((block, index) =>
                 block?.title ? (
-                    <div key={index} className={`grid content-start gap-3 rounded-xl border p-6 ${index === 1 ? 'border-line-warm bg-sand text-sand-ink' : 'border-line bg-surface'}`} data-test={index === 1 ? 'audience-companies' : 'audience-individuals'}>
-                        <h3 className={`text-heading-16 ${index === 1 ? 'text-sand-ink' : 'text-ink'}`}>{block.title}</h3>
-                        {block.line ? <p className={`text-copy-14 ${index === 1 ? 'text-sand-ink' : 'text-ink-muted'}`}>{block.line}</p> : null}
+                    <div key={index} className={`grid content-start gap-3 rounded-xl border p-6 ${index === 1 ? 'border-line bg-brand-soft text-ink' : 'border-line bg-surface'}`} data-test={index === 1 ? 'audience-companies' : 'audience-individuals'}>
+                        <h3 className="text-heading-16 text-ink">{block.title}</h3>
+                        {block.line ? <p className="text-copy-14 text-ink-muted">{block.line}</p> : null}
                         {block.button?.text && block.button.link ? (
                             <Button asChild className={`h-[46px] justify-self-start ${index === 1 ? 'bg-accent text-ink-on-brand hover:bg-accent/90' : ''}`}>
                                 <ContentLink link={block.button.link} store={store} locale={locale}>{block.button.text}</ContentLink>
