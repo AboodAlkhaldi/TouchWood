@@ -31,7 +31,7 @@ export default function TabBar({ House, shop, locale, url, words, sales, staffVi
     const link = useLink();
     const path = url.split('?')[0] ?? url;
     const base = `/${shop}/${locale}`;
-    const tab = 'flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] leading-none text-ink';
+    const tab = 'flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] leading-none text-ink aria-[current=page]:font-semibold aria-[current=page]:text-brand';
     const on = (href: string, exact = false) => (exact ? path === href : path === href || path.startsWith(`${href}/`));
     const icon = (active: boolean) => (active ? 'size-6 fill-current' : 'size-6');
     const account = link('storefront.account');

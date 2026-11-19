@@ -26,7 +26,7 @@ import { DragHandle, SortableGroup, SortableGroups, useSaveQueue, useSortableRow
 */
 
 const LIST = '/admin/content/banners';
-const PLACEMENTS = ['HOME_HERO', 'HOME_PHONE', 'LISTING'] as const;
+const PLACEMENTS = ['HOME_HERO', 'LISTING'] as const;
 
 export default function Index({ stores, storeCode, placement, counts, banners, categories }: BannersPageData) {
     const t = useTranslator();
@@ -45,12 +45,10 @@ export default function Index({ stores, storeCode, placement, counts, banners, c
     const rows = order.flatMap((id) => byId.get(id) ?? []);
     const names: Record<string, string> = {
         HOME_HERO: t('content::admin_banners.placement.HOME_HERO'),
-        HOME_PHONE: t('content::admin_banners.placement.HOME_PHONE'),
         LISTING: t('content::admin_banners.placement.LISTING'),
     };
     const limits: Record<string, string> = {
         HOME_HERO: t('content::admin_banners.limit.HOME_HERO'),
-        HOME_PHONE: t('content::admin_banners.limit.HOME_PHONE'),
         LISTING: t('content::admin_banners.limit.LISTING'),
     };
     const words: ScheduleWords = {

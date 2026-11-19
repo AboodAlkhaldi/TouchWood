@@ -20,8 +20,17 @@ import type { ShopMenuItemData } from '@/types/generated/Modules/Catalog/Present
 
 type Words = Record<string, string>;
 
-/** The row under the header, from a tablet up. */
-export function CategoryMenuBar({ menu, words }: { menu: ShopMenuItemData[]; words: Words }) {
+/** How many top categories the row holds, in the store's order, at the widest (shop-design.md §2.4); the rest under All Categories. */
+const IN_ROW = 6;
+
+/** Fewer as the screen narrows: 3 on a tablet, 5 on a laptop, 6 wider (one line always). */
+const ROW_CLASS = ['', '', '', 'hidden lg:flex', 'hidden lg:flex', 'hidden xl:flex'];
+
+/**
+ * The row under the header, from a tablet up (§2.4): one 50 px line - All Categories, the first top categories, and a
+ * copper «Order wholesale» at its end for a guest or an individual (P21). All Categories opens across the box, 4 columns.
+ */
+export function CategoryMenuBar({ menu, words, wholesale }: { menu: ShopMenuItemData[]; words: Words; wholesale: boolean }) {
     const link = useLink();
 
     if (menu.length === 0) {
@@ -30,13 +39,13 @@ export function CategoryMenuBar({ menu, words }: { menu: ShopMenuItemData[]; wor
 
     return (
         <nav aria-label={words.categories} className="hidden border-t border-line md:block" data-test="category-menu">
-            <div className="mx-auto w-full max-w-6xl px-4">
-                <NavigationMenu viewport={false} className="max-w-none justify-start">
-                    <NavigationMenuList className="flex-wrap justify-start">
+            <div className="shop-box flex h-[50px] items-center gap-4">
+                <NavigationMenu viewport={false} className="max-w-none flex-1 justify-start">
+                    <NavigationMenuList className="flex-nowrap justify-start">
                         <NavigationMenuItem>
                             <NavigationMenuTrigger data-test="all-categories">{words.all_categories}</NavigationMenuTrigger>
                             <NavigationMenuContent>
-                                <ul className="grid w-[min(48rem,90vw)] grid-cols-2 gap-4 p-4 lg:grid-cols-3">
+                                <ul className="grid w-[min(1320px,calc(100vw-5rem))] grid-cols-3 gap-6 p-6 lg:grid-cols-4" data-test="all-categories-panel">
                                     {menu.map((top) => (
                                         <li key={top.id} className="grid content-start gap-1">
                                             <NavigationMenuLink asChild>
@@ -56,10 +65,10 @@ export function CategoryMenuBar({ menu, words }: { menu: ShopMenuItemData[]; wor
                                 </ul>
                             </NavigationMenuContent>
                         </NavigationMenuItem>
-                        {menu.map((top) => (
-                            <NavigationMenuItem key={top.id}>
+                        {menu.slice(0, IN_ROW).map((top, index) => (
+                            <NavigationMenuItem key={top.id} className={ROW_CLASS[index]}>
                                 <NavigationMenuLink asChild>
-                                    <Link href={link('storefront.catalog.category', { slug: top.slug })} className="text-label-14" data-test="top-category">
+                                    <Link href={link('storefront.catalog.category', { slug: top.slug })} className="text-[13.5px] whitespace-nowrap" data-test="top-category">
                                         {top.name}
                                     </Link>
                                 </NavigationMenuLink>
@@ -67,6 +76,11 @@ export function CategoryMenuBar({ menu, words }: { menu: ShopMenuItemData[]; wor
                         ))}
                     </NavigationMenuList>
                 </NavigationMenu>
+                {wholesale ? (
+                    <Link href={link('storefront.company')} className="shrink-0 text-[13.5px] font-semibold text-accent underline-offset-4 hover:underline" data-test="order-wholesale">
+                        {words.order_wholesale}
+                    </Link>
+                ) : null}
             </div>
         </nav>
     );

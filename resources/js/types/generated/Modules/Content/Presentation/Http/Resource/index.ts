@@ -13,6 +13,12 @@ endsAt: string | null,
 images: Record<string, string>,
 version: number,
 translationUnread: boolean,
+titleAr: string | null,
+titleEn: string | null,
+lineAr: string | null,
+lineEn: string | null,
+buttonAr: string | null,
+buttonEn: string | null,
 };
 export type BannerFormPageData = {
 store: ContentStoreData,
@@ -499,8 +505,7 @@ head: ContentHeadData,
 };
 export type ShopHomePageData = {
 sections: Record<string, any>[],
-heroBanner: Record<string, any> | null,
-phoneBanners: Record<string, any>[],
+banners: Record<string, any>[],
 bestSellers: Record<string, any>[],
 cardFacts: Record<string, any>,
 categoryTiles: Record<string, any>[],

@@ -71,6 +71,12 @@
     --tw-accent: #864720;
     --tw-accent-soft: #f6efe8;
 
+    /* The shop's warm parts (shop-design.md §2.7, P1), from the design's own: its warm border (#E7D6C6) and the
+    | newsletter card's sand ground (#F0E2D6) with its dark warm ink (rgba(44,25,17)). */
+    --tw-line-warm: #e7d6c6;
+    --tw-sand: #f0e2d6;
+    --tw-sand-ink: #2c1911;
+
     /* The logo's tiles (owner, 2026-10-04): navy on dark surfaces, cream on light ones, the frame
     | in copper. The tile, not the mode, picks them, so they are the same in both modes - a
     | campaign may change them. */
@@ -154,6 +160,11 @@
     --tw-brand-soft: #17293a;
     --tw-accent: #dca071;
     --tw-accent-soft: #131e27;
+
+    /* The same roles in the dark: a warm edge, and a deep sand card whose light ink reads on it. */
+    --tw-line-warm: #4a3a2c;
+    --tw-sand: #2e241b;
+    --tw-sand-ink: #f0e2d6;
 
     --tw-logo-navy: #02365e;
     --tw-logo-cream: #f6efe8;

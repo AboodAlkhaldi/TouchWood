@@ -173,31 +173,34 @@ describe('§1.4 the home page\'s read', function () {
             ->and(shopHome()['sections'][1]['words']['heading'])->toBe('اكسب نقاطًا');
     });
 
-    it('shows the first live banners in order, 1 behind the hero and 3 on the phone, starting and ending by the clock', function () {
+    it('shows the first five live banners in order, one list for both widths with their words, starting and ending by the clock', function () {
         Cx::editor([ContentPermissions::BANNER_MANAGE]);
-        $phones = [];
+        // One list for both widths, at most five live, the first in order (shop-design.md §3.1, P2).
+        $live = [];
 
-        foreach (range(1, 4) as $n) {
-            $phones[] = $banner = Cx::banner(['name' => "Phone {$n}", 'endsAt' => Cx::typed(120)]);
+        foreach (range(1, 6) as $n) {
+            $live[] = $banner = Cx::banner(['name' => "Banner {$n}", 'endsAt' => Cx::typed(120), 'words' => ['title_ar' => "عنوان {$n}", 'title_en' => "Title {$n}"]]);
             app(ScheduleBannerHandler::class)->handle(new ScheduleBanner($banner, 1));
         }
 
-        $hero = Cx::banner(['placement' => 'HOME_HERO', 'images' => ['DESKTOP:any' => Cx::image()], 'startsAt' => Cx::typed(30)]);
-        app(ScheduleBannerHandler::class)->handle(new ScheduleBanner($hero, 1));
+        $later = Cx::banner(['name' => 'Later', 'startsAt' => Cx::typed(30)]);
+        app(ScheduleBannerHandler::class)->handle(new ScheduleBanner($later, 1));
 
-        expect(array_column(shopHome()['phoneBanners'], 'id'))->toBe(array_slice($phones, 0, 3))
-            ->and(shopHome()['heroBanner'])->toBeNull();
+        expect(array_column(shopHome()['banners'], 'id'))->toBe(array_slice($live, 0, 5))
+            ->and(shopHome('en')['banners'][0]['title'])->toBe('Title 1')
+            ->and(shopHome()['banners'][0]['title'])->toBe('عنوان 1')
+            ->and(shopHome()['banners'][0]['image'])->not->toBe([])
+            ->and(shopHome()['banners'][0]['phone'])->not->toBe([]);
 
-        app(OrderBannersHandler::class)->handle(new OrderBanners(Fx::storeId('sa'), 'HOME_PHONE', array_reverse($phones)));
-        expect(array_column(shopHome()['phoneBanners'], 'id'))->toBe(array_slice(array_reverse($phones), 0, 3));
+        app(OrderBannersHandler::class)->handle(new OrderBanners(Fx::storeId('sa'), 'HOME_HERO', [$later, ...array_reverse($live)]));
+        expect(array_column(shopHome()['banners'], 'id'))->toBe(array_slice(array_reverse($live), 0, 5));
 
-        // Warm from here: the hero starts, then every banner ends, with no change to replace the copy.
+        // Warm from here: the later one starts first in order, then the rest end, with no change to replace the copy.
         Cx::clockOn(31);
-        expect(shopHome()['heroBanner']['id'] ?? null)->toBe($hero)
-            ->and(shopHome()['heroBanner']['image'] ?? [])->not->toBe([]);
+        expect(shopHome()['banners'][0]['id'] ?? null)->toBe($later);
 
         Cx::clockOn(90);
-        expect(shopHome()['phoneBanners'])->toBe([]);
+        expect(array_column(shopHome()['banners'], 'id'))->toBe([$later]);
     });
 
     it('hides the projects row until a project is published, then shows the newest and the two newest posts', function () {
@@ -226,23 +229,23 @@ describe('§1.4 the home page\'s read', function () {
     it('replaces its copy when a file it shows has its sizes made, and only then', function () {
         Cx::editor([ContentPermissions::BANNER_MANAGE]);
         $image = Cx::image();
-        $banner = Cx::banner(['images' => ['PHONE:any' => $image]]);
+        $banner = Cx::banner(['images' => ['DESKTOP:any' => $image, 'PHONE:any' => $image]]);
         app(ScheduleBannerHandler::class)->handle(new ScheduleBanner($banner, 1));
-        expect(shopHome()['phoneBanners'])->toHaveCount(1);
+        expect(shopHome()['banners'])->toHaveCount(1);
 
         // The file's sizes fail later, with no event: the copy kept is still drawn.
         DB::table('platform.media')->where('id', $image)->update(['variants_status' => 'FAILED', 'variants_generated_at' => null]);
         $version = app('cache')->get(VersionedContentCache::NAME.':version');
         event(new MediaVariantsReady((string) Str::uuid(), strtolower((string) Str::ulid()), CarbonImmutable::now()));
 
-        expect(shopHome()['phoneBanners'])->toHaveCount(1)
+        expect(shopHome()['banners'])->toHaveCount(1)
             ->and(app('cache')->get(VersionedContentCache::NAME.':version'))->toBe($version);
 
         event(new MediaVariantsReady((string) Str::uuid(), $image, CarbonImmutable::now()));
 
         // One that fails later draws as if it were not there.
         expect(app('cache')->get(VersionedContentCache::NAME.':version'))->not->toBe($version)
-            ->and(shopHome()['phoneBanners'])->toBe([]);
+            ->and(shopHome()['banners'])->toBe([]);
     });
 
     it('costs two queries warm, both the cache\'s', function () {

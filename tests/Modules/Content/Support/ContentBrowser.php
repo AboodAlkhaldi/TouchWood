@@ -64,6 +64,47 @@ final class ContentBrowser
         return ! (bool) $page->script('/[٠-٩]/.test(document.body.textContent)');
     }
 
+    /**
+     * The contrast (WCAG, 1 to 21) of `$text`'s colour on `$ground`'s: its gradient's first colour where it has one (a
+     * fade's darkest end, where the words sit), else its background colour - laid over white, a light photo being the
+     * worst case under a see-through ground. The browser itself mixes the colours (a canvas pixel), so any CSS colour
+     * form counts. 0 where either is missing, or the ground can't be measured: a picture (`url(`, `image-set(`, a live
+     * theme's art) or no colour at all. A gradient is read at its first stop only, so it must be solid where the words sit.
+     */
+    public static function contrast(mixed $page, string $text, string $ground): float
+    {
+        return (float) $page->script(self::lights($text, $ground).'; return lit ? Math.round(((Math.max(lit[0], lit[1]) + 0.05) / (Math.min(lit[0], lit[1]) + 0.05)) * 100) / 100 : 0; })()');
+    }
+
+    /** Whether `$text`'s words are lighter than `$ground`, and the ground itself dark (relative light under 0.1): light words on a dark band. */
+    public static function lightOnDark(mixed $page, string $text, string $ground): bool
+    {
+        return (bool) $page->script(self::lights($text, $ground).'; return lit !== null && lit[0] > lit[1] && lit[1] < 0.1; })()');
+    }
+
+    /** The start of a script that sets `lit` to [the words' relative light, the ground's], or null where either is missing. */
+    private static function lights(string $text, string $ground): string
+    {
+        $text = json_encode($text, JSON_THROW_ON_ERROR);
+        $ground = json_encode($ground, JSON_THROW_ON_ERROR);
+
+        return "(() => {
+            const text = document.querySelector({$text}), ground = document.querySelector({$ground});
+            const pixel = (colour) => { const c = document.createElement('canvas').getContext('2d'); c.fillStyle = '#ffffff'; c.fillRect(0, 0, 1, 1); c.fillStyle = colour; c.fillRect(0, 0, 1, 1); return [...c.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+            const light = (rgb) => { const [r, g, b] = rgb.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+            let lit = null;
+            if (text && ground) {
+                const style = getComputedStyle(ground);
+                const picture = /url\(|image-set\(/.test(style.backgroundImage);
+                const fade = style.backgroundImage.match(/(?:rgba?|hsla?|oklab|oklch|lab|lch|color)\([^()]*\)/);
+                const plain = style.backgroundColor !== 'rgba(0, 0, 0, 0)' && style.backgroundColor !== 'transparent';
+                if (!picture && (fade || plain)) {
+                    lit = [light(pixel(getComputedStyle(text).color)), light(pixel(fade ? fade[0] : style.backgroundColor))];
+                }
+            }
+        ";
+    }
+
     /** A run's own number, so its rows are never another run's (lesson 174). */
     public static function run(): string
     {

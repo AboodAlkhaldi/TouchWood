@@ -25,5 +25,6 @@ return [
     'light' => 'فاتح',
     'previewing' => 'معاينة مظهر :name.',
     'stop_preview' => 'إيقاف المعاينة',
+    'track_order' => 'تتبع الطلب',
     'footer_links' => 'روابط أخرى',
 ];

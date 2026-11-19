@@ -32,6 +32,13 @@ final class BannerData extends Data
         public int $version,
         /** Translate filled its English and nobody has ticked that they read it (content.md §1.3, P14). */
         public bool $translationUnread = false,
+        /** A home banner's own words over its picture (shop-design.md §3.1). */
+        public ?string $titleAr = null,
+        public ?string $titleEn = null,
+        public ?string $lineAr = null,
+        public ?string $lineEn = null,
+        public ?string $buttonAr = null,
+        public ?string $buttonEn = null,
     ) {}
 
     /**
@@ -58,6 +65,12 @@ final class BannerData extends Data
             $images,
             (int) ($banner['version'] ?? 0),
             ($banner['translation_unread'] ?? false) === true,
+            $text('title_ar'),
+            $text('title_en'),
+            $text('line_ar'),
+            $text('line_en'),
+            $text('button_ar'),
+            $text('button_en'),
         );
     }
 }

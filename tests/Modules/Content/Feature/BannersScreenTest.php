@@ -54,20 +54,20 @@ function bannersScreenEditor(array $stores = ['sa']): string
 function bannersScreenFields(array $with = []): array
 {
     return [
-        'store' => Fx::storeId('sa'), 'version' => 0, 'placement' => 'HOME_PHONE', 'category_id' => '', 'name' => 'Spring', 'link' => '/categories/chairs',
-        'has_words' => false, 'alt_ar' => 'مطبخ', 'alt_en' => 'A kitchen', 'starts_at' => '', 'ends_at' => '', 'images' => ['PHONE:any' => Cx::image()], 'intent' => 'draft', ...$with,
+        'store' => Fx::storeId('sa'), 'version' => 0, 'placement' => 'HOME_HERO', 'category_id' => '', 'name' => 'Spring', 'link' => '/categories/chairs',
+        'has_words' => false, 'alt_ar' => 'مطبخ', 'alt_en' => 'A kitchen', 'starts_at' => '', 'ends_at' => '', 'images' => ['DESKTOP:any' => Cx::image(), 'PHONE:any' => Cx::image()], 'intent' => 'draft', ...$with,
     ];
 }
 
 it('gives a placement\'s tab with every count, its JSON, and the form with its images', function () {
-    $banner = Cx::banner(['placement' => 'HOME_PHONE', 'images' => ['PHONE:any' => Cx::image()]]);
+    $banner = Cx::banner(['placement' => 'HOME_HERO', 'images' => ['PHONE:any' => Cx::image()]]);
     Cx::banner(['placement' => 'LISTING']);
     $browser = Screen::as(bannersScreenEditor(['sa', 'ae']));
 
-    $browser->get(BANNERS_SCREEN.'?store=sa&placement=HOME_PHONE')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+    $browser->get(BANNERS_SCREEN.'?store=sa&placement=HOME_HERO')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         ->component('Content/Admin/Banners/Index')
-        ->where('placement', 'HOME_PHONE')
-        ->where('counts', ['HOME_HERO' => 0, 'HOME_PHONE' => 1, 'LISTING' => 1])
+        ->where('placement', 'HOME_HERO')
+        ->where('counts', ['HOME_HERO' => 1, 'LISTING' => 1])
         ->has('banners', 1)
         ->where('banners.0.id', $banner)
         ->where('translations', fn (Collection $words): bool => $words->has('content::admin_banners.title') && $words->has('catalog::admin.drag.instructions')));
@@ -77,21 +77,21 @@ it('gives a placement\'s tab with every count, its JSON, and the form with its i
     $browser->get(BANNERS_SCREEN."/{$banner}")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         ->component('Content/Admin/Banners/Form')
         ->where('banner.id', $banner)
-        ->where('placement', 'HOME_PHONE')
+        ->where('placement', 'HOME_HERO')
         ->has('images.PHONE:any'));
 });
 
 it('saves a draft, schedules it, and puts an image not ready under its box', function () {
     $browser = Screen::as(bannersScreenEditor());
 
-    $browser->post(BANNERS_SCREEN, bannersScreenFields(), Screen::fromPage(BANNERS_SCREEN.'/new'))->assertRedirect(BANNERS_SCREEN.'?store=sa&placement=HOME_PHONE');
+    $browser->post(BANNERS_SCREEN, bannersScreenFields(), Screen::fromPage(BANNERS_SCREEN.'/new'))->assertRedirect(BANNERS_SCREEN.'?store=sa&placement=HOME_HERO');
     $id = (string) DB::table('content.banners')->value('id');
 
     $scheduled = $browser->post(BANNERS_SCREEN."/{$id}", bannersScreenFields(['version' => 1, 'intent' => 'schedule']), Screen::fromPage(BANNERS_SCREEN."/{$id}"))->assertRedirect();
     expect(AdminBrowser::flashed($scheduled, 'status'))->toBe(__('content::admin_banners.scheduled'))
         ->and((bool) DB::table('content.banners')->where('id', $id)->value('is_scheduled'))->toBeTrue();
 
-    $pending = $browser->post(BANNERS_SCREEN, bannersScreenFields(['name' => 'Pending', 'images' => ['PHONE:any' => Cx::image('PENDING')], 'intent' => 'schedule']), Screen::fromPage(BANNERS_SCREEN.'/new'));
+    $pending = $browser->post(BANNERS_SCREEN, bannersScreenFields(['name' => 'Pending', 'images' => ['DESKTOP:any' => Cx::image(), 'PHONE:any' => Cx::image('PENDING')], 'intent' => 'schedule']), Screen::fromPage(BANNERS_SCREEN.'/new'));
     $other = (string) DB::table('content.banners')->where('name', 'Pending')->value('id');
 
     $pending->assertRedirect(BANNERS_SCREEN."/{$other}");
@@ -99,14 +99,14 @@ it('saves a draft, schedules it, and puts an image not ready under its box', fun
 });
 
 it('orders a placement only with its whole list, and ends, drafts and deletes from the menu', function () {
-    $first = Cx::banner(['placement' => 'HOME_PHONE']);
-    $second = Cx::banner(['placement' => 'HOME_PHONE']);
+    $first = Cx::banner(['placement' => 'HOME_HERO']);
+    $second = Cx::banner(['placement' => 'HOME_HERO']);
     $browser = Screen::as(bannersScreenEditor());
 
-    $browser->post(BANNERS_SCREEN.'/order', ['store' => Fx::storeId('sa'), 'placement' => 'HOME_PHONE', 'ids' => [$second, $first]], Screen::fromPage(BANNERS_SCREEN))->assertRedirect();
+    $browser->post(BANNERS_SCREEN.'/order', ['store' => Fx::storeId('sa'), 'placement' => 'HOME_HERO', 'ids' => [$second, $first]], Screen::fromPage(BANNERS_SCREEN))->assertRedirect();
     expect(DB::table('content.banners')->orderBy('position')->pluck('id')->all())->toBe([$second, $first]);
 
-    expect(Screen::errors($browser->post(BANNERS_SCREEN.'/order', ['store' => Fx::storeId('sa'), 'placement' => 'HOME_PHONE', 'ids' => [$first]], Screen::fromPage(BANNERS_SCREEN))))->toHaveKey('form');
+    expect(Screen::errors($browser->post(BANNERS_SCREEN.'/order', ['store' => Fx::storeId('sa'), 'placement' => 'HOME_HERO', 'ids' => [$first]], Screen::fromPage(BANNERS_SCREEN))))->toHaveKey('form');
 
     $deleted = $browser->post(BANNERS_SCREEN."/{$first}/delete", [], Screen::fromPage(BANNERS_SCREEN))->assertRedirect();
     expect(AdminBrowser::flashed($deleted, 'status'))->toBe(__('content::admin_banners.deleted'))
@@ -125,12 +125,12 @@ it('offers the menu entry only to whoever may use it', function () {
 });
 
 it('costs few queries of its own', function () {
-    $banner = Cx::banner(['placement' => 'HOME_PHONE', 'images' => ['PHONE:any' => Cx::image()]]);
+    $banner = Cx::banner(['placement' => 'HOME_HERO', 'images' => ['PHONE:any' => Cx::image()]]);
     $browser = Screen::as(bannersScreenEditor());
 
     // Measured 2026-11-10: 15 each, the panel's frame's 10 (AdminFrameQueryBudgetTest) and 5 of the page's own (the list
     // and its counts, the thumbnails' files, the categories on offer; the form's banner, its images, the categories).
     // Content's target is 15 of its own (§4.2).
     // 2026-11-11 (PR 7b, P14): one more on a form and on the sections' list - Translate's unread mark (content.unread_translations).
-    expect([Screen::queries($browser, BANNERS_SCREEN.'?store=sa&placement=HOME_PHONE'), Screen::queries($browser, BANNERS_SCREEN."/{$banner}")])->toBe([15, 16]);
+    expect([Screen::queries($browser, BANNERS_SCREEN.'?store=sa&placement=HOME_HERO'), Screen::queries($browser, BANNERS_SCREEN."/{$banner}")])->toBe([15, 16]);
 });

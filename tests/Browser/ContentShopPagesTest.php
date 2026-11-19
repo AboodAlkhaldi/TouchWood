@@ -25,6 +25,8 @@ use Modules\Content\Application\Command\SavePost\SavePost;
 use Modules\Content\Application\Command\SavePost\SavePostHandler;
 use Modules\Content\Application\Command\SaveProject\SaveProject;
 use Modules\Content\Application\Command\SaveProject\SaveProjectHandler;
+use Modules\Content\Application\Command\ScheduleBanner\ScheduleBanner;
+use Modules\Content\Application\Command\ScheduleBanner\ScheduleBannerHandler;
 use Modules\Content\Application\Command\ScheduleCampaign\ScheduleCampaign;
 use Modules\Content\Application\Command\ScheduleCampaign\ScheduleCampaignHandler;
 use Modules\Content\Application\Command\SetRunPrices\SetRunPrices;
@@ -142,7 +144,17 @@ it('draws every Content page at 375 x 812 in both languages, nothing sideways, e
     $page->navigate("/eg/en{$paths['home']}", BROWSER_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"home-best-sellers\"] [data-test=\"card\"]') !== null && document.querySelector('[data-test=\"home-projects\"]') !== null && document.querySelector('[data-test=\"home-tile\"]') !== null"))->toBeTrue();
 
+    // The project's caption reads in both modes: light words on a navy fade, even over a white photo (shop-design.md §12, bug 1).
+    $dark = visit('/eg/en')->inDarkMode();
+    expect(browserSoon($dark, "document.querySelector('[data-test=\"home-project-caption\"]') !== null"))->toBeTrue();
+    foreach (['light' => $page, 'dark' => $dark] as $mode => $shown) {
+        foreach (['first-child' => 'line', 'last-child' => 'title'] as $child => $part) {
+            expect(Cb::contrast($shown, "[data-test=\"home-project-caption\"] span:{$child}", '[data-test="home-project-caption"]'))->toBeGreaterThanOrEqual(4.5, "{$mode}: the project's {$part} does not read");
+        }
+    }
+
     $page->assertNoJavaScriptErrors();
+    $dark->assertNoJavaScriptErrors();
 });
 
 it('sends brand.com/ to the base store\'s Arabic home with no store remembered, and to the remembered one with it', function () {
@@ -166,5 +178,49 @@ it('draws a stored link outside the rules as its plain words, never as a link', 
     expect(browserSoon($page, "document.querySelector('[data-test=\"content-page\"]')?.textContent.includes('A link that is not one') === true"))->toBeTrue()
         ->and($page->script("document.querySelectorAll('[data-test=\"content-page\"] a[href^=\"javascript\"]').length"))->toBe(0)
         ->and($page->script("document.querySelector('[data-test=\"content-page\"] a[href=\"/eg/en/pages/returns\"]') !== null"))->toBeTrue();
+    $page->assertNoJavaScriptErrors();
+});
+
+it('turns the home banners every 5 seconds with their words, the arrows and dots choosing one, the title under them', function () {
+    $store = Fx::storeId('eg');
+    // This run's banners alone: the ones runs before left behind go (the browser suite keeps its rows, lesson 174).
+    DB::table('content.banners')->where('store_id', $store)->where('placement', 'HOME_HERO')->delete();
+
+    Fx::asSystem(function () use ($store): void {
+        $hero = DB::table('content.home_sections')->where('store_id', $store)->where('type', 'HERO')->first() ?? throw new LogicException('No HERO.');
+        app(FillHomeSectionHandler::class)->handle(new FillHomeSection((string) $hero->id, (int) $hero->version, ['title' => ['ar' => 'إكسسوارات المطابخ', 'en' => 'Kitchen hardware'], 'facts' => [['figure' => ['ar' => 'TALLSEN', 'en' => 'TALLSEN'], 'caption' => ['ar' => 'وكيل معتمد', 'en' => 'Authorised dealer']]]], []));
+        app(ShowHomeSectionHandler::class)->handle(new ShowHomeSection((string) $hero->id, true));
+
+        foreach (['A', 'B'] as $name) {
+            $banner = Cx::banner(['name' => "Banner {$name}", 'words' => ['title_ar' => "عرض {$name}", 'title_en' => "Offer {$name}", 'button_ar' => 'تسوّق', 'button_en' => 'Shop Now']], 'eg');
+            app(ScheduleBannerHandler::class)->handle(new ScheduleBanner($banner, 1));
+        }
+    });
+    app(ContentCache::class)->invalidate();
+
+    // shop-design.md §3.1: the carousel comes after the page shows; the store's title stays the page's H1 under it.
+    $page = visit('/eg/en');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"home-banners\"]')?.dataset.turning === 'true'"))->toBeTrue('the carousel never came')
+        ->and($page->script("document.querySelector('h1[data-test=\"home-title\"]')?.textContent"))->toBe('Kitchen hardware')
+        ->and($page->script("document.querySelectorAll('[data-test=\"banner-dots\"] button').length"))->toBe(2)
+        ->and($page->script("document.querySelector('[data-test=\"home-banner-words\"]')?.textContent"))->toContain('Offer A')
+        ->and($page->script("document.querySelector('[data-test=\"home-facts\"]')?.textContent"))->toContain('TALLSEN')
+        // One picture a banner, 3:1 at a computer's width (no box held for the phone's picture).
+        ->and($page->script("(() => { const r = document.querySelector('[data-test=\"home-banner\"] [data-test=\"banner-picture\"]').getBoundingClientRect(); return Math.abs(r.width / r.height - 3) < 0.05 && document.querySelectorAll('[data-test=\"home-banner\"]')[0].querySelectorAll('img').length === 1; })()"))->toBeTrue('the banner is not one 3:1 picture')
+        // By itself after 5 seconds, the second dot current.
+        ->and(browserSoon($page, "document.querySelectorAll('[data-test=\"banner-dots\"] button')[1]?.getAttribute('aria-current') === 'true'", 9))->toBeTrue('the banners did not turn by themselves');
+
+    // The arrows choose one: back to the first.
+    $page->click('[data-test="banner-next"]');
+    expect(browserSoon($page, "document.querySelectorAll('[data-test=\"banner-dots\"] button')[0]?.getAttribute('aria-current') === 'true'"))->toBeTrue('the arrow did not move it');
+
+    // A phone: its own picture, nothing sideways, the title still the H1.
+    $page->resize(375, 812);
+    $page->navigate('/eg/ar', BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"home-banners\"]')?.dataset.turning === 'true'"))->toBeTrue()
+        ->and($page->script("document.querySelector('h1[data-test=\"home-title\"]')?.textContent"))->toBe('إكسسوارات المطابخ')
+        // A phone: the phone's picture, 2:1.
+        ->and($page->script("(() => { const r = document.querySelector('[data-test=\"home-banner\"] [data-test=\"banner-picture\"]').getBoundingClientRect(); return Math.abs(r.width / r.height - 2) < 0.05; })()"))->toBeTrue('the phone banner is not 2:1')
+        ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
     $page->assertNoJavaScriptErrors();
 });

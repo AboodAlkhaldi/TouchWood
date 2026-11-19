@@ -130,7 +130,7 @@ it('asks a banner\'s and a pop-up\'s Schedule for the tick a draft\'s save left 
 
     expect(unreadMarks('BANNER') + unreadMarks('POPUP'))->toBe(0)
         // Scheduled, a banner shows what is saved without another step: unread English is refused at the save.
-        ->and(refusedUnread(fn () => app(SaveBannerHandler::class)->handle(new SaveBanner($banner, Fx::storeId('sa'), 2, 'HOME_PHONE', null, 'Summer', null, false, 'تخفيضات', 'Sale', null, null, ['PHONE:any' => (string) DB::table('content.banner_images')->where('banner_id', $banner)->value('media_id')], translated: true))))->toBeTrue();
+        ->and(refusedUnread(fn () => app(SaveBannerHandler::class)->handle(new SaveBanner($banner, Fx::storeId('sa'), 2, 'HOME_HERO', null, 'Summer', null, false, 'تخفيضات', 'Sale', null, null, array_column(DB::table('content.banner_images')->where('banner_id', $banner)->get(['kind', 'media_id'])->map(fn ($row): array => ['slot' => "{$row->kind}:any", 'id' => (string) $row->media_id])->all(), 'id', 'slot'), translated: true))))->toBeTrue();
 });
 
 it('asks a home section\'s Show for the tick, and refuses unread English on a shown section\'s save', function () {

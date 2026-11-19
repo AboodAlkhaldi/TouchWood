@@ -41,9 +41,10 @@ import type { MenuEntry, MenuGroup, SharedProps } from '@/types/page';
 |
 | The menu is sidebar-07's main navigation (the owner's fix list, 2026-10-04, from a screenshot of
 | it): each business area one row with its icon and a chevron, its screens indented under it.
-| Several areas may be open at once; the one holding the screen being read opens by itself, and the
-| screen is lit. Which areas are open is this browser's: a cookie the server reads back, as shadcn's
-| own `sidebar_state` is, so the first paint is already right.
+| **One area open at a time** (owner, 2026-11-15; shop-design.md §8): on each page the one holding the
+| screen being read opens by itself and the screen is lit; opening another closes it without leaving
+| the page, and the folded area keeps its lit mark. Nothing is remembered between pages: the server
+| knows the page, so the first paint is already right.
 |
 | It holds only what this person may do: Platform's menu registry answered that before the page was
 | rendered, entry by entry, through Access's authorizer. What is offered is never what is allowed -
@@ -56,12 +57,6 @@ import type { MenuEntry, MenuGroup, SharedProps } from '@/types/page';
 | Arabic mirrors the whole thing. The sidebar sits at side="left", which the component writes as
 | start-0 rather than left-0, so the page's own direction decides which edge that is.
 */
-
-/** The cookie the server reads back (HandleInertiaRequests::SIDEBAR_SECTIONS_COOKIE). */
-const SECTIONS_COOKIE = 'sidebar_sections';
-
-/** A year, as the panel's other preferences: re-choosing them every session would be a nuisance. */
-const SECTIONS_MAX_AGE = 60 * 60 * 24 * 365;
 
 /**
  * Whether this is the entry being read (lib/menu-here.ts): the person is on its screen, or on one underneath it
@@ -79,7 +74,7 @@ function waitingIn(group: MenuGroup): number {
 
 export function AppSidebar() {
     const page = usePage<SharedProps>();
-    const { menu, sidebarSections } = page.props;
+    const { menu } = page.props;
     const t = useTranslator();
 
     // The path only, so a search or a filter in the query string does not un-light the entry the
@@ -88,30 +83,12 @@ export function AppSidebar() {
     const lit = entryHere(menu, here);
     const current = lit?.group;
 
-    // What the person opened, as this browser remembers it; the area being read opens by itself on
-    // every page besides, unless they fold it here - and only what they opened is remembered, so an
-    // area does not stay open on other pages because they once stood in it.
-    const [remembered, setRemembered] = useState<Set<string>>(() => new Set(sidebarSections));
-    const [currentFolded, setCurrentFolded] = useState(false);
-    const isOpen = (key: string) => remembered.has(key) || (key === current && !currentFolded);
+    // The one open area: the page's own, unless the person opened or folded one on this page. The
+    // choice belongs to the page it was made on, so the next page starts from its own area again.
+    const [choice, setChoice] = useState<{ page: string; key: string | null } | null>(null);
+    const openKey = choice !== null && choice.page === here ? choice.key : (current ?? null);
 
-    const toggle = (key: string, opened: boolean) => {
-        const next = new Set(remembered);
-
-        if (opened) {
-            next.add(key);
-        } else {
-            next.delete(key);
-        }
-
-        if (key === current) {
-            setCurrentFolded(!opened);
-        }
-
-        setRemembered(next);
-        // Dots join the keys: a comma is not allowed in a cookie's value. Only the panel reads it.
-        document.cookie = `${SECTIONS_COOKIE}=${[...next].join('.')}; path=/admin; max-age=${SECTIONS_MAX_AGE}; samesite=lax`;
-    };
+    const toggle = (key: string, opened: boolean) => setChoice({ page: here, key: opened ? key : null });
 
     return (
         <Sidebar collapsible="icon">
@@ -136,7 +113,7 @@ export function AppSidebar() {
                                 key={group.key}
                                 group={group}
                                 lit={lit?.entry ?? null}
-                                open={isOpen(group.key)}
+                                open={openKey === group.key}
                                 onOpenChange={(opened) => toggle(group.key, opened)}
                             />
                         ))}

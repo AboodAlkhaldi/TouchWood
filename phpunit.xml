@@ -55,6 +55,12 @@
         <env name="DB_URL" value="" force="true"/>
         <env name="MAIL_MAILER" value="array" force="true"/>
         <!--
+            The fake translator always (content.md §2.2): a machine whose .env names DeepL with a real key
+            must never send the suite's text to DeepL, nor spend the owner's characters (found 2026-11-16).
+        -->
+        <env name="TEXT_TRANSLATOR" value="" force="true"/>
+        <env name="DEEPL_API_KEY" value="" force="true"/>
+        <!--
             A log of its own. The suite and the development server share a machine, and a test run
             writing into laravel.log buries whatever the person using the application actually hit
             (found while watching for exactly that, 2026-09-24).

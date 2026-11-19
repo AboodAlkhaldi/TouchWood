@@ -391,6 +391,12 @@ stylesheet, the same day.
   hue; text and lines are a step stronger and brand and status colours a step more saturated,
   measured in OKLCH. Light-mode muted text on a card goes from 4.90:1 to 6.31:1. The values are in
   `resources/css/themes.css`, light and dark.
+- **The shop's warm tokens** (shop-design.md §2.7, P1; 2026-11-16), from the design's own colours:
+  `--tw-line-warm` (#e7d6c6 light, #4a3a2c dark), the newsletter card's `--tw-sand` (#f0e2d6 light,
+  #2e241b dark) and `--tw-sand-ink` (#2c1911 light, #f0e2d6 dark). The shop's dark footer reuses the
+  sidebar's tokens, and its copper is `--tw-accent`. The shop's content box is the `shop-box`
+  utility in `resources/css/app.css`: 1400 px at most, 40 px each side, 24 px from 1024 down, 16 px
+  from 640 down.
 - **Type**: Geist's type scale under Geist's own class names — `text-heading-{14…48}`,
   `text-label-{12…20}` (and `-mono`), `text-copy-{13…24}` (and `-mono`), `text-button-{12,14,16}` —
   with the sizes, line heights and weights of Geist's stylesheet, set in our fonts. Geist's negative
@@ -1358,7 +1364,7 @@ is "the single highest-value guard in the project". The owner left these numbers
 | Queries, the admin panel's frame | **Recorded: 9** | Around every admin page, on a page that reads nothing itself (`AdminFrameQueryBudgetTest`, each part asserted): the session row (2), the person's permissions (2), the settings (2), the stores (2), the person block (1). The same whatever jobs the person holds - the menu asks permissions the request already read - with one more for whoever is shown the failed jobs' count, one more for whoever edits prices (Needs a Price's count, kept per store - pricing.md §4.3.2, Q43; stage 5's screens step 3; recorded 11 for an admin holding every job and for a Super Admin - Loyalty's Points entries count nothing, so add none) and one more for a picture (access.md amendment 65, platform.md §9.11) |
 | Every page's real count | **Recorded** | The test asserts the recorded number, so a page that grows from 5 to 9 fails even under its ceiling; raising it is a deliberate edit |
 | JavaScript, shared | **200 KB gzipped** | Measured in the build: React, Inertia and everything every page uses, cached once |
-| JavaScript, one page | **60 KB gzipped** | The same. Anything heavy (charts, a rich editor) loads only on the page that needs it |
+| JavaScript, one page | **60 KB gzipped** | The same. Anything heavy (charts, a rich editor) loads only on the page that needs it. **One named exception** (owner, 2026-11-16): the company's edit page (`B2B/Storefront/Company/Edit.tsx`) has a ceiling of **62 KB**, after the shop's frame grew to the design (shop-design.md PR A) - kept by name in `JavaScriptBudgetTest` |
 | Fonts | **The two families, subset** | Latin and Arabic ranges only, served from our own domain (§2.1), preloaded so the first paint has them |
 
 - **A breach fails the build**, as handoff §5.4 asks. A warning that stays green is ignored, which is
