@@ -971,7 +971,7 @@ amount still owed (§4.2 B1).
   wholesale only shows, under the name, what a piece costs at the wholesale minimum (not below it, where it
   cannot be bought). The page opens on its first size, so its own price shows, never "From".
 
-**S2 · Add to Cart** — on the product page only, never on a card (R1-9):
+**S2 · Add to Cart** — on the product page only, never on a card (R1-9). **Amended 2026-11-16 (the shop to the design, [shop-design.md](shop-design.md)):** **the "never on a card" rule is reversed**: a card has Add to cart for one size and Choose options for several (§4.1); the product page's buy row, its total line and its toast are §6.3-§6.4; the message's words stay:
 - **Retail or Wholesale** — a choice above the quantity, each with its own minimum and maximum, for a
   viewer who may buy both (a company; a guest, who fills a cart but signs in to order — §1.1); an
   individual sees retail only (R1-7).
@@ -982,9 +982,9 @@ amount still owed (§4.2 B1).
 - **Added**: a message, "Added to cart · 2 pieces", with **View Cart**, for a few seconds (R2-7), and the
   header's cart count goes up (R1-6).
 
-**S3 · The header's cart** — a cart icon beside the account's, with **the count of pieces** in it (R1-10).
+**S3 · The header's cart** — a cart icon beside the account's, with **the count of pieces** in it (R1-10). **Amended 2026-11-16 (the shop to the design, [shop-design.md](shop-design.md)):** a filled navy button with «السلة» and **the count of products (lines), no longer of pieces** (§2.3; its Q2, owner 2026-11-16: R1-10 reversed, as a cart may hold metres or cartons).
 
-**S4 · The cart** — `/{store}/{locale}/cart` (`ViewCart`, §3.1):
+**S4 · The cart** — `/{store}/{locale}/cart` (`ViewCart`, §3.1). **Amended 2026-11-16 (the shop to the design, [shop-design.md](shop-design.md)):** its look is §7 there, and `CartLineData` gains the brand, the values as a list and the unit, which checkout, the order's lines and the order emails show too (§10.1, §10.7); everything below stays:
 - **Each line**: photo, name, size, a Retail / Wholesale badge, unit price (old struck on a sale), the
   quantity's − and + within its minimum and maximum, the line's total, **Remove** (R1-11).
 - **A line with a problem** says so on the line, with its one fix (R2-10): below the minimum → **Set to

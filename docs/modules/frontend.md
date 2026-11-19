@@ -62,6 +62,7 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §1.7, §2.1, §7 | **Every box checks itself as it is typed**, in every form of every module: a number box refuses letters at once, ranges and lengths said under the box while typing, Save out of reach while a box is wrong — the server still checking everything (catalog.md amendment 16(f)); B2B's company page, whose boxes were checked once left (b2b.md amendment 22(a)), too | Owner, 2026-10-09: "we dont wanna wait until request returns red to a numeric value that was entered character, it must be from the moment typed" |
 | §1.1 | **Catalog's ordered lists are ordered by dragging** — `@dnd-kit` under `dashboard-01`'s handles, saved when dropped, with Move to Top and Move to Bottom on the row's menu — no typed place, no "#" column (catalog.md amendment 16(d)); B2B's type lists and Platform's stores keep theirs | Owner, 2026-10-09 |
 | §2.1, §3.2 B1, §3.6 F8, §7 | **The phone-width audit** (every page at 375×812): on a phone the account's Work Email card puts Change Work Email… **under** the address, not beside it (a long address pushed it off the screen); the shop's account list (other modules' pages and the account's tabs) is **folded behind one Account Menu button** (shadcn's Collapsible, shut) so the page's own content comes first — from tablet width both are as before. Every browser test file checks the phone's width | Owner, 2026-10-29 |
+| §2.2, §2.3 | **The shop to the design** ([shop-design.md](shop-design.md)): the shop's frame 1400 wide with 40 px padding, and **the admin sidebar with one area open at a time**: only the page's area opens on each page, the cookie of open areas goes (§8) | Owner, 2026-11-15 and 2026-11-16 |
 
 ---
 
@@ -588,7 +589,8 @@ and examples. Only when neither has it, show the owner what was searched and ask
   into the rebuild's PR):
   - **the sidebar is shadcn's `sidebar-07` main navigation**, from the owner's screenshot of it:
     each business area is one row with its icon and a chevron, its screens indented under it
-    without icons; **several areas may be open at once**; the screen being read is highlighted and
+    without icons; **several areas may be open at once** (*amended 2026-11-16: one at a time, the cookie
+    goes, [shop-design.md](shop-design.md) §8*); the screen being read is highlighted and
     its area opens by itself; which areas the person opened is remembered per browser, in a cookie
     the server reads back like `sidebar_state`, so the first paint is already right. **An area with
     a single screen — for this person, as the menu holds only what they may use — is that screen's
@@ -735,8 +737,8 @@ layout of the area they occur in.
 
 From the design, with the decided rules applied:
 
-- **Sidebar:** the logo with "Admin panel"; business areas that fold, several open at once
-  (§1.11, the owner's fix list, 2026-10-04); count badges; at the
+- **Sidebar:** the logo with "Admin panel"; business areas that fold, **one open at a time** (owner, 2026-11-15: [shop-design.md](shop-design.md) §8;
+  was several open, the owner's fix list, 2026-10-04); count badges; at the
   bottom, the person's avatar, name and role, and above them the language button: its own row,
   naming the other language in that language (العربية / English, §1.11 #3), one press (round 3 #13,
   owner 2026-11-10). The language is not

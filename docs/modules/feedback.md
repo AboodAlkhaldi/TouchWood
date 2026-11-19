@@ -451,7 +451,7 @@ components, placed by the page in the slots below, agreed with the Catalog-scree
 
 - **Under the title**: the stars, the average ("4.3") and the count ("(12 reviews)"), a link down to the
   reviews — nothing when there are none **[Q22]**.
-- **Beside Add to Cart**: the **Save** heart (filled once saved), and on every product card too (F7);
+- **Beside Add to Cart**: the **Save** heart (filled once saved), and on every product card too (F7). **Amended 2026-11-16 (the shop to the design, [shop-design.md](shop-design.md)):** **no spinner on any heart**: it fills or empties at once, the save goes in the background, and a failed save puts it back with a toast (§4.4);
   a guest who presses it is sent to sign in and comes back with it saved (owner, Q17 (b), Q18 (a)).
 - **Reviews**, under the description: the average and count again, then each approved review — stars,
   author, "Verified purchase" or "Returned", the size bought, the date **[Q23]**, the text — newest
@@ -478,6 +478,8 @@ components, placed by the page in the slots below, agreed with the Catalog-scree
   account." A sixth waiting question is refused with §7's words.
 
 #### F7 · Stars on the shop's product cards, and Best Rated
+
+**Amended 2026-11-16 (the shop to the design, [shop-design.md](shop-design.md)):** the heart on a card is that spec's §4.4 (no spinner, at the photo's top-end corner); the stars as below.
 
 - On Catalog's lists (category, brand, search) **where the store's switch is on**: each card's stars and
   count (`ShopCardData.rating`, `ratingCount`, catalog.md amendment 25), and **Best Rated** among the
