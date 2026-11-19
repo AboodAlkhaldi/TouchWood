@@ -495,7 +495,7 @@ Pages of the account beside its tabs (Access's `CustomerAccountPages`, as My Poi
   More.
 - **My Questions** — each question, its store, its state (**Waiting for an answer**, **Answered** with the
   answer, **Not published** with its reason, **Unpublished**), newest first.
-- **My Wishlist** — grouped by store **[Q20]**: each product's card (photo, name, link in that store) with
+- **My Wishlist** — **as tiles since flags-2026-11.md S2.2** (owner, 2026-11-18): per store a grid (2, 3, 4 a row), each tile the photo, the name, **the shop card's price and stars** (Catalog's `ShopProductCards::read`, one read per store, the page 6 → 10 queries of its own), the whole tile a link, Remove in its corner; an item not orderable now keeps photo and name, "Not available now", dimmed. Before: grouped by store **[Q20]**: each product's card (photo, name, link in that store) with
   **Remove**; one the store no longer sells marked **Not available now** (answer 17); an off store's
   group marked. Empty: "Nothing saved yet."
 

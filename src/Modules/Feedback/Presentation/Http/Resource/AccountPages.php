@@ -7,6 +7,7 @@ namespace Modules\Feedback\Presentation\Http\Resource;
 use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Contracts\Foundation\Application;
+use Modules\Catalog\Public\Contracts\ShopProductCards;
 use Modules\Feedback\Application\Query\FeedbackCard;
 use Modules\Feedback\Application\Query\MyQuestionRow;
 use Modules\Feedback\Application\Query\MyReviewRow;
@@ -32,6 +33,7 @@ final readonly class AccountPages
     public function __construct(
         private Application $app,
         private PlatformApi $platform,
+        private ShopProductCards $cards,
     ) {}
 
     public function reviews(?string $after, ViewMyReviewsHandler $view): MyReviewsPage
@@ -82,6 +84,7 @@ final readonly class AccountPages
                 $this->card($item->product, $group->storeId, ! $item->unavailable),
                 self::moment($item->savedAt),
             ), $group->items),
+            $this->shopCards($group),
         ), $view->handle(new ViewMyWishlist($this->locale()))));
     }
 
@@ -104,6 +107,35 @@ final readonly class AccountPages
     private static function moment(DateTimeImmutable $at): string
     {
         return $at->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d\TH:i:s.vP');
+    }
+
+    /**
+     * **The tiles' price and stars** (flags-2026-11.md S2.2, owner 2026-11-18): the shop's own cards for the items the
+     * person can order now, in one read per store (`ShopProductCards::read`, at most 100 a call; measured 2026-11-18:
+     * one store 7 -> 8 queries). A card is the shop's, so the price is this person's own. An item that cannot be
+     * ordered now is left out by that read and keeps its plain tile.
+     *
+     * @return array<string, array<string, mixed>> product id => its shop card
+     */
+    private function shopCards(WishlistGroup $group): array
+    {
+        $ids = array_values(array_map(static fn (WishlistItemRow $item): string => $item->product->productId, array_filter($group->items, static fn (WishlistItemRow $item): bool => ! $item->unavailable)));
+
+        if (! $group->storeOpen || $ids === []) {
+            return [];
+        }
+
+        $cards = [];
+
+        foreach (array_chunk($ids, 100) as $chunk) {
+            foreach ($this->cards->read(StoreId::fromString($group->storeId), $this->locale(), $chunk)['cards'] as $card) {
+                $cards[(string) ($card['productId'] ?? '')] = $card;
+            }
+        }
+
+        unset($cards['']);
+
+        return $cards;
     }
 
     private function locale(): string

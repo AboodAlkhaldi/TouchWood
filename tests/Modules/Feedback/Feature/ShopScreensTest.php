@@ -228,6 +228,9 @@ describe('F8 · The account\'s pages', function () {
 
         expect(array_column($props['stores'], 'storeCode'))->toEqualCanonicalizing(['sa', 'ae'])
             ->and($props['stores'][0]['items'][0]['product']['id'])->toBe($product)
+            // The tiles' price and stars come from the shop's own card, for an item orderable now (flags-2026-11.md S2.2).
+            ->and(array_keys($props['stores'][0]['cards']))->toBe([$product])
+            ->and($props['stores'][0]['cards'][$product])->toHaveKeys(['price', 'rating', 'ratingCount', 'photo'])
             ->and(array_column($props['accountMenu']['pages'], 'key'))->toContain('feedback.reviews', 'feedback.questions', 'feedback.wishlist');
     });
 
@@ -253,6 +256,8 @@ describe('F8 · The account\'s pages', function () {
 
         expect($counts())->toBe($one)
             // The wishlist two more of its own since 2026-11-03 (catalog.md amendment 39): which of its items can be ordered now, a read per store, and who is looking, the customer read the frame shares.
-            ->and($one)->toBe([6, 4, 6]);
+            // The wishlist 4 more since 2026-11-19 (flags-2026-11.md S2.2, owner: "yes add them"): the shop's card read for
+            // its tiles' price and stars, once per store, the same for one row as for six.
+            ->and($one)->toBe([6, 4, 10]);
     });
 });

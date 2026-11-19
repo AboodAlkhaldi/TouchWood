@@ -180,25 +180,38 @@ function ProductCard({ card, test }: { card: ShopCardData; test: string }) {
                     {flags.length > 0 || off > 0 ? <span className="sr-only">{[...flags.map((flag) => flag.text), ...(off > 0 ? [t('catalog::shop.price.off', { percent: figure(locale, off) })] : [])].map((text) => `, ${text}`).join('')}</span> : null}
                 </Link>
                 <CardPriceLine card={card} />
-                {card.rating === null || card.ratingCount === 0 ? null : (
-                    <span className="inline-flex items-center gap-1.5" data-test="card-rating">
-                        <ShopStars rating={card.rating} className="size-3.5" label={t(`catalog::shop.card_rating.${new Intl.PluralRules(intlLocale(locale)).select(card.ratingCount)}`, { rating: new Intl.NumberFormat(intlLocale(locale), { maximumFractionDigits: 1 }).format(card.rating), count: figure(locale, card.ratingCount) })} />
-                        <span className="tw-figure text-copy-13 text-ink-muted" aria-hidden="true">
-                            ({figure(locale, card.ratingCount)})
-                        </span>
-                    </span>
-                )}
+                <CardRating card={card} />
                 <CardButton card={card} href={href} staffView={Boolean(staffView)} />
             </div>
         </article>
     );
 }
 
+/** The card's stars and count, when it has a review (feedback.md F7); the favourites' tiles show them too (flags S2.2). */
+export function CardRating({ card }: { card: ShopCardData }) {
+    const t = useTranslator();
+    const { locale } = usePage<SharedProps>().props;
+
+    if (card.rating === null || card.ratingCount === 0) {
+        return null;
+    }
+
+    return (
+        <span className="inline-flex items-center gap-1.5" data-test="card-rating">
+            <ShopStars rating={card.rating} className="size-3.5" label={t(`catalog::shop.card_rating.${new Intl.PluralRules(intlLocale(locale)).select(card.ratingCount)}`, { rating: new Intl.NumberFormat(intlLocale(locale), { maximumFractionDigits: 1 }).format(card.rating), count: figure(locale, card.ratingCount) })} />
+            <span className="tw-figure text-copy-13 text-ink-muted" aria-hidden="true">
+                ({figure(locale, card.ratingCount)})
+            </span>
+        </span>
+    );
+}
+
 /**
  * The price with its unit (shop-design.md §4.1, §4.2): 19 px; on a sale the price in red at 21 px, the old price under it,
- * readable, and «وفّر» what a piece saves. Then the wholesale line, always given its row so cards line up.
+ * readable, and «وفّر» what a piece saves. Then the wholesale line, always given its row so cards line up. The favourites'
+ * tiles show it too (flags-2026-11.md S2.2).
  */
-function CardPriceLine({ card }: { card: ShopCardData }) {
+export function CardPriceLine({ card }: { card: ShopCardData }) {
     const t = useTranslator();
     const price = card.price;
     const unit = t(`catalog::shop.unit.${card.unit}`);

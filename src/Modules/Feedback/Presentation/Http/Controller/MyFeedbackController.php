@@ -40,7 +40,8 @@ final readonly class MyFeedbackController
 
     public function wishlist(ViewMyWishlistHandler $view): Response
     {
-        return $this->page->render('Feedback/Storefront/MyWishlist', $this->pages->wishlist($view)->toArray(), self::WORDS);
+        // The shop card's words too: the tiles show its price and stars (flags-2026-11.md S2.2).
+        return $this->page->render('Feedback/Storefront/MyWishlist', $this->pages->wishlist($view)->toArray(), [...self::WORDS, 'catalog::shop']);
     }
 
     /** The cursor a page gave, as it gave it: at most 64 characters, else the first page. */

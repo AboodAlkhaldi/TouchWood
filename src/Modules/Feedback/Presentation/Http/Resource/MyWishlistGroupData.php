@@ -20,5 +20,7 @@ final class MyWishlistGroupData extends Data
         public string $name,
         public bool $isOpen,
         public array $items,
+        /** @var array<string, array<string, mixed>> product id => the shop's card for an item orderable now: its price and stars (flags-2026-11.md S2.2) */
+        public array $cards = [],
     ) {}
 }

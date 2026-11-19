@@ -41,6 +41,7 @@ storeCode: string,
 name: string,
 isOpen: boolean,
 items: WishlistItemData[],
+cards: Record<string, Record<string, any>>,
 };
 export type MyWishlistPage = {
 stores: MyWishlistGroupData[],

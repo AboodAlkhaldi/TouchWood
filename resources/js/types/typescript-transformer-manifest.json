@@ -12,7 +12,7 @@
     "generated\\Modules\\Catalog\\Public\\Enums\\index.ts": "c85c848d54a002be8ad8040a037341b4",
     "generated\\Modules\\Content\\Domain\\Model\\index.ts": "e2d203c1bfa2c01c116c14e3a657a959",
     "generated\\Modules\\Content\\Presentation\\Http\\Resource\\index.ts": "0e5fd5536803917409686e5b521ff75a",
-    "generated\\Modules\\Feedback\\Presentation\\Http\\Resource\\index.ts": "31b3b1cae7c8edcf7821a28239774317",
+    "generated\\Modules\\Feedback\\Presentation\\Http\\Resource\\index.ts": "d783bfb32a763f0de7f246772bb53b1d",
     "generated\\Modules\\Feedback\\Public\\Enums\\index.ts": "e27dac9cfd2e7a7a7f6ffb134df137a5",
     "generated\\Modules\\Inventory\\Domain\\ValueObject\\index.ts": "df510e4045627cfc48edfc41e2e98299",
     "generated\\Modules\\Inventory\\Presentation\\Http\\Resource\\index.ts": "1c344e82239c1cbb7632d84464e2bd1e",

@@ -117,8 +117,15 @@ it('writes a review, asks a question and saves the product, then shows it all in
     expect(browserUntil($page, "{$heart} === 'true'"))->toBeTrue()
         ->and(feedbackShopWide($page))->toBe('', 'the brand page scrolls sideways');
 
-    foreach (['/sa/en/account/reviews' => 'Solid and quiet.', '/sa/en/account/questions' => 'Does it fit a 60 cm cabinet?', '/sa/en/account/wishlist' => 'Remove'] as $uri => $text) {
-        $page->navigate($uri, BROWSER_PAGE_LOAD)->assertSee($text);
+    foreach (['/sa/en/account/reviews' => 'Solid and quiet.', '/sa/en/account/questions' => 'Does it fit a 60 cm cabinet?', '/sa/en/account/wishlist' => null] as $uri => $text) {
+        $page->navigate($uri, BROWSER_PAGE_LOAD);
+
+        // The wishlist is tiles now (flags-2026-11.md S2.2): Remove is an icon button named by its words.
+        if ($text === null) {
+            expect(browserSoon($page, "document.querySelector('[data-test=\"wishlist-item\"] [data-test=\"remove\"]')?.getAttribute('aria-label')?.startsWith('Remove') === true"))->toBeTrue();
+        } else {
+            $page->assertSee($text);
+        }
 
         expect(feedbackShopWide($page))->toBe('', "{$uri} scrolls sideways");
     }
