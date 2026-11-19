@@ -468,7 +468,7 @@ it('carries the logo and name: the store\'s, or TouchWood\'s own on every store\
         app(DeliverDailyReportHandler::class)->handle(new DeliverDailyReport((string) $report?->id));
     }
 
-    expect($emails->sent[0]->html)->toContain('icons/email-logo.png')->toContain('alt="Saudi Arabia"')->toContain('>Saudi Arabia</p>')
+    expect($emails->sent[0]->html)->toContain('icons/email-logo.png')->toContain('alt="Saudi Arabia"')->toContain('>Saudi Arabia</td>')
         ->and($emails->sent[0]->fromName)->toBe('Saudi Arabia')
         ->and($emails->sent[1]->html)->toContain('icons/email-logo.png')->toContain('alt="TouchWood"')
         ->and($emails->sent[1]->fromName)->toBe('TouchWood');

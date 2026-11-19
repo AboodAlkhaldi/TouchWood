@@ -573,6 +573,6 @@ describe('the emails\' frame (§1.1: the store\'s logo and name)', function () {
         app(NewsletterSignUps::class)->subscribe(newsletterStore(), 'en', 'guest@example.test');
         $email = CapturedEmails::installed()->last();
 
-        expect($email->html)->toContain('icons/email-logo.png')->toContain('alt="Saudi Arabia"')->toContain('>Saudi Arabia</p>');
+        expect($email->html)->toContain('icons/email-logo.png')->toContain('alt="Saudi Arabia"')->toContain('>Saudi Arabia</td>');
     });
 });

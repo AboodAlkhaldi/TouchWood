@@ -62,6 +62,11 @@ The **wording** of every kind is fixed in the language files, in Arabic and Engl
 spec (owner, round 1 #22) — no template editor. Emails carry the store's logo and name and are written in
 the recipient's language (round 1 #23): every email Ops sends, what staff wrote and the daily report's too
 (module pass, 2026-11-01); an all-stores report, TouchWood's own. Every number in Latin digits (owner, 2026-10-06).
+Every email uses one shared layout, `ops::mail.layout` (flags-2026-11.md S5): a navy band (#02365e) with the logo at
+40 px and the store's name in white, a 3 px copper line (#dca071), a white body (ink #0b2031, muted #53626b), the
+summary in a bordered box with the total in bold, the action as a navy button (the tracking link a second, outlined
+one) with its address written under it, and a cream footer (#f6efe8) with the store's name and "Sent by <store>";
+no contact lines and no dark version.
 
 ### 1.2 The inbox — the bell
 

@@ -311,7 +311,7 @@ describe('messages to customers (§1.5)', function () {
         $email = CapturedEmails::installed()->last();
         $bell = DB::table('ops.inbox_entries')->where('customer_id', $sara)->value('link');
 
-        expect($email->html)->toContain('<a href="'.e($link).'">'.$words.'</a>')->toContain('TRK123')
+        expect($email->html)->toContain('<a href="'.e($link).'"')->toContain('>'.$words.'</a>')->toContain('TRK123')
             ->and($email->text)->toContain($words.': '.$link)->toContain('TRK123')
             ->and($bell)->toBe('/sa/'.$locale.'/account/orders/SA-0007');
 
@@ -1207,7 +1207,7 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
             ->and($sms->sent[0]['message'])->not->toContain('/admin/')
             ->and($email->text)->toContain($words)
             // The Open button other staff alerts have, in the reader's language, to the alert's own store.
-            ->and($email->html)->toContain('<a href="'.e(config('app.url').'/admin/payments/gateway?store=sa').'">'.($locale === 'ar' ? 'عرض التفاصيل' : 'View details').'</a>')
+            ->and($email->html)->toContain('<a href="'.e(config('app.url').'/admin/payments/gateway?store=sa').'"')->toContain('>'.($locale === 'ar' ? 'عرض التفاصيل' : 'View details').'</a>')
             ->and($email->text)->toContain(config('app.url').'/admin/payments/gateway?store=sa')
             ->and($email->subject)->toContain($locale === 'ar' ? 'رُفض' : 'refused')
             // A key of the mode not in use stops nothing: no word says payments stopped.

@@ -341,7 +341,7 @@ it('carries the store\'s logo and name on a notice\'s email', function () {
 
     noticesCreate();
 
-    expect(CapturedEmails::installed()->last()->html)->toContain('icons/email-logo.png')->toContain('alt="Saudi Arabia"')->toContain('>Saudi Arabia</p>');
+    expect(CapturedEmails::installed()->last()->html)->toContain('icons/email-logo.png')->toContain('alt="Saudi Arabia"')->toContain('>Saudi Arabia</td>');
 });
 
 it('writes a batch\'s email jobs and the next batch into the jobs table inside its transaction: a rollback leaves neither, nor a row', function () {

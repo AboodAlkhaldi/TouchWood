@@ -51,7 +51,7 @@ final readonly class DailyReportEmailMailer implements DailyReportMailer
             toEmail: $to->email,
             toName: trim($to->firstName.' '.$to->lastName),
             subject: $subject,
-            html: $this->views->make('ops::daily-report-email', ['lines' => $lines, 'rtl' => $locale === 'ar', 'locale' => $locale, 'brand' => $brand, 'logo' => rtrim((string) $this->config->get('app.url'), '/').'/'.EventSender::LOGO])->render(),
+            html: $this->views->make('ops::daily-report-email', ['lines' => $lines, 'direction' => $locale === 'ar' ? 'rtl' : 'ltr', 'locale' => $locale, 'brand' => $brand, 'logo' => rtrim((string) $this->config->get('app.url'), '/').'/'.EventSender::LOGO])->render(),
             text: implode("\n\n", $lines),
             attachments: [new EmailAttachment('daily-report-'.($store === null ? 'all' : $store->code).'-'.$report->day.'.pdf', $pdf)],
         ));

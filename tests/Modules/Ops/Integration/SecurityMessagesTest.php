@@ -106,13 +106,13 @@ describe('links, by email', function () {
     ]);
 
     it('carries the logo on its cream tile, linked at its address on APP_URL (frontend.md §1.11)', function () {
-        config(['app.url' => 'https://shop.touchwood.test/']);
+        config(['app.url' => 'https://shop.touchwood.test/', 'mail.from.name' => 'TouchWood']);
         $staff = securityStaff('en');
         $emails = RecordingEmailSender::install();
 
         securityMessages()->staffInvitation($staff, 'https://example.test/admin/invitation/abc');
 
-        expect($emails->last()->html)->toContain('<img src="https://shop.touchwood.test/icons/email-logo.png" width="96" height="96" alt="TouchWood"')
+        expect($emails->last()->html)->toContain('<img src="https://shop.touchwood.test/icons/email-logo.png" width="40" height="40" alt="TouchWood"')
             // The file the address names is the site's own.
             ->and(is_file(public_path(OpsSecurityMessages::LOGO)))->toBeTrue();
     });
