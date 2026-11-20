@@ -91,19 +91,33 @@ function panelFrameThemeSaved(mixed $page, string $choice): bool
     return browserUntil($page, "document.querySelector('[data-test=\"theme-{$choice}\"]')?.dataset.state === 'on'");
 }
 
-it('stays light on a dark device once Light is chosen, and follows it again on System', function () {
-    $page = visit('/sa/en')->inDarkMode();
+/** Opens the shop's phone drawer at its Account tab, where a guest's theme switch is (flags-2026-11.md S1.3, F3). */
+function panelFrameDrawerTheme(mixed $page): void
+{
+    $page->click('[data-test="category-sheet-open"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"drawer-account\"]') !== null"))->toBeTrue();
+    $page->click('[data-test="drawer-account"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"drawer-theme\"] [data-test=\"theme-light\"]') !== null"))->toBeTrue();
+}
 
-    // The shop's one theme switch, in its footer.
-    $page->click('[data-test="theme-light"]');
+it('stays light on a dark device once Light is chosen, and follows it again on System', function () {
+    // The shop's theme switch left the footer (build 2, flags-2026-11.md S1.3): a guest has it in the phone's drawer;
+    // on a computer a guest follows the device.
+    $page = visit('/sa/en')->inDarkMode();
+    $page->resize(375, 812);
+    $page->navigate('/sa/en', BROWSER_PAGE_LOAD);
+
+    panelFrameDrawerTheme($page);
+    $page->click('[data-test="drawer-theme"] [data-test="theme-light"]');
     expect(panelFrameThemeSaved($page, 'light'))->toBeTrue();
-    $page->navigate('/sa/en');
+    $page->navigate('/sa/en', BROWSER_PAGE_LOAD);
 
     expect($page->script('document.documentElement.dataset.mode'))->toBe('light');
 
-    $page->click('[data-test="theme-system"]');
+    panelFrameDrawerTheme($page);
+    $page->click('[data-test="drawer-theme"] [data-test="theme-system"]');
     expect(panelFrameThemeSaved($page, 'system'))->toBeTrue();
-    $page->navigate('/sa/en');
+    $page->navigate('/sa/en', BROWSER_PAGE_LOAD);
 
     expect($page->script('document.documentElement.dataset.mode'))->toBe('dark');
 });
