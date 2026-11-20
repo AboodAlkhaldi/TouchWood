@@ -113,9 +113,11 @@ final readonly class AccountPages
 
     /**
      * **The tiles' price and stars** (flags-2026-11.md S2.2, owner 2026-11-18): the shop's own cards for the items the
-     * person can order now, in one read per store (`ShopProductCards::read`, at most 100 a call; measured 2026-11-18:
-     * one store 7 -> 8 queries). A card is the shop's, so the price is this person's own. An item that cannot be
-     * ordered now is left out by that read and keeps its plain tile.
+     * person can order now, in one read per store (`ShopProductCards::read`). The page's own queries, measured in
+     * ShopScreensTest: 6 -> 10 for one store (the card read's 4, signed in), 16 for two (owner, 2026-11-20: accepted,
+     * where 7 -> 8 had been estimated). The read takes at most 100 products a call, so more than 100 orderable saves in
+     * one store take a read per 100 (owner, 2026-11-20: accepted; a wishlist holds up to 500). A card is the shop's, so
+     * the price is this person's own. An item that cannot be ordered now is left out by that read and keeps its plain tile.
      *
      * @return array<string, array<string, mixed>> product id => its shop card
      */

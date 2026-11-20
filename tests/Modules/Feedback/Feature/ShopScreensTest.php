@@ -284,5 +284,12 @@ describe('F8 · The account\'s pages', function () {
             // The wishlist 4 more since 2026-11-19 (flags-2026-11.md S2.2, owner: "yes add them"): the shop's card read for
             // its tiles' price and stars, once per store, the same for one row as for six.
             ->and($one)->toBe([6, 4, 10]);
+
+        // A second store's saves: that store's reads again, 6 more of the page's own, the shop card read's among them
+        // (owner, 2026-11-20: the tiles' per-store cost is accepted; measured 2026-11-20, recorded here).
+        ['product' => $abroad] = Fb::sold(['ae']);
+        DB::table('feedback.wishlist_items')->insert(['customer_id' => $sara, 'product_id' => $abroad, 'store_id' => Fx::storeId('ae'), 'saved_at' => CarbonImmutable::now()]);
+
+        expect(shopScreensOwnQueries($browser, '/sa/en/account/wishlist'))->toBe(16);
     });
 });
