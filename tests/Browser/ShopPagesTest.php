@@ -27,6 +27,8 @@ use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReady;
 use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReadyHandler;
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGallery;
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGalleryHandler;
+use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariant;
+use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariantHandler;
 use Modules\Catalog\Public\Contracts\ListingFacts;
 use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Inventory\Public\Dto\HoldLineDto;
@@ -272,4 +274,85 @@ it('reads right to left in Arabic, at a phone\'s width, the menu in its Sheet, n
     }
 
     $page->assertNoJavaScriptErrors();
+});
+
+it('draws the specifications as the design: one box with the tabs inside, rows that wrap, measures in mono (flags-2026-11.md S2.1, F7)', function () {
+    ['n' => $n, 'product' => $product] = shopBrowserProduct();
+    $long = 'A long finish description that has to wrap onto a second line inside the value column, never cut and never pushing the page wider, '.$n;
+
+    Fx::asSystem(function () use ($n, $product, $long): void {
+        $finish = app(AddAttributeHandler::class)->handle(new AddAttribute("لمسة {$n}", "Finish note {$n}", 'INFORMATIONAL'));
+        // A measure: a number kept with its attribute's unit (F7: mono, left to right).
+        $load = app(AddAttributeHandler::class)->handle(new AddAttribute("حمل {$n}", "Load {$n}", 'INFORMATIONAL', 'كجم', 'kg'));
+        // A number typed as text is not a measure (owner, 2026-11-20): the page's face, the page's direction.
+        $pieces = app(AddAttributeHandler::class)->handle(new AddAttribute("عدد {$n}", "Pieces {$n}", 'INFORMATIONAL'));
+        $variants = DB::table('catalog.variants')->where('product_id', $product)->orderBy('position')->get(['id', 'code']);
+
+        foreach ($variants as $variant) {
+            $values = DB::table('catalog.variant_values')->where('variant_id', $variant->id)->pluck('value_id', 'attribute_id')->all();
+            app(UpdateVariantHandler::class)->handle(new UpdateVariant(
+                (string) $variant->id,
+                (string) $variant->code,
+                $values,
+                [$finish => ['text_ar' => $long, 'text_en' => $long], $load => ['number' => '35'], $pieces => ['text_ar' => '50 حبة', 'text_en' => '50 pcs']],
+                weightGrams: 1450,
+                lengthMm: 350,
+                widthMm: 450,
+                heightMm: 20,
+            ));
+        }
+    });
+
+    $page = visit('/sa/en/products/'.shopBrowserSlug('product', $product));
+    $page->resize(1440, 900);
+
+    $box = "document.querySelector('[data-test=\"product-tabs\"]')";
+    expect(browserUntil($page, "{$box} !== null"))->toBeTrue();
+
+    $page->click('[data-test="tab-specs"]');
+
+    // Each row's value by its text, as [is it the mono face, its own direction] (a measure says ltr).
+    $value = static fn (string $text): string => "(() => { const dd = [...{$box}.querySelectorAll('[data-test=\"detail-row\"] dd')].find((d) => d.textContent === '{$text}'); return dd ? [getComputedStyle(dd).fontFamily.includes('Plex Mono'), dd.dir] : null; })()";
+    // The brand token's colour, as the browser computes it in the theme shown.
+    $brand = "(() => { const i = document.createElement('i'); i.style.color = 'var(--tw-brand)'; document.body.append(i); const c = getComputedStyle(i).color; i.remove(); return c; })()";
+
+    expect(browserUntil($page, "{$box}.querySelectorAll('[data-test=\"detail-row\"]').length === 5"))->toBeTrue()
+        ->and($page->script("getComputedStyle({$box}).borderTopWidth"))->toBe('1px')
+        ->and($page->script("getComputedStyle({$box}).borderTopLeftRadius"))->toBe('12px')
+        // The tabs are the box's strip: each tab inside the strip's height, the strip's line under it (the strip once
+        // stayed 36 px tall while a tab was 52, so the tabs spilled out of it - the review of 3a).
+        ->and($page->script("(() => { const list = {$box}.querySelector('[role=\"tablist\"]').getBoundingClientRect(); const tab = document.querySelector('[data-test=\"tab-specs\"]').getBoundingClientRect(); return tab.top >= list.top - 0.5 && list.bottom - tab.bottom >= 0 && list.bottom - tab.bottom <= 1.5; })()"))->toBeTrue('a tab spills out of the strip')
+        // A screen reader keeps each label with its value: a description list.
+        ->and($page->script("{$box}.querySelector('[data-test=\"details\"]').tagName + ' ' + {$box}.querySelector('[data-test=\"detail-row\"]').firstElementChild.tagName"))->toBe('DL DT')
+        // A long value wraps: its row is taller than a one-line row.
+        ->and($page->script("(() => { const h = [...{$box}.querySelectorAll('[data-test=\"detail-row\"]')].map((row) => row.getBoundingClientRect().height); return Math.max(...h) > Math.min(...h) + 15; })()"))->toBeTrue()
+        // Only measures in the mono face, left to right: the number kept with its unit and the weight; not a number
+        // typed as text, nor plain text.
+        ->and($page->script($value('35 kg')))->toBe([true, 'ltr'])
+        ->and($page->script($value('1450 g')))->toBe([true, 'ltr'])
+        ->and($page->script($value('50 pcs')))->toBe([false, ''])
+        ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue()
+        // The active tab: a 2 px underline in the brand's colour (waited for, as it fades in).
+        ->and(browserSoon($page, "(() => { const line = getComputedStyle(document.querySelector('[data-test=\"tab-specs\"]'), '::after'); return line.height === '2px' && line.opacity === '1' && line.backgroundColor === {$brand}; })()"))->toBeTrue('the active tab has no 2 px brand underline');
+
+    // Arabic: right to left; a measure still reads left to right, a number typed as text reads with the page.
+    $page->navigate('/sa/ar/products/'.shopBrowserSlug('product', $product, 'ar'), BROWSER_PAGE_LOAD);
+    expect(browserUntil($page, "document.documentElement.dir === 'rtl' && document.querySelector('[data-test=\"tab-specs\"]') !== null"))->toBeTrue();
+    $page->click('[data-test="tab-specs"]');
+    expect(browserUntil($page, "{$box}.querySelectorAll('[data-test=\"detail-row\"]').length === 5"))->toBeTrue()
+        ->and($page->script('(() => { const d = '.$value('35 كجم').'; return d && d[1]; })()'))->toBe('ltr')
+        ->and($page->script('(() => { const d = '.$value('50 حبة').'; return d && d[1]; })()'))->toBe('')
+        ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+
+    // A phone keeps its folds, the tabs hidden, with nothing sideways.
+    $page->resize(375, 812);
+    expect(browserSoon($page, "getComputedStyle(document.querySelector('[data-test=\"product-folds\"]')).display !== 'none' && getComputedStyle({$box}).display === 'none' && document.documentElement.scrollWidth <= window.innerWidth"))->toBeTrue();
+    $page->assertNoJavaScriptErrors();
+
+    // Dark mode: the active tab's words and its underline are the brand's colour there too.
+    $dark = visit('/sa/en/products/'.shopBrowserSlug('product', $product))->inDarkMode();
+    $dark->resize(1440, 900);
+    expect(browserUntil($dark, "document.documentElement.dataset.mode === 'dark' && {$box} !== null"))->toBeTrue();
+    $dark->click('[data-test="tab-specs"]');
+    expect(browserSoon($dark, "(() => { const tab = document.querySelector('[data-test=\"tab-specs\"]'); const line = getComputedStyle(tab, '::after'); return getComputedStyle(tab).color === {$brand} && line.opacity === '1' && line.backgroundColor === {$brand}; })()"))->toBeTrue('the active tab is not brand in dark mode');
 });

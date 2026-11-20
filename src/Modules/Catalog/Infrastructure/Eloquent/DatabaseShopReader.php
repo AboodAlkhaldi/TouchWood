@@ -525,7 +525,7 @@ final readonly class DatabaseShopReader implements ShopReader
 
         foreach ($rows as $row) {
             $value = $row->text !== null ? (string) $row->text : self::number((string) $row->number).($row->unit === null ? '' : ' '.$row->unit);
-            $details[(string) $row->variant_id][] = new VariantDetail((string) $row->name, $value);
+            $details[(string) $row->variant_id][] = new VariantDetail((string) $row->name, $value, $row->text === null && $row->unit !== null);
         }
 
         return array_values(array_map(static fn (stdClass $row): ShopVariant => new ShopVariant(

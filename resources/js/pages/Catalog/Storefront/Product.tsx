@@ -14,7 +14,6 @@ import { percentOff } from '@/components/shop/ShopPrice';
 import { ShopTrail } from '@/components/shop/ShopTrail';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StorefrontLayout } from '@/layouts/StorefrontLayout';
 import { moneyAs } from '@/lib/money';
@@ -235,16 +234,24 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
                 </div>
 
                 {/* Tabs from a tablet up; on a phone the same parts fold open (shop-design.md §6.5, §6.6). */}
-                <Tabs value={shownTab} onValueChange={setTab} className="hidden gap-4 md:flex" data-test="product-tabs">
-                    <TabsList className="h-11 w-fit">
+                {/* One box, the tabs as its strip and the part under it (flags-2026-11.md S2.1, the design's spec box). */}
+                <Tabs value={shownTab} onValueChange={setTab} className="hidden gap-0 overflow-hidden rounded-[12px] border border-line md:flex" data-test="product-tabs">
+                    {/* The strip's height under shadcn's own modifier, so it replaces its 36 px; each tab 15 x 20 px inside
+                        shadcn's 1 px border, the active one brand in both themes, its 2 px underline on the strip's line. */}
+                    <TabsList variant="line" className="w-full justify-start gap-0 rounded-none border-b border-line bg-surface-raised p-0 group-data-[orientation=horizontal]/tabs:h-auto">
                         {parts.map((part) => (
-                            <TabsTrigger key={part.key} value={part.key} className="px-4" data-test={`tab-${part.key}`}>
+                            <TabsTrigger
+                                key={part.key}
+                                value={part.key}
+                                className="h-auto flex-none rounded-none px-[19px] py-[14px] text-[13.5px] font-normal text-ink-muted hover:text-ink data-[state=active]:font-medium data-[state=active]:text-brand dark:data-[state=active]:text-brand group-data-[orientation=horizontal]/tabs:after:bottom-[-1px] group-data-[variant=line]/tabs-list:data-[state=active]:after:bg-brand"
+                                data-test={`tab-${part.key}`}
+                            >
                                 {part.title}
                             </TabsTrigger>
                         ))}
                     </TabsList>
                     {parts.map((part) => (
-                        <TabsContent key={part.key} value={part.key} className="pt-2">
+                        <TabsContent key={part.key} value={part.key} className={part.key === 'specs' ? 'm-0' : 'p-5'}>
                             {part.body}
                         </TabsContent>
                     ))}
@@ -421,32 +428,46 @@ function hasDetails(variant: ShopVariantData): boolean {
     return variant.details.length > 0 || variant.weightGrams !== null || (variant.lengthMm !== null && variant.widthMm !== null && variant.heightMm !== null);
 }
 
-/** The chosen variant's details, weight and size, in a table. */
+/**
+ * The chosen variant's details, weight and size: label and value rows, the values wrapping (flags-2026-11.md S2.1). A
+ * measure - a detail kept as a number with its unit (Catalog says so), the weight and the size - is drawn in the mono
+ * face, left to right as a price is (F7; owner, 2026-11-20); typed text in the page's face. A description list, so a
+ * screen reader keeps each label with its value, as the shop's other label and value rows (Sales' Return page).
+ */
 function Details({ variant }: { variant: ShopVariantData }) {
     const t = useTranslator();
-    const rows: [string, string][] = variant.details.map((detail) => [detail.name, detail.value]);
+    const rows: [string, string, boolean][] = variant.details.map((detail) => [detail.name, detail.value, detail.measure]);
 
     if (variant.weightGrams !== null) {
-        rows.push([t('catalog::shop.product.weight'), t('catalog::shop.product.grams', { value: variant.weightGrams })]);
+        rows.push([t('catalog::shop.product.weight'), t('catalog::shop.product.grams', { value: variant.weightGrams }), true]);
     }
 
     if (variant.lengthMm !== null && variant.widthMm !== null && variant.heightMm !== null) {
-        rows.push([t('catalog::shop.product.size'), t('catalog::shop.product.size_value', { length: variant.lengthMm, width: variant.widthMm, height: variant.heightMm })]);
+        rows.push([t('catalog::shop.product.size'), t('catalog::shop.product.size_value', { length: variant.lengthMm, width: variant.widthMm, height: variant.heightMm }), true]);
     }
 
     return (
-        <section className="grid max-w-3xl gap-2" data-test="details">
-            <Table>
-                <TableBody>
-                    {rows.map(([label, value]) => (
-                        <TableRow key={label}>
-                            <TableHead className="w-1/3 text-ink-muted">{label}</TableHead>
-                            <TableCell className="tw-figure text-ink">{value}</TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-        </section>
+        <dl data-test="details">
+            {rows.map(([label, value, measure], index) => (
+                <div
+                    key={`${index}-${label}`}
+                    // The design's light line between rows, lighter than `line`: no such token exists, so the line at half strength
+                    // (the builder's pick, 2026-11-20), which follows the theme in dark mode too.
+                    className="grid grid-cols-[minmax(92px,.62fr)_minmax(0,1fr)] items-baseline gap-[18px] border-b border-line/50 px-5 py-[13px] last:border-b-0 max-md:px-0"
+                    data-test="detail-row"
+                >
+                    <dt className="text-[13px] leading-[1.6] text-ink-muted">{label}</dt>
+                    {/* A long word with no break (a code, a link) wraps rather than being cut off by the box. */}
+                    {measure ? (
+                        <dd dir="ltr" className="tw-figure min-w-0 text-start text-[13.5px] leading-[1.6] break-words text-ink [unicode-bidi:isolate]">
+                            {value}
+                        </dd>
+                    ) : (
+                        <dd className="min-w-0 text-[13.5px] leading-[1.6] break-words text-ink">{value}</dd>
+                    )}
+                </div>
+            ))}
+        </dl>
     );
 }
 

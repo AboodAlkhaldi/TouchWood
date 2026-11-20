@@ -416,7 +416,7 @@ final readonly class ShopPages
             $variant->sellsWholesale,
             $variant->lastPieces,
             $variant->photos,
-            array_map(static fn (VariantDetail $detail): ShopDetailData => new ShopDetailData($detail->name, $detail->value), $variant->details),
+            array_map(static fn (VariantDetail $detail): ShopDetailData => new ShopDetailData($detail->name, $detail->value, $detail->measure), $variant->details),
             $variant->weightGrams,
             $variant->lengthMm,
             $variant->widthMm,

@@ -430,6 +430,7 @@ onSale: boolean,
 export type ShopDetailData = {
 name: string,
 value: string,
+measure: boolean,
 };
 export type ShopFilterChoiceData = {
 id: string,
