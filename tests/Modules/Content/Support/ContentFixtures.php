@@ -12,10 +12,13 @@ use Modules\Content\Application\Command\SaveBanner\SaveBanner;
 use Modules\Content\Application\Command\SaveBanner\SaveBannerHandler;
 use Modules\Content\Application\Command\SavePage\SavePage;
 use Modules\Content\Application\Command\SavePage\SavePageHandler;
+use Modules\Content\Application\Command\SavePolicy\SavePolicy;
+use Modules\Content\Application\Command\SavePolicy\SavePolicyHandler;
 use Modules\Content\Application\Command\SavePopup\SavePopup;
 use Modules\Content\Application\Command\SavePopup\SavePopupHandler;
 use Modules\Content\Application\Documents\DocumentInput;
 use Modules\Content\Application\Moments;
+use Modules\Content\Application\Policies\PolicyInput;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
@@ -115,6 +118,29 @@ final class ContentFixtures
             'titleEn' => "Page {$n}",
             'bodyAr' => 'نص الصفحة',
             'bodyEn' => 'The page text',
+            ...$with,
+        ])));
+    }
+
+    /**
+     * A draft policy through its use case, as its editor (build 4): Terms and Conditions in the store, both languages.
+     *
+     * @param  array<string, mixed>  $with  PolicyInput's arguments to change
+     * @param  list<string>  $codes  the stores it serves, by code
+     */
+    public static function policy(array $with = [], array $codes = ['sa']): string
+    {
+        $n = self::next();
+
+        return app(SavePolicyHandler::class)->handle(new SavePolicy(new PolicyInput(...[
+            'id' => null,
+            'kind' => 'TERMS',
+            'storeIds' => array_map(static fn (string $code): string => Fx::storeId($code), $codes),
+            'version' => 0,
+            'titleAr' => "سياسة {$n}",
+            'titleEn' => "Policy {$n}",
+            'bodyAr' => 'نص السياسة',
+            'bodyEn' => 'The policy text',
             ...$with,
         ])));
     }

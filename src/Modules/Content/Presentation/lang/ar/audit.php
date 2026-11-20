@@ -77,4 +77,12 @@ return [
     'theme.deleted' => 'حُذف مظهر',
     'theme.dates_from_campaign' => 'أخذ مظهر تواريخ حملته',
     'theme.image_detached' => 'أُزيلت صورة من مظهر',
+    // البناء 4: السياسات (flags-2026-11.md S3).
+    'policy.created' => 'أُنشئت سياسة',
+    'policy.changed' => 'عُدّلت سياسة',
+    'policy.published' => 'نُشرت سياسة',
+    'policy.unpublished' => 'أُلغي نشر سياسة',
+    'policy.split' => 'قُسمت سياسة: أُعطيت بعض متاجرها نسخة خاصة بها',
+    'policy.deleted' => 'حُذفت سياسة',
+    'policy.image_detached' => 'أُزيلت صورة من سياسة',
 ];

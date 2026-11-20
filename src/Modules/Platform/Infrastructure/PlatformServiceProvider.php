@@ -33,6 +33,7 @@ use Modules\Platform\Application\Media\MediaVariantsQueue;
 use Modules\Platform\Application\Menu\InMemoryAdminMenu;
 use Modules\Platform\Application\Places\InMemoryShipToCountryGuards;
 use Modules\Platform\Application\PlatformApiImpl;
+use Modules\Platform\Application\Policies\NoShopPolicies;
 use Modules\Platform\Application\Query\AuthorizedStoreChoices;
 use Modules\Platform\Application\Query\ListAudit\AuditReader;
 use Modules\Platform\Application\Query\MediaReader;
@@ -104,6 +105,7 @@ use Modules\Platform\Public\Contracts\SettingsSectionLines;
 use Modules\Platform\Public\Contracts\ShipToCountryGuards;
 use Modules\Platform\Public\Contracts\ShopFrameParts;
 use Modules\Platform\Public\Contracts\ShopperType;
+use Modules\Platform\Public\Contracts\ShopPolicies;
 use Modules\Platform\Public\Contracts\StaffNames;
 use Modules\Platform\Public\Contracts\StoreChoices;
 use Modules\Platform\Public\Contracts\TextTranslator;
@@ -245,6 +247,8 @@ final class PlatformServiceProvider extends ServiceProvider
         // Nobody named until the module that owns people binds its own (Access does, amendment 54).
         // Scoped: who may be named depends on who is reading.
         $this->app->scoped(StaffNames::class, UnnamedStaff::class);
+        // No store has policies until the module that keeps them binds its own (Content does, flags-2026-11.md S3).
+        $this->app->scoped(ShopPolicies::class, NoShopPolicies::class);
         // Everyone a guest until the module that owns customers binds its own (Access does, catalog.md
         // amendment 14(a)). Scoped: who is looking is this request's.
         $this->app->scoped(ShopperType::class, GuestShoppers::class);

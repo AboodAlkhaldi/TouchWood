@@ -34,9 +34,12 @@ use stdClass;
  * | a page's, post's or project's share image, cover, photo or body image | it is published |
  * | a store's SEO defaults' share image (PR 4) | always: the defaults are live once saved |
  * | a theme's artwork (PR 6) | it is scheduled and has not ended in all its stores |
+ * | a policy's share image or body image (build 4) | it is published |
+ * | an image a policy's published version keeps (build 4) | always: it is the text a customer accepted (F14) |
  *
- * Detaching changes the item, so it takes the item's own permission in the item's store, as editing it would, writes
- * a new version (so an open form is told), is audited, and replaces the shop's cached copy.
+ * Detaching changes the item, so it takes the item's own permission in the item's store - a policy's in every store it
+ * serves - as editing it would, writes a new version (so an open form is told), is audited, and replaces the shop's
+ * cached copy.
  */
 final readonly class ContentMediaUsage implements MediaUsage
 {
@@ -73,7 +76,9 @@ final readonly class ContentMediaUsage implements MediaUsage
         }
 
         foreach ($uses as $use) {
-            $this->authorizer->authorize($use['permission'], PermissionScope::store(StoreId::fromString($use['store'])));
+            foreach ($use['stores'] as $store) {
+                $this->authorizer->authorize($use['permission'], PermissionScope::store(StoreId::fromString($store)));
+            }
         }
 
         $actor = $this->actors->current();
@@ -94,6 +99,7 @@ final readonly class ContentMediaUsage implements MediaUsage
                 'content.banner' => $this->db->table('content.banner_images')->where('banner_id', $use['id'])->where('media_id', $mediaId)->delete(),
                 'content.popup' => $this->db->table('content.popups')->where('id', $use['id'])->update(['media_id' => null]),
                 'content.theme' => $this->db->table('content.theme_part_images')->where('theme_id', $use['id'])->where('media_id', $mediaId)->delete(),
+                'content.policy' => $this->detachFromPolicy($use['id'], $mediaId),
                 default => $this->detachFromDocument($use['subject'], $use['id'], $mediaId),
             };
 
@@ -102,6 +108,7 @@ final readonly class ContentMediaUsage implements MediaUsage
                 'content.banner' => 'content.banners',
                 'content.popup' => 'content.popups',
                 'content.theme' => 'content.themes',
+                'content.policy' => 'content.policies',
                 default => self::DOCUMENTS[substr($use['subject'], strlen('content.'))][0],
             };
 
@@ -117,7 +124,7 @@ final readonly class ContentMediaUsage implements MediaUsage
     /**
      * Every use of the file, each with its store, its permission and whether it blocks the delete.
      *
-     * @return list<array{subject: string, id: string, store: string, permission: string, blocks: bool}>
+     * @return list<array{subject: string, id: string, store: string, stores: list<string>, permission: string, blocks: bool}>
      */
     private function uses(string $mediaId): array
     {
@@ -141,10 +148,11 @@ final readonly class ContentMediaUsage implements MediaUsage
         /** @var list<stdClass> $rows */
         $rows = $this->db->select(implode(' UNION ALL ', $sql).' ORDER BY 1, 2', $bindings);
 
-        return array_map(static fn (stdClass $row): array => [
+        $uses = array_map(static fn (stdClass $row): array => [
             'subject' => (string) $row->subject,
             'id' => (string) $row->id,
             'store' => (string) $row->store_id,
+            'stores' => [(string) $row->store_id],
             'permission' => match ((string) $row->subject) {
                 'content.home_section' => ContentPermissions::HOMEPAGE_MANAGE,
                 'content.banner' => ContentPermissions::BANNER_MANAGE,
@@ -155,6 +163,73 @@ final readonly class ContentMediaUsage implements MediaUsage
             },
             'blocks' => (bool) $row->blocks,
         ], $rows);
+
+        return [...$uses, ...$this->policyUses($mediaId)];
+    }
+
+    /**
+     * A policy's uses of the file (build 4), through the query builder: its share images and body images block while it
+     * is published, and an image a version keeps always blocks. Filed under its first store; detached only with the policy's job in
+     * every store it serves.
+     *
+     * @return list<array{subject: string, id: string, store: string, stores: list<string>, permission: string, blocks: bool}>
+     */
+    private function policyUses(string $mediaId): array
+    {
+        $blocks = [];
+
+        $named = $this->db->table('content.policies')
+            ->where(fn ($query) => $query->where('share_media_ar', $mediaId)->orWhere('share_media_en', $mediaId))
+            ->orWhereIn('id', $this->db->table('content.policy_images')->select('policy_id')->where('media_id', $mediaId))
+            ->get(['id', 'status']);
+
+        foreach ($named as $row) {
+            /** @var stdClass $row */
+            $blocks[(string) $row->id] = (string) $row->status === 'PUBLISHED';
+        }
+
+        foreach ($this->db->table('content.policy_version_images')->where('media_id', $mediaId)->distinct()->pluck('policy_id') as $id) {
+            $blocks[(string) $id] = true;
+        }
+
+        ksort($blocks);
+        $uses = [];
+
+        foreach ($blocks as $id => $blocking) {
+            $stores = array_values(array_map(static fn (mixed $store): string => (string) $store, $this->db->table('content.policy_stores')->where('policy_id', $id)->orderBy('store_id')->pluck('store_id')->all()));
+
+            if ($stores !== []) {
+                $uses[] = ['subject' => 'content.policy', 'id' => (string) $id, 'store' => $stores[0], 'stores' => $stores, 'permission' => ContentPermissions::POLICY_MANAGE, 'blocks' => $blocking];
+            }
+        }
+
+        return $uses;
+    }
+
+    /**
+     * Takes the file out of a draft policy: its share images, and each body image row with its block. A version's images
+     * never come here: they block.
+     */
+    private function detachFromPolicy(string $id, string $mediaId): void
+    {
+        foreach (['share_media_ar', 'share_media_en'] as $column) {
+            $this->db->table('content.policies')->where('id', $id)->where($column, $mediaId)->update([$column => null]);
+        }
+
+        foreach ($this->db->table('content.policy_images')->where('policy_id', $id)->where('media_id', $mediaId)->get(['locale', 'ref']) as $ref) {
+            /** @var stdClass $ref */
+            $locale = (string) $ref->locale;
+            $body = $this->db->table('content.policy_translations')->where('policy_id', $id)->where('locale', $locale)->value('body');
+
+            if ($body !== null) {
+                // The image's block goes with it (§1.1 rule 10), and the text is checked again as it is kept.
+                $document = RichText::fromJson("body_{$locale}", (string) $body)->toArray();
+                $document['blocks'] = array_values(array_filter($document['blocks'], static fn (array $block): bool => ! (($block['type'] ?? null) === 'image' && ($block['ref'] ?? null) === (int) $ref->ref)));
+                $this->db->table('content.policy_translations')->where('policy_id', $id)->where('locale', $locale)->update(['body' => RichText::of("body_{$locale}", $document)->toJson()]);
+            }
+
+            $this->db->table('content.policy_images')->where('policy_id', $id)->where('locale', $locale)->where('ref', (int) $ref->ref)->delete();
+        }
     }
 
     /** Takes the file out of a draft page, post or project: its share images, cover, photos, and body images with their blocks. */

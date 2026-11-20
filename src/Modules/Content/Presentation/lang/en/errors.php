@@ -50,6 +50,7 @@ return [
             'state' => 'This can\'t be done now: the item has moved on.',
             'title_pattern' => 'The :attribute holds :title, where a page\'s own title goes.',
             'robots_path' => 'Each line is a path of the shop without its store and language, such as /brands/old, of :max characters at most.',
+            'kind_fixed' => 'A policy\'s kind is fixed once it is made. Make a new policy for another kind.',
             // The same refusals, on the line of the typed text they are on (§1.2).
             'too_long_line' => 'Line :line: the :attribute holds more than :max characters.',
             'required_line' => 'Line :line: type the :attribute.',
@@ -118,6 +119,15 @@ return [
     'category_not_empty' => [
         'title' => 'Category in use',
         'detail' => 'This category holds posts. Move them to another category first.',
+    ],
+    'policy_kind_taken' => [
+        'title' => 'Policy published there already',
+        // The spec's own sentence (flags-2026-11.md S3.1), exactly: a save that adds a store raises it too (owner, 2026-11-20).
+        'detail' => ':store already has a published :kind: :title.',
+    ],
+    'policy_not_deletable' => [
+        'title' => 'Can\'t delete a published policy',
+        'detail' => 'Couldn\'t delete: this policy has been published, and every version a customer may have accepted is kept. Unpublish it to take it off the shop.',
     ],
     'not_deletable' => [
         'title' => 'Can\'t delete this',

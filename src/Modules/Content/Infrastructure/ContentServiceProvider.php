@@ -33,6 +33,7 @@ use Modules\Content\Domain\Repository\ContentLocks;
 use Modules\Content\Domain\Repository\Documents;
 use Modules\Content\Domain\Repository\FrameItems;
 use Modules\Content\Domain\Repository\HomeSections;
+use Modules\Content\Domain\Repository\Policies;
 use Modules\Content\Domain\Repository\Popups;
 use Modules\Content\Domain\Repository\Redirects;
 use Modules\Content\Domain\Repository\RedirectUploads;
@@ -51,6 +52,7 @@ use Modules\Content\Infrastructure\Eloquent\DatabaseContentLocks;
 use Modules\Content\Infrastructure\Eloquent\DatabaseDocuments;
 use Modules\Content\Infrastructure\Eloquent\DatabaseFrameItems;
 use Modules\Content\Infrastructure\Eloquent\DatabaseHomeSections;
+use Modules\Content\Infrastructure\Eloquent\DatabasePolicies;
 use Modules\Content\Infrastructure\Eloquent\DatabasePopups;
 use Modules\Content\Infrastructure\Eloquent\DatabaseRedirects;
 use Modules\Content\Infrastructure\Eloquent\DatabaseRedirectUploads;
@@ -151,6 +153,9 @@ final class ContentServiceProvider extends ServiceProvider
 
         // PR 7b: Translate's mark kept until read (content.md §1.3, P14).
         $this->app->bind(UnreadTranslations::class, DatabaseUnreadTranslations::class);
+
+        // Build 4: policies, each serving a list of stores (flags-2026-11.md S3).
+        $this->app->bind(Policies::class, DatabasePolicies::class);
     }
 
     public function boot(): void

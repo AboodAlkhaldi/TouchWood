@@ -28,6 +28,9 @@ interface UnreadTranslations
     /** A theme's name and parts' words (PR 8): its row names the theme's first store, in store-id order. */
     public const string THEME = 'THEME';
 
+    /** A policy's words (build 4): its row names the policy's first store, in store-id order. */
+    public const string POLICY = 'POLICY';
+
     public function has(string $kind, string $itemId): bool;
 
     /**

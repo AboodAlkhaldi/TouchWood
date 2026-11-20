@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-// The names of Content's permissions (ContentPermissions): the nine jobs the role editor shows under
+// The names of Content's permissions (ContentPermissions): the ten jobs the role editor shows under
 // Content, the Super Admin's two, and the system's three.
 return [
     'homepage' => [
@@ -31,6 +31,9 @@ return [
     ],
     'seo' => [
         'manage' => 'Manage the store\'s SEO and sitemap',
+    ],
+    'policy' => [
+        'manage' => 'Manage the store\'s policies',
     ],
     'theme' => [
         'manage' => 'Manage the themes',

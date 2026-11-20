@@ -32,6 +32,36 @@ final readonly class DatabaseSlugHistory implements SlugHistory
         );
     }
 
+    public function claim(string $storeId, string $kind, string $itemId, string $locale, string $slug): void
+    {
+        $row = ['store_id' => strtolower($storeId), 'kind' => $kind, 'locale' => $locale, 'slug' => $slug, 'item_id' => strtolower($itemId)];
+
+        // Its own already: kept as it is. Anyone else's: the insert meets slug_history_unique.
+        if ($this->db->table('content.slug_history')->where($row)->exists()) {
+            return;
+        }
+
+        $this->db->table('content.slug_history')->insert([...$row, 'id' => strtolower((string) Str::ulid()), 'created_at' => Rows::at(CarbonImmutable::now()->toDateTimeImmutable())]);
+    }
+
+    public function handOver(string $kind, string $fromItemId, string $toItemId, array $storeIds): void
+    {
+        if ($storeIds === []) {
+            return;
+        }
+
+        $this->db->table('content.slug_history')->where('kind', $kind)->where('item_id', strtolower($fromItemId))->whereIn('store_id', array_map(strtolower(...), $storeIds))->update(['item_id' => strtolower($toItemId)]);
+    }
+
+    public function forgetIn(string $kind, string $itemId, array $storeIds): void
+    {
+        if ($storeIds === []) {
+            return;
+        }
+
+        $this->db->table('content.slug_history')->where('kind', $kind)->where('item_id', strtolower($itemId))->whereIn('store_id', array_map(strtolower(...), $storeIds))->delete();
+    }
+
     public function forget(string $kind, string $itemId): void
     {
         $this->db->table('content.slug_history')->where('kind', $kind)->where('item_id', strtolower($itemId))->delete();

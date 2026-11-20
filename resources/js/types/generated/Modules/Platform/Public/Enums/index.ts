@@ -4,6 +4,7 @@ export type MediaSize = 'THUMB' | 'CARD' | 'DETAIL' | 'ZOOM';
 export type MediaVariantsStatus = 'PENDING' | 'READY' | 'FAILED';
 export type MediaVisibility = 'PUBLIC' | 'PRIVATE';
 export type PlaceKind = 'REGION' | 'CITY' | 'DISTRICT';
+export type PolicyKind = 'TERMS' | 'PRIVACY' | 'RETURNS' | 'SHIPPING' | 'WARRANTY' | 'PAYMENT_METHODS' | 'COMPLAINTS' | 'COMPANY_TERMS' | 'OTHER';
 export type SettingScope = 'GLOBAL' | 'STORE';
 export type SettingType = 'INTEGER' | 'BOOLEAN' | 'TEXT' | 'LIST';
 export type ShopperKind = 'GUEST' | 'INDIVIDUAL' | 'COMPANY';

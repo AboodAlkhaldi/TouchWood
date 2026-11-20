@@ -47,6 +47,11 @@ final class ForeignKeyRefusals
         'crt_brand' => ['targets', InvalidContentInput::BRAND],
         'tpi_media' => ['images', InvalidContentInput::IMAGE_FILE],
         'smart_bars_run' => ['run', InvalidContentInput::RUN],
+        // Build 4: policies' share images and body images, and the images a published version keeps.
+        'policies_share_ar' => ['share_image_ar', InvalidContentInput::IMAGE_FILE],
+        'policies_share_en' => ['share_image_en', InvalidContentInput::IMAGE_FILE],
+        'poli_media' => ['images', InvalidContentInput::IMAGE_FILE],
+        'polvi_media' => ['images', InvalidContentInput::IMAGE_FILE],
     ];
 
     /**

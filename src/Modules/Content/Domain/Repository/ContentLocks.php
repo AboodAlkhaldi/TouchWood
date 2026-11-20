@@ -35,6 +35,13 @@ interface ContentLocks
     /** A store's campaign runs' shop addresses, given at Schedule (H7): taken alone, last in its transaction. */
     public const string CAMPAIGN_ADDRESSES = 'campaign_addresses';
 
+    /**
+     * The policies, which serve lists of stores (taken with `ALL_STORES`, build 4): an address one among every policy
+     * of a language, one published policy of a kind per store. Taken alone, first in its transaction, before the
+     * policy's row.
+     */
+    public const string POLICIES = 'policies';
+
     /** The store name a lock of something that belongs to no store is taken under. */
     public const string ALL_STORES = '*';
 

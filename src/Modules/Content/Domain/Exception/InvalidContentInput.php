@@ -139,6 +139,9 @@ final class InvalidContentInput extends ContentError
     /** A robots line that is not a shop path: `/` and then no space (§1.14, W10). */
     public const string ROBOTS_PATH = 'robots_path';
 
+    /** A policy's kind changed after it was made: its kind is fixed (build 4, the builder's pick). */
+    public const string KIND_FIXED = 'kind_fixed';
+
     /**
      * @param  array<string, string|int>  $values  the rule's own gaps (`max`, `found`, `expected`)
      */

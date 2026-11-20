@@ -12,7 +12,7 @@ use Modules\Access\Public\Enums\PermissionKind;
 /**
  * The permissions Content's use cases check (content.md §3), declared into Access's catalog at boot.
  *
- * **Nine jobs**, per store, any role, in the role editor's Content group (round 1 #16, Q12 (a)). Translate
+ * **Ten jobs**, per store, any role, in the role editor's Content group (round 1 #16, Q12 (a)). Translate
  * has none of its own: it takes the permission of the kind of item being typed (`forKind()`), and a
  * campaign's prices take Pricing's own beside the campaign's.
  *
@@ -50,6 +50,12 @@ final class ContentPermissions
 
     /** SEO defaults, robots lines, rebuilding the sitemap (W10). */
     public const string SEO_MANAGE = 'content.seo.manage';
+
+    /**
+     * Policies (flags-2026-11.md S3.7, F20): its own job, given through roles as usual; a policy serves a list of
+     * stores, and changing one needs it in every store the policy serves.
+     */
+    public const string POLICY_MANAGE = 'content.policy.manage';
 
     /** Themes (W5): reserved, Super Admins, every store at once. */
     public const string THEME_MANAGE = 'content.theme.manage';
@@ -94,6 +100,7 @@ final class ContentPermissions
         'blog' => self::BLOG_MANAGE,
         'project' => self::PROJECT_MANAGE,
         'seo' => self::SEO_MANAGE,
+        'policy' => self::POLICY_MANAGE,
         'theme' => self::THEME_MANAGE,
     ];
 
@@ -134,6 +141,7 @@ final class ContentPermissions
             self::BLOG_MANAGE,
             self::PROJECT_MANAGE,
             self::SEO_MANAGE,
+            self::POLICY_MANAGE,
         ];
     }
 

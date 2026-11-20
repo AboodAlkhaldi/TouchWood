@@ -51,7 +51,7 @@ function contentDeclared(bool $reserved): array
 
 describe('the permissions', function () {
     // Two literal lists, split by the reservation, so a name moved from one to the other is caught.
-    it('declares the nine jobs of §3 as jobs, and nothing else', function () {
+    it('declares the ten jobs of §3 as jobs, and nothing else', function () {
         expect(contentDeclared(reserved: false))->toBe([
             'content.banner.manage',
             'content.bar.manage',
@@ -59,6 +59,8 @@ describe('the permissions', function () {
             'content.campaign.manage',
             'content.homepage.manage',
             'content.page.manage',
+            // Build 4: policies, their own job (flags-2026-11.md S3.7, F20).
+            'content.policy.manage',
             'content.popup.manage',
             'content.project.manage',
             'content.seo.manage',
@@ -162,7 +164,10 @@ describe('the schema', function () {
         expect($tables)->toBe([
             'banner_images', 'banners', 'bars', 'blog_categories', 'blog_post_products', 'blog_post_translations', 'blog_posts',
             'campaign_run_targets', 'campaign_runs', 'campaigns',
-            'footers', 'home_section_media', 'home_sections', 'job_runs', 'page_images', 'page_translations', 'pages', 'popups', 'post_images',
+            'footers', 'home_section_media', 'home_sections', 'job_runs', 'page_images', 'page_translations', 'pages',
+            // The policies (flags-2026-11.md S3, build 4 step 1).
+            'policies', 'policy_images', 'policy_stores', 'policy_translations', 'policy_version_images', 'policy_versions',
+            'popups', 'post_images',
             'project_images', 'project_photos', 'project_products', 'project_translations', 'projects', 'redirect_uploads', 'redirects',
             'seo_defaults', 'sitemaps', 'slug_history', 'smart_bars', 'theme_part_images', 'theme_parts', 'theme_stores', 'themes', 'unread_translations', 'waiting_jobs',
         ]);
@@ -252,9 +257,10 @@ describe('the errors', function () {
             $named++;
         }
 
-        // §7 lists nineteen, TranslationUnread (P14) among them, and PR 6's review adds a schedule stopped part way; a moved
-        // folder must not pass over nothing.
-        expect($named)->toBe(20);
+        // §7 lists nineteen, TranslationUnread (P14) among them, PR 6's review adds a schedule stopped part way, and build 4
+        // a second published policy of a kind in a store and the delete of a policy once published; a moved folder must
+        // not pass over nothing.
+        expect($named)->toBe(22);
     });
 });
 
@@ -283,7 +289,7 @@ describe('what the screens may offer', function () {
         $actions = app(ContentActionsForReader::class);
 
         expect($actions->forStore($eg)?->off)->toBeTrue()
-            ->and($actions->forStore($eg)?->kinds)->toBe(['homepage', 'bar', 'page', 'banner', 'campaign', 'popup', 'blog', 'project', 'seo'])
+            ->and($actions->forStore($eg)?->kinds)->toBe(['homepage', 'bar', 'page', 'banner', 'campaign', 'popup', 'blog', 'project', 'seo', 'policy'])
             ->and($actions->mayManageThemes())->toBeTrue()
             ->and($actions->mayManageRedirects())->toBeTrue();
     });

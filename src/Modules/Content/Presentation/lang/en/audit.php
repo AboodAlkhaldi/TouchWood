@@ -77,4 +77,12 @@ return [
     'theme.deleted' => 'Theme deleted',
     'theme.dates_from_campaign' => 'Theme given its campaign\'s dates',
     'theme.image_detached' => 'Image removed from a theme',
+    // Build 4: policies (flags-2026-11.md S3).
+    'policy.created' => 'Policy created',
+    'policy.changed' => 'Policy changed',
+    'policy.published' => 'Policy published',
+    'policy.unpublished' => 'Policy unpublished',
+    'policy.split' => 'Policy split: some of its stores given their own copy',
+    'policy.deleted' => 'Policy deleted',
+    'policy.image_detached' => 'Image removed from a policy',
 ];

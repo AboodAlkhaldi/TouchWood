@@ -106,6 +106,26 @@ final readonly class ContentAccess
     }
 
     /**
+     * Whether the person may work in this store with a permission, as `authorize` would let them (asked, never
+     * thrown): they hold it there, and the store is on or they may switch stores. A policy's store they may not work in
+     * is not on their form, so a save leaves it as it is (build 4, owner 2026-11-20).
+     */
+    public function mayWorkIn(string $permission, string $storeId): bool
+    {
+        if (! $this->holdsIn($permission, $storeId)) {
+            return false;
+        }
+
+        try {
+            $store = $this->platform->store(StoreId::fromString($storeId));
+        } catch (InvalidArgumentException) {
+            return false;
+        }
+
+        return $store !== null && ($store->isActive || $this->authorizer->storesWith(PlatformPermissions::STORE_SWITCH) !== []);
+    }
+
+    /**
      * A screen's store asked for by its code and not offered (`StoreChoices` answers alike for every store it does not
      * offer): when it is a store that is off and the person holds the job there, it is refused as off (`StoreOff`, §1.1
      * rule 7), in its own words, not as a page they may not open. A store they hold nothing in stays the plain refusal,
