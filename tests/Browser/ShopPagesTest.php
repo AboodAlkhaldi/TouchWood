@@ -21,6 +21,8 @@ use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProduct;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProductHandler;
+use Modules\Catalog\Application\Command\EditCategory\EditCategory;
+use Modules\Catalog\Application\Command\EditCategory\EditCategoryHandler;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
 use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReady;
@@ -103,7 +105,9 @@ it('leads from the menu to a category, to its product, and picks a choice', func
     // The mega menu: All Categories opens the top categories with their sub-categories.
     $page->click('[data-test="all-categories"]');
     expect(browserUntil($page, "[...document.querySelectorAll('a')].some((a) => a.textContent.trim() === 'Drawers {$n}')"))->toBeTrue();
-    $page->click("Drawers {$n}");
+    // Clicked in the page: the browser suite keeps its data, so this run's category sits at the end of a panel that
+    // grows with every run, past where a pointer's click can reach it (2026-11-20).
+    $page->script("[...document.querySelectorAll('[data-test=\"all-categories-panel\"] a')].find((a) => a.textContent.trim() === 'Drawers {$n}').click()");
 
     expect(browserUntil($page, "window.location.pathname.startsWith('/sa/en/categories/') && document.querySelector('h1')?.textContent === 'Drawers {$n}'"))->toBeTrue()
         ->and(browserUntil($page, "document.querySelectorAll('[data-test=\"card\"]').length === 1"))->toBeTrue();
@@ -171,7 +175,7 @@ it('greys a sold-out size and never lets it be chosen, on a desktop and at a pho
 
     expect($page->script("{$button}[1].getAttribute('aria-pressed')"))->toBe('true')
         ->and($page->script("{$button}[0].getAttribute('aria-pressed')"))->toBe('false')
-        ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+        ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 
     $page->navigate('/sa/ar/products/'.rawurlencode(shopBrowserSlug('product', $product, 'ar')), BROWSER_PAGE_LOAD);
 
@@ -179,7 +183,7 @@ it('greys a sold-out size and never lets it be chosen, on a desktop and at a pho
         ->and($page->script("{$button}[0].disabled"))->toBeTrue()
         ->and($page->script("{$button}[0].getAttribute('aria-label')"))->toBe("ستون {$n}، غير متاح")
         ->and($page->script("{$button}[1].getAttribute('aria-pressed')"))->toBe('true')
-        ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+        ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 
     $page->assertNoJavaScriptErrors();
 })->with([
@@ -355,4 +359,27 @@ it('draws the specifications as the design: one box with the tabs inside, rows t
     expect(browserUntil($dark, "document.documentElement.dataset.mode === 'dark' && {$box} !== null"))->toBeTrue();
     $dark->click('[data-test="tab-specs"]');
     expect(browserSoon($dark, "(() => { const tab = document.querySelector('[data-test=\"tab-specs\"]'); const line = getComputedStyle(tab, '::after'); return getComputedStyle(tab).color === {$brand} && line.opacity === '1' && line.backgroundColor === {$brand}; })()"))->toBeTrue('the active tab is not brand in dark mode');
+});
+
+it('keeps the category row to whole names that fit, «Order wholesale» always on the screen', function () {
+    // Long names, so the row cannot hold them all on any database: before, the row kept its count by the screen's width
+    // and pushed «Order wholesale» past the edge (1333 px on a 1280 px window; owner, 2026-11-20: drop what doesn't fit).
+    foreach (range(1, 5) as $i) {
+        ['n' => $n, 'top' => $top] = shopBrowserProduct();
+        Fx::asSystem(fn () => app(EditCategoryHandler::class)->handle(new EditCategory($top, "مستلزمات المطابخ والخزائن الطويلة {$n}", "Long kitchen and wardrobe fittings {$n}")));
+    }
+
+    $row = "(() => { const area = document.querySelector('[data-test=\"category-menu\"] [data-slot=\"navigation-menu-list\"]').parentElement.closest('div.min-w-0').getBoundingClientRect(); const shown = [...document.querySelectorAll('[data-test=\"top-category\"]')].filter((a) => a.getClientRects().length > 0); const wholesale = document.querySelector('[data-test=\"order-wholesale\"]').getBoundingClientRect(); return shown.length > 0 && shown.every((a) => { const r = a.getBoundingClientRect(); return r.left >= area.left - 0.5 && r.right <= area.right + 0.5; }) && wholesale.right <= window.innerWidth && wholesale.left >= 0 && document.documentElement.scrollWidth <= window.innerWidth; })()";
+
+    $page = visit('/sa/en');
+    foreach ([[1100, 900], [1280, 900]] as [$width, $height]) {
+        $page->resize($width, $height);
+        $page->navigate('/sa/en', BROWSER_PAGE_LOAD);
+        expect(browserSoon($page, $row))->toBeTrue("the category row does not fit at {$width} px");
+    }
+
+    // Arabic mirrors it: the same rule from the right.
+    $page->navigate('/sa/ar', BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "document.documentElement.dir === 'rtl' && {$row}"))->toBeTrue('the Arabic category row does not fit');
+    $page->assertNoJavaScriptErrors();
 });
