@@ -18,6 +18,9 @@ use Modules\B2B\Application\Query\ViewMyCompany\SentApplicationView;
 use Modules\B2B\Application\Query\ViewMyCompany\TypeOption;
 use Modules\B2B\Application\Settings\FormRules;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Contracts\ShopPolicies;
+use Modules\Platform\Public\Dto\ShopPolicyLinkData;
+use Modules\Platform\Public\Enums\PolicyKind;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -35,6 +38,7 @@ final readonly class CompanyPages
     public function __construct(
         private PlatformApi $platform,
         private FormRules $rules,
+        private ShopPolicies $policies,
     ) {}
 
     public function page(MyCompanyView $view): CompanyPage
@@ -58,6 +62,8 @@ final readonly class CompanyPages
 
         $company = $view->company;
         $draft = $view->draft;
+        // The Company Terms above Send (S3.6), read only while there is a draft to send.
+        $companyTerms = $draft === null ? null : $this->policies->published(StoreId::fromString($view->homeStoreId), PolicyKind::CompanyTerms, app()->getLocale());
 
         return new CompanyPage(
             $view->stage?->value,
@@ -106,6 +112,7 @@ final readonly class CompanyPages
                 ...$storeName($view->prefill->fromStoreId),
             ),
             $view->phoneConfirmed,
+            $companyTerms === null ? null : ShopPolicyLinkData::of($companyTerms, route('storefront.content.policy', ['slug' => $companyTerms->slug])),
         );
     }
 

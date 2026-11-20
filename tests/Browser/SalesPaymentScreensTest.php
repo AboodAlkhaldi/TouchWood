@@ -90,11 +90,20 @@ function salesPaymentReady(int $width = 375, int $height = 812): array
     return [$fake, $page];
 }
 
-/** Checkout open, the form drawn, Pay pressed, the bank's page in its frame. */
+/** The terms' box ticked, unless it already is (flags-2026-11.md S3.3). */
+function salesPaymentTick(mixed $page): void
+{
+    if ($page->script("document.querySelector('[data-test=\"terms\"]')?.getAttribute('aria-checked')") !== 'true') {
+        $page->click('[data-test="terms"]');
+    }
+}
+
+/** Checkout open, the form drawn, the terms ticked, Pay pressed, the bank's page in its frame. */
 function salesPaymentPay(mixed $page): void
 {
     $page->navigate('/sa/en/checkout', BROWSER_PAGE_LOAD);
     expect(browserSoon($page, "!!document.querySelector('[data-test=\"fake-form\"]')"))->toBeTrue('the form never drew');
+    salesPaymentTick($page);
     $page->click('[data-test="pay"]');
     expect(browserSoon($page, "!!document.querySelector('[data-test=\"payment-frame\"]')"))->toBeTrue('the frame never opened');
 }
@@ -116,6 +125,11 @@ it('pays on a phone: the page locked, a forged message ignored, closing the fram
     expect(browserSoon($page, "!!document.querySelector('[data-test=\"fake-form\"]')"))->toBeTrue()
         ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('checkout scrolls sideways')
         ->and((string) $page->script("document.querySelector('[data-test=\"pay\"]').textContent"))->toContain('Pay ·');
+
+    // Pay unticked (flags-2026-11.md S3.3): said under the tick, the form never asked to collect, no try.
+    $page->click('[data-test="pay"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"terms-error\"]')?.textContent === 'Tick the box to agree to the terms.'"))->toBeTrue()
+        ->and(DB::table('sales.checkout_tries')->count())->toBe(0);
 
     salesPaymentPay($page);
     expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the frame scrolls the page sideways')
@@ -155,6 +169,7 @@ it('comes back from a decline to the form, with the reason in plain words, and m
         'InvoiceId' => '7320291', 'PaymentId' => '07077320291391998274', 'PaymentURL' => FakeMyFatoorah::FRAME_URL, 'PaymentCompleted' => false,
         'Card' => ['Number' => '446404xxxxxx0007', 'Brand' => 'Visa'],
     ]], 201);
+    salesPaymentTick($page);
     $page->click('[data-test="pay"]');
     expect(browserSoon($page, "!!document.querySelector('[data-test=\"payment-frame\"]')"))->toBeTrue()
         ->and(DB::table('sales.checkout_tries')->count())->toBe(2);

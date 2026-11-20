@@ -86,7 +86,11 @@ return [
     'account_type_company_hint' => 'Your company details and documents come next.',
     'account_type_permanent' => 'This choice can never be changed later.',
     'account_type_required' => 'Choose a kind of account.',
-    'terms_accept' => 'I accept the terms of sale and the privacy policy.',
+    // The store's published policies by their names, each a link opening its page (flags-2026-11.md S3.4); a policy
+    // the store has not published is its plain name.
+    'terms_accept' => 'I accept the :terms and the :privacy.',
+    'terms_name' => 'Terms and Conditions',
+    'privacy_name' => 'Privacy Policy',
     // The offers box (amendment 79; ops.md §4.15 O12), new 2026-11-05, not yet approved.
     'marketing_consent' => 'Send me offers and news',
 

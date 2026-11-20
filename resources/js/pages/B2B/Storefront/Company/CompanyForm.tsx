@@ -31,6 +31,8 @@ import { Card, MARK, nameOf, Phrase, useLocale } from './parts';
 // The two confirmations load when first asked, not with the page (frontend.md §5; dialogs.tsx).
 const DiscardModal = lazy(() => import('./dialogs').then((module) => ({ default: module.DiscardModal })));
 const RemoveFileDialog = lazy(() => import('./dialogs').then((module) => ({ default: module.RemoveFileDialog })));
+// The Company Terms' tick, loaded only for a store that has them (flags-2026-11.md S3.6), for the page's budget (frontend.md §5).
+const CompanyTermsTick = lazy(() => import('./terms').then((module) => ({ default: module.CompanyTermsTick })));
 
 /*
 | The company form (b2b.md §4.5, amendments 14(a), 15(a), 16 and 22): company details, documents,
@@ -116,6 +118,12 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
     const [standings, setStandings] = useState<Record<string, Standing>>({});
     const [waiting, setWaiting] = useState(0);
     const [sending, setSending] = useState(false);
+    // The store's Company Terms, while it has them published (flags-2026-11.md S3.6): Send needs the tick, for the
+    // version shown only - new terms from the server (a refusal reloads them) clear it (owner, 2026-11-20).
+    const termsKey = page.companyTerms === null ? '' : `${page.companyTerms.policyId}:${page.companyTerms.version}`;
+    const [tickedFor, setTickedFor] = useState<string | null>(null);
+    const termsTicked = tickedFor === termsKey;
+    const [untickedPress, setUntickedPress] = useState(false);
     const jobs = useRef<(() => void)[]>([]);
     const running = useRef(false);
 
@@ -290,14 +298,39 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
                         </p>
                     ) : null}
 
+                    {page.companyTerms === null ? null : (
+                        <Suspense fallback={null}>
+                            <CompanyTermsTick
+                                href={page.companyTerms.url}
+                                ticked={termsTicked}
+                                refused={untickedPress}
+                                onTicked={(ticked) => {
+                                    setTickedFor(ticked ? termsKey : null);
+                                    setUntickedPress(false);
+                                }}
+                            />
+                        </Suspense>
+                    )}
+
                     <div className="flex flex-wrap items-center gap-3">
                         <ActionButton
                             data-test="send"
                             loading={sending}
                             disabledReason={blocked}
                             onClick={() => {
+                                if (page.companyTerms !== null && !termsTicked) {
+                                    setUntickedPress(true);
+
+                                    return;
+                                }
+
                                 setSending(true);
-                                router.post(link('storefront.company.send'), {}, { preserveScroll: true, onFinish: () => setSending(false) });
+                                // The tick as the page has it, and the terms it was for; the server asks both again (S3.6).
+                                router.post(
+                                    link('storefront.company.send'),
+                                    { company_terms: termsTicked, company_terms_id: page.companyTerms?.policyId ?? null, company_terms_version: page.companyTerms?.version ?? null },
+                                    { preserveScroll: true, onFinish: () => setSending(false) },
+                                );
                             }}
                         >
                             {t('b2b::company.send')}

@@ -22,13 +22,17 @@ use Modules\B2B\Domain\ValueObject\RequestKind;
 use Modules\Payments\Application\Settings\BankAccountSettings;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
+use Modules\Platform\Public\Contracts\ShopPolicies;
+use Modules\Platform\Public\Enums\PolicyKind;
 use Shared\Application\ActorContext;
+use Shared\Domain\ValueObject\StoreId;
 use Symfony\Component\HttpFoundation\Response;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\B2B\Support\B2BFixtures;
+use Tests\Modules\Content\Support\ContentFixtures;
 use Tests\TestCase;
 
 use function Pest\Laravel\seed;
@@ -232,15 +236,17 @@ it('draws each state on its own page, the form only while a draft may change, in
     $edit = 'B2B/Storefront/Company/Edit';
 
     // Content's frame, 2 more since 2026-11-11 (content.md §1.5, plan PR 9): its one cached read, the cache's version and copy.
+    // 2 more with a draft open since 2026-11-20 (flags-2026-11.md S3.6): the store's Company Terms for the tick above Send,
+    // read through Platform's ShopPolicies - Content's cache, its version and copy. No draft, no read.
     expect($drawn)->toBe([
         'nothing yet' => [$view, 37],
-        'first draft' => [$edit, 40],
+        'first draft' => [$edit, 42],
         'under review' => [$view, 53],
         'approved' => [$view, 55],
-        'changing details' => [$edit, 62],
+        'changing details' => [$edit, 64],
         'rejected' => [$view, 49],
-        'applying again' => [$edit, 56],
-        'suspended with a draft' => [$view, 56],
+        'applying again' => [$edit, 58],
+        'suspended with a draft' => [$view, 58],
     ]);
 });
 
@@ -422,6 +428,48 @@ it('fills and saves a draft without a confirmed phone, refuses its send at the t
     expect(AdminBrowser::formError($refused))->toBe('Couldn\'t send the application: your phone number isn\'t confirmed. Confirm it on your account\'s Phone page, then send.')
         ->and($props['company'])->toBeNull()
         ->and($props['draft']['values']['name'])->toBe('Al Noor Trading');
+});
+
+it('puts the store\'s Company Terms above Send while it has them, and refuses a send without the tick (S3.6)', function () {
+    $customerId = B2BFixtures::verifiedCompanyAccount();
+    $browser = myCompanySignedIn($customerId);
+    $browser->post('/sa/en/account/company/draft/start');
+    $browser->post('/sa/en/account/company/draft', [
+        'name' => 'Al Noor Trading',
+        'company_type_id' => B2BFixtures::companyTypes()[0]->id(),
+        'cr_number' => '1010123456',
+        'tax_number' => '300123456700003',
+        'address_id' => B2BFixtures::savedAddress($customerId),
+    ]);
+
+    foreach (B2BFixtures::documentTypes() as $type) {
+        $browser->post("/sa/en/account/company/draft/documents/{$type->id()}", ['file' => myCompanyPdf()]);
+    }
+
+    $none = myCompanyProps($browser);
+    $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
+    Fx::actAsStaff(Fx::staff(superAdmin: true));
+    ContentFixtures::publishedPolicy('COMPANY_TERMS');
+    app()->scoped(ActorContext::class, $previous);
+    app()->forgetScopedInstances();
+    $slug = (string) app(ShopPolicies::class)->published(StoreId::fromString(Fx::storeId('sa')), PolicyKind::CompanyTerms, 'en')?->slug;
+
+    $asked = myCompanyProps($browser);
+    $shown = ['company_terms_id' => $asked['companyTerms']['policyId'] ?? null, 'company_terms_version' => $asked['companyTerms']['version'] ?? null];
+    $stale = $browser->post('/sa/en/account/company/draft/send', ['company_terms' => true]);
+    $refused = $browser->post('/sa/en/account/company/draft/send', ['company_terms' => false, ...$shown]);
+    $stillDraft = myCompanyProps($browser);
+    $sent = $browser->post('/sa/en/account/company/draft/send', ['company_terms' => true, ...$shown])->assertRedirect('/sa/en/account/company');
+
+    expect($none['companyTerms'])->toBeNull()
+        ->and($asked['companyTerms']['url'])->toEndWith('/sa/en/policies/'.$slug)
+        ->and($asked['companyTerms']['version'])->toBe(1)
+        // A form that showed no Company Terms, sent after they were published: read them and tick again (owner, 2026-11-20).
+        ->and(AdminBrowser::formError($stale))->toBe('The Terms were updated. Read them and tick again.')
+        ->and(AdminBrowser::formError($refused))->toBe('Couldn\'t send the application: tick the box to agree to the Company Terms.')
+        ->and($stillDraft['draft'])->not->toBeNull()
+        ->and(AdminBrowser::flashed($sent, 'status'))->toBe('Application sent')
+        ->and(DB::table('b2b.applications')->where('customer_id', $customerId)->value('company_terms_version'))->toBe(1);
 });
 
 it('refuses an incomplete send at the top of the form, and sends nothing', function () {

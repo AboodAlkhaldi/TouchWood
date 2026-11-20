@@ -163,7 +163,7 @@ function triesSession(QuoteView $quote): string
 
 function triesPay(QuoteView $quote, ?string $session = null): OnlineStart
 {
-    return app(PayOnlineHandler::class)->handle(new PayOnline(Fx::storeId('sa'), $quote->id, $session ?? triesSession($quote), 'en', 'https://shop.example.test/return'));
+    return app(PayOnlineHandler::class)->handle(new PayOnline(Fx::storeId('sa'), $quote->id, $session ?? triesSession($quote), 'en', 'https://shop.example.test/return', true, Cx::shown()));
 }
 
 function triesRow(string $tryId): stdClass

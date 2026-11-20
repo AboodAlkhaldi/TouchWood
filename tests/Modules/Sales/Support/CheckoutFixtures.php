@@ -20,7 +20,10 @@ use Modules\Platform\Application\Command\RetirePlace\RetirePlace;
 use Modules\Platform\Application\Command\RetirePlace\RetirePlaceHandler;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
+use Modules\Platform\Public\Contracts\ShopPolicies;
 use Modules\Platform\Public\Enums\PlaceKind;
+use Modules\Platform\Public\Enums\PolicyKind;
+use Modules\Sales\Application\Checkout\ShownTerms;
 use Modules\Sales\Application\Command\AddCartLine\AddCartLine;
 use Modules\Sales\Application\Command\AddCartLine\AddCartLineHandler;
 use Modules\Sales\Application\Command\PlaceOrder\PlaceOrder;
@@ -38,9 +41,11 @@ use Modules\Shipping\Application\Command\SetCarrierFreeAbove\SetCarrierFreeAbove
 use Modules\Shipping\Domain\Model\PriceGroup;
 use Modules\Shipping\Domain\Repository\PriceGroupRepository;
 use Shared\Application\ActorContext;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\B2B\Support\B2BFixtures as Bx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
+use Tests\Modules\Content\Support\ContentFixtures;
 use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
 use Tests\Modules\Pricing\Support\PricingFixtures as Rx;
 
@@ -61,8 +66,9 @@ final class CheckoutFixtures
     }
 
     /**
-     * Two sizes on sale in the store ('sa' unless told) at 100.00 and 50.00, 100 of each in stock, a customer who may order
-     * with an address there, acting as that customer, two of the first size and one of the second in the cart.
+     * Two sizes on sale in the store ('sa' unless told) at 100.00 and 50.00, 100 of each in stock, its Terms and
+     * Conditions published (a store without takes no orders, flags-2026-11.md S3.3), a customer who may order with an
+     * address there, acting as that customer, two of the first size and one of the second in the cart.
      *
      * @return array{customer: string, address: string, variants: list<string>, product: string}
      */
@@ -75,6 +81,7 @@ final class CheckoutFixtures
         $customer = self::customer($accountType);
         // Served at the price a test may have set before; 0 the first time.
         self::serve($storeCode, self::fee($storeCode));
+        self::terms($storeCode);
         $address = Bx::savedAddress($customer, $storeCode);
         Fx::actAsCustomer($customer);
         self::add($variants[0], 2, storeCode: $storeCode);
@@ -141,6 +148,16 @@ final class CheckoutFixtures
         if ($region !== null) {
             self::asSuperAdmin(static fn () => app(RetirePlaceHandler::class)->handle(new RetirePlace((string) $region)));
         }
+    }
+
+    /**
+     * The store's Terms and Conditions published, once (flags-2026-11.md S3.3): the one it has, else a new one. Its id.
+     */
+    public static function terms(string $storeCode = 'sa'): string
+    {
+        $published = app(ShopPolicies::class)->published(StoreId::fromString(Fx::storeId($storeCode)), PolicyKind::Terms, 'en');
+
+        return $published->policyId ?? self::asSuperAdmin(static fn (): string => ContentFixtures::publishedPolicy('TERMS', [$storeCode]));
     }
 
     /** The test carrier's own free-above amount (shipping.md §1.5); null: never free by it. */
@@ -210,9 +227,30 @@ final class CheckoutFixtures
         return app(StartCheckoutHandler::class)->handle(new StartCheckout(Fx::storeId($storeCode), $addressId, $usePoints, $asked, $way));
     }
 
+    /** The quote placed, the terms' box ticked for the store's terms as the page shows them (flags-2026-11.md S3.3). */
     public static function place(string $quoteId, string $storeCode = 'sa'): PlacedOrder
     {
-        return app(PlaceOrderHandler::class)->handle(new PlaceOrder(Fx::storeId($storeCode), $quoteId));
+        return app(PlaceOrderHandler::class)->handle(new PlaceOrder(Fx::storeId($storeCode), $quoteId, true, self::shown($storeCode)));
+    }
+
+    /** The store's terms as its checkout shows them now: what a page sends back with the tick (owner, 2026-11-20). */
+    public static function shown(string $storeCode = 'sa'): ShownTerms
+    {
+        $store = StoreId::fromString(Fx::storeId($storeCode));
+
+        return ShownTerms::from(app(ShopPolicies::class)->published($store, PolicyKind::Terms, 'en'), app(ShopPolicies::class)->published($store, PolicyKind::Returns, 'en'));
+    }
+
+    /**
+     * The same as a page posts them.
+     *
+     * @return array{terms_id: ?string, terms_version: ?int, returns_id: ?string, returns_version: ?int}
+     */
+    public static function shownSent(string $storeCode = 'sa'): array
+    {
+        $shown = self::shown($storeCode);
+
+        return ['terms_id' => $shown->termsId, 'terms_version' => $shown->termsVersion, 'returns_id' => $shown->returnsId, 'returns_version' => $shown->returnsVersion];
     }
 
     /**

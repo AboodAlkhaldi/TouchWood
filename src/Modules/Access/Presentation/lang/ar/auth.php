@@ -85,7 +85,11 @@ return [
     'account_type_company_hint' => 'بيانات الشركة ومستنداتها تأتي بعد ذلك.',
     'account_type_permanent' => 'لا يمكن تغيير هذا الاختيار لاحقًا.',
     'account_type_required' => 'اختر نوع الحساب.',
-    'terms_accept' => 'أوافق على شروط البيع وسياسة الخصوصية.',
+    // The store's published policies by their names, each a link opening its page (flags-2026-11.md S3.4); a policy
+    // the store has not published is its plain name.
+    'terms_accept' => 'أوافق على :terms و:privacy.',
+    'terms_name' => 'الشروط والأحكام',
+    'privacy_name' => 'سياسة الخصوصية',
     // مربع العروض (التعديل 79؛ ops.md §4.15 O12)، جديدة 2026-11-05، لم تُعتمد بعد.
     'marketing_consent' => 'أرسلوا إليّ العروض والأخبار',
 

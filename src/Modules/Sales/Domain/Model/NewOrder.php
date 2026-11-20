@@ -51,5 +51,7 @@ final readonly class NewOrder
         public array $lines,
         /** Placed or paid in test mode: numbered apart, left out of every figure, never shipped (§9.5 #14). */
         public bool $isTest = false,
+        /** The terms ticked at checkout (flags-2026-11.md S3.3, F16); null only on orders placed before the tick. */
+        public ?AcceptedTerms $terms = null,
     ) {}
 }

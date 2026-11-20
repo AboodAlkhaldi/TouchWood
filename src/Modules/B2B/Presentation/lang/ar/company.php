@@ -33,6 +33,10 @@ return [
     'change' => 'تعديل بيانات الشركة',
     'change_warning' => 'تُرسل هذه التعديلات إلى فريقنا كطلب جديد: تستمر في الطلب حتى ترسلها، ثم لا يمكنك الطلب حتى اعتمادها.',
     'send' => 'تقديم الطلب',
+    // The store's Company Terms above Send, while it has them published (flags-2026-11.md S3.6).
+    'company_terms' => 'قرأتُ :terms وأوافق عليها.',
+    'company_terms_name' => 'شروط الشركات',
+    'company_terms_needed' => 'ضع علامة في المربع للموافقة على شروط الشركات.',
     'discard_confirm' => 'حذف هذه المسودة يحذف معها كل ملف لا يحمله غيرها. ولا يمكن التراجع عن ذلك.',
     'discard_yes' => 'حذف المسودة',
     'suspended_draft' => 'لديك مسودة لم تُرسل، وأثناء إيقاف الحساب يمكنك حذفها فقط.',

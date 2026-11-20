@@ -26,6 +26,7 @@ use Modules\Promotions\Public\Dto\CouponRequest;
 use Modules\Promotions\Public\Dto\RecordOrder;
 use Modules\Promotions\Public\Dto\UseCoupon;
 use Modules\Promotions\Public\Enums\Audience as PromotionsAudience;
+use Modules\Sales\Application\Checkout\CheckoutTerms;
 use Modules\Sales\Application\Order\OrderCartEmptying;
 use Modules\Sales\Application\Order\OrderContact;
 use Modules\Sales\Application\Order\OrderSnapshot;
@@ -38,6 +39,9 @@ use Modules\Sales\Domain\Exception\PaymentInProgress;
 use Modules\Sales\Domain\Exception\QuoteChanged;
 use Modules\Sales\Domain\Exception\QuoteExpired;
 use Modules\Sales\Domain\Exception\QuoteNotFound;
+use Modules\Sales\Domain\Exception\TermsChanged;
+use Modules\Sales\Domain\Exception\TermsMissing;
+use Modules\Sales\Domain\Exception\TermsNotAccepted;
 use Modules\Sales\Domain\Exception\TooManyWaitingOrders;
 use Modules\Sales\Domain\Exception\WayToPayNotOffered;
 use Modules\Sales\Domain\Model\PlacedOrder;
@@ -59,7 +63,8 @@ use Shared\Infrastructure\Outbox\Outbox;
 use Shared\Infrastructure\Persistence\Ulids;
 
 /**
- * Placing a quote (sales.md §1.3) — **one transaction**, its locks in one order: Sales's own first (the
+ * Placing a quote (sales.md §1.3) — the terms' box ticked first (`TermsNotAccepted`, flags-2026-11.md S3.3) and the
+ * store's terms read once, before it and outside it (no row lock held through a cache refill), then **one transaction**, its locks in one order: Sales's own first (the
  * quote, the customer's in the store, then the cart), then Promotions' and Loyalty's, Inventory's last — no lock on an existing row
  * after it, only new rows (the cart's own row already locked); a deadlock tried again (`ATTEMPTS`):
  *
@@ -67,7 +72,8 @@ use Shared\Infrastructure\Persistence\Ulids;
  *    retry after 15 minutes still gets its order; then the expiry; then, under a lock per customer and
  *    store, fewer orders waiting for approval than allowed (`TooManyWaitingOrders`, answer 51 — shown as
  *    itself, not as `QuoteChanged`);
- * 2. the store's next number;
+ * 2. the store's published terms, or no order (`TermsMissing`), and the ones the page showed, or `TermsChanged` (owner,
+ *    2026-11-20: "stop and re-tick") - the versions ticked kept on the order (F16); the store's next number;
  * 3. every rule that can change in 15 minutes, again, on the quote's own lines — the store, the
  *    account, the lines, the address (still at the place quoted: its carrier and fee are honoured, gap
  *    6.8), the way to pay, **the gift as quoted**, **the coupon and points
@@ -110,6 +116,7 @@ final readonly class PlaceOrderHandler
         private OrderSnapshot $snapshot,
         private OrderCartEmptying $emptying,
         private CheckoutTries $tries,
+        private CheckoutTerms $terms,
         private PaymentsApi $payments,
         private PlatformApi $platform,
         private AccessApi $access,
@@ -120,7 +127,7 @@ final readonly class PlaceOrderHandler
     ) {}
 
     /**
-     * @throws Unauthorized|InvalidSalesAttribute|QuoteNotFound|QuoteExpired|TooManyWaitingOrders|QuoteChanged|WayToPayNotOffered|PaymentInProgress
+     * @throws Unauthorized|InvalidSalesAttribute|TermsNotAccepted|TermsMissing|TermsChanged|QuoteNotFound|QuoteExpired|TooManyWaitingOrders|QuoteChanged|WayToPayNotOffered|PaymentInProgress
      */
     public function handle(PlaceOrder $command): PlacedOrder
     {
@@ -144,7 +151,12 @@ final readonly class PlaceOrderHandler
             throw new QuoteNotFound;
         }
 
-        return $this->db->transaction(function () use ($store, $customerId, $quoteId): PlacedOrder {
+        // Whatever the page sent: no order without the box ticked (flags-2026-11.md S3.3).
+        CheckoutTerms::ticked($command->agreedToTerms);
+        // The store's terms, read here once: inside the transaction only compared, after the placed order's answer.
+        $current = $this->terms->current($store, 'ar');
+
+        return $this->db->transaction(function () use ($store, $customerId, $quoteId, $current, $command): PlacedOrder {
             // 1. The quote, locked: placing twice is placing once.
             $quote = $this->quotes->lock($quoteId);
 
@@ -168,6 +180,9 @@ final readonly class PlaceOrderHandler
             if ($quote->wayToPay === WayToPay::Online->value) {
                 throw new WayToPayNotOffered;
             }
+
+            // A store without published terms takes no orders; the versions the page showed are what was ticked (F16).
+            $terms = CheckoutTerms::accept($current, $command->shownTerms, $now);
 
             // The orders already waiting, counted with the customer's other placements in the store kept out.
             $this->orders->lockCustomer($store->value, $customerId);
@@ -194,7 +209,7 @@ final readonly class PlaceOrderHandler
 
                 // 4. The order, snapshotted.
                 $customer = $this->access->customer($customerId) ?? throw new QuoteChanged('customer');
-                $this->orders->add($this->snapshot->of($view, $orderId, $number, OrderContact::of($customer), $address, $now, $isTest));
+                $this->orders->add($this->snapshot->of($view, $orderId, $number, OrderContact::of($customer), $address, $now, $isTest, $terms));
                 $this->orders->recordHistory($orderId, $store->value, 'PLACED', null, null, $now, ['number' => $number, 'quoteId' => $quoteId]);
 
                 // 5. The other modules, Inventory last.

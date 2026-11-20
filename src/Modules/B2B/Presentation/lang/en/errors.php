@@ -72,6 +72,14 @@ return [
         'title' => 'Confirm Your Phone',
         'detail' => 'Couldn\'t send the application: your phone number isn\'t confirmed. Confirm it on your account\'s Phone page, then send.',
     ],
+    'company_terms_changed' => [
+        'title' => 'Terms Updated',
+        'detail' => 'The Terms were updated. Read them and tick again.',
+    ],
+    'company_terms_not_accepted' => [
+        'title' => 'Company Terms Not Accepted',
+        'detail' => 'Couldn\'t send the application: tick the box to agree to the Company Terms.',
+    ],
     'document_type_inactive' => [
         'title' => 'Document Not Accepted',
         'detail' => 'Couldn\'t attach the file: this kind of document isn\'t accepted. Choose one from the list.',

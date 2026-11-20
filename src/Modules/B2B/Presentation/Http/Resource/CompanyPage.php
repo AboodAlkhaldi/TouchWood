@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\B2B\Presentation\Http\Resource;
 
+use Modules\Platform\Public\Dto\ShopPolicyLinkData;
 use Spatie\LaravelData\Data;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
@@ -52,5 +53,11 @@ final class CompanyPage extends Data
         public ?CompanyPrefillData $prefill,
         /** Whether the account's phone number is confirmed: Send waits for it (amendment 26(a)). */
         public bool $phoneConfirmed,
+        /**
+         * The store's published Company Terms, while a draft is open (flags-2026-11.md S3.6): Send then needs its tick,
+         * the line above it linking to their page in a new tab, their id and version sent back with it (owner,
+         * 2026-11-20). Null: none published, no tick.
+         */
+        public ?ShopPolicyLinkData $companyTerms = null,
     ) {}
 }

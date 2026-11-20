@@ -14,9 +14,12 @@ function newCustomer(AccountType $type = AccountType::Individual): Customer
 {
     return Customer::register(
         'c1', EmailAddress::of('sara@example.test'), 'hash', 'Sara', 'Ali', $type,
-        Language::Arabic, 'store-sa', '2026-01', new DateTimeImmutable('2026-09-20 10:00'),
+        Language::Arabic, 'store-sa', CUSTOMER_TEST_TERMS, 3, new DateTimeImmutable('2026-09-20 10:00'),
     );
 }
+
+/** A Terms and Conditions policy's id, as Content gives it (flags-2026-11.md S3.4). */
+const CUSTOMER_TEST_TERMS = '01katerms0000000000000000a';
 
 describe('a customer\'s life (spec §1.1, §4.1)', function () {
     it('starts active, with an unverified email, no phone, and may not order yet', function () {
@@ -28,8 +31,55 @@ describe('a customer\'s life (spec §1.1, §4.1)', function () {
             ->and($customer->mayOrder())->toBeFalse()
             ->and($customer->homeStoreId())->toBe('store-sa')
             ->and($customer->lastStoreId())->toBe('store-sa')
-            ->and($customer->termsVersion())->toBe('2026-01');
+            ->and($customer->termsVersion())->toBeNull()
+            ->and($customer->termsPolicyId())->toBe(CUSTOMER_TEST_TERMS)
+            ->and($customer->termsPolicyVersion())->toBe(3);
     });
+
+    it('keeps the store\'s Terms and Conditions and its version, or neither, never one without the other (S3.4, F18)', function (?string $policy, ?int $version, ?string $refused) {
+        $register = fn (): Customer => Customer::register(
+            'c1', EmailAddress::of('sara@example.test'), 'hash', 'Sara', 'Ali', AccountType::Individual,
+            Language::Arabic, 'store-sa', $policy, $version, new DateTimeImmutable('2026-09-20 10:00'),
+        );
+
+        if ($refused !== null) {
+            expect($register)->toThrow(InvalidAccessAttribute::class, $refused);
+
+            return;
+        }
+
+        expect($register()->termsPolicyId())->toBe($policy === null ? null : strtolower($policy))
+            ->and($register()->termsPolicyVersion())->toBe($version);
+    })->with([
+        'both' => [strtoupper(CUSTOMER_TEST_TERMS), 1, null],
+        'neither: the store had none published' => [null, null, null],
+        'a policy without its version' => [CUSTOMER_TEST_TERMS, null, 'terms_policy'],
+        'a version without its policy' => [null, 2, 'terms_policy'],
+        'version 0' => [CUSTOMER_TEST_TERMS, 0, 'terms_policy_version'],
+        'not a policy id' => ['terms-2026', 1, 'terms_policy'],
+    ]);
+
+    it('keeps the store\'s Privacy Policy and its version the same way, or neither (owner, 2026-11-20)', function (?string $policy, ?int $version, ?string $refused) {
+        $register = fn (): Customer => Customer::register(
+            'c1', EmailAddress::of('sara@example.test'), 'hash', 'Sara', 'Ali', AccountType::Individual,
+            Language::Arabic, 'store-sa', null, null, new DateTimeImmutable('2026-09-20 10:00'), false, $policy, $version,
+        );
+
+        if ($refused !== null) {
+            expect($register)->toThrow(InvalidAccessAttribute::class, $refused);
+
+            return;
+        }
+
+        expect([$register()->privacyPolicyId(), $register()->privacyPolicyVersion()])->toBe([$policy === null ? null : strtolower($policy), $version]);
+    })->with([
+        'both' => [strtoupper(CUSTOMER_TEST_TERMS), 2, null],
+        'neither' => [null, null, null],
+        'a policy without its version' => [CUSTOMER_TEST_TERMS, null, 'privacy_policy'],
+        'a version without its policy' => [null, 1, 'privacy_policy'],
+        'version 0' => [CUSTOMER_TEST_TERMS, 0, 'privacy_policy_version'],
+        'not a policy id' => ['privacy', 1, 'privacy_policy'],
+    ]);
 
     it('may order once both the email and the phone are verified', function () {
         $customer = newCustomer();

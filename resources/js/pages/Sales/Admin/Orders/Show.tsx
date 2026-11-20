@@ -19,7 +19,7 @@ import { isolate } from '@/lib/bidi';
 import { figure, intlLocale } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
-import type { MoneyRecordData, OrderPage } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
+import type { MoneyRecordData, OrderPage, OrderTermsData } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
 import { MoreHorizontal } from 'lucide-react';
 import { usePage } from '@inertiajs/react';
 import type { SharedProps } from '@/types/page';
@@ -331,7 +331,36 @@ function Totals({ order }: { order: OrderPage }) {
             <p className="mt-3 text-copy-13 text-ink-muted">
                 {t(`${W}.show.way_to_pay`)}: {t(`${W}.way.${order.wayToPay}`)}
             </p>
+            {order.terms === null ? null : <AcceptedTerms order={order} terms={order.terms} />}
         </Section>
+    );
+}
+
+/** The terms the customer ticked (flags-2026-11.md S3.3, F16), each opening that version's text in the shop. */
+function AcceptedTerms({ order, terms }: { order: OrderPage; terms: OrderTermsData }) {
+    const t = useTranslator();
+    const { locale } = usePage<SharedProps>().props;
+    const when = new Intl.DateTimeFormat(intlLocale(locale), { dateStyle: 'medium', timeStyle: 'short', timeZone: order.storeTimezone }).format(new Date(terms.acceptedAt));
+    const lines: [string, string | null, string][] = [[t(`${W}.show.terms_accepted`, { version: figure('en', terms.version), when }), terms.url, 'order-terms']];
+
+    if (terms.returnsVersion !== null) {
+        lines.push([t(`${W}.show.returns_accepted`, { version: figure('en', terms.returnsVersion) }), terms.returnsUrl, 'order-returns']);
+    }
+
+    return (
+        <div className="mt-1 grid gap-0.5 text-copy-13 text-ink-muted">
+            {lines.map(([words, url, test]) =>
+                url === null ? (
+                    <p key={test} data-test={test}>
+                        {words}
+                    </p>
+                ) : (
+                    <a key={test} href={url} target="_blank" rel="noopener noreferrer" className="w-fit underline underline-offset-4" data-test={test}>
+                        {words}
+                    </a>
+                ),
+            )}
+        </div>
     );
 }
 

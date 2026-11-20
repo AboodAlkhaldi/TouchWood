@@ -5,9 +5,15 @@ declare(strict_types=1);
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
+use Modules\Platform\Public\Contracts\ShopPolicies;
+use Modules\Platform\Public\Enums\PolicyKind;
 use Pest\Browser\Api\PendingAwaitablePage;
+use Shared\Domain\ValueObject\StoreId;
+use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
+use Tests\Modules\Content\Support\ContentFixtures;
+use Tests\Modules\Sales\Support\CheckoutFixtures as Cx;
 
 use function Pest\Laravel\seed;
 
@@ -59,6 +65,30 @@ it('registers somebody through the form and says who they are afterwards', funct
         // The address is not confirmed yet, and the header is where they learn it.
         ->assertSee('Confirm Your Email')
         ->assertNoJavaScriptErrors();
+});
+
+it('names the store\'s Terms and Conditions and Privacy Policy as links in a new tab, at a phone\'s width in both languages (S3.4)', function () {
+    // The store's two published, once: the suite keeps its data, so the ones already there serve.
+    Cx::terms();
+    Cx::asSuperAdmin(static fn (): ?string => app(ShopPolicies::class)->published(StoreId::fromString(Fx::storeId('sa')), PolicyKind::Privacy, 'en') === null
+        ? ContentFixtures::publishedPolicy('PRIVACY')
+        : null);
+
+    $page = visit('/sa/en/register');
+    $page->resize(375, 812);
+
+    expect(browserSoon($page, "document.querySelector('[data-test=\"terms-link\"]')?.target === '_blank'"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=\"terms-sentence\"]').textContent"))->toBe('I accept the Terms and Conditions and the Privacy Policy.')
+        ->and($page->script("document.querySelector('[data-test=\"terms-link\"]').getAttribute('href')"))->toContain('/sa/en/policies/')
+        ->and($page->script("document.querySelector('[data-test=\"privacy-link\"]').getAttribute('href')"))->toContain('/sa/en/policies/')
+        ->and($page->script("document.querySelector('[data-test=\"privacy-link\"]').target"))->toBe('_blank')
+        ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the register page scrolls sideways');
+
+    $page->navigate('/sa/ar/register', BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"terms-link\"]')?.textContent === 'الشروط والأحكام'"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=\"terms-sentence\"]').textContent"))->toBe('أوافق على الشروط والأحكام وسياسة الخصوصية.')
+        ->and($page->script("decodeURIComponent(document.querySelector('[data-test=\"privacy-link\"]').getAttribute('href'))"))->toContain('/sa/ar/policies/')
+        ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the Arabic register page scrolls sideways');
 });
 
 it('shows an unconfirmed customer where their link went, and offers another', function () {

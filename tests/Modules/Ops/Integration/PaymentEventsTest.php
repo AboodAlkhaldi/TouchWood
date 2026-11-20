@@ -452,7 +452,7 @@ describe('C10: a payment received', function () {
         $quote = Cx::start($address, 'ONLINE');
         $store = Fx::storeId('sa');
         $session = app(OpenCheckoutPaymentHandler::class)->handle(new OpenCheckoutPayment($store, $quote->id, 'en'))->sessionId;
-        $paid = app(PayOnlineHandler::class)->handle(new PayOnline($store, $quote->id, $session, 'en', 'https://shop.example.test/return'));
+        $paid = app(PayOnlineHandler::class)->handle(new PayOnline($store, $quote->id, $session, 'en', 'https://shop.example.test/return', true, Cx::shown()));
         $fake->paid($quote->totals->orderTotal->toDecimal(2));
 
         app(FollowCheckoutPaymentHandler::class)->handle(new FollowCheckoutPayment($paid->tryId));

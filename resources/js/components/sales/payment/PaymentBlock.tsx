@@ -74,7 +74,25 @@ function loadScript(src: string): Promise<void> {
 }
 
 /** At checkout, for its quote; on a request's page, for the order with this number (§4.2). */
-export default function PaymentBlock({ quoteId = '', number, press, onState, onClosed }: { quoteId?: string; number?: string; press: RefObject<(() => void) | null>; onState: (state: OnlineState) => void; onClosed: (view: CheckoutTryData) => void }) {
+export default function PaymentBlock({
+    quoteId = '',
+    number,
+    press,
+    agreed,
+    shown,
+    onState,
+    onClosed,
+}: {
+    quoteId?: string;
+    number?: string;
+    press: RefObject<(() => void) | null>;
+    /** At checkout, the terms' tick (flags-2026-11.md S3.3): sent with Pay, and read again when a wallet's own button hands over. */
+    agreed?: RefObject<boolean>;
+    /** At checkout, the terms shown beside the tick, sent with Pay: the server refuses others than the store's now. */
+    shown?: Record<string, string | number | null>;
+    onState: (state: OnlineState) => void;
+    onClosed: (view: CheckoutTryData) => void;
+}) {
     const t = useTranslator();
     const link = useLink();
     const addresses = payAddresses(link, number);
@@ -85,6 +103,8 @@ export default function PaymentBlock({ quoteId = '', number, press, onState, onC
     const session = useRef<string | null>(null);
     const quote = useRef(quoteId);
     quote.current = quoteId;
+    const terms = useRef(shown);
+    terms.current = shown;
 
     // Over: the page again from the server, a new quote and so a new session (§1.4 step 6).
     const again = useCallback((words: string | null) => {
@@ -95,9 +115,17 @@ export default function PaymentBlock({ quoteId = '', number, press, onState, onC
 
     /** The details are ready: our server starts the try, with the quote and the session alone. */
     const send = useCallback(async () => {
+        // A wallet's own button hands over without our Pay: unticked, nothing is sent (the server would refuse it too).
+        if (number === undefined && agreed?.current !== true) {
+            setNotice(t('sales::shop_checkout.terms.needed'));
+            setPhase({ kind: 'form' });
+
+            return;
+        }
+
         setNotice(null);
         setPhase({ kind: 'sending' });
-        const answer = await postJson<PayStartData>(addresses.pay, token, { ...(number === undefined ? { quote: quote.current } : {}), session: session.current ?? '' });
+        const answer = await postJson<PayStartData>(addresses.pay, token, { ...(number === undefined ? { quote: quote.current, agreed: true, ...terms.current } : {}), session: session.current ?? '' });
 
         if (answer.ok) {
             const { tryId, frameUrl, windowEndsAt, holdEndsAt, serverNow } = answer.data;

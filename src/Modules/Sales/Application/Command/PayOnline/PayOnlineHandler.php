@@ -26,6 +26,7 @@ use Modules\Promotions\Public\Dto\CallerPermission as PromotionsCaller;
 use Modules\Promotions\Public\Dto\CouponRequest;
 use Modules\Promotions\Public\Dto\ReserveCoupon;
 use Modules\Promotions\Public\Enums\Audience as PromotionsAudience;
+use Modules\Sales\Application\Checkout\CheckoutTerms;
 use Modules\Sales\Application\Checkout\QuoteComparison;
 use Modules\Sales\Application\Checkout\TryAddress;
 use Modules\Sales\Application\Checkout\TrySettling;
@@ -40,8 +41,12 @@ use Modules\Sales\Domain\Exception\PaymentInProgress;
 use Modules\Sales\Domain\Exception\QuoteChanged;
 use Modules\Sales\Domain\Exception\QuoteExpired;
 use Modules\Sales\Domain\Exception\QuoteNotFound;
+use Modules\Sales\Domain\Exception\TermsChanged;
+use Modules\Sales\Domain\Exception\TermsMissing;
+use Modules\Sales\Domain\Exception\TermsNotAccepted;
 use Modules\Sales\Domain\Exception\TooManyPaymentTries;
 use Modules\Sales\Domain\Exception\WayToPayNotOffered;
+use Modules\Sales\Domain\Model\AcceptedTerms;
 use Modules\Sales\Domain\Model\CheckoutTry;
 use Modules\Sales\Domain\Repository\Carts;
 use Modules\Sales\Domain\Repository\CheckoutTries;
@@ -58,15 +63,19 @@ use Shared\Domain\ValueObject\StoreId;
 use Shared\Infrastructure\Persistence\Ulids;
 
 /**
- * `PayOnline` (§9.5 #4). **One transaction**, its locks in placing's order (the quote, the customer's in the store,
- * the cart, then Promotions', Loyalty's and Inventory's last):
+ * `PayOnline` (§9.5 #4). First, before any try is counted against the limits (owner, 2026-11-20): the terms' box
+ * ticked (`TermsNotAccepted`, flags-2026-11.md S3.3), and the store's terms, read once outside the transaction, those
+ * the page showed (`TermsMissing`, `TermsChanged`) - **what Pay ticked is kept on the try** and handed to the order it
+ * makes once paid (F16): Pay, not the form opening, is the customer's act of ordering. Then **one transaction**, its
+ * locks in placing's order (the quote, the customer's in the store, the cart, then Promotions', Loyalty's and
+ * Inventory's last):
  *
  * 1. a live try on this cart: the same quote and session again is the same try (a double click), else
  *    `PaymentInProgress`;
  * 2. a quote with a kept try, or made before the cart last changed, refused (payments.md rule 3);
  * 3. the quote built again from the cart must equal it, else `QuoteChanged` naming what moved: nothing reserved;
  * 4. Payments' attempt written, no call to the gateway: no try ever exists without one that will be checked;
- * 5. the try written with its copies of the address and contact;
+ * 5. the try written with its copies of the address and contact, and the terms;
  * 6. the coupon and the points reserved, the stock held last, under the order's future id.
  *
  * **After the commit**, the charge (never in a transaction). A charge refused at once releases at once, so the
@@ -98,10 +107,11 @@ final readonly class PayOnlineHandler
         private PaymentsApi $payments,
         private TrySettling $settling,
         private RateLimiter $limiter,
+        private CheckoutTerms $terms,
     ) {}
 
     /**
-     * @throws Unauthorized|InvalidSalesAttribute|QuoteNotFound|QuoteExpired|QuoteChanged|WayToPayNotOffered|PaymentInProgress|TooManyPaymentTries|DomainError
+     * @throws Unauthorized|InvalidSalesAttribute|TermsNotAccepted|TermsMissing|TermsChanged|QuoteNotFound|QuoteExpired|QuoteChanged|WayToPayNotOffered|PaymentInProgress|TooManyPaymentTries|DomainError
      */
     public function handle(PayOnline $command): OnlineStart
     {
@@ -130,9 +140,13 @@ final readonly class PayOnlineHandler
             throw new InvalidSalesAttribute('session', 'a payment session');
         }
 
+        // Whatever the page sent: no payment without the box ticked and the store's terms as the page showed them
+        // (flags-2026-11.md S3.3) - and a refusal here counts no try. Read once, outside the transaction.
+        CheckoutTerms::ticked($command->agreedToTerms);
+        $terms = CheckoutTerms::accept($this->terms->current($store, 'ar'), $command->shownTerms, CarbonImmutable::now());
         $this->limit($store, $customerId);
 
-        $try = $this->db->transaction(fn (): CheckoutTry => $this->start($store, $customerId, $quoteId, $sessionId, $command), PlaceOrderHandler::ATTEMPTS);
+        $try = $this->db->transaction(fn (): CheckoutTry => $this->start($store, $customerId, $quoteId, $sessionId, $command, $terms), PlaceOrderHandler::ATTEMPTS);
         $start = $this->payments->charge($try->attemptId);
 
         if (in_array($start->state, [PaymentState::Failed, PaymentState::Expired], true)) {
@@ -155,7 +169,7 @@ final readonly class PayOnlineHandler
     }
 
     /** @throws DomainError */
-    private function start(StoreId $store, string $customerId, string $quoteId, string $sessionId, PayOnline $command): CheckoutTry
+    private function start(StoreId $store, string $customerId, string $quoteId, string $sessionId, PayOnline $command, AcceptedTerms $terms): CheckoutTry
     {
         $quote = $this->quotes->lock($quoteId);
 
@@ -208,7 +222,7 @@ final readonly class PayOnlineHandler
             $try = new CheckoutTry(
                 $tryId, $store->value, $customerId, $cart->id, $cart->version, $quoteId, $orderId, $attemptId, $sessionId, CheckoutTry::LIVE,
                 $view->totals->orderTotal->minorUnits, $view->totals->orderTotal->currencyCode,
-                $now->addMinutes($this->payments->timers($store)->window), null, TryAddress::toArray($address), $contact->toArray(), null, false, $now, null,
+                $now->addMinutes($this->payments->timers($store)->window), null, TryAddress::toArray($address), $contact->toArray(), null, false, $now, null, terms: $terms,
             );
             $this->tries->add($try);
             $this->reserve($store, $customerId, $view, $orderId);

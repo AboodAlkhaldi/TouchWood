@@ -140,6 +140,9 @@ return [
         'vat' => 'VAT',
         'total' => 'Total',
         'way_to_pay' => 'Way to pay',
+        // The terms ticked at checkout (flags-2026-11.md S3.3, F16), each linking to that version's text.
+        'terms_accepted' => 'Terms v:version, accepted :when',
+        'returns_accepted' => 'Returns and Refunds v:version',
         'money' => 'Money',
         'due' => 'Due',
         'paid' => 'Paid',

@@ -7,6 +7,7 @@ namespace Modules\Sales\Infrastructure\Eloquent;
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Modules\Sales\Domain\Model\AcceptedTerms;
 use Modules\Sales\Domain\Model\CheckoutTry;
 use Modules\Sales\Domain\Repository\CheckoutTries;
 use stdClass;
@@ -37,6 +38,12 @@ final readonly class DatabaseCheckoutTries implements CheckoutTries
             'address' => json_encode($try->address, JSON_THROW_ON_ERROR),
             'contact' => json_encode($try->contact, JSON_THROW_ON_ERROR),
             'created_at' => Moment::of($try->createdAt),
+            // The terms ticked at Pay, for the order (flags-2026-11.md S3.3, F16).
+            'terms_policy_id' => $try->terms?->policyId,
+            'terms_version' => $try->terms?->version,
+            'terms_accepted_at' => $try->terms === null ? null : Moment::of($try->terms->acceptedAt),
+            'returns_policy_id' => $try->terms?->returnsPolicyId,
+            'returns_version' => $try->terms?->returnsVersion,
         ]);
     }
 
@@ -139,6 +146,10 @@ final readonly class DatabaseCheckoutTries implements CheckoutTries
             CarbonImmutable::parse((string) $row->created_at),
             $row->ended_at === null ? null : CarbonImmutable::parse((string) $row->ended_at),
             $row->seen_at === null ? null : CarbonImmutable::parse((string) $row->seen_at),
+            $row->terms_policy_id === null ? null : new AcceptedTerms(
+                (string) $row->terms_policy_id, (int) $row->terms_version, CarbonImmutable::parse((string) $row->terms_accepted_at),
+                $row->returns_policy_id === null ? null : (string) $row->returns_policy_id, $row->returns_version === null ? null : (int) $row->returns_version,
+            ),
         );
     }
 

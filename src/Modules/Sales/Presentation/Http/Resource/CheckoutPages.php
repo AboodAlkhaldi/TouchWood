@@ -12,7 +12,10 @@ use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Payments\Public\Enums\PaymentAudience;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\MoneyData;
+use Modules\Platform\Public\Dto\ShopPolicyDto;
+use Modules\Platform\Public\Dto\ShopPolicyLinkData;
 use Modules\Platform\Public\Dto\StoreDto;
+use Modules\Sales\Application\Checkout\CheckoutTerms;
 use Modules\Sales\Application\Command\StartCheckout\StartCheckout;
 use Modules\Sales\Application\Command\StartCheckout\StartCheckoutHandler;
 use Modules\Sales\Application\Query\ViewOwnOrder\ViewOwnOrder;
@@ -41,6 +44,7 @@ final readonly class CheckoutPages
         private PaymentsApi $payments,
         private CatalogApi $catalog,
         private ActorContext $actors,
+        private CheckoutTerms $terms,
     ) {}
 
     /**
@@ -102,6 +106,11 @@ final readonly class CheckoutPages
         $bank = in_array(WayToPay::BankTransfer->value, $ways, true) ? $this->payments->bankAccount(StoreId::fromString($storeId)) : null;
         $gift = $quote->giftVariantId === null ? null : ($this->catalog->variantBriefs([$quote->giftVariantId])[$quote->giftVariantId] ?? null);
         $totals = $quote->totals;
+        // The terms the tick names, each opening its page (flags-2026-11.md S3.3): one read of the store's policies.
+        $policies = $this->terms->current(StoreId::fromString($storeId), $locale);
+        $policyLink = fn (?ShopPolicyDto $policy): ?ShopPolicyLinkData => $policy === null ? null : ShopPolicyLinkData::of(
+            $policy, route('storefront.content.policy', ['store' => strtolower($store->code ?? ''), 'locale' => $locale, 'slug' => $policy->slug]),
+        );
 
         return new CheckoutPage(
             $quote->id,
@@ -140,6 +149,8 @@ final readonly class CheckoutPages
             $quote->shipping->carrierId,
             $quote->shipping->carrierChanged,
             testMode: $this->payments->inTestMode(StoreId::fromString($storeId)),
+            terms: $policyLink($policies['terms']),
+            returns: $policyLink($policies['returns']),
         );
     }
 

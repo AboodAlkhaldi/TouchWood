@@ -15,6 +15,10 @@ use Modules\Access\Presentation\Http\Resource\CustomerRegisterPage;
 use Modules\Access\Presentation\Http\Resource\CustomerSignInPage;
 use Modules\Access\Presentation\Http\Resource\ResetPasswordPage;
 use Modules\Access\Presentation\Http\Resource\VerifyEmailPage;
+use Modules\Platform\Public\Contracts\ShopPolicies;
+use Modules\Platform\Public\Dto\ShopPolicyLinkData;
+use Modules\Platform\Public\Enums\PolicyKind;
+use Shared\Application\StoreContext;
 
 /**
  * The shop's own sign-in screens (frontend.md §3.6, F3-F6). The posts behind them were built in
@@ -45,14 +49,32 @@ final readonly class CustomerAuthPageController
         private CustomerSessions $sessions,
         private CustomerSecuritySettings $settings,
         private CustomerReader $customers,
+        private ShopPolicies $policies,
+        private StoreContext $stores,
     ) {}
 
-    /** F3. */
+    /** F3, with the store's Terms and Conditions and Privacy Policy linked from the terms' sentence (S3.4). */
     public function register(): Response|RedirectResponse
     {
-        return $this->signedIn() ?? $this->page->render(
+        $signedIn = $this->signedIn();
+
+        if ($signedIn !== null) {
+            return $signedIn;
+        }
+
+        $locale = app()->getLocale();
+        $links = [];
+
+        // One read of the store's published policies, not one a kind.
+        foreach ($this->policies->allPublished($this->stores->current(), $locale) as $policy) {
+            if (in_array($policy->kind, [PolicyKind::Terms, PolicyKind::Privacy], true)) {
+                $links[$policy->kind->value] ??= ShopPolicyLinkData::of($policy, route('storefront.content.policy', ['slug' => $policy->slug]));
+            }
+        }
+
+        return $this->page->render(
             'Access/Storefront/Register',
-            (new CustomerRegisterPage($this->settings->passwordMinLength()))->toArray(),
+            (new CustomerRegisterPage($this->settings->passwordMinLength(), $links[PolicyKind::Terms->value] ?? null, $links[PolicyKind::Privacy->value] ?? null))->toArray(),
             self::WORDS,
         );
     }

@@ -11,6 +11,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Inertia\Response;
+use Modules\Sales\Application\Checkout\ShownTerms;
 use Modules\Sales\Application\Command\PlaceOrder\PlaceOrder;
 use Modules\Sales\Application\Command\PlaceOrder\PlaceOrderHandler;
 use Modules\Sales\Application\Command\StartCheckout\StartCheckoutHandler;
@@ -77,7 +78,9 @@ final readonly class ShopCheckoutController
         $quote = $request->input('quote');
 
         try {
-            $placed = $handler->handle(new PlaceOrder($this->stores->current()->value, is_string($quote) ? $quote : ''));
+            // The terms' box as the page sent it, and the terms it showed: the handler refuses anything but a tick of
+            // the store's terms now (flags-2026-11.md S3.3; owner, 2026-11-20).
+            $placed = $handler->handle(new PlaceOrder($this->stores->current()->value, is_string($quote) ? $quote : '', $request->input('agreed') === true, self::shown($request)));
         } catch (DomainError $error) {
             return FormErrors::back($request, $error);
         }
@@ -107,6 +110,12 @@ final readonly class ShopCheckoutController
         }
 
         return back()->with('status', __('sales::shop_checkout.placed.uploaded'));
+    }
+
+    /** The terms the page showed beside its tick, as it sent them back. */
+    public static function shown(Request $request): ShownTerms
+    {
+        return ShownTerms::of($request->input('terms_id'), $request->input('terms_version'), $request->input('returns_id'), $request->input('returns_version'));
     }
 
     private static function query(Request $request, string $key): ?string

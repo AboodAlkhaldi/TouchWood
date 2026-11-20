@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useForm, usePage } from '@inertiajs/react';
 import { StorefrontLayout } from '@/layouts/StorefrontLayout';
 import { ActionButton } from '@/components/ActionButton';
@@ -6,6 +7,7 @@ import { FormError } from '@/components/FormError';
 import { Note } from '@/components/Note';
 import { PasswordInput } from '@/components/PasswordInput';
 import { ShopCard } from '@/components/ShopCard';
+import { PolicySentence } from '@/components/shop/PolicySentence';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
     Field,
@@ -45,10 +47,16 @@ import type { CustomerRegisterPage } from '@/types/generated/Modules/Access/Pres
 
 type Props = CustomerRegisterPage;
 
-export default function Register({ minimumLength }: Props) {
+export default function Register({ minimumLength, terms, privacy }: Props) {
     const t = useTranslator();
     const link = useLink();
     const { locale } = usePage<SharedProps>().props;
+    // The store's policies the sentence names, sent back with the tick: the server refuses others than its own now
+    // (flags-2026-11.md S3.4; owner, 2026-11-20). Ticked for these versions only - new ones from the server clear it.
+    const shown = { terms_id: terms?.policyId ?? null, terms_version: terms?.version ?? null, privacy_id: privacy?.policyId ?? null, privacy_version: privacy?.version ?? null };
+    const shownKey = Object.values(shown).join(':');
+    const [tickedFor, setTickedFor] = useState<string | null>(null);
+    const ticked = tickedFor === shownKey;
 
     const form = useForm({
         // Nothing chosen: the kind of account can never be changed, so it is picked on purpose,
@@ -91,7 +99,14 @@ export default function Register({ minimumLength }: Props) {
                         }
 
                         // The boxes say their rules at the same press, so one press shows all that is missing.
-                        checks.submit(() => (noKind ? undefined : form.post(link('storefront.account.register'))));
+                        checks.submit(() => {
+                            if (noKind) {
+                                return;
+                            }
+
+                            form.transform((data) => ({ ...data, terms: ticked, ...shown }));
+                            form.post(link('storefront.account.register'));
+                        });
                     }}
                 >
                     <FieldGroup className="gap-5">
@@ -192,14 +207,24 @@ export default function Register({ minimumLength }: Props) {
                             <Checkbox
                                 id="terms"
                                 data-test="terms"
-                                checked={form.data.terms}
-                                onCheckedChange={(checked) => form.setData('terms', checked === true)}
+                                checked={ticked}
+                                onCheckedChange={(checked) => {
+                                    setTickedFor(checked === true ? shownKey : null);
+                                    form.setData('terms', checked === true);
+                                }}
                                 aria-invalid={form.errors.terms ? true : undefined}
                                 aria-describedby={form.errors.terms ? 'terms-error' : undefined}
                                 className="border-ink-subtle"
                             />
-                            <FieldLabel htmlFor="terms" className="text-label-14 font-normal text-ink">
-                                {t('access::auth.terms_accept')}
+                            {/* The store's Terms and Conditions and Privacy Policy, each opening in a new tab (S3.4). */}
+                            <FieldLabel htmlFor="terms" className="block text-label-14 font-normal text-ink" data-test="terms-sentence">
+                                <PolicySentence
+                                    text={t('access::auth.terms_accept')}
+                                    names={{
+                                        terms: { label: t('access::auth.terms_name'), href: terms?.url ?? null, test: 'terms-link' },
+                                        privacy: { label: t('access::auth.privacy_name'), href: privacy?.url ?? null, test: 'privacy-link' },
+                                    }}
+                                />
                             </FieldLabel>
                         </Field>
                         {form.errors.terms ? <FieldError id="terms-error">{form.errors.terms}</FieldError> : null}

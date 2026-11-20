@@ -16,6 +16,8 @@ use Modules\B2B\Application\Settings\FormRules;
 use Modules\B2B\Domain\Exception\ApplicationNotEditable;
 use Modules\B2B\Domain\Exception\ApplicationNotFound;
 use Modules\B2B\Domain\Exception\CompanySuspended;
+use Modules\B2B\Domain\Exception\CompanyTermsChanged;
+use Modules\B2B\Domain\Exception\CompanyTermsNotAccepted;
 use Modules\B2B\Domain\Exception\CompanyTypeInactive;
 use Modules\B2B\Domain\Exception\DocumentNoLongerAccepted;
 use Modules\B2B\Domain\Exception\EmailNotVerified;
@@ -32,6 +34,8 @@ use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\Repository\CompanyTypeRepository;
 use Modules\B2B\Domain\Repository\DocumentTypeRepository;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Contracts\ShopPolicies;
+use Modules\Platform\Public\Enums\PolicyKind;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Domain\ValueObject\StoreId;
@@ -48,6 +52,9 @@ use Shared\Domain\ValueObject\StoreId;
  *   every request answered. It is given the home store's whole lists, inactive types included, so
  *   it can tell "no longer accepted" from "unknown".
  * - A suspended company sends nothing (CompanySuspended).
+ * - **The store's Company Terms ticked**, while it has them published (CompanyTermsNotAccepted; flags-2026-11.md
+ *   S3.6, Q2), and the ones the form showed (CompanyTermsChanged; owner, 2026-11-20): the policy and the version
+ *   ticked are kept on the application. None published and none shown, nothing is asked.
  *
  * One company per account: the company is created only when none exists, under the account's lock
  * (ApplicationRepository::lockAccount), so two first sends cannot both create one. Audited on the
@@ -71,10 +78,11 @@ final readonly class SubmitApplicationHandler
         private ApplicationReferenceCounter $references,
         private FormRules $rules,
         private ConnectionInterface $db,
+        private ShopPolicies $policies,
     ) {}
 
     /**
-     * @throws NotACompanyAccount|EmailNotVerified|PhoneNotConfirmed
+     * @throws NotACompanyAccount|EmailNotVerified|PhoneNotConfirmed|CompanyTermsChanged|CompanyTermsNotAccepted
      * @throws ApplicationNotFound|CompanySuspended|ApplicationNotEditable
      * @throws InvalidCompanyAttribute|CompanyTypeInactive|DocumentNoLongerAccepted|MissingRequiredDocument
      * @throws FlaggedItemNotReplaced|RequestNotAnswered
@@ -93,8 +101,25 @@ final readonly class SubmitApplicationHandler
         }
 
         $store = $this->account->store($account);
+        // The Company Terms the store shows now, the line above Send names (S3.6): a tick asked only while there are some.
+        $terms = $this->policies->published(StoreId::fromString($store), PolicyKind::CompanyTerms, 'ar');
 
-        $this->db->transaction(function () use ($account, $store): void {
+        // The terms the form showed must be the store's now - the same at the same version, or none and none - so the
+        // version kept is the one read (owner, 2026-11-20); only then is the tick asked.
+        $shown = $command->shownCompanyTermsId;
+        $same = $terms === null
+            ? $shown === null && $command->shownCompanyTermsVersion === null
+            : $shown !== null && strtolower($shown) === strtolower($terms->policyId) && $command->shownCompanyTermsVersion === $terms->version;
+
+        if (! $same) {
+            throw new CompanyTermsChanged;
+        }
+
+        if ($terms !== null && ! $command->companyTermsAccepted) {
+            throw new CompanyTermsNotAccepted;
+        }
+
+        $this->db->transaction(function () use ($account, $store, $terms): void {
             $inHand = $this->drafts->forChange($account->id, $store);
             $draft = $inHand->draft;
             $company = $inHand->company;
@@ -137,6 +162,11 @@ final readonly class SubmitApplicationHandler
             }
 
             $this->applications->update($draft);
+
+            if ($terms !== null) {
+                $this->applications->keepCompanyTerms($draft->id(), $terms->policyId, $terms->version);
+            }
+
             $this->platform->recordAudit(CompanyAccountAudit::submitted($draft, $before, $company->status(), $homeStoreId));
             // Sending always changes the status: a PENDING company cannot send again (applyAgain).
             $this->events->submitted($company, $draft);

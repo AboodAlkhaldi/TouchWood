@@ -8,6 +8,8 @@ use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Content\Application\Command\PublishPolicy\PublishPolicy;
+use Modules\Content\Application\Command\PublishPolicy\PublishPolicyHandler;
 use Modules\Content\Application\Command\SaveBanner\SaveBanner;
 use Modules\Content\Application\Command\SaveBanner\SaveBannerHandler;
 use Modules\Content\Application\Command\SavePage\SavePage;
@@ -143,6 +145,28 @@ final class ContentFixtures
             'bodyEn' => 'The policy text',
             ...$with,
         ])));
+    }
+
+    /**
+     * A policy of this kind published in these stores through its use cases (build 4), for the modules that ask
+     * Platform's `ShopPolicies` - Sales' checkout, Access's sign-up, B2B's application. As whoever acts, who must
+     * hold `content.policy.manage` in those stores (a Super Admin does). Its titles and addresses are unique, so a
+     * suite that keeps its data (the browser's) never meets one twice.
+     *
+     * @param  list<string>  $codes
+     * @return string the policy's id
+     */
+    public static function publishedPolicy(string $kind = 'TERMS', array $codes = ['sa']): string
+    {
+        $mark = (string) random_int(10000000, 99999999);
+        $words = ['TERMS' => 'Terms and Conditions', 'PRIVACY' => 'Privacy Policy', 'RETURNS' => 'Returns and Refunds', 'COMPANY_TERMS' => 'Company Terms'][$kind] ?? 'Policy';
+        $id = self::policy([
+            'kind' => $kind, 'titleAr' => "سياسة {$mark}", 'titleEn' => "{$words} {$mark}",
+            'slugAr' => "سياسة-{$mark}", 'slugEn' => strtolower(str_replace(' ', '-', $words))."-{$mark}",
+        ], $codes);
+        app(PublishPolicyHandler::class)->handle(new PublishPolicy($id, (int) DB::table('content.policies')->where('id', $id)->value('version')));
+
+        return $id;
     }
 
     /**

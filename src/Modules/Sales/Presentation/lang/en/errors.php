@@ -53,6 +53,18 @@ return [
         'title' => 'Payment In Progress',
         'detail' => 'A payment is already in progress in another window.',
     ],
+    'terms_not_accepted' => [
+        'title' => 'Terms Not Accepted',
+        'detail' => 'Tick the box to agree to the terms.',
+    ],
+    'terms_changed' => [
+        'title' => 'Terms Updated',
+        'detail' => 'The Terms were updated. Read them and tick again.',
+    ],
+    'terms_missing' => [
+        'title' => 'No Terms Published',
+        'detail' => 'Orders can\'t be placed until this store\'s terms are published.',
+    ],
     'checkout_try_not_found' => [
         'title' => 'Payment Not Found',
         'detail' => 'Couldn\'t find this payment.',
@@ -131,6 +143,10 @@ return [
     ],
 
     'fields' => [
+        'terms_policy' => 'Terms and Conditions',
+        'terms_version' => 'terms version',
+        'returns_policy' => 'Returns and Refunds policy',
+        'returns_version' => 'returns policy version',
         'store' => 'store',
         'quantity' => 'quantity',
         'variant' => 'size',

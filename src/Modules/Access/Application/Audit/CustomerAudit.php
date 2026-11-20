@@ -28,7 +28,11 @@ final class CustomerAudit
             ->changed('account_type', null, $customer->accountType()->value)
             ->changed('status', null, $customer->status()->value)
             ->changed('locale', null, $customer->language()->value)
-            ->changed('terms_version', null, $customer->termsVersion());
+            // The store's Terms and Conditions and Privacy Policy accepted, and their versions (S3.4, F18; owner, 2026-11-20).
+            ->changed('terms_policy_id', null, $customer->termsPolicyId())
+            ->changed('terms_policy_version', null, $customer->termsPolicyVersion())
+            ->changed('privacy_policy_id', null, $customer->privacyPolicyId())
+            ->changed('privacy_policy_version', null, $customer->privacyPolicyVersion());
 
         return self::entry('access.customer.registered', $customer, $changes);
     }

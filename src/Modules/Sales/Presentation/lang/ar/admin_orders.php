@@ -140,6 +140,9 @@ return [
         'vat' => 'ضريبة القيمة المضافة',
         'total' => 'الإجمالي',
         'way_to_pay' => 'طريقة الدفع',
+        // The terms ticked at checkout (flags-2026-11.md S3.3, F16), each linking to that version's text.
+        'terms_accepted' => 'الشروط والأحكام، الإصدار :version، تمت الموافقة عليها :when',
+        'returns_accepted' => 'سياسة الاستبدال والاسترجاع، الإصدار :version',
         'money' => 'المبالغ',
         'due' => 'المستحق',
         'paid' => 'المدفوع',

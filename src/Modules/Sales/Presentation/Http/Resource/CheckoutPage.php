@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Sales\Presentation\Http\Resource;
 
 use Modules\Platform\Public\Dto\MoneyData;
+use Modules\Platform\Public\Dto\ShopPolicyLinkData;
 use Spatie\LaravelData\Data;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
@@ -67,5 +68,13 @@ final class CheckoutPage extends Data
         public bool $testMode = false,
         /** A try that can still go through, on coming back (payments.md §4.2, Q8): no form, Pay out of reach. */
         public ?CheckoutTryData $payment = null,
+        /**
+         * The store's published Terms and Conditions, named by the tick above Place Order with a link to its page
+         * (flags-2026-11.md S3.3), and sent back with the tick as the version shown; null: the store has none and
+         * takes no orders - the button gives way to a line saying so.
+         */
+        public ?ShopPolicyLinkData $terms = null,
+        /** Its Returns and Refunds policy; null: the sentence names the terms only. */
+        public ?ShopPolicyLinkData $returns = null,
     ) {}
 }

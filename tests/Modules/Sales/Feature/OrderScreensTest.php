@@ -332,7 +332,10 @@ describe('P2 · An order', function () {
         // choice: it is worked out live, never stored). The carriers are read only for staff who ship.
         // Three more from stage 7 step 12, for an order still missing money: the open request, whether a payment is open, and the attempts (payments.md §4.2).
         // The list 6 since round 3 #11 (2026-11-10): every tab's count, one grouped query.
-        expect(orderScreensOwnQueries($browser, "/admin/orders/{$order}"))->toBe(17)
+        // 19 since 2026-11-20 (flags-2026-11.md S3.3, F16): the terms the order was placed under link to their text, the
+        // policy's address found among the store's published ones through Platform's ShopPolicies - Content's cache,
+        // its version and copy (no choice: Sales may not read Content, and the address follows the policy's).
+        expect(orderScreensOwnQueries($browser, "/admin/orders/{$order}"))->toBe(19)
             ->and(orderScreensOwnQueries($browser, '/admin/orders'))->toBe($one)
             ->and($one)->toBe(6);
     });

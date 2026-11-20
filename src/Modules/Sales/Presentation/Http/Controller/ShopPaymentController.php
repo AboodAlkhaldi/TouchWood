@@ -71,6 +71,9 @@ final readonly class ShopPaymentController
             self::text($request, 'session'),
             app()->getLocale(),
             route('storefront.sales.payment.return'),
+            // The terms' box as the page sent it, and the terms it showed (flags-2026-11.md S3.3; owner, 2026-11-20).
+            $request->input('agreed') === true,
+            ShopCheckoutController::shown($request),
         ));
 
         return $this->started($paying->tryId, $paying->start);

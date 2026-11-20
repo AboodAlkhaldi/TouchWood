@@ -12,6 +12,10 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\B2B\Application\Command\AttachApplicationDocument\AttachApplicationDocument;
 use Modules\B2B\Application\Command\AttachApplicationDocument\AttachApplicationDocumentHandler;
+use Modules\B2B\Application\Command\SaveApplicationDraft\SaveApplicationDraft;
+use Modules\B2B\Application\Command\SaveApplicationDraft\SaveApplicationDraftHandler;
+use Modules\B2B\Application\Command\StartApplicationDraft\StartApplicationDraft;
+use Modules\B2B\Application\Command\StartApplicationDraft\StartApplicationDraftHandler;
 use Modules\B2B\Application\Command\UpdateCompanyContact\UpdateCompanyContact;
 use Modules\B2B\Application\Command\UpdateCompanyContact\UpdateCompanyContactHandler;
 use Modules\B2B\Application\Settings\FormRules;
@@ -21,6 +25,8 @@ use Modules\B2B\Domain\ValueObject\ApplicationRequest;
 use Modules\B2B\Domain\ValueObject\FlaggedField;
 use Modules\B2B\Domain\ValueObject\Remark;
 use Modules\B2B\Domain\ValueObject\RequestKind;
+use Modules\Content\Application\Command\UnpublishPolicy\UnpublishPolicy;
+use Modules\Content\Application\Command\UnpublishPolicy\UnpublishPolicyHandler;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Shared\Application\ActorContext;
@@ -28,6 +34,8 @@ use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\B2B\Support\B2BFixtures;
+use Tests\Modules\Content\Support\ContentFixtures;
+use Tests\Modules\Sales\Support\CheckoutFixtures as Cx;
 
 use function Pest\Laravel\seed;
 
@@ -220,6 +228,59 @@ it('takes a company from the line under the header through its application to "u
         ->and($page->script("document.querySelector('[data-test=lifecycle] [aria-current=step]')?.textContent.includes('Our team is checking it.')"))->toBeTrue();
 });
 
+it('asks a tick of the store\'s Company Terms above Send, its link in a new tab, at a phone\'s width in both languages (S3.6)', function () {
+    $customerId = B2BFixtures::verifiedCompanyAccount();
+    $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
+    Fx::actAsCustomer($customerId);
+
+    try {
+        app(StartApplicationDraftHandler::class)->handle(new StartApplicationDraft);
+        app(SaveApplicationDraftHandler::class)->handle(new SaveApplicationDraft([
+            'name' => 'Al Noor Trading', 'company_type_id' => B2BFixtures::companyTypes()[0]->id(),
+            'cr_number' => '1010123456', 'tax_number' => '300123456700003', 'address_id' => B2BFixtures::savedAddress($customerId),
+        ]));
+    } finally {
+        app()->scoped(ActorContext::class, $previous);
+        app()->forgetScopedInstances();
+    }
+
+    companyScreenPapers($customerId);
+    // The suite keeps its data: the store's Company Terms are this test's alone, taken down again at its end, so no
+    // other Send in the suite meets a tick it does not expect.
+    $policy = Cx::asSuperAdmin(static fn (): string => ContentFixtures::publishedPolicy('COMPANY_TERMS'));
+
+    try {
+        $page = companyScreenSignIn($customerId);
+        $page->resize(375, 812);
+        $page->navigate('/sa/en/account/company', BROWSER_PAGE_LOAD)->assertPresent('[data-test="company-form"]');
+
+        expect(browserSoon($page, "document.querySelector('[data-test=\"company-terms-link\"]')?.target === '_blank'"))->toBeTrue()
+            ->and($page->script("document.querySelector('[data-test=\"company-terms-sentence\"]').textContent"))->toBe('I have read and agree to the Company Terms.')
+            ->and($page->script("document.querySelector('[data-test=\"company-terms-link\"]').getAttribute('href')"))->toContain('/sa/en/policies/')
+            ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the form scrolls sideways');
+
+        // Send unticked: said under the tick, nothing sent.
+        $page->click('[data-test="send"]');
+        expect(browserSoon($page, "document.querySelector('[data-test=\"company-terms-error\"]')?.textContent === 'Tick the box to agree to the Company Terms.'"))->toBeTrue()
+            ->and(DB::table('b2b.applications')->where('customer_id', $customerId)->value('state'))->toBe('DRAFT');
+
+        // In Arabic, ticked and sent: the application keeps the version ticked.
+        $page->navigate('/sa/ar/account/company', BROWSER_PAGE_LOAD)->assertPresent('[data-test="company-form"]');
+        expect(browserSoon($page, "document.querySelector('[data-test=\"company-terms-link\"]')?.textContent === 'شروط الشركات'"))->toBeTrue()
+            ->and($page->script("document.querySelector('[data-test=\"company-terms-sentence\"]').textContent"))->toBe('قرأتُ شروط الشركات وأوافق عليها.')
+            ->and($page->script("decodeURIComponent(document.querySelector('[data-test=\"company-terms-link\"]').getAttribute('href'))"))->toContain('/sa/ar/policies/')
+            ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the Arabic form scrolls sideways');
+        $page->click('[data-test="company-terms"]');
+        $page->click('[data-test="send"]');
+
+        expect(browserUntil($page, "document.body.innerText.includes('".__('b2b::company.sent', [], 'ar')."')"))->toBeTrue()
+            ->and(DB::table('b2b.applications')->where('customer_id', $customerId)->first(['state', 'company_terms_policy_id', 'company_terms_version']))
+            ->toEqual((object) ['state' => 'SUBMITTED', 'company_terms_policy_id' => $policy, 'company_terms_version' => 1]);
+    } finally {
+        Cx::asSuperAdmin(static fn () => app(UnpublishPolicyHandler::class)->handle(new UnpublishPolicy($policy, (int) DB::table('content.policies')->where('id', $policy)->value('version'))));
+    }
+});
+
 it('says before anything is filled in that Send waits for a confirmed phone, and links to the account\'s Phone page (amendment 26(a))', function () {
     $customerId = B2BFixtures::verifiedCompanyAccountWithoutPhone();
     $page = companyScreenSignIn($customerId);
@@ -272,10 +333,19 @@ it('reads right to left in Arabic, in the dark, on a phone', function () {
 
     // The shop's theme is the person's choice, kept in this browser's cookie rather than read from
     // the phone (frontend.md §2.1) — chosen here before signing in, as StorefrontFrameTest does.
-    $page = visit('/sa/ar/sign-in');
-    $page->click('[data-test="theme-dark"]');
+    // A guest's switch is in the phone's drawer since build 2 (flags-2026-11.md S1.3), as StorefrontFrameTest presses it.
+    $page = visit('/sa/ar');
+    $page->resize(375, 812);
+    $page->click('[data-test="category-sheet-open"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"drawer-account\"]') !== null"))->toBeTrue();
+    $page->click('[data-test="drawer-account"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"drawer-theme\"] [data-test=\"theme-dark\"]') !== null"))->toBeTrue();
+    $page->click('[data-test="drawer-theme"] [data-test="theme-dark"]');
     // Read until the server's answer is in (lesson 121), as StorefrontFrameTest does.
     expect(browserUntil($page, "document.documentElement.dataset.mode === 'dark'"))->toBeTrue();
+    // Signed in at a computer's width: a phone's from the start lost the race described below.
+    $page->resize(1280, 800);
+    $page->navigate('/sa/ar/sign-in', BROWSER_PAGE_LOAD);
     $page->type('#email', $email)
         ->type('#password', Fx::CUSTOMER_PASSWORD)
         ->click('button[type="submit"]')

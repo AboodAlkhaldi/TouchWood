@@ -11,20 +11,24 @@ use Modules\Access\Application\Command\RegisterCustomer\RegisterCustomer;
 use Modules\Access\Application\Command\RegisterCustomer\RegisterCustomerHandler;
 use Modules\Access\Application\Command\UpdateCustomerProfile\UpdateCustomerProfile;
 use Modules\Access\Application\Command\UpdateCustomerProfile\UpdateCustomerProfileHandler;
-use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Domain\Exception\EmailAlreadyRegistered;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\PasswordTooWeak;
+use Modules\Access\Domain\Exception\TermsChanged;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Enums\AccountType;
 use Modules\Access\Public\Events\CustomerRegistered;
-use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
-use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
+use Modules\Content\Application\Command\SavePolicy\SavePolicy;
+use Modules\Content\Application\Command\SavePolicy\SavePolicyHandler;
+use Modules\Content\Application\Command\UnpublishPolicy\UnpublishPolicy;
+use Modules\Content\Application\Command\UnpublishPolicy\UnpublishPolicyHandler;
+use Modules\Content\Application\Policies\PolicyInput;
 use Shared\Application\Actor;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
+use Tests\Modules\Content\Support\ContentFixtures;
 
 use function Pest\Laravel\seed;
 
@@ -46,20 +50,48 @@ function customerRow(string $customerId): array
     return (array) DB::table('access.customers')->where('id', $customerId)->first();
 }
 
-function customerRegister(string $email = 'sara@example.test', string $storeCode = 'sa', string $accountType = 'individual', string $password = CUSTOMER_PASSWORD, string $locale = 'en', bool $terms = true, string $firstName = 'Sara', string $lastName = 'Ali'): string
+/**
+ * The store's Terms and Conditions published (flags-2026-11.md S3.4), as a Super Admin, the visitor acting again after.
+ */
+function customerTerms(string $storeCode = 'sa'): string
 {
+    Fx::actAsStaff(Fx::staff(superAdmin: true));
+    $policy = ContentFixtures::publishedPolicy('TERMS', [$storeCode]);
+    Fx::actAs(Actor::guest(strtolower((string) Str::ulid())));
+
+    return $policy;
+}
+
+/**
+ * @param  array<string, mixed>|null  $shown  the policies the form showed, as RegisterCustomer's named arguments; the store's now unless told
+ */
+function customerRegister(string $email = 'sara@example.test', string $storeCode = 'sa', string $accountType = 'individual', string $password = CUSTOMER_PASSWORD, string $locale = 'en', bool $terms = true, string $firstName = 'Sara', string $lastName = 'Ali', ?array $shown = null): string
+{
+    $shown ??= Fx::shownPolicies($storeCode);
     // A visitor fills the form as a guest; registering signs them in, so each new account starts
     // from a browser that is signed out again (owner, 2026-09-20).
     Fx::actAs(Actor::guest(strtolower((string) Str::ulid())));
 
     return Fx::inStoreCode($storeCode, fn (): string => app(RegisterCustomerHandler::class)->handle(
-        new RegisterCustomer($email, $password, $firstName, $lastName, $accountType, $locale, $terms),
+        new RegisterCustomer($email, $password, $firstName, $lastName, $accountType, $locale, $terms, ...$shown),
     ));
+}
+
+/** A policy saved with new words, as a Super Admin: its next version; then a visitor again. */
+function customerReword(string $policyId, string $kind = 'TERMS'): void
+{
+    Fx::actAsStaff(Fx::staff(superAdmin: true));
+    app(SavePolicyHandler::class)->handle(new SavePolicy(new PolicyInput(
+        $policyId, $kind, [Fx::storeId('sa')], (int) DB::table('content.policies')->where('id', $policyId)->value('version'),
+        'الشروط', 'Terms', 'الشروط-المعدلة', 'terms-reworded', 'نص آخر', 'Other words',
+    )));
+    Fx::actAs(Actor::guest(strtolower((string) Str::ulid())));
 }
 
 describe('registering (spec §1.2)', function () {
     it('creates an active account in the store the visitor is in, unverified, and emails the link', function () {
         Event::fake([CustomerRegistered::class]);
+        $terms = customerTerms();
         Fx::actAs(Actor::guest('01k5n0v9m1t8q7r6s5w4x3y2z1'));
 
         $customerId = customerRegister();
@@ -74,7 +106,12 @@ describe('registering (spec §1.2)', function () {
             ->and($row['phone'])->toBeNull()
             ->and($row['home_store_id'])->toBe(Fx::storeId('sa'))
             ->and($row['last_store_id'])->toBe(Fx::storeId('sa'))
-            ->and($row['terms_version'])->toBe('2026-01')
+            // The store's published Terms and its version (S3.4, F18); the typed version is retired.
+            ->and($row['terms_policy_id'])->toBe($terms)
+            ->and($row['terms_policy_version'])->toBe(1)
+            // No Privacy Policy published in the store: none kept.
+            ->and([$row['privacy_policy_id'], $row['privacy_policy_version']])->toBe([null, null])
+            ->and($row['terms_version'])->toBeNull()
             ->and($row['terms_accepted_at'])->not->toBeNull()
             ->and($verification['to'] ?? null)->toBe('sara@example.test')
             ->and($verification['link'] ?? '')->toStartWith(config('app.url').'/sa/en/account/verify-email/'.$customerId)
@@ -86,6 +123,9 @@ describe('registering (spec §1.2)', function () {
     });
 
     it('audits the registration with the personal fields marked as changed only', function () {
+        $terms = customerTerms();
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        $privacy = ContentFixtures::publishedPolicy('PRIVACY');
         $customerId = customerRegister();
         $entry = DB::table('platform.audit_entries')->where('action', 'access.customer.registered')->first();
 
@@ -99,7 +139,10 @@ describe('registering (spec §1.2)', function () {
                 'account_type' => [null, 'INDIVIDUAL'],
                 'status' => [null, 'ACTIVE'],
                 'locale' => [null, 'en'],
-                'terms_version' => [null, '2026-01'],
+                'terms_policy_id' => [null, $terms],
+                'terms_policy_version' => [null, 1],
+                'privacy_policy_id' => [null, $privacy],
+                'privacy_policy_version' => [null, 1],
             ]);
     });
 
@@ -139,21 +182,66 @@ describe('registering (spec §1.2)', function () {
         'a leaked password' => [fn () => customerRegister(password: FakeBreachList::LEAKED), PasswordTooWeak::class],
     ]);
 
-    it('records the terms version of the store the customer registered in (amendment 37)', function () {
-        Fx::asSystem(fn () => app(UpdateSettingHandler::class)->handle(
-            new UpdateSetting(CustomerSecuritySettings::TERMS_VERSION, 'ae', '2026-09-AE'),
-        ));
+    it('records the Terms and Conditions of the store the customer registered in, and its version (amendment 37; S3.4, F18)', function () {
+        $emirates = customerTerms('ae');
+        $saudi = customerTerms('sa');
+        // The Saudi terms saved with new words: their version 2, which a new account accepts.
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        $version = (int) DB::table('content.policies')->where('id', $saudi)->value('version');
+        app(SavePolicyHandler::class)->handle(new SavePolicy(new PolicyInput(
+            $saudi, 'TERMS', [Fx::storeId('sa')], $version, 'الشروط', 'Terms', 'الشروط-الجديدة', 'terms-reworded', 'نص جديد', 'New words',
+        )));
 
         $inEmirates = customerRegister('ae@example.test', storeCode: 'ae');
         $inSaudi = customerRegister('sa@example.test');
 
-        expect(customerRow($inEmirates)['terms_version'])->toBe('2026-09-AE')
-            ->and(customerRow($inSaudi)['terms_version'])->toBe('2026-01')
+        expect([customerRow($inEmirates)['terms_policy_id'], customerRow($inEmirates)['terms_policy_version']])->toBe([$emirates, 1])
+            ->and([customerRow($inSaudi)['terms_policy_id'], customerRow($inSaudi)['terms_policy_version']])->toBe([$saudi, 2])
             // Each account belongs to the store it registered in, and its link points there.
             ->and(customerRow($inEmirates)['home_store_id'])->toBe(Fx::storeId('ae'))
             ->and(customerRow($inSaudi)['home_store_id'])->toBe(Fx::storeId('sa'))
             ->and(RecordingSecurityMessages::installed()->emailVerifications[0]['link'])->toContain('/ae/en/account/verify-email/')
             ->and(RecordingSecurityMessages::installed()->emailVerifications[1]['link'])->toContain('/sa/en/account/verify-email/');
+    });
+
+    it('keeps the store\'s Privacy Policy and its version beside the terms (owner, 2026-11-20)', function () {
+        $terms = customerTerms();
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        $privacy = ContentFixtures::publishedPolicy('PRIVACY');
+
+        $row = customerRow(customerRegister());
+
+        expect([$row['terms_policy_id'], $row['terms_policy_version'], $row['privacy_policy_id'], $row['privacy_policy_version']])->toBe([$terms, 1, $privacy, 1]);
+    });
+
+    it('refuses an account under policies other than the form showed, and makes none (owner, 2026-11-20)', function (Closure $since, Closure $shown) {
+        $terms = customerTerms();
+        $before = Fx::shownPolicies();
+        $since($terms);
+
+        expect(fn () => customerRegister(shown: $shown($before)))->toThrow(TermsChanged::class)
+            ->and(DB::table('access.customers')->count())->toBe(0)
+            ->and(RecordingSecurityMessages::installed()->emailVerifications)->toBe([]);
+    })->with([
+        'the terms reworded since' => [fn (string $terms) => customerReword($terms), fn (array $before): array => $before],
+        'a Privacy Policy published since' => [function (): void {
+            Fx::actAsStaff(Fx::staff(superAdmin: true));
+            ContentFixtures::publishedPolicy('PRIVACY');
+        }, fn (array $before): array => $before],
+        'none sent' => [fn () => null, fn (): array => []],
+        'another version sent' => [fn () => null, fn (array $before): array => [...$before, 'shownTermsVersion' => 2]],
+        'another policy sent' => [fn () => null, fn (array $before): array => [...$before, 'shownTermsId' => '01katerms0000000000000000a']],
+        'terms sent, taken down since' => [function (string $terms): void {
+            Fx::actAsStaff(Fx::staff(superAdmin: true));
+            app(UnpublishPolicyHandler::class)->handle(new UnpublishPolicy($terms, (int) DB::table('content.policies')->where('id', $terms)->value('version')));
+        }, fn (array $before): array => $before],
+    ]);
+
+    it('signs up in a store with no published terms, recording no policy (owner, 2026-11-20)', function () {
+        $customerId = customerRegister();
+
+        expect(customerRow($customerId))->toMatchArray(['terms_policy_id' => null, 'terms_policy_version' => null, 'terms_version' => null])
+            ->and(customerRow($customerId)['terms_accepted_at'])->not->toBeNull();
     });
 
     it('tells other modules the store each account registered in', function () {

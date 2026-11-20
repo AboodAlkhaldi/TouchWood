@@ -31,6 +31,9 @@ use Modules\Sales\Domain\Exception\ReturnNotFound;
 use Modules\Sales\Domain\Exception\SalesError;
 use Modules\Sales\Domain\Exception\ShippingFeeNotSet;
 use Modules\Sales\Domain\Exception\SignInToUseCoupon;
+use Modules\Sales\Domain\Exception\TermsChanged;
+use Modules\Sales\Domain\Exception\TermsMissing;
+use Modules\Sales\Domain\Exception\TermsNotAccepted;
 use Modules\Sales\Domain\Exception\TestOrderNotShippable;
 use Modules\Sales\Domain\Exception\TooManyCouponTries;
 use Modules\Sales\Domain\Exception\TooManyFiles;
@@ -66,6 +69,9 @@ function salesErrors(): array
         'PaymentLinkEnded' => [new PaymentLinkEnded, 'sales.payment_link_ended', ErrorCategory::Conflict],
         'PaymentRequestNotAllowed' => [new PaymentRequestNotAllowed, 'sales.payment_request_not_allowed', ErrorCategory::Conflict],
         'CheckoutTryNotFound' => [new CheckoutTryNotFound, 'sales.checkout_try_not_found', ErrorCategory::NotFound],
+        'TermsNotAccepted' => [new TermsNotAccepted, 'sales.terms_not_accepted', ErrorCategory::Invalid],
+        'TermsMissing' => [new TermsMissing, 'sales.terms_missing', ErrorCategory::Forbidden],
+        'TermsChanged' => [new TermsChanged, 'sales.terms_changed', ErrorCategory::Conflict],
         'TestOrderNotShippable' => [new TestOrderNotShippable, 'sales.test_order_not_shippable', ErrorCategory::Invalid],
         'OnlinePaymentNotVoidable' => [new OnlinePaymentNotVoidable, 'sales.online_payment_not_voidable', ErrorCategory::Invalid],
         'TooManyWaitingOrders' => [new TooManyWaitingOrders(3), 'sales.too_many_waiting_orders', ErrorCategory::Conflict],
@@ -110,7 +116,7 @@ it('checks every error in the module\'s folder, and the folder holds them all', 
     $listed = array_map(static fn (array $row): string => $row[0]::class, array_values(salesErrors()));
     sort($listed);
 
-    expect(salesErrorClassesInFolder())->toHaveCount(31)
+    expect(salesErrorClassesInFolder())->toHaveCount(34)
         ->and(salesErrorClassesInFolder())->toBe($listed);
 });
 

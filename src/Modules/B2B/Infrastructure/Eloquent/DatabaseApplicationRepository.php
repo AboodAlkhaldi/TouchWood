@@ -181,6 +181,12 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
         $this->writeHeld($application);
     }
 
+    public function keepCompanyTerms(string $applicationId, string $policyId, int $version): void
+    {
+        $this->db->table(self::TABLE)->where('id', strtolower($applicationId))
+            ->update(['company_terms_policy_id' => strtolower($policyId), 'company_terms_version' => $version]);
+    }
+
     public function delete(string $applicationId): void
     {
         // The document, flag, request and answer rows go by the foreign keys' cascade.

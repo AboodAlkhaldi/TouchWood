@@ -1028,8 +1028,16 @@ amount still owed (§4.2 B1).
    **a line with nothing in it not shown** (no "Points: 0"), **the free gift as its own line at 0.00**
    when there is one, the points this order earns, and here — once — **"Prices exclude VAT; VAT is added
    above"** (R2-1).
-5. **Place order · 1,240.00** — a spinner while it goes; pressed twice, placed once (§1.3; R2-17). No
-   terms tick until Content writes the terms (R1-25).
+5. **Place order · 1,240.00** — a spinner while it goes; pressed twice, placed once (§1.3; R2-17). Above it
+   **a required tick** (flags-2026-11.md S3.3): "I have read and agree to the Terms and Conditions and the Returns
+   and Refunds policy.", each name a link opening that policy's page in a new tab, the Returns left out while the
+   store has none published; pressed unticked, "Tick the box to agree to the terms." under it and nothing sent.
+   The place-order call and Pay carry the tick, and the server refuses without it (`TermsNotAccepted`) whatever
+   the page sent. **A store with no published Terms takes no orders**: "Orders can't be placed until this store's
+   terms are published." in place of the button, no payment form, and the server refuses (`TermsMissing`). The
+   order keeps the Terms' policy, the version ticked and when, with the Returns policy and its version when ticked
+   with it (F16); an online order keeps what Pay ticked, kept on its try. Staff see "Terms v3, accepted 18 Nov
+   2026 14:02" on the order, linking to that version's text.
 - **The 15 minutes**: no timer; an expired quote is worked out again by itself (R2-16). **Anything that
   changed** — at the new quote or at placing (`QuoteChanged`) — keeps the customer on checkout, shows what
   changed with the new totals, and asks them to press Place order again (R1-21, R1-22).
@@ -1383,6 +1391,8 @@ Each extends `SalesError`, which extends `Shared\Domain\Error\DomainError`, with
 | `QuoteNotFound` | NOT_FOUND | A quote that is not this buyer's — the same answer as an unknown one |
 | `QuoteExpired` | CONFLICT | Placing after 15 minutes or past the prices' end — checkout quotes again |
 | `QuoteChanged` | CONFLICT | Anything of §1.3 steps 3–5 no longer as quoted |
+| `TermsNotAccepted` | INVALID | Placing or Pay without the terms' tick (flags-2026-11.md S3.3) |
+| `TermsMissing` | FORBIDDEN | Placing or Pay in a store with no published Terms and Conditions (S3.3) |
 | `NotCancellable` | CONFLICT | Shipped, or already cancelled, rejected or finished |
 | `NotEditable` | CONFLICT | Shipped; cancelled, rejected or finished; a line ticked "reduced in the provider" |
 | `NotShippable` | CONFLICT | Not approved; holding less than is due without "may ship unpaid" |

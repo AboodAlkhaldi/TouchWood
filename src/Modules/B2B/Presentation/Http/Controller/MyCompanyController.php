@@ -183,7 +183,14 @@ final readonly class MyCompanyController
     public function send(Request $request, SubmitApplicationHandler $handler): RedirectResponse
     {
         try {
-            $handler->handle(new SubmitApplication);
+            // The Company Terms' box as the page sent it (flags-2026-11.md S3.6); the handler asks it only while there are some.
+            $shownId = $request->input('company_terms_id');
+            $shownVersion = $request->input('company_terms_version');
+            $handler->handle(new SubmitApplication(
+                $request->input('company_terms') === true,
+                is_string($shownId) && $shownId !== '' && strlen($shownId) <= 64 ? $shownId : null,
+                is_int($shownVersion) ? $shownVersion : (is_string($shownVersion) && ctype_digit($shownVersion) && strlen($shownVersion) <= 9 ? (int) $shownVersion : null),
+            ));
         } catch (DomainError $error) {
             return self::refused($request, $error);
         }

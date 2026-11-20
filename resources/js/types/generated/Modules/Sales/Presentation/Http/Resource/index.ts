@@ -1,4 +1,4 @@
-import type { MoneyData } from '../../../../Platform/Public/Dto';
+import type { MoneyData, ShopPolicyLinkData } from '../../../../Platform/Public/Dto';
 export type AskReturnPage = {
 number: string,
 lines: OwnLineData[],
@@ -122,6 +122,8 @@ carrierChanged: boolean,
 otherStore: CheckoutOtherStoreData | null,
 testMode: boolean,
 payment: CheckoutTryData | null,
+terms: ShopPolicyLinkData | null,
+returns: ShopPolicyLinkData | null,
 };
 export type CheckoutTryData = {
 tryId: string,
@@ -364,6 +366,7 @@ attempts: OrderAttemptData[] | null,
 paymentRequest: OrderRequestData | null,
 paymentInProgress: boolean,
 mayRequestPayment: boolean,
+terms: OrderTermsData | null,
 };
 export type OrderRequestData = {
 amount: MoneyData,
@@ -389,6 +392,13 @@ total: MoneyData,
 shortOfStock: boolean,
 shippingFeePending: boolean,
 isOverdue: boolean,
+};
+export type OrderTermsData = {
+version: number,
+acceptedAt: string,
+url: string | null,
+returnsVersion: number | null,
+returnsUrl: string | null,
 };
 export type OrderTickData = {
 variantId: string,

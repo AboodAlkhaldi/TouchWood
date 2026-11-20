@@ -4,14 +4,23 @@ declare(strict_types=1);
 
 use App\Http\Middleware\HandleInertiaRequests;
 use Database\Seeders\PlatformSeeder;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia;
+use Modules\Content\Application\Command\SavePolicy\SavePolicy;
+use Modules\Content\Application\Command\SavePolicy\SavePolicyHandler;
+use Modules\Content\Application\Policies\PolicyInput;
+use Modules\Platform\Public\Contracts\ShopPolicies;
+use Modules\Platform\Public\Enums\PolicyKind;
+use Shared\Application\ActorContext;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
+use Tests\Modules\Content\Support\ContentFixtures;
 
 use function Pest\Laravel\seed;
 
@@ -54,6 +63,22 @@ function authPageCustomer(): array
     return [$customerId, $browser];
 }
 
+/**
+ * The register page's props, as a visitor.
+ *
+ * @return array<string, mixed>
+ */
+function authPageRegisterProps(string $uri): array
+{
+    $props = [];
+    (new AdminBrowser)->get($uri)->assertOk()->assertInertia(function (AssertableInertia $page) use (&$props) {
+        $page->component('Access/Storefront/Register');
+        $props = $page->toArray()['props'];
+    });
+
+    return $props;
+}
+
 describe('the pages a visitor sees (F3, F5, F6)', function () {
     it('draws the register page, with the password rule the setting holds', function () {
         (new AdminBrowser)->get('/sa/en/register')
@@ -65,6 +90,83 @@ describe('the pages a visitor sees (F3, F5, F6)', function () {
                 ->where('shop.code', 'sa')
                 ->where('shopper', null)
             );
+    });
+
+    it('names the store\'s published Terms and Conditions and Privacy Policy as links to their pages, a missing one none (S3.4)', function () {
+        $none = authPageRegisterProps('/sa/en/register');
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        ContentFixtures::publishedPolicy('TERMS');
+        $termsOnly = authPageRegisterProps('/sa/en/register');
+        ContentFixtures::publishedPolicy('PRIVACY');
+        $both = authPageRegisterProps('/sa/ar/register');
+        $slug = static fn (PolicyKind $kind, string $locale): string => (string) app(ShopPolicies::class)->published(StoreId::fromString(Fx::storeId('sa')), $kind, $locale)?->slug;
+
+        $shown = Fx::shownPolicies();
+
+        expect([$none['terms'], $none['privacy']])->toBe([null, null])
+            ->and($termsOnly['terms']['url'])->toEndWith('/sa/en/policies/'.$slug(PolicyKind::Terms, 'en'))
+            ->and($termsOnly['privacy'])->toBeNull()
+            ->and(rawurldecode((string) $both['terms']['url']))->toEndWith('/sa/ar/policies/'.$slug(PolicyKind::Terms, 'ar'))
+            ->and(rawurldecode((string) $both['privacy']['url']))->toEndWith('/sa/ar/policies/'.$slug(PolicyKind::Privacy, 'ar'))
+            // Which policies and versions the form shows, for it to send back with the tick (owner, 2026-11-20).
+            ->and([$both['terms']['policyId'], $both['terms']['version'], $both['privacy']['policyId'], $both['privacy']['version']])
+            ->toBe([$shown['shownTermsId'], $shown['shownTermsVersion'], $shown['shownPrivacyId'], $shown['shownPrivacyVersion']]);
+    });
+
+    it('refuses a sign-up under terms changed since the form showed them, in the page\'s words, and shows the new ones (owner, 2026-11-20)', function () {
+        $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        $terms = ContentFixtures::publishedPolicy('TERMS');
+        $version = (int) DB::table('content.policies')->where('id', $terms)->value('version');
+        // The form read by a visitor: the real ActorContext given back for the requests.
+        app()->scoped(ActorContext::class, $previous);
+        app()->forgetScopedInstances();
+        $shown = authPageRegisterProps('/sa/en/register');
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        app(SavePolicyHandler::class)->handle(new SavePolicy(new PolicyInput(
+            $terms, 'TERMS', [Fx::storeId('sa')], $version,
+            'الشروط', 'Terms', 'الشروط-المعدلة', 'terms-reworded', 'نص آخر', 'Other words',
+        )));
+        app()->scoped(ActorContext::class, $previous);
+        app()->forgetScopedInstances();
+
+        $refused = (new AdminBrowser)->post('/sa/en/account/register', [
+            'email' => 'late@example.test', 'password' => Fx::CUSTOMER_PASSWORD, 'first_name' => 'Noura', 'last_name' => 'Saleh',
+            'account_type' => 'individual', 'locale' => 'en', 'terms' => true,
+            'terms_id' => $shown['terms']['policyId'], 'terms_version' => $shown['terms']['version'], 'privacy_id' => null, 'privacy_version' => null,
+        ]);
+
+        $now = authPageRegisterProps('/sa/en/register');
+        // Ticked again for the new version: the account is made, and keeps it.
+        (new AdminBrowser)->post('/sa/en/account/register', [
+            'email' => 'late@example.test', 'password' => Fx::CUSTOMER_PASSWORD, 'first_name' => 'Noura', 'last_name' => 'Saleh',
+            'account_type' => 'individual', 'locale' => 'en', 'terms' => true,
+            'terms_id' => $now['terms']['policyId'], 'terms_version' => $now['terms']['version'], 'privacy_id' => null, 'privacy_version' => null,
+        ])->assertRedirect('/sa/en');
+
+        expect(AdminBrowser::formError($refused))->toBe('The Terms were updated. Read them and tick again.')
+            ->and([$shown['terms']['version'], $now['terms']['version']])->toBe([1, 2])
+            ->and((array) DB::table('access.customers')->where('email', 'late@example.test')->first(['terms_policy_id', 'terms_policy_version']))->toBe(['terms_policy_id' => $terms, 'terms_policy_version' => 2]);
+    });
+
+    it('reads the store\'s policies once for the register page, two queries warm (Content\'s cache)', function () {
+        (new AdminBrowser)->get('/sa/en/register')->assertOk();
+        /** @var ArrayObject<int, string> $read */
+        $read = new ArrayObject;
+
+        DB::listen(function (QueryExecuted $query) use ($read): void {
+            foreach (debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS) as $frame) {
+                if (str_ends_with(str_replace(chr(92), '/', $frame['file'] ?? ''), '/Infrastructure/External/ContentShopPolicies.php')) {
+                    $read[] = $query->sql;
+
+                    return;
+                }
+            }
+        });
+
+        (new AdminBrowser)->get('/sa/en/register')->assertOk();
+
+        expect(count($read))->toBe(2);
     });
 
     it('draws the sign-in page, saying how long "keep me signed in" lasts', function () {

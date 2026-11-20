@@ -23,6 +23,7 @@ use Modules\Sales\Application\Query\Staff\StaffReader;
 use Modules\Sales\Application\Query\Staff\StaffReads;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Domain\Exception\OrderNotFound;
+use Modules\Sales\Domain\Model\AcceptedTerms;
 use Modules\Sales\Domain\Model\OrderState;
 use Modules\Sales\Domain\Model\ReturnState;
 use Modules\Sales\Domain\Service\OrderStatuses;
@@ -142,6 +143,24 @@ final readonly class ViewOrderHandler
             $request,
             $inProgress,
             $missing > 0 && $request === null && ! $inProgress && $this->requestable($order, $store),
+            self::terms($order),
+        );
+    }
+
+    /**
+     * The terms the order was placed under (flags-2026-11.md S3.3, F16); none on an order from before the tick.
+     *
+     * @param  array<string, mixed>  $order
+     */
+    private static function terms(array $order): ?AcceptedTerms
+    {
+        if ($order['terms_policy_id'] === null) {
+            return null;
+        }
+
+        return new AcceptedTerms(
+            (string) $order['terms_policy_id'], (int) $order['terms_version'], CarbonImmutable::parse((string) $order['terms_accepted_at']),
+            $order['returns_policy_id'] === null ? null : (string) $order['returns_policy_id'], $order['returns_version'] === null ? null : (int) $order['returns_version'],
         );
     }
 

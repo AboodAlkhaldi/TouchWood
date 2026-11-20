@@ -63,6 +63,11 @@ final readonly class CustomerSessionController
                 $request->boolean('terms'),
                 (string) $request->ip(),
                 $request->boolean('marketing_consent'),
+                // The store's terms as the form showed them beside the tick (flags-2026-11.md S3.4; owner, 2026-11-20).
+                self::id($request->input('terms_id')),
+                self::version($request->input('terms_version')),
+                self::id($request->input('privacy_id')),
+                self::version($request->input('privacy_version')),
             ));
         } catch (DomainError $error) {
             return FormErrors::back($request, $error, ['email']);
@@ -171,5 +176,21 @@ final readonly class CustomerSessionController
         if ($this->signedIn()) {
             $this->signOut->handle(new SignOutCustomer);
         }
+    }
+
+    /** A policy's id as a form sends it; anything else none. */
+    private static function id(mixed $value): ?string
+    {
+        return is_string($value) && $value !== '' && strlen($value) <= 64 ? $value : null;
+    }
+
+    /** A policy's version as a form sends it, a whole number or its digits; anything else none. */
+    private static function version(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        return is_string($value) && ctype_digit($value) && strlen($value) <= 9 ? (int) $value : null;
     }
 }

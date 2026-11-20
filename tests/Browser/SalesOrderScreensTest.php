@@ -150,6 +150,40 @@ it('draws the list, an order and its packing slip at a phone\'s width with nothi
     }
 });
 
+it('shows the terms the order was placed under, linking to that version\'s text, at a phone\'s width in both languages (S3.3, F16)', function () {
+    $order = salesOrderScreensOrder();
+    $row = DB::table('sales.orders')->where('id', $order)->first(['terms_version', 'terms_accepted_at']);
+    $page = salesOrderScreensPanel();
+    $page->resize(375, 812);
+
+    $page->navigate("/admin/orders/{$order}", BROWSER_PAGE_LOAD)->assertPresent('[data-test="order-terms"]');
+    expect((int) $row?->terms_version)->toBeGreaterThanOrEqual(1)
+        ->and($page->script("document.querySelector('[data-test=\"order-terms\"]').textContent"))->toStartWith("Terms v{$row?->terms_version}, accepted ")
+        ->and($page->script("document.querySelector('[data-test=\"order-terms\"]').target"))->toBe('_blank')
+        ->and($page->script("document.querySelector('[data-test=\"order-terms\"]').getAttribute('href')"))->toContain('/sa/en/policies/')
+        ->and($page->script("document.querySelector('[data-test=\"order-terms\"]').getAttribute('href')"))->toEndWith("?version={$row?->terms_version}")
+        ->and(salesOrderScreensWide($page))->toBe('', 'the order with its terms scrolls sideways');
+
+    // In Arabic, a reader of the store's orders: the line in its words, Latin digits, the Arabic page.
+    $staffId = Fx::staffWith([SalesPermissions::ORDER_VIEW], ['sa']);
+    DB::table('access.staff_users')->where('id', $staffId)->update(['locale' => 'ar']);
+    $arabic = visit('/admin/sign-in')
+        ->type('#email', (string) DB::table('access.staff_users')->where('id', $staffId)->value('email'))
+        ->type('#password', Fx::STAFF_PASSWORD)
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]');
+    expect(signedInToPanel($arabic))->toBeTrue();
+    $arabic->resize(375, 812);
+
+    $arabic->navigate("/admin/orders/{$order}", BROWSER_PAGE_LOAD)->assertPresent('[data-test="order-terms"]');
+    expect($arabic->script("document.querySelector('[data-test=\"order-terms\"]').textContent"))->toStartWith("الشروط والأحكام، الإصدار {$row?->terms_version}، تمت الموافقة عليها ")
+        ->and((bool) $arabic->script("/[\u0660-\u0669]/.test(document.querySelector('[data-test=\"order-terms\"]').textContent)"))->toBeFalse()
+        ->and($arabic->script("decodeURIComponent(document.querySelector('[data-test=\"order-terms\"]').getAttribute('href'))"))->toContain('/sa/ar/policies/')
+        ->and(salesOrderScreensWide($arabic))->toBe('', 'the Arabic order with its terms scrolls sideways');
+});
+
 it('accepts, receives and completes a return, records its refund, and draws it at a phone\'s width', function () {
     $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
 

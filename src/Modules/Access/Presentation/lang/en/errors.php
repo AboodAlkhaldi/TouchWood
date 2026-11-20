@@ -108,6 +108,10 @@ return [
         'title' => 'Account Blocked',
         'detail' => 'Couldn\'t continue: your account is blocked. Contact us.',
     ],
+    'terms_changed' => [
+        'title' => 'Terms Updated',
+        'detail' => 'The Terms were updated. Read them and tick again.',
+    ],
     'email_already_registered' => [
         'title' => 'You Already Have an Account',
         'detail' => 'Couldn\'t create the account: this email already has one. Sign in instead.',

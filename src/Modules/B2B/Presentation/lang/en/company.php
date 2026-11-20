@@ -36,6 +36,10 @@ return [
     'change' => 'Change Company Details',
     'change_warning' => 'These changes go to our team as a new application: you keep ordering until you send them, then can\'t order until they are approved.',
     'send' => 'Send Application',
+    // The store's Company Terms above Send, while it has them published (flags-2026-11.md S3.6).
+    'company_terms' => 'I have read and agree to the :terms.',
+    'company_terms_name' => 'Company Terms',
+    'company_terms_needed' => 'Tick the box to agree to the Company Terms.',
     'discard_confirm' => 'Discarding this draft also deletes any file only it holds. This cannot be undone.',
     'discard_yes' => 'Discard Draft',
     'suspended_draft' => 'You have a draft that was not sent, and while the account is suspended you can only discard it.',

@@ -1,3 +1,4 @@
+import type { ShopPolicyLinkData } from '../../../../Platform/Public/Dto';
 export type AccountPage = {
 email: string,
 pendingEmail: string | null,
@@ -159,6 +160,8 @@ accountTypes: string[],
 };
 export type CustomerRegisterPage = {
 minimumLength: number,
+terms: ShopPolicyLinkData | null,
+privacy: ShopPolicyLinkData | null,
 };
 export type CustomerRow = {
 id: string,

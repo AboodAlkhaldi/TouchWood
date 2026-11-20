@@ -113,7 +113,7 @@ function shopPaymentProps(AdminBrowser $browser, string $uri, string $component)
 }
 
 /**
- * @param  array<string, string>  $data
+ * @param  array<string, string|int|bool|null>  $data
  * @return TestResponse<Response>
  */
 function shopPaymentPost(AdminBrowser $browser, string $uri, array $data = []): TestResponse
@@ -130,7 +130,7 @@ function shopPaymentPay(AdminBrowser $browser): array
 {
     $checkout = shopPaymentProps($browser, '/sa/en/checkout', 'Sales/Storefront/Checkout');
     $session = shopPaymentPost($browser, '/sa/en/checkout/payment/session', ['quote' => $checkout['quoteId']])->assertOk()->json('sessionId');
-    $start = shopPaymentPost($browser, '/sa/en/checkout/payment/pay', ['quote' => $checkout['quoteId'], 'session' => $session])->assertOk()->json();
+    $start = shopPaymentPost($browser, '/sa/en/checkout/payment/pay', ['quote' => $checkout['quoteId'], 'session' => $session, 'agreed' => true, ...Cx::shownSent()])->assertOk()->json();
 
     return ['tryId' => $start['tryId'], 'total' => number_format($checkout['total']['minor'] / 100, 2, '.', ''), 'start' => $start];
 }
@@ -199,7 +199,7 @@ describe('the way to pay', function () {
     it('marks an order placed in Test on the customer\'s own page', function () {
         [, $browser, $ready] = shopPaymentReady('TEST');
         $checkout = shopPaymentProps($browser, '/sa/en/checkout?way=STAFF_CONTACT', 'Sales/Storefront/Checkout');
-        $browser->post('/sa/en/checkout/place', ['quote' => $checkout['quoteId']]);
+        $browser->post('/sa/en/checkout/place', ['quote' => $checkout['quoteId'], 'agreed' => true, ...Cx::shownSent()]);
         $number = (string) DB::table('sales.orders')->where('customer_id', $ready['customer'])->value('number');
 
         expect(shopPaymentProps($browser, "/sa/en/account/orders/{$number}", 'Sales/Storefront/Order')['isTest'])->toBeTrue();
@@ -294,7 +294,7 @@ describe('paying', function () {
         $fake->declined('MF004');
         shopPaymentPost($browser, "/sa/en/checkout/payment/{$paying['tryId']}/follow")->assertOk()->assertJsonPath('state', 'RELEASED');
 
-        $refused = shopPaymentPost($browser, '/sa/en/checkout/payment/pay', ['quote' => $quote, 'session' => $used]);
+        $refused = shopPaymentPost($browser, '/sa/en/checkout/payment/pay', ['quote' => $quote, 'session' => $used, 'agreed' => true, ...Cx::shownSent()]);
         $fresh = shopPaymentPost($browser, '/sa/en/checkout/payment/session', ['quote' => $quote])->assertOk()->json('sessionId');
 
         // The page reads this as "tell them, then open the page again": anything but a 429, a 5xx or no answer.
@@ -310,10 +310,10 @@ describe('paying', function () {
         $session = DB::table('sales.checkout_tries')->where('id', $paying['tryId'])->value('session_id');
 
         foreach (range(2, 10) as $press) {
-            shopPaymentPost($browser, '/sa/en/checkout/payment/pay', ['quote' => $quote, 'session' => $session])->assertOk()->assertJsonPath('tryId', $paying['tryId']);
+            shopPaymentPost($browser, '/sa/en/checkout/payment/pay', ['quote' => $quote, 'session' => $session, 'agreed' => true, ...Cx::shownSent()])->assertOk()->assertJsonPath('tryId', $paying['tryId']);
         }
 
-        shopPaymentPost($browser, '/sa/en/checkout/payment/pay', ['quote' => $quote, 'session' => $session])->assertStatus(429);
+        shopPaymentPost($browser, '/sa/en/checkout/payment/pay', ['quote' => $quote, 'session' => $session, 'agreed' => true, ...Cx::shownSent()])->assertStatus(429);
         expect(DB::table('sales.checkout_tries')->count())->toBe(1);
     });
 
@@ -327,7 +327,7 @@ describe('paying', function () {
         app()->scoped(ActorContext::class, $previous);
         app()->forgetScopedInstances();
 
-        $refused = shopPaymentPost($browser, '/sa/en/checkout/payment/pay', ['quote' => $checkout['quoteId'], 'session' => $session])->assertStatus(409);
+        $refused = shopPaymentPost($browser, '/sa/en/checkout/payment/pay', ['quote' => $checkout['quoteId'], 'session' => $session, 'agreed' => true, ...Cx::shownSent()])->assertStatus(409);
 
         expect($refused->json('type'))->toContain('quote_changed')
             ->and(DB::table('sales.checkout_tries')->count())->toBe(0);
@@ -413,7 +413,9 @@ describe('a store switched off while paying (§1.10)', function () {
         $quote = (string) DB::table('sales.checkout_tries')->where('id', $paying['tryId'])->value('quote_id');
         $session = (string) DB::table('sales.checkout_tries')->where('id', $paying['tryId'])->value('session_id');
         // While it is open, these answer: the 404s below are the store's, not the quote's.
-        shopPaymentPost($browser, '/sa/en/checkout/payment/pay', ['quote' => $quote, 'session' => $session])->assertOk();
+        // The terms as the page shows them, read while the store is still on.
+        $shown = Cx::shownSent();
+        shopPaymentPost($browser, '/sa/en/checkout/payment/pay', ['quote' => $quote, 'session' => $session, 'agreed' => true, ...$shown])->assertOk();
         shopPaymentPost($browser, '/sa/en/checkout/payment/session', ['quote' => $quote])->assertStatus(409);
         $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
         $other = Fx::customer();
@@ -424,7 +426,7 @@ describe('a store switched off while paying (§1.10)', function () {
 
         shopPaymentPost($stranger, "/sa/en/checkout/payment/{$paying['tryId']}/follow")->assertNotFound();
         shopPaymentPost($browser, '/sa/en/checkout/payment/session', ['quote' => $quote])->assertNotFound();
-        shopPaymentPost($browser, '/sa/en/checkout/payment/pay', ['quote' => $quote, 'session' => $session])->assertNotFound();
+        shopPaymentPost($browser, '/sa/en/checkout/payment/pay', ['quote' => $quote, 'session' => $session, 'agreed' => true, ...$shown])->assertNotFound();
         $browser->get('/sa/en/checkout')->assertNotFound();
     });
 });

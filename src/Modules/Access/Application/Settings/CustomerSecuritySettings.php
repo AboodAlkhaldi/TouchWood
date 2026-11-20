@@ -25,8 +25,8 @@ final readonly class CustomerSecuritySettings implements LockoutLimits
     /** How long the email verification link works (spec §1.2). */
     public const string EMAIL_VERIFICATION_HOURS = 'access.customer.email_verification_hours';
 
-    /** The version of this store's terms and privacy policy, recorded at registration (amendment 37). */
-    public const string TERMS_VERSION = 'access.customer.terms_version';
+    // `access.customer.terms_version`, the typed terms version, is retired (flags-2026-11.md S3.4, F18): a customer
+    // accepts the store's published Terms and Conditions and its version (ShopPolicies). Its stored values went with it.
 
     public const string CODE_LENGTH = 'access.customer.sms_code_length';
 
@@ -108,9 +108,6 @@ final readonly class CustomerSecuritySettings implements LockoutLimits
             $number(self::PASSWORD_RESETS_PER_HOUR, 3, 1, 20),
             $number(self::ADDRESS_REQUESTS_PER_HOUR, 10, 1, 100),
             $number(self::ADDRESSES_PER_STORE, 10, 1, 50),
-            new SettingDefinitionDto(
-                self::TERMS_VERSION, SettingScope::Store, SettingType::Text, ['max:32'], '2026-01', AccessPermissions::SETTINGS_UPDATE,
-            ),
         ];
     }
 
@@ -122,11 +119,6 @@ final readonly class CustomerSecuritySettings implements LockoutLimits
     public function emailVerificationHours(): int
     {
         return $this->int(self::EMAIL_VERIFICATION_HOURS);
-    }
-
-    public function termsVersion(): string
-    {
-        return $this->platform->setting(self::TERMS_VERSION, $this->stores->current())->string();
     }
 
     public function codeLength(): int

@@ -53,5 +53,4 @@ return [
     'customer.password_reset_hourly_limit' => 'رسائل إعادة التعيين في الساعة',
     'customer.address_requests_per_hour' => 'تعديلات العناوين في الساعة',
     'customer.addresses_per_store' => 'عدد العناوين لكل متجر',
-    'customer.terms_version' => 'إصدار الشروط المعمول به',
 ];

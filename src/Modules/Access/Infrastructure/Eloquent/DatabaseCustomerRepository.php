@@ -205,6 +205,10 @@ final readonly class DatabaseCustomerRepository implements CustomerRepository
             'account_type' => $customer->accountType()->value,
             'home_store_id' => $customer->homeStoreId(),
             'terms_version' => $customer->termsVersion(),
+            'terms_policy_id' => $customer->termsPolicyId(),
+            'terms_policy_version' => $customer->termsPolicyVersion(),
+            'privacy_policy_id' => $customer->privacyPolicyId(),
+            'privacy_policy_version' => $customer->privacyPolicyVersion(),
             'terms_accepted_at' => $customer->termsAcceptedAt(),
             'created_at' => CarbonImmutable::now(),
             'updated_at' => CarbonImmutable::now(),
@@ -277,7 +281,7 @@ final readonly class DatabaseCustomerRepository implements CustomerRepository
             Language::from((string) $row->locale),
             (string) $row->home_store_id,
             (string) $row->last_store_id,
-            (string) $row->terms_version,
+            $row->terms_version === null ? null : (string) $row->terms_version,
             CarbonImmutable::parse((string) $row->terms_accepted_at),
             $row->deletion_scheduled_for === null ? null : CarbonImmutable::parse((string) $row->deletion_scheduled_for),
             $row->anonymized_at === null ? null : CarbonImmutable::parse((string) $row->anonymized_at),
@@ -285,6 +289,10 @@ final readonly class DatabaseCustomerRepository implements CustomerRepository
             (bool) $row->marketing_consent,
             $row->marketing_consent_changed_at === null ? null : CarbonImmutable::parse((string) $row->marketing_consent_changed_at),
             $row->marketing_consent_source === null ? null : MarketingConsentSource::from((string) $row->marketing_consent_source),
+            $row->terms_policy_id === null ? null : (string) $row->terms_policy_id,
+            $row->terms_policy_version === null ? null : (int) $row->terms_policy_version,
+            $row->privacy_policy_id === null ? null : (string) $row->privacy_policy_id,
+            $row->privacy_policy_version === null ? null : (int) $row->privacy_policy_version,
         );
     }
 }

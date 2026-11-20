@@ -104,7 +104,7 @@ function triesRaceSession(QuoteView $quote): string
 
 function triesRacePay(QuoteView $quote, string $session): OnlineStart
 {
-    return app(PayOnlineHandler::class)->handle(new PayOnline(Fx::storeId('sa'), $quote->id, $session, 'en', 'https://shop.example.test/return'));
+    return app(PayOnlineHandler::class)->handle(new PayOnline(Fx::storeId('sa'), $quote->id, $session, 'en', 'https://shop.example.test/return', true, Cx::shown()));
 }
 
 /**

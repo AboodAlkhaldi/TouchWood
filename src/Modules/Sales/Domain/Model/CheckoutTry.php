@@ -44,6 +44,8 @@ final readonly class CheckoutTry
         public DateTimeImmutable $createdAt,
         public ?DateTimeImmutable $endedAt,
         public ?DateTimeImmutable $seenAt = null,
+        /** The terms ticked when Pay was pressed (flags-2026-11.md S3.3, F16), handed to the order once paid. */
+        public ?AcceptedTerms $terms = null,
     ) {}
 
     public function isLive(): bool

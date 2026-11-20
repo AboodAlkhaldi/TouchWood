@@ -14,6 +14,7 @@ use Modules\Pricing\Public\Dto\LinePriceDto;
 use Modules\Sales\Application\Quote\QuoteView;
 use Modules\Sales\Application\Quote\ShippingQuotes;
 use Modules\Sales\Domain\Exception\QuoteChanged;
+use Modules\Sales\Domain\Model\AcceptedTerms;
 use Modules\Sales\Domain\Model\NewOrder;
 use Modules\Sales\Domain\Model\NewOrderLine;
 use Modules\Sales\Domain\Model\OrderShipping;
@@ -28,7 +29,8 @@ use Shared\Domain\ValueObject\StoreId;
  * amendment 89), the delivery address and its place, each line's product and size names and values in both
  * languages (the English name falling back to the Arabic, answer 44) and its code, its
  * prices and kind, its shares of the coupon, the points and the VAT (§1.8); the gift; every total; the
- * rules it was placed under; the carrier and its names, or the shipping fee to be set (§9.5 #2, #11).
+ * rules it was placed under; the carrier and its names, or the shipping fee to be set (§9.5 #2, #11); the terms
+ * ticked (flags-2026-11.md S3.3, F16).
  */
 final readonly class OrderSnapshot
 {
@@ -39,7 +41,7 @@ final readonly class OrderSnapshot
     ) {}
 
     /** @throws QuoteChanged when a size of the quote no longer exists */
-    public function of(QuoteView $quote, string $orderId, string $number, OrderContact $contact, AddressDto $address, DateTimeImmutable $placedAt, bool $isTest = false): NewOrder
+    public function of(QuoteView $quote, string $orderId, string $number, OrderContact $contact, AddressDto $address, DateTimeImmutable $placedAt, bool $isTest = false, ?AcceptedTerms $terms = null): NewOrder
     {
         $prices = $quote->prices;
         $totals = $quote->totals;
@@ -120,6 +122,7 @@ final readonly class OrderSnapshot
             $placedAt,
             $lines,
             $isTest,
+            $terms,
         );
     }
 }

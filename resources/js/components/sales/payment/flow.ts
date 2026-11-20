@@ -24,7 +24,7 @@ export function useCsrfToken(): string {
 }
 
 /** A post the open page reads the answer of. No answer at all has status 0: nobody knows what it did. */
-export async function postJson<T>(path: string, token: string, body: Record<string, string> = {}): Promise<Answer<T>> {
+export async function postJson<T>(path: string, token: string, body: Record<string, string | number | boolean | null> = {}): Promise<Answer<T>> {
     try {
         const response = await fetch(path, {
             method: 'POST',

@@ -19,6 +19,7 @@ use Modules\Access\Application\Session\CustomerSessions;
 use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Domain\Exception\EmailAlreadyRegistered;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
+use Modules\Access\Domain\Exception\TermsChanged;
 use Modules\Access\Domain\Model\Customer;
 use Modules\Access\Domain\Repository\CustomerRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
@@ -30,15 +31,22 @@ use Modules\Access\Public\Events\CustomerRegistered;
 use Modules\Access\Public\Events\GuestBecameCustomer;
 use Modules\Access\Public\Events\MarketingConsentChanged;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Contracts\ShopPolicies;
+use Modules\Platform\Public\Dto\ShopPolicyDto;
+use Modules\Platform\Public\Enums\PolicyKind;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\StoreContext;
+use Shared\Domain\ValueObject\StoreId;
 
 /**
  * A new customer account (spec §1.2): active at once, with the email unverified and no phone yet,
  * so they can browse and fill a cart; ordering waits for both verifications. The store they
- * registered in becomes their home store, fixed, and that store's terms version is recorded
- * (amendment 37). An email that already belongs to an account — a customer's or a staff member's,
+ * registered in becomes their home store, fixed, and that store's published Terms and Conditions and
+ * Privacy Policy - each policy and the version of its text, through Platform's `ShopPolicies` - are
+ * recorded as what they accepted (amendment 37; flags-2026-11.md S3.4, F18; owner, 2026-11-20), and
+ * must be the ones the form showed, else `TermsChanged`. A store with none published still takes
+ * sign-ups, recording none (owner, 2026-11-20): it takes no orders. An email that already belongs to an account — a customer's or a staff member's,
  * since an email belongs to one of them and never both (amendment 13) — is answered plainly and in
  * the same words, so the form never says who works here.
  */
@@ -64,12 +72,13 @@ final readonly class RegisterCustomerHandler
         private PlatformApi $platform,
         private Dispatcher $events,
         private Connection $db,
+        private ShopPolicies $policies,
     ) {}
 
     /**
      * @return string the new customer's id
      *
-     * @throws EmailAlreadyRegistered|InvalidAccessAttribute
+     * @throws EmailAlreadyRegistered|InvalidAccessAttribute|TermsChanged
      */
     public function handle(RegisterCustomer $command): string
     {
@@ -87,17 +96,20 @@ final readonly class RegisterCustomerHandler
             throw new InvalidAccessAttribute('terms', 'the terms and privacy policy must be accepted');
         }
 
+        // The terms the sentence named, as the store shows them now (S3.4) - one read of its policies - and they must
+        // be the ones the form showed: the version recorded is the one the customer read (owner, 2026-11-20).
+        $store = $this->stores->current();
+        [$terms, $privacy] = $this->accepted($store, $language->value, $command);
+
         // The slow parts — the breach service and the hasher — only once the rest is in order.
         $passwordHash = $this->passwords->hashNew($command->password, $this->settings->passwordMinLength());
-        $store = $this->stores->current();
         $storeId = $store->value;
         $storeCode = ($this->platform->store($store) ?? throw new InvalidAccessAttribute('store', 'unknown'))->code;
-        $termsVersion = $this->settings->termsVersion();
         $verificationHours = $this->settings->emailVerificationHours();
 
         $marketingConsent = $command->marketingConsent;
 
-        $customer = $this->db->transaction(function () use ($email, $language, $accountType, $firstName, $lastName, $passwordHash, $storeId, $storeCode, $termsVersion, $verificationHours, $marketingConsent): Customer {
+        $customer = $this->db->transaction(function () use ($email, $language, $accountType, $firstName, $lastName, $passwordHash, $storeId, $storeCode, $terms, $privacy, $verificationHours, $marketingConsent): Customer {
             // One email, one account (amendment 13) — and a staff address is answered exactly like a
             // customer's, so this public form never tells a stranger who works here (owner,
             // 2026-09-20, after the step 4a review).
@@ -108,7 +120,8 @@ final readonly class RegisterCustomerHandler
             $now = CarbonImmutable::now();
             $customer = Customer::register(
                 $this->customers->nextId(), $email, $passwordHash, $firstName, $lastName,
-                $accountType, $language, $storeId, $termsVersion, $now, $marketingConsent,
+                $accountType, $language, $storeId, $terms?->policyId, $terms?->version, $now, $marketingConsent,
+                $privacy?->policyId, $privacy?->version,
             );
 
             $this->customers->add($customer);
@@ -144,6 +157,40 @@ final readonly class RegisterCustomerHandler
         $this->sessions->start($customer->id(), $customer->sessionVersion(), remember: false);
 
         return $customer->id();
+    }
+
+    /**
+     * The store's Terms and Conditions and Privacy Policy now, each the one the form showed - the same policy at the
+     * same version, or none and none - else `TermsChanged`.
+     *
+     * @return array{0: ?ShopPolicyDto, 1: ?ShopPolicyDto}
+     *
+     * @throws TermsChanged
+     */
+    private function accepted(StoreId $store, string $locale, RegisterCustomer $command): array
+    {
+        $live = [PolicyKind::Terms->value => null, PolicyKind::Privacy->value => null];
+
+        foreach ($this->policies->allPublished($store, $locale) as $policy) {
+            if (array_key_exists($policy->kind->value, $live)) {
+                $live[$policy->kind->value] ??= $policy;
+            }
+        }
+
+        [$terms, $privacy] = [$live[PolicyKind::Terms->value], $live[PolicyKind::Privacy->value]];
+
+        if (! self::shown($terms, $command->shownTermsId, $command->shownTermsVersion) || ! self::shown($privacy, $command->shownPrivacyId, $command->shownPrivacyVersion)) {
+            throw new TermsChanged;
+        }
+
+        return [$terms, $privacy];
+    }
+
+    private static function shown(?ShopPolicyDto $live, ?string $id, ?int $version): bool
+    {
+        return $live === null
+            ? $id === null && $version === null
+            : $id !== null && strtolower($id) === strtolower($live->policyId) && $version === $live->version;
     }
 
     /**

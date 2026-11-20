@@ -237,8 +237,8 @@ describe('S5, S6 · Checkout and the order placed', function () {
         [$ready, $browser] = shopCartScreensCustomer();
 
         $checkout = shopCartScreensProps($browser, '/sa/en/checkout', 'Sales/Storefront/Checkout');
-        $placed = $browser->post('/sa/en/checkout/place', ['quote' => $checkout['quoteId']]);
-        $again = $browser->post('/sa/en/checkout/place', ['quote' => $checkout['quoteId']]);
+        $placed = $browser->post('/sa/en/checkout/place', ['quote' => $checkout['quoteId'], 'agreed' => true, ...Cx::shownSent()]);
+        $again = $browser->post('/sa/en/checkout/place', ['quote' => $checkout['quoteId'], 'agreed' => true, ...Cx::shownSent()]);
         $number = (string) DB::table('sales.orders')->where('customer_id', $ready['customer'])->value('number');
         $page = shopCartScreensProps($browser, "/sa/en/orders/{$number}/placed", 'Sales/Storefront/Placed');
 
@@ -270,7 +270,7 @@ describe('S5, S6 · Checkout and the order placed', function () {
 
         $first = shopCartScreensProps($browser, '/sa/en/checkout', 'Sales/Storefront/Checkout');
         $transfer = shopCartScreensProps($browser, '/sa/en/checkout?way=BANK_TRANSFER', 'Sales/Storefront/Checkout');
-        $browser->post('/sa/en/checkout/place', ['quote' => $transfer['quoteId']]);
+        $browser->post('/sa/en/checkout/place', ['quote' => $transfer['quoteId'], 'agreed' => true, ...Cx::shownSent()]);
         $number = (string) DB::table('sales.orders')->orderByDesc('placed_at')->value('number');
         $placed = shopCartScreensProps($browser, "/sa/en/orders/{$number}/placed", 'Sales/Storefront/Placed');
 

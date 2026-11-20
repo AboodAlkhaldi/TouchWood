@@ -8,9 +8,11 @@ import { Note } from '@/components/Note';
 import { CopyButton } from '@/components/geist-only/CopyButton';
 import { ClosedStore, PaymentBlock, PaymentInTheWay } from '@/components/sales/payment/lazy';
 import { plural, useLocale } from '@/components/sales/shop';
+import { PolicySentence } from '@/components/shop/PolicySentence';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { StorefrontLayout } from '@/layouts/StorefrontLayout';
@@ -32,6 +34,9 @@ import type { MoneyData } from '@/types/generated/Modules/Platform/Public/Dto';
 | the carriers serving the address, the cheapest first; none serving it, a fee staff confirm; another store's
 | country, a way there and no quote. Paying online (payments.md §4.2): its form in the Payment card, Pay where Place
 | Order is, everything else locked from Pay until the answer; loaded only on a page that pays, for the page's budget.
+| The terms (flags-2026-11.md S3.3): a required tick above Place Order or Pay naming the store's Terms and Conditions and
+| its Returns and Refunds policy, each opening in a new tab; a store without published terms shows why no order can be
+| placed where the button would be. The server refuses either way whatever the page sends.
 */
 
 const W = 'sales::shop_checkout';
@@ -48,6 +53,13 @@ export default function Checkout(page: CheckoutPage) {
     const [online, setOnline] = useState<Online>({ ready: false, locked: false, failed: false });
     const [closed, setClosed] = useState<CheckoutTryData | null>(null);
     const pressPay = useRef<(() => void) | null>(null);
+    // The terms' tick, for the terms shown: the Summary shows it, and Pay's hand-over (the form's own wallet buttons too)
+    // reads it. Ticked for these versions only - new terms from the server (a refusal reloads them) clear it (S3.3).
+    const shown = shownTermsOf(page);
+    const [tickedFor, setTickedFor] = useState<string | null>(null);
+    const agreed = tickedFor === shown.key;
+    const ticked = useRef(false);
+    ticked.current = agreed;
     const busy = choosing || online.locked;
     // Each choice worked out again by the server, kept in the address so a reload keeps it.
     const choose = (next: Choice) => {
@@ -100,9 +112,9 @@ export default function Checkout(page: CheckoutPage) {
                                 </>
                             )}
                         </div>
-                        {page.quoteId === null ? null : <WayToPay page={page} busy={busy} choose={choose} press={pressPay} onOnline={setOnline} onClosed={setClosed} />}
+                        {page.quoteId === null ? null : <WayToPay page={page} busy={busy} choose={choose} press={pressPay} agreed={ticked} shown={shown.sent} onOnline={setOnline} onClosed={setClosed} />}
                     </div>
-                    {page.quoteId === null ? null : <Summary page={page} busy={choosing} online={online} press={pressPay} />}
+                    {page.quoteId === null ? null : <Summary page={page} busy={choosing} online={online} press={pressPay} agreed={agreed} shown={shown.sent} onAgreed={(on) => setTickedFor(on ? shown.key : null)} />}
                 </div>
             </div>
         </StorefrontLayout>
@@ -110,6 +122,15 @@ export default function Checkout(page: CheckoutPage) {
 }
 
 type Part = { page: CheckoutPage; busy: boolean; choose: (next: Choice) => void };
+
+type ShownTerms = Record<string, string | number | null>;
+
+/** The terms the page shows beside its tick, as sent back with it (owner, 2026-11-20: "stop and re-tick"), and their key. */
+function shownTermsOf(page: CheckoutPage): { key: string; sent: ShownTerms } {
+    const sent = { terms_id: page.terms?.policyId ?? null, terms_version: page.terms?.version ?? null, returns_id: page.returns?.policyId ?? null, returns_version: page.returns?.version ?? null };
+
+    return { key: Object.values(sent).join(':'), sent };
+}
 
 function Section({ title, test, children }: { title: string; test: string; children: ReactNode }) {
     return (
@@ -302,7 +323,16 @@ function CouponAndPoints({ page, busy, choose }: Part) {
     );
 }
 
-function WayToPay({ page, busy, choose, press, onOnline, onClosed }: Part & { press: RefObject<(() => void) | null>; onOnline: (online: Online) => void; onClosed: (view: CheckoutTryData) => void }) {
+function WayToPay({
+    page,
+    busy,
+    choose,
+    press,
+    agreed,
+    shown,
+    onOnline,
+    onClosed,
+}: Part & { press: RefObject<(() => void) | null>; agreed: RefObject<boolean>; shown: ShownTerms; onOnline: (online: Online) => void; onClosed: (view: CheckoutTryData) => void }) {
     const t = useTranslator();
 
     return (
@@ -320,9 +350,10 @@ function WayToPay({ page, busy, choose, press, onOnline, onClosed }: Part & { pr
                 </RadioGroup>
             )}
             {page.way === 'BANK_TRANSFER' && page.bank !== null ? <Bank bank={page.bank} /> : null}
-            {page.way === 'ONLINE' && page.payment === null && page.quoteId !== null ? (
+            {/* No form while the store takes no orders: it has no published terms (S3.3). */}
+            {page.way === 'ONLINE' && page.payment === null && page.quoteId !== null && page.terms !== null ? (
                 <Suspense fallback={<p className="text-copy-14 text-ink-muted">{t(`${P}.loading`)}</p>}>
-                    <PaymentBlock quoteId={page.quoteId} press={press} onState={onOnline} onClosed={onClosed} />
+                    <PaymentBlock quoteId={page.quoteId} press={press} agreed={agreed} shown={shown} onState={onOnline} onClosed={onClosed} />
                 </Suspense>
             ) : null}
         </Section>
@@ -357,11 +388,29 @@ export function Bank({ bank }: { bank: NonNullable<CheckoutPage['bank']> }) {
     );
 }
 
-function Summary({ page, busy, online, press }: { page: CheckoutPage; busy: boolean; online: Online; press: RefObject<(() => void) | null> }) {
+function Summary({
+    page,
+    busy,
+    online,
+    press,
+    agreed,
+    shown,
+    onAgreed,
+}: {
+    page: CheckoutPage;
+    busy: boolean;
+    online: Online;
+    press: RefObject<(() => void) | null>;
+    agreed: boolean;
+    shown: ShownTerms;
+    onAgreed: (agreed: boolean) => void;
+}) {
     const t = useTranslator();
     const locale = useLocale();
     const link = useLink();
     const [placing, setPlacing] = useState(false);
+    // Pressed without the tick: said under it, and nothing sent (the server would refuse it too).
+    const [untickedPress, setUntickedPress] = useState(false);
     // [label, amount, taken off]: a line with nothing in it is not shown (R2-15); shipping and VAT always are.
     const free = page.shipping !== null && page.shipping.minor === 0 ? t(`${W}.summary.free`) : page.shipping;
     const rows: [string, MoneyData | string | null, boolean][] = [
@@ -426,21 +475,71 @@ function Summary({ page, busy, online, press }: { page: CheckoutPage; busy: bool
                 </dl>
                 {page.earns > 0 ? <p className="text-copy-13 text-ink-muted">{plural(t, locale, `${W}.summary.earns`, page.earns)}</p> : null}
                 <p className="text-copy-13 text-ink-muted">{t(`${W}.summary.vat_note`)}</p>
-                <ActionButton
-                    size="lg"
-                    loading={placing || busy || online.locked}
-                    disabledReason={reason}
-                    onClick={() =>
-                        paying
-                            ? press.current?.()
-                            : // The quote's id only, never an amount (handoff §2); the server places it once however often it is sent.
-                              router.post(link('storefront.sales.place'), { quote: page.quoteId } as never, { preserveScroll: true, onStart: () => setPlacing(true), onFinish: () => setPlacing(false) })
-                    }
-                    data-test={paying ? 'pay' : 'place-order'}
-                >
-                    {/* The total isn't final while the fee is to be set (E6). */}
-                    {paying ? t(`${P}.pay`, { total: page.total?.text ?? '' }) : page.shippingPending ? t(`${W}.summary.place_pending`) : t(`${W}.summary.place`, { total: page.total?.text ?? '' })}
-                </ActionButton>
+                {page.terms === null ? (
+                    // No published terms: no order, said where the button would be (S3.3).
+                    <p role="status" className="rounded-md bg-surface-sunken p-3 text-copy-14 text-ink" data-test="terms-missing">
+                        {t(`${W}.terms.missing`)}
+                    </p>
+                ) : (
+                    <>
+                        {/* An acknowledgment: a checkbox with its whole sentence (Geist's Checkbox rules), checked when Place Order is pressed. */}
+                        <Field orientation="horizontal" data-invalid={untickedPress ? true : undefined}>
+                            <Checkbox
+                                id="terms"
+                                data-test="terms"
+                                checked={agreed}
+                                disabled={online.locked}
+                                onCheckedChange={(checked) => {
+                                    onAgreed(checked === true);
+                                    setUntickedPress(false);
+                                }}
+                                aria-invalid={untickedPress ? true : undefined}
+                                aria-describedby={untickedPress ? 'terms-error' : undefined}
+                                className="border-ink-subtle"
+                            />
+                            <FieldLabel htmlFor="terms" className="block text-copy-14 font-normal text-ink" data-test="terms-sentence">
+                                <PolicySentence
+                                    text={page.returns === null ? t(`${W}.terms.agree_terms`) : t(`${W}.terms.agree_both`)}
+                                    names={{
+                                        terms: { label: t(`${W}.terms.terms`), href: page.terms.url, test: 'terms-link' },
+                                        returns: { label: t(`${W}.terms.returns`), href: page.returns?.url ?? null, test: 'returns-link' },
+                                    }}
+                                />
+                            </FieldLabel>
+                        </Field>
+                        {untickedPress ? (
+                            <FieldError id="terms-error" data-test="terms-error">
+                                {t(`${W}.terms.needed`)}
+                            </FieldError>
+                        ) : null}
+                        <ActionButton
+                            size="lg"
+                            loading={placing || busy || online.locked}
+                            disabledReason={reason}
+                            onClick={() => {
+                                if (!agreed) {
+                                    setUntickedPress(true);
+
+                                    return;
+                                }
+
+                                if (paying) {
+                                    press.current?.();
+
+                                    return;
+                                }
+
+                                // The quote's id, the tick and the terms it was for, never an amount (handoff §2); the server places it
+                                // once however often it is sent, and refuses terms other than the store's now.
+                                router.post(link('storefront.sales.place'), { quote: page.quoteId, agreed: true, ...shown } as never, { preserveScroll: true, onStart: () => setPlacing(true), onFinish: () => setPlacing(false) });
+                            }}
+                            data-test={paying ? 'pay' : 'place-order'}
+                        >
+                            {/* The total isn't final while the fee is to be set (E6). */}
+                            {paying ? t(`${P}.pay`, { total: page.total?.text ?? '' }) : page.shippingPending ? t(`${W}.summary.place_pending`) : t(`${W}.summary.place`, { total: page.total?.text ?? '' })}
+                        </ActionButton>
+                    </>
+                )}
             </CardContent>
         </Card>
     );

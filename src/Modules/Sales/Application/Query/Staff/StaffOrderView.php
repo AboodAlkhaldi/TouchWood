@@ -10,6 +10,7 @@ use Modules\Payments\Public\Dto\PaymentRequestStateDto;
 use Modules\Sales\Application\Query\OrderShippingView;
 use Modules\Sales\Application\Query\Own\OrderLineView;
 use Modules\Sales\Application\Query\Own\OwnReturnRow;
+use Modules\Sales\Domain\Model\AcceptedTerms;
 use Modules\Sales\Public\Enums\CustomerOrderStatus;
 use Modules\Sales\Public\Enums\PaymentStatus;
 use Modules\Sales\Public\Enums\WayToPay;
@@ -105,5 +106,7 @@ final readonly class StaffOrderView
         public bool $paymentInProgress = false,
         /** Offer "The customer owes ...", with Request Payment (§4.2); the handler asks again. */
         public bool $mayRequestPayment = false,
+        /** The terms ticked at checkout (flags-2026-11.md S3.3, F16); null on an order from before the tick. */
+        public ?AcceptedTerms $terms = null,
     ) {}
 }

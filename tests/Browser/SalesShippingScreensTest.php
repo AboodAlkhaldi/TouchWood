@@ -174,6 +174,8 @@ it('chooses a carrier at checkout, keeps it in the summary, and places the order
     expect(browserUntil($page, "location.search.includes('carrier={$dear}')"))->toBeTrue()
         ->and(browserUntil($page, "document.querySelector('[data-test=\"checkout-summary\"]').textContent.includes('40.00')"))->toBeTrue();
 
+    // The terms ticked (flags-2026-11.md S3.3).
+    $page->click('[data-test="terms"]');
     $page->click('[data-test="place-order"]');
     expect(browserUntil($page, "location.pathname.endsWith('/placed')"))->toBeTrue()
         ->and((string) DB::table('sales.orders')->where('customer_id', $customer)->value('ordered_carrier_id'))->toBe($dear);
@@ -187,6 +189,7 @@ it('takes an order with no carrier from checkout through the fee, Ship with a li
     $shop->navigate("/sa/en/checkout?address={$address}", BROWSER_PAGE_LOAD)->assertPresent('[data-test="delivery-pending"]');
     expect(salesShippingText($shop, '[data-test="summary-total-label"]'))->toContain('Total before shipping')
         ->and(salesShippingText($shop, '[data-test="place-order"]'))->not->toContain('·');
+    $shop->click('[data-test="terms"]');
     $shop->click('[data-test="place-order"]');
     expect(browserUntil($shop, "location.pathname.endsWith('/placed')"))->toBeTrue();
     $shop->assertPresent('[data-test="placed-fee-note"]');

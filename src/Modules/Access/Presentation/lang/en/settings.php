@@ -53,5 +53,4 @@ return [
     'customer.password_reset_hourly_limit' => 'Reset Emails an Hour',
     'customer.address_requests_per_hour' => 'Address Changes an Hour',
     'customer.addresses_per_store' => 'Addresses Kept per Store',
-    'customer.terms_version' => 'Version of the Terms in Force',
 ];

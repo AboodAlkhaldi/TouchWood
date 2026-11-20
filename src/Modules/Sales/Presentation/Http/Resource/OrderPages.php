@@ -10,6 +10,7 @@ use Illuminate\Contracts\Foundation\Application;
 use InvalidArgumentException;
 use Modules\Payments\Public\Dto\PaymentAttemptDto;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Contracts\ShopPolicies;
 use Modules\Platform\Public\Dto\MoneyData;
 use Modules\Platform\Public\Dto\StoreDto;
 use Modules\Sales\Application\Query\ListCarriers\ListCarriers;
@@ -33,6 +34,7 @@ use Modules\Sales\Application\Query\Staff\MoneyRow;
 use Modules\Sales\Application\Query\Staff\StaffOrderRow;
 use Modules\Sales\Application\Query\ViewOrder\ViewOrder;
 use Modules\Sales\Application\Query\ViewOrder\ViewOrderHandler;
+use Modules\Sales\Domain\Model\AcceptedTerms;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
@@ -52,6 +54,7 @@ final readonly class OrderPages
         private PlatformApi $platform,
         private ListOrderStoresHandler $stores,
         private SalesActionsForReader $actions,
+        private ShopPolicies $policies,
     ) {}
 
     /**
@@ -241,6 +244,34 @@ final readonly class OrderPages
             $order->paymentRequest === null ? null : new OrderRequestData($money($order->paymentRequest->amount), self::moment($order->paymentRequest->expiresAt)),
             $order->paymentInProgress,
             $order->mayRequestPayment,
+            $order->terms === null ? null : $this->terms($order->terms, $order->storeId, $store),
+        );
+    }
+
+    /**
+     * "Terms v3, accepted …" (flags-2026-11.md S3.3, F16), each version linking to its text in the shop: the policy's
+     * address now, in the reader's language - found among the store's published policies by its id, as Sales asks only
+     * Platform's `ShopPolicies` (owner, 2026-11-20) - with `?version=`. One read of the store's policies.
+     */
+    private function terms(AcceptedTerms $terms, string $storeId, ?StoreDto $store): OrderTermsData
+    {
+        $slugs = [];
+
+        foreach ($this->policies->allPublished(StoreId::fromString($storeId), $this->locale()) as $policy) {
+            $slugs[strtolower($policy->policyId)] = $policy->slug;
+        }
+
+        $link = function (?string $policyId, ?int $version) use ($slugs, $store): ?string {
+            $slug = $policyId === null ? null : ($slugs[$policyId] ?? null);
+
+            return $slug === null || $version === null || $store === null ? null : route('storefront.content.policy', [
+                'store' => strtolower($store->code), 'locale' => $this->locale(), 'slug' => $slug, 'version' => $version,
+            ]);
+        };
+
+        return new OrderTermsData(
+            $terms->version, self::moment($terms->acceptedAt), $link($terms->policyId, $terms->version),
+            $terms->returnsVersion, $link($terms->returnsPolicyId, $terms->returnsVersion),
         );
     }
 

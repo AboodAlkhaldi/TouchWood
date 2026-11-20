@@ -79,6 +79,15 @@ return [
         'holder' => 'صاحب الحساب',
         'copy' => 'نسخ :what',
     ],
+    // The terms' tick above Place Order (flags-2026-11.md S3.3); each :name a link to that policy, opened in a new tab.
+    'terms' => [
+        'agree_both' => 'قرأتُ :terms و:returns وأوافق عليهما.',
+        'agree_terms' => 'قرأتُ :terms وأوافق عليها.',
+        'terms' => 'الشروط والأحكام',
+        'returns' => 'سياسة الاستبدال والاسترجاع',
+        'needed' => 'ضع علامة في المربع للموافقة على الشروط.',
+        'missing' => 'لا يمكن تقديم الطلبات حتى تُنشر شروط هذا المتجر.',
+    ],
     'summary' => [
         'title' => 'الملخص',
         'subtotal' => 'المجموع الفرعي',

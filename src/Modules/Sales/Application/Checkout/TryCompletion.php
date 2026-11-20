@@ -141,7 +141,8 @@ final readonly class TryCompletion
         $number = $isTest ? sprintf('TEST-%04d', $this->numbers->nextTest($store)) : sprintf('%s-%04d', strtoupper($code), $this->numbers->next($store));
         $promotionsCaller = new PromotionsCaller('sales', SalesPermissions::ORDER_PLACE);
 
-        $this->orders->add($this->snapshot->of($view, $try->orderId, $number, OrderContact::fromArray($try->contact ?? []), self::address($try), $now, $isTest));
+        // The terms Pay ticked (flags-2026-11.md S3.3, F16): the order keeps them, not today's.
+        $this->orders->add($this->snapshot->of($view, $try->orderId, $number, OrderContact::fromArray($try->contact ?? []), self::address($try), $now, $isTest, $try->terms));
         $this->orders->recordHistory($try->orderId, $try->storeId, 'PLACED', null, null, $now, ['number' => $number, 'quoteId' => $try->quoteId]);
 
         // The stock was held at Pay under this very id: the order keeps it. A flag the try received goes with it.

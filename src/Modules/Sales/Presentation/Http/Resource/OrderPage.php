@@ -110,5 +110,7 @@ final class OrderPage extends Data
         public bool $paymentInProgress = false,
         /** What the order allows; holding `sales.order.edit` is the page's own check (sales.md §9.9 #7). */
         public bool $mayRequestPayment = false,
+        /** The terms ticked at checkout (flags-2026-11.md S3.3, F16); null on an order from before the tick. */
+        public ?OrderTermsData $terms = null,
     ) {}
 }

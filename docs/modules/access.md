@@ -59,7 +59,7 @@ is global).
 | `locale` | `ar` or `en`: the page's language at registration, editable. Emails and SMS use it (handoff §5.2). |
 | `home_store_id` | **The store the account was registered in, fixed [DECIDED 2026-09-19].** It decides which store's staff see the customer (§3.3). The customer can shop in every store. **When it is off** (owner, 2026-10-01, amendment 53), the account keeps working: they sign in and shop in the stores that are on; their home store's pages are closed to them like to everyone. |
 | `last_store_id` | The last store the customer used. After signing in — on any device — they land there **[DECIDED 2026-09-19]**; emails sent later (not during a request) link to it. When that store is off, they land on the store chooser instead (amendment 53). |
-| `terms_version`, `terms_accepted_at` | The terms and privacy policy accepted at registration, and when **[DECIDED 2026-09-19]**. |
+| `terms_policy_id`, `terms_policy_version`, `terms_accepted_at` | The store's published Terms and Conditions accepted at registration - Content's policy and the version of its text, through Platform's `ShopPolicies` - and when **[DECIDED 2026-09-19; flags-2026-11.md S3.4, F18]**. Both empty when the store had none published (sign-up is not refused: builder's pick, for the owner to confirm). `terms_version`, the typed setting's value, is kept for the accounts made before the setting retired (F18) and empty since. |
 | `deletion_scheduled_for` | Set while a deletion is pending (§1.10). |
 | `anonymized_at` | Set once the account is anonymized. |
 
@@ -207,7 +207,7 @@ Handoff §7.5, with the owner's answers **[DECIDED 2026-09-18, 2026-09-19]**:
   decide how staff sign in (amendment 46(a)), and Platform's `platform.media.private.view`, which
   lists private files in the media library (amendment 49) — can be put only into admin roles.
   Staff manage no roles and no people, and change no rule of signing in. A **store's own**
-  settings — its terms version, how many addresses, its verification numbers — stay an ordinary action,
+  settings — how many addresses, its verification numbers — stay an ordinary action,
   `access.settings.update`.
 - **Only a Super Admin** creates, clones, edits or deletes admin roles, gives anyone an admin role,
   and manages admins. No admin manages another admin, or themselves.
@@ -703,7 +703,7 @@ role; `every staff`, `every customer` and `every guest` automatically, for their
 | `BlockCustomer` / `UnblockCustomer` — with a reason | role, **admin-only** (amendment 43) | `access.customer.block` | The customer's home store |
 | `DeleteCustomerOnRequest` / `CancelCustomerDeletion` — the same 14-day deletion, with a reason | role, **admin-only** (amendment 43) | `access.customer.delete` | The customer's home store |
 | `UpdateStoreAddressFormat` | role | `access.address_format.update` | That store |
-| A **store's** settings — terms version, addresses per store, its verification and OTP numbers (Platform's `UpdateSetting`, under Access's permission) | role | `access.settings.update` | That store |
+| A **store's** settings — addresses per store, its verification and OTP numbers (Platform's `UpdateSetting`, under Access's permission) | role | `access.settings.update` | That store |
 | The **staff security** settings — password length, lockouts, session limits, code length | role, **admin-only** (amendment 46(a)) | `access.staff_settings.update` | All stores (they are global) |
 | `AnonymizeDueAccounts` — daily | system (scheduled job) | `access.account.anonymize` (reserved) | Global |
 
@@ -810,7 +810,8 @@ All in the `access` PostgreSQL schema (added to `search_path`). ULIDs are `char(
 | `locale` | `char(2)` NOT NULL | `ar`, `en` |
 | `home_store_id` | `char(26)` NOT NULL | FK → `platform.stores(id)`; immutable |
 | `last_store_id` | `char(26)` NOT NULL | FK → `platform.stores(id)` |
-| `terms_version` | `varchar(32)` NOT NULL | |
+| `terms_version` | `varchar(32)` NULL | The retired typed setting's value, accounts made before 2026-11-20 only (F18) |
+| `terms_policy_id`, `terms_policy_version` | `char(26)`, `integer` NULL | The store's Terms and Conditions and the version accepted (S3.4, F18); both or neither, a version of 1 or more (`Customer::register`) |
 | `terms_accepted_at` | `timestamptz` NOT NULL | |
 | `deletion_scheduled_for`, `anonymized_at` | `timestamptz` NULL | |
 | `session_version` | `integer` NOT NULL | Starts 0; every password change or reset raises it, which ends every session holding the old number (step 4b) |
@@ -1001,7 +1002,7 @@ AccessError
 - Audit: every change audited; personal fields only "changed".
 
 ### Feature (HTTP)
-- Register (terms version recorded, home store set) → verify email → add phone → verify → the person
+- Register (the store's Terms and Conditions and their version recorded, home store set) → verify email → add phone → verify → the person
   may order; each step's errors, including the plain "already registered" and "blocked" messages.
 - After signing in, the customer lands in their last store, on any device.
 - Sign in, lockout after 5 wrong passwords, per-IP limit, remember me, session idle limits,

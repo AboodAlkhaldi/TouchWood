@@ -1,3 +1,4 @@
+import type { ShopPolicyLinkData } from '../../../../Platform/Public/Dto';
 export type CompanyAnswerData = {
 requestId: string,
 text: string | null,
@@ -72,6 +73,7 @@ storeNameEn: string,
 elsewhere: CompanyElsewhereData[],
 prefill: CompanyPrefillData | null,
 phoneConfirmed: boolean,
+companyTerms: ShopPolicyLinkData | null,
 };
 export type CompanyPrefillData = {
 name: string,

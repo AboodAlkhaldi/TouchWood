@@ -79,6 +79,15 @@ return [
         'holder' => 'Account holder',
         'copy' => 'Copy :what',
     ],
+    // The terms' tick above Place Order (flags-2026-11.md S3.3); each :name a link to that policy, opened in a new tab.
+    'terms' => [
+        'agree_both' => 'I have read and agree to the :terms and the :returns.',
+        'agree_terms' => 'I have read and agree to the :terms.',
+        'terms' => 'Terms and Conditions',
+        'returns' => 'Returns and Refunds policy',
+        'needed' => 'Tick the box to agree to the terms.',
+        'missing' => 'Orders can\'t be placed until this store\'s terms are published.',
+    ],
     'summary' => [
         'title' => 'Summary',
         'subtotal' => 'Subtotal',

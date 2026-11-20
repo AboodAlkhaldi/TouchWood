@@ -6,6 +6,8 @@ use App\Http\FormErrors;
 use Carbon\CarbonImmutable;
 use Modules\B2B\Domain\Exception\AnswerKindMismatch;
 use Modules\B2B\Domain\Exception\B2BError;
+use Modules\B2B\Domain\Exception\CompanyTermsChanged;
+use Modules\B2B\Domain\Exception\CompanyTermsNotAccepted;
 use Modules\B2B\Domain\Exception\DocumentNoLongerAccepted;
 use Modules\B2B\Domain\Exception\FlaggedItemNotReplaced;
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
@@ -230,5 +232,15 @@ it('translates each new refusal, and never shows the English written for the log
         ),
         AnswerKindMismatch::class,
         'answer_kind_mismatch',
+    ],
+    'the Company Terms changed since the form showed them (owner, 2026-11-20)' => [
+        fn () => throw new CompanyTermsChanged,
+        CompanyTermsChanged::class,
+        'company_terms_changed',
+    ],
+    'the Company Terms not ticked (flags-2026-11.md S3.6)' => [
+        fn () => throw new CompanyTermsNotAccepted,
+        CompanyTermsNotAccepted::class,
+        'company_terms_not_accepted',
     ],
 ]);

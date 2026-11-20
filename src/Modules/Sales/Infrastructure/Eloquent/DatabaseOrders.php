@@ -72,6 +72,12 @@ final readonly class DatabaseOrders implements Orders
             'wired' => $order->wired,
             'placed_at' => Moment::of($order->placedAt),
             'is_test' => $order->isTest,
+            // The terms ticked (flags-2026-11.md S3.3, F16): AcceptedTerms holds the rule, both or none of each pair.
+            'terms_policy_id' => $order->terms?->policyId,
+            'terms_version' => $order->terms?->version,
+            'terms_accepted_at' => $order->terms === null ? null : Moment::of($order->terms->acceptedAt),
+            'returns_policy_id' => $order->terms?->returnsPolicyId,
+            'returns_version' => $order->terms?->returnsVersion,
         ]);
 
         $this->insertLines($order->id, $order->storeId, $order->lines);

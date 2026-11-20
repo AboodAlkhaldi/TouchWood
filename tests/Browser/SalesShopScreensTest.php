@@ -7,6 +7,8 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Public\Enums\SaleMode;
+use Modules\Content\Application\Command\UnpublishPolicy\UnpublishPolicy;
+use Modules\Content\Application\Command\UnpublishPolicy\UnpublishPolicyHandler;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrderHandler;
 use Modules\Sales\Application\Command\MarkDelivered\MarkDelivered;
@@ -100,6 +102,27 @@ it('adds a piece in the cart, checks out and places the order at a phone\'s widt
     expect(browserUntil($page, "location.pathname === '/sa/en/checkout'"))->toBeTrue()
         ->and(salesShopWide($page))->toBe('', 'checkout scrolls sideways');
 
+    // The terms' tick above Place Order (flags-2026-11.md S3.3): the Terms and Conditions a link to its page in a new tab;
+    // pressed unticked, it says so under the tick and nothing is placed.
+    expect(browserSoon($page, "document.querySelector('[data-test=\"terms-link\"]')?.target === '_blank'"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=\"terms-link\"]').getAttribute('href')"))->toContain('/sa/en/policies/')
+        ->and($page->script("document.querySelector('[data-test=\"terms-link\"]').textContent"))->toBe('Terms and Conditions')
+        ->and($page->script("document.querySelector('[data-test=\"terms-sentence\"]').textContent.startsWith('I have read and agree to the Terms and Conditions')"))->toBeTrue();
+    $page->click('[data-test="place-order"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"terms-error\"]')?.textContent === 'Tick the box to agree to the terms.'"))->toBeTrue()
+        ->and($page->script('location.pathname'))->toBe('/sa/en/checkout')
+        ->and(salesShopWide($page))->toBe('', 'checkout with the tick\'s message scrolls sideways');
+
+    // In Arabic: the same sentence in its words, the link to the Arabic page.
+    $page->navigate('/sa/ar/checkout', BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"terms-link\"]')?.textContent === 'الشروط والأحكام'"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=\"terms-sentence\"]').textContent.startsWith('قرأتُ الشروط والأحكام')"))->toBeTrue()
+        ->and($page->script("decodeURIComponent(document.querySelector('[data-test=\"terms-link\"]').getAttribute('href'))"))->toContain('/sa/ar/policies/')
+        ->and(salesShopWide($page))->toBe('', 'the Arabic checkout scrolls sideways');
+    $page->navigate('/sa/en/checkout', BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"terms\"]') !== null"))->toBeTrue();
+
+    $page->click('[data-test="terms"]');
     $page->click('[data-test="place-order"]');
     expect(browserUntil($page, "location.pathname.endsWith('/placed')"))->toBeTrue()
         ->and(salesShopWide($page))->toBe('', 'the order placed scrolls sideways');
@@ -107,6 +130,37 @@ it('adds a piece in the cart, checks out and places the order at a phone\'s widt
 
     expect((int) DB::table('sales.order_lines')->join('sales.orders', 'sales.orders.id', '=', 'sales.order_lines.order_id')
         ->where('sales.orders.customer_id', $ready['customer'])->where('sales.order_lines.variant_id', $ready['variants'][0])->value('sales.order_lines.quantity'))->toBe(3);
+});
+
+it('says a store without published terms takes no orders, in place of Place Order, at a phone\'s width in both languages', function () {
+    $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
+
+    try {
+        $ready = Cx::ready();
+        // The store's terms taken down; the next checkout's fixtures publish new ones (CheckoutFixtures::terms).
+        $terms = Cx::terms();
+        Cx::asSuperAdmin(fn () => app(UnpublishPolicyHandler::class)->handle(new UnpublishPolicy($terms, (int) DB::table('content.policies')->where('id', $terms)->value('version'))));
+    } finally {
+        app()->scoped(ActorContext::class, $previous);
+        app()->forgetScopedInstances();
+    }
+
+    $email = (string) DB::table('access.customers')->where('id', $ready['customer'])->value('email');
+    $page = visit('/sa/en/sign-in')
+        ->type('#email', $email)
+        ->type('#password', Fx::CUSTOMER_PASSWORD)
+        ->click('button[type="submit"]');
+    expect(browserUntil($page, "location.pathname === '/sa/en'"))->toBeTrue();
+    $page->resize(375, 812);
+
+    $page->navigate('/sa/en/checkout', BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"terms-missing\"]')?.textContent === 'Orders can\\'t be placed until this store\\'s terms are published.'"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=\"place-order\"]') === null && document.querySelector('[data-test=\"terms\"]') === null"))->toBeTrue()
+        ->and(salesShopWide($page))->toBe('', 'checkout without terms scrolls sideways');
+
+    $page->navigate('/sa/ar/checkout', BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"terms-missing\"]')?.textContent === 'لا يمكن تقديم الطلبات حتى تُنشر شروط هذا المتجر.'"))->toBeTrue()
+        ->and(salesShopWide($page))->toBe('', 'the Arabic checkout without terms scrolls sideways');
 });
 
 it('draws My Orders, an order, asking a return and the return at a phone\'s width with nothing scrolling sideways', function () {

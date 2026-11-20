@@ -72,6 +72,12 @@ interface ApplicationRepository
     public function update(Application $application): void;
 
     /**
+     * The store's Company Terms the application was sent under (flags-2026-11.md S3.6): Content's policy and the
+     * version of its text ticked, kept as plain values; when, is the moment it was sent (`submittedAt`).
+     */
+    public function keepCompanyTerms(string $applicationId, string $policyId, int $version): void;
+
+    /**
      * Which of these files any application still holds, as a document or as an answer, drafts
      * included (§1.4): B2B asks Platform to delete a file only once none does.
      *

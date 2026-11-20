@@ -23,6 +23,8 @@ use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Public\Enums\AccessLevel;
 use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Contracts\ShopPolicies;
+use Modules\Platform\Public\Enums\PolicyKind;
 use Shared\Application\Actor;
 use Shared\Application\ActorContext;
 use Shared\Application\Authorizer;
@@ -172,12 +174,27 @@ final class AccessFixtures
 
         try {
             return self::inStoreCode($storeCode, fn (): string => app(RegisterCustomerHandler::class)->handle(
-                new RegisterCustomer($email, self::CUSTOMER_PASSWORD, 'Sara', 'Ali', $accountType, 'en', true),
+                new RegisterCustomer($email, self::CUSTOMER_PASSWORD, 'Sara', 'Ali', $accountType, 'en', true, ...self::shownPolicies($storeCode)),
             ));
         } finally {
             app()->scoped(ActorContext::class, $previous);
             app()->forgetScopedInstances();
         }
+    }
+
+    /**
+     * The store's Terms and Conditions and Privacy Policy as its sign-up form shows them now, as `RegisterCustomer`'s
+     * named arguments: what a form sends back with the tick (flags-2026-11.md S3.4; owner, 2026-11-20).
+     *
+     * @return array{shownTermsId: ?string, shownTermsVersion: ?int, shownPrivacyId: ?string, shownPrivacyVersion: ?int}
+     */
+    public static function shownPolicies(string $storeCode = 'sa'): array
+    {
+        $store = StoreId::fromString(self::storeId($storeCode));
+        $terms = app(ShopPolicies::class)->published($store, PolicyKind::Terms, 'en');
+        $privacy = app(ShopPolicies::class)->published($store, PolicyKind::Privacy, 'en');
+
+        return ['shownTermsId' => $terms?->policyId, 'shownTermsVersion' => $terms?->version, 'shownPrivacyId' => $privacy?->policyId, 'shownPrivacyVersion' => $privacy?->version];
     }
 
     /**

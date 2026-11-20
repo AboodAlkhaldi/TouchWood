@@ -24,5 +24,14 @@ final readonly class RegisterCustomer
         public string $ip = '',
         /** The "offers and news" box, unticked by default (amendment 79). */
         public bool $marketingConsent = false,
+        /**
+         * The store's Terms and Conditions and Privacy Policy as the form showed them beside the tick, by id and
+         * version (flags-2026-11.md S3.4; owner, 2026-11-20): refused unless they are the store's now. None where the
+         * form showed none, as for a store with none published.
+         */
+        public ?string $shownTermsId = null,
+        public ?int $shownTermsVersion = null,
+        public ?string $shownPrivacyId = null,
+        public ?int $shownPrivacyVersion = null,
     ) {}
 }

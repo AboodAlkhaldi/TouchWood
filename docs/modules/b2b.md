@@ -953,6 +953,7 @@ type string and HTTP status (handoff §11).
 | `ApplicationAlreadyOpen` | CONFLICT | A submitted application already waits for the account in this store (a draft is returned, not refused) |
 | `EmailNotVerified` | CONFLICT | Submitting before the address is confirmed (§1.2) |
 | `PhoneNotConfirmed` | CONFLICT | Submitting before the account has a confirmed phone number (§1.2, amendment 26(a)) |
+| `CompanyTermsNotAccepted` | INVALID | Submitting without ticking the store's Company Terms while it has them published (flags-2026-11.md S3.6, Q2); the application keeps the policy and the version ticked |
 | `MissingRequiredDocument` | UNPROCESSABLE | Submitting without every active required type |
 | `ApplicationNotEditable` | CONFLICT | Changing an application that is no longer `DRAFT` |
 | `FlaggedItemNotReplaced` | UNPROCESSABLE | Sending while a field or document the last rejection flagged is unchanged (§1.2, amendment 4). One general message for every item: "Replace every item marked in the last decision before you send the application." (amendment 6(e)) |

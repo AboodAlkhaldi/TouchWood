@@ -47,7 +47,7 @@ final class Customer
         private Language $language,
         private readonly string $homeStoreId,
         private string $lastStoreId,
-        private readonly string $termsVersion,
+        private readonly ?string $termsVersion,
         private readonly DateTimeImmutable $termsAcceptedAt,
         private ?DateTimeImmutable $deletionScheduledFor = null,
         private ?DateTimeImmutable $anonymizedAt = null,
@@ -55,6 +55,10 @@ final class Customer
         private bool $marketingConsent = false,
         private ?DateTimeImmutable $marketingConsentChangedAt = null,
         private ?MarketingConsentSource $marketingConsentSource = null,
+        private readonly ?string $termsPolicyId = null,
+        private readonly ?int $termsPolicyVersion = null,
+        private readonly ?string $privacyPolicyId = null,
+        private readonly ?int $privacyPolicyVersion = null,
     ) {}
 
     /**
@@ -62,8 +66,15 @@ final class Customer
      * waits for both verifications (spec §1.2); browsing and a cart do not.
      *
      * @param  string  $storeId  the store they registered in: their home store, fixed
-     * @param  string  $termsVersion  the version of that store's terms they accepted (amendment 37)
+     * @param  string|null  $termsPolicyId  that store's published Terms and Conditions they accepted (flags-2026-11.md
+     *                                      S3.4, F18); null while the store had none published
+     * @param  int|null  $termsPolicyVersion  the version of its text they accepted, with the policy or not at all
      * @param  bool  $marketingConsent  the "offers and news" box, unticked unless they ticked it (amendment 79)
+     * @param  string|null  $privacyPolicyId  that store's published Privacy Policy, which the same tick accepts (owner,
+     *                                        2026-11-20); null while the store had none published
+     * @param  int|null  $privacyPolicyVersion  its version, with the policy or not at all
+     *
+     * @throws InvalidAccessAttribute a policy without its version, or a version below 1
      */
     public static function register(
         string $id,
@@ -74,17 +85,48 @@ final class Customer
         AccountType $accountType,
         Language $language,
         string $storeId,
-        string $termsVersion,
+        ?string $termsPolicyId,
+        ?int $termsPolicyVersion,
         DateTimeImmutable $at,
         bool $marketingConsent = false,
+        ?string $privacyPolicyId = null,
+        ?int $privacyPolicyVersion = null,
     ): self {
+        self::policy('terms', $termsPolicyId, $termsPolicyVersion);
+        self::policy('privacy', $privacyPolicyId, $privacyPolicyVersion);
+
         return new self(
             $id, $email, $passwordHash, $firstName, $lastName, $accountType, CustomerStatus::Active,
-            null, null, null, $language, $storeId, $storeId, $termsVersion, $at,
+            null, null, null, $language, $storeId, $storeId, null, $at,
             marketingConsent: $marketingConsent,
             marketingConsentChangedAt: $marketingConsent ? $at : null,
             marketingConsentSource: $marketingConsent ? MarketingConsentSource::Registration : null,
+            termsPolicyId: $termsPolicyId === null ? null : strtolower($termsPolicyId),
+            termsPolicyVersion: $termsPolicyVersion,
+            privacyPolicyId: $privacyPolicyId === null ? null : strtolower($privacyPolicyId),
+            privacyPolicyVersion: $privacyPolicyVersion,
         );
+    }
+
+    /**
+     * A policy accepted at sign-up (flags-2026-11.md S3.4): its id and version together or neither, a version of 1 or
+     * more - so the database never receives one it could not show staff.
+     *
+     * @throws InvalidAccessAttribute
+     */
+    private static function policy(string $name, ?string $id, ?int $version): void
+    {
+        if (($id === null) !== ($version === null)) {
+            throw new InvalidAccessAttribute("{$name}_policy", 'the policy and its version together');
+        }
+
+        if ($id !== null && preg_match('/\A[0-9a-z]{26}\z/', strtolower($id)) !== 1) {
+            throw new InvalidAccessAttribute("{$name}_policy", 'a policy id');
+        }
+
+        if ($version !== null && $version < 1) {
+            throw new InvalidAccessAttribute("{$name}_policy_version", 'a policy version is 1 or more');
+        }
     }
 
     public static function reconstitute(
@@ -101,7 +143,7 @@ final class Customer
         Language $language,
         string $homeStoreId,
         string $lastStoreId,
-        string $termsVersion,
+        ?string $termsVersion,
         DateTimeImmutable $termsAcceptedAt,
         ?DateTimeImmutable $deletionScheduledFor = null,
         ?DateTimeImmutable $anonymizedAt = null,
@@ -109,6 +151,10 @@ final class Customer
         bool $marketingConsent = false,
         ?DateTimeImmutable $marketingConsentChangedAt = null,
         ?MarketingConsentSource $marketingConsentSource = null,
+        ?string $termsPolicyId = null,
+        ?int $termsPolicyVersion = null,
+        ?string $privacyPolicyId = null,
+        ?int $privacyPolicyVersion = null,
     ): self {
         if ($sessionVersion < 0) {
             throw new InvalidAccessAttribute('session_version', 'zero or more');
@@ -118,7 +164,8 @@ final class Customer
             $id, $email, $passwordHash, $firstName, $lastName, $accountType, $status,
             $emailVerifiedAt, $phone, $phoneVerifiedAt, $language, $homeStoreId, $lastStoreId,
             $termsVersion, $termsAcceptedAt, $deletionScheduledFor, $anonymizedAt, $sessionVersion,
-            $marketingConsent, $marketingConsentChangedAt, $marketingConsentSource,
+            $marketingConsent, $marketingConsentChangedAt, $marketingConsentSource, $termsPolicyId, $termsPolicyVersion,
+            $privacyPolicyId, $privacyPolicyVersion,
         );
     }
 
@@ -418,9 +465,32 @@ final class Customer
         return $this->lastStoreId;
     }
 
-    public function termsVersion(): string
+    /** The version typed into the retired setting, kept for the accounts made before it retired (F18); null since. */
+    public function termsVersion(): ?string
     {
         return $this->termsVersion;
+    }
+
+    /** The store's Terms and Conditions accepted at sign-up (flags-2026-11.md S3.4, F18); null when it had none published. */
+    public function termsPolicyId(): ?string
+    {
+        return $this->termsPolicyId;
+    }
+
+    public function termsPolicyVersion(): ?int
+    {
+        return $this->termsPolicyVersion;
+    }
+
+    /** The store's Privacy Policy accepted at sign-up (owner, 2026-11-20); null when it had none published. */
+    public function privacyPolicyId(): ?string
+    {
+        return $this->privacyPolicyId;
+    }
+
+    public function privacyPolicyVersion(): ?int
+    {
+        return $this->privacyPolicyVersion;
     }
 
     public function termsAcceptedAt(): DateTimeImmutable

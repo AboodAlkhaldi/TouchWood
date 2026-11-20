@@ -265,10 +265,12 @@ describe('what changed since the quote', function () {
         $store = Fx::storeId('eg');
         $quote = Cx::start($address, storeCode: 'eg');
         $customer = app(ActorContext::class)->current();
+        // The terms as the page showed them, read while the store is still on.
+        $shown = Cx::shown('eg');
         Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
         Fx::actAs($customer);
 
-        expect(Pr::thrown(fn () => app(PlaceOrderHandler::class)->handle(new PlaceOrder($store, $quote->id)), QuoteChanged::class)->reason)->toBe('sales.may_not_order');
+        expect(Pr::thrown(fn () => app(PlaceOrderHandler::class)->handle(new PlaceOrder($store, $quote->id, true, $shown)), QuoteChanged::class)->reason)->toBe('sales.may_not_order');
         nothingPlaced();
     });
 
