@@ -19,6 +19,13 @@ return [
     'coming_soon_subtitle' => 'Not built yet.',
     'coming_soon_body' => 'This screen is next in the build queue.',
 
+    // The header search over the pages the person may open (flags-2026-11.md S7).
+    'search' => [
+        'button' => 'Search pages…',
+        'title' => 'Search pages',
+        'empty' => 'No pages found.',
+    ],
+
     'theme' => [
         // The switch's own name, read aloud (Geist's Switch carries an aria-label).
         'label' => 'Theme',

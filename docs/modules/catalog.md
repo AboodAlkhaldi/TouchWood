@@ -820,8 +820,7 @@ B2B's type lists, b2b.md amendment 23(a)):
 attribute sets under the design's own name, "Variations" (owner, 2026-10-07, amendment 13, #12)~~ —
 **no Variations screen**: a product's variants pick their attributes in its Variants tab (owner,
 2026-10-09, amendment 16(b)); there is no separate Colours screen: a colour attribute's values carry
-their swatch. **No search in the panel's header yet** — it comes with Sales, one search for products
-and orders; the products list has its own (owner, 2026-10-07, Q8). **No Catalog card on Home** until
+their swatch. **The panel's header search finds the pages the person may open** (flags-2026-11.md S7, owner 2026-11-18); products and orders are a later step with Sales, one search for both; the products list has its own (owner, 2026-10-07, Q8). **No Catalog card on Home** until
 the owner's Home ideas arrive (Q8).
 
 **Reading a shared list** **[PROPOSED P2]**: anyone holding the list's job in any store reads it;

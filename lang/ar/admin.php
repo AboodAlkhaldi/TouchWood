@@ -19,6 +19,13 @@ return [
     'coming_soon_subtitle' => 'لم تُبنَ بعد.',
     'coming_soon_body' => 'هذه الشاشة التالية في قائمة البناء.',
 
+    // The header search over the pages the person may open (flags-2026-11.md S7).
+    'search' => [
+        'button' => 'ابحث في الصفحات…',
+        'title' => 'البحث في الصفحات',
+        'empty' => 'لا صفحات مطابقة.',
+    ],
+
     'theme' => [
         // اسم المفتاح نفسه، يُقرأ بصوت عالٍ.
         'label' => 'المظهر',

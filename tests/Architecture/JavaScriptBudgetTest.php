@@ -46,8 +46,16 @@ const PAGE_BUDGET_EXCEPTIONS = [
     // The product page to the design (shop-design.md §6, PR B): tabs, the phone's folds and the buy box (owner, 2026-11-17).
     'resources/js/pages/Catalog/Storefront/Product.tsx' => 68_000,
     // Just over once icons shared with the shop's pages were split into files of their own (owner, 2026-11-17).
-    'resources/js/pages/Shipping/Admin/Carriers/Index.tsx' => 61_000,
+    // 62 KB from 2026-11-20 (owner): 61.2 KB once the panel's header search button joined every admin page (S7).
+    'resources/js/pages/Shipping/Admin/Carriers/Index.tsx' => 62_000,
     'resources/js/pages/Access/Storefront/Account/Account.tsx' => 61_000,
+    // Already 59.3-59.9 KB when the panel's header search button joined every admin page (about 0.84 KB: the button,
+    // shadcn's Kbd and the shortcut's rules; its dialog loads on first use) (owner, 2026-11-20; flags-2026-11.md S7).
+    'resources/js/pages/Catalog/Admin/Products/VariantsTab.tsx' => 61_000,
+    'resources/js/pages/Catalog/Admin/Categories/Index.tsx' => 61_000,
+    'resources/js/pages/Catalog/Admin/Warranties/Index.tsx' => 61_000,
+    'resources/js/pages/Catalog/Admin/Products/PhotosTab.tsx' => 61_000,
+    'resources/js/pages/Catalog/Admin/Products/RelatedTab.tsx' => 61_000,
 ];
 const APP_ENTRY = 'resources/js/app.tsx';
 

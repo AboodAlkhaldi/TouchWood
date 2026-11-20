@@ -105,7 +105,7 @@ verified by the stage 7 session — raise only what is confirmed.)
 
 27. Mixed reports with Odoo (owner 2026-11-05): the daily report and the list reports may later mix our site's data with Odoo's. The owner decides the sections and logic later; then possibly two sections, or a mixed file. Remind the owner when O8/O9 screens are built, and before any report logic changes. Built today: our site's data only.
 
-28. Panel header search (Ctrl/Cmd+K), one search for products and orders, promised "with Sales" (frontend.md:753-754, catalog.md:820): not built. Whole-project audit 2026-11-05.
+28. Panel header search (Ctrl/Cmd+K): the pages part is built (flags-2026-11.md S7, build 8, 2026-11-20); products and orders in the same dialog are still owed, "with Sales" (F13; frontend.md, catalog.md). Whole-project audit 2026-11-05.
 29. sales.md:1933 "still open for the owner": a staff-set shipping fee kept with a carrier picked can't be changed by Change Fee. Owner's call.
 30. Later features in specs with no owner: B2B colleagues sharing one company and the "Company staff" segment (b2b.md:1071); product video and add-ons (catalog.md §9.2 #2-3); bundles' own spec (promotions.md §9.2 #1; the design dropped them); HANDOFF §15.2 deferred list (abandoned cart, public order tracking, technical catalog PDF, guest price visibility). Owner: keep, drop, or schedule each.
 31. At hosting: the database users for the audit log and the CDN purge (platform.md §9.3, HANDOFF §15.4).

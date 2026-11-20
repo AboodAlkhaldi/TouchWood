@@ -37,8 +37,10 @@ export default defineConfig({
     build: {
         modulePreload: {
             // The shop footer's newsletter box (ops.md §4.15 O11) loads after the page has drawn, so nothing waits on
-            // its parts: the list of them to fetch ahead is left out of the layout every shop page carries.
-            resolveDependencies: (filename, deps) => (filename.includes('NewsletterBox') ? [] : deps),
+            // its parts: the list of them to fetch ahead is left out of the layout every shop page carries. The same
+            // for the panel's header search dialog (flags-2026-11.md S7), fetched the first time it is opened: its
+            // list of 21 files was 358 bytes gzipped on every admin page (measured 2026-11-20).
+            resolveDependencies: (filename, deps) => (filename.includes('NewsletterBox') || filename.includes('AdminSearchDialog') ? [] : deps),
         },
     },
     server: {

@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from 'react';
 import { Head, Link, usePage } from '@inertiajs/react';
 import { ChevronRight } from 'lucide-react';
+import { AdminSearch } from '@/components/AdminSearch';
 import { AppSidebar } from '@/components/AppSidebar';
 import { Note } from '@/components/Note';
 import { Bell } from '@/components/ops/Bell';
@@ -169,6 +170,7 @@ export function AdminLayout({ title, subtitle, action, breadcrumbs, phoneTrail =
 
                         {/* The bell (ops.md §4.15 O1), and View Store (frontend.md §2.2; access.md §1.11, amendment 64). */}
                         <div className="ms-auto flex items-center gap-2 px-4">
+                            <AdminSearch />
                             {bell ? <Bell base="/admin/notifications" unread={bell.unread} words={bell.words} manyStores={bell.manyStores} recheck /> : null}
                             <ViewStoreButton />
                         </div>
