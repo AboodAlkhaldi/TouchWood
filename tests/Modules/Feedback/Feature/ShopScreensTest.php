@@ -10,6 +10,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia;
+use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNow;
+use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNowHandler;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
 use Tests\Modules\Access\Support\FakeBreachList;
@@ -228,10 +230,33 @@ describe('F8 · The account\'s pages', function () {
 
         expect(array_column($props['stores'], 'storeCode'))->toEqualCanonicalizing(['sa', 'ae'])
             ->and($props['stores'][0]['items'][0]['product']['id'])->toBe($product)
+            // Its link is the shop's product page (storefront.catalog.product), not a 404.
+            ->and($props['stores'][0]['items'][0]['product']['href'])->toBe(route('storefront.catalog.product', ['store' => 'sa', 'locale' => 'en', 'slug' => (string) DB::table('catalog.product_slugs')->where('product_id', $product)->where('locale', 'en')->where('is_current', true)->value('slug')], false))
             // The tiles' price and stars come from the shop's own card, for an item orderable now (flags-2026-11.md S2.2).
             ->and(array_keys($props['stores'][0]['cards']))->toBe([$product])
             ->and($props['stores'][0]['cards'][$product])->toHaveKeys(['price', 'rating', 'ratingCount', 'photo'])
             ->and(array_column($props['accountMenu']['pages'], 'key'))->toContain('feedback.reviews', 'feedback.questions', 'feedback.wishlist');
+    });
+
+    it('gives a saved product the person cannot order now no shop card, so its tile shows no price or stars', function () {
+        ['product' => $orderable] = Fb::sold();
+        ['product' => $notNow] = Fb::sold();
+        Fx::asSystem(fn () => app(MarkNotAvailableNowHandler::class)->handle(new MarkNotAvailableNow(Fx::storeId('sa'), $notNow)));
+        [$sara, $browser] = shopScreensCustomer();
+        foreach ([$orderable, $notNow] as $product) {
+            DB::table('feedback.wishlist_items')->insert(['customer_id' => $sara, 'product_id' => $product, 'store_id' => Fx::storeId('sa'), 'saved_at' => CarbonImmutable::now()]);
+        }
+
+        $props = shopScreensProps($browser, '/sa/en/account/wishlist', 'Feedback/Storefront/MyWishlist');
+        $sold = array_column(array_column($props['stores'][0]['items'], 'product'), 'sold', 'id');
+        $expected = [$orderable => true, $notNow => false];
+        ksort($sold);
+        ksort($expected);
+
+        // Both tiles are there; only the one orderable now has the shop's card, which carries the price and stars
+        // (flags-2026-11.md S2.2: one that cannot be ordered now keeps its plain tile, "Not available now").
+        expect($sold)->toBe($expected)
+            ->and(array_keys($props['stores'][0]['cards']))->toBe([$orderable]);
     });
 
     it('reads each account page in a fixed few queries of its own, the same for one row as for six', function () {

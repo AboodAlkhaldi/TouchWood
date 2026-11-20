@@ -74,11 +74,12 @@ function Tile({ item, storeId, card }: { item: WishlistItemData; storeId: string
 
     return (
         <li className={`relative grid content-start gap-2 rounded-xl border border-line bg-surface p-2 transition-colors hover:border-line-strong ${card ? '' : 'opacity-70'}`} data-test="wishlist-item">
-            <div className="aspect-square overflow-hidden rounded-lg bg-surface-sunken">
+            <div className="aspect-square overflow-hidden rounded-lg bg-surface-sunken" data-test="wishlist-photo">
                 {card ? (
                     <ShopPhoto photo={card.photo} size="card" alt="" className="size-full object-contain" />
                 ) : product.photo ? (
-                    <img src={product.photo} alt="" className="size-full object-cover" loading="lazy" />
+                    // The whole product, never cropped, as the shop's card shows it (C15).
+                    <img src={product.photo} alt="" className="size-full object-contain" loading="lazy" />
                 ) : null}
             </div>
             <div className="grid gap-1 px-1 pb-1">

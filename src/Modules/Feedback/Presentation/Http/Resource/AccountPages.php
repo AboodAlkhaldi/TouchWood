@@ -96,7 +96,9 @@ final readonly class AccountPages
         return new ProductCardData(
             $card->productId,
             $card->name,
-            $code === null || $card->slug === null || $card->removed ? null : '/'.strtolower($code).'/'.$this->locale().'/'.$card->slug,
+            // The shop's product page is `{store}/{locale}/products/{slug}` (storefront.catalog.product); without
+            // `products/` every link here was a 404 (found 2026-11-20 by the wishlist tile's browser test).
+            $code === null || $card->slug === null || $card->removed ? null : '/'.strtolower($code).'/'.$this->locale().'/products/'.$card->slug,
             SupportPages::thumb($card->photo),
             $sold ?? $card->sold,
             $card->archived,

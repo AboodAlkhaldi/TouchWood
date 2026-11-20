@@ -72,7 +72,6 @@ return [
             'title' => 'My Wishlist',
             'subtitle' => 'The products you saved, by store',
             'empty' => 'Nothing saved yet.',
-            'remove' => 'Remove',
             'store_off' => 'This store is closed for now.',
         ],
         'in_store' => 'In :store',

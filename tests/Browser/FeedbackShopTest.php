@@ -120,15 +120,31 @@ it('writes a review, asks a question and saves the product, then shows it all in
     foreach (['/sa/en/account/reviews' => 'Solid and quiet.', '/sa/en/account/questions' => 'Does it fit a 60 cm cabinet?', '/sa/en/account/wishlist' => null] as $uri => $text) {
         $page->navigate($uri, BROWSER_PAGE_LOAD);
 
-        // The wishlist is tiles now (flags-2026-11.md S2.2): Remove is an icon button named by its words.
+        // The wishlist is tiles now (flags-2026-11.md S2.2): the shop card's price on the tile, the whole tile its
+        // product's link (the middle of the photo answers to the name's link), Remove an icon button named by its words.
         if ($text === null) {
-            expect(browserSoon($page, "document.querySelector('[data-test=\"wishlist-item\"] [data-test=\"remove\"]')?.getAttribute('aria-label')?.startsWith('Remove') === true"))->toBeTrue();
+            expect(browserSoon($page, "document.querySelector('[data-test=\"wishlist-item\"] [data-test=\"remove\"]')?.getAttribute('aria-label')?.startsWith('Remove') === true"))->toBeTrue()
+                ->and(browserSoon($page, "document.querySelector('[data-test=\"wishlist-item\"] [data-test=\"card-price\"]') !== null"))->toBeTrue('the tile shows no price')
+                ->and((bool) $page->script("(() => { const r = document.querySelector('[data-test=\"wishlist-photo\"]')?.getBoundingClientRect(); return r ? document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest('a')?.dataset.test === 'wishlist-link' : false; })()"))->toBeTrue('the photo does not open the product');
         } else {
             $page->assertSee($text);
         }
 
         expect(feedbackShopWide($page))->toBe('', "{$uri} scrolls sideways");
     }
+
+    // The tile opens its product.
+    $page->click('[data-test="wishlist-link"]');
+    expect(browserUntil($page, "location.pathname === '/sa/en/products/".feedbackShopSlug($product)."'"))->toBeTrue();
+
+    // In Arabic, right to left with its price, no sideways scroll; Remove takes the tile off and stays on the page.
+    $page->navigate('/sa/ar/account/wishlist', BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "document.documentElement.dir === 'rtl' && document.querySelector('[data-test=\"wishlist-item\"] [data-test=\"card-price\"]') !== null"))->toBeTrue()
+        ->and(feedbackShopWide($page))->toBe('', 'the Arabic wishlist scrolls sideways');
+    $page->click('[data-test="wishlist-item"] [data-test="remove"]');
+    expect(browserUntil($page, "document.querySelector('[data-test=\"wishlist-item\"]') === null"))->toBeTrue()
+        ->and((string) $page->script('location.pathname'))->toBe('/sa/ar/account/wishlist')
+        ->and(DB::table('feedback.wishlist_items')->where('customer_id', $customer)->exists())->toBeFalse();
 });
 
 it('offers Write a Review and Ask a Question on a page only sold out, with no Add to Cart', function () {
