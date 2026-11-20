@@ -145,7 +145,12 @@ Built in this fixed order (handoff §10.2, §11.3):
 
 ### 1.3 Placing the order
 
-`PlaceOrder(quoteId)` — a quote of this buyer, not expired. **One transaction**, in this order:
+`PlaceOrder(quoteId)` — a quote of this buyer, not expired. **Before the transaction** (§9.11, flags-2026-11.md
+S3.3): the terms' box ticked, else `TermsNotAccepted`; then the store's published Terms and Conditions and
+Returns and Refunds read **once**, through Platform's `ShopPolicies`, outside the transaction (no row lock held
+through a cache refill). Inside it, **after step 1's answer for an order already placed** (so placing twice still
+places once), the Terms read must exist (`TermsMissing`) and be the ones the page showed (`TermsChanged`).
+**One transaction**, in this order:
 
 1. **The quote is locked** (`SELECT … FOR UPDATE`) and **an order already placed from it is answered
    as it is** — before the quote's expiry is checked, so a retry after 15 minutes still gets its order — placing twice is placing once, however often the button is pressed (b2b.md §9 #7).
@@ -181,7 +186,8 @@ Built in this fixed order (handoff §10.2, §11.3):
    its code (staff only — a code is never shown to a customer, catalog.md amendment 5(d)), sale mode,
    quantity, unit and list price, **its price kind** (Pricing's `PriceKind`, which an edit hands back,
    pricing.md §2.2), its shares of the coupon, the points and the VAT (§1.8); the gift; every total;
-   the VAT rate; the shipping fee and the free-above amount; the audience; the way to pay.
+   the VAT rate; the shipping fee and the free-above amount; the audience; the way to pay; **the terms
+   accepted** (§9.11: the Terms' policy, the version ticked and when; the Returns policy and version with it).
 8. `OrderPlaced` is written to the outbox (§6).
 
 **Any refusal rolls everything back** and sends the customer to a new quote with the reason
@@ -664,6 +670,7 @@ each recorded through the outbox inside its change's transaction — a change re
 | B2B | `isApproved` | Exists |
 | Payments | `bankAccount` (from B2B, stage 7 step 8b; the rest in §9.5) | Exists |
 | Platform | `store` (`isActive`), `allStores`, `StoreCreated`, settings, the audit log, `uploadMediaFor` and media uses (return photos, transfer documents), staff names | Exist |
+| Platform (Content answers it) | **`ShopPolicies`** (platform.md §2.8): `allPublished` for the store's Terms and Conditions and Returns and Refunds at checkout and at placing; `versionAddresses` for the links on staff's order page; `ShopPolicyLinkData` for the checkout's links. **Sales never reads Content** (owner, 2026-11-20) | Built (build 4, §9.11) |
 | Shared | **`outbox_messages` and `processed_events`, in the `public` schema** (platform.md §5.6), and the outbox's relay | **Built with Sales** — the first module to publish through the outbox |
 
 **Other modules' refusals** reach Sales as `DomainError` with a stable `type()` (pricing.md §2.1:
@@ -1028,16 +1035,21 @@ amount still owed (§4.2 B1).
    **a line with nothing in it not shown** (no "Points: 0"), **the free gift as its own line at 0.00**
    when there is one, the points this order earns, and here — once — **"Prices exclude VAT; VAT is added
    above"** (R2-1).
-5. **Place order · 1,240.00** — a spinner while it goes; pressed twice, placed once (§1.3; R2-17). Above it
-   **a required tick** (flags-2026-11.md S3.3): "I have read and agree to the Terms and Conditions and the Returns
-   and Refunds policy.", each name a link opening that policy's page in a new tab, the Returns left out while the
-   store has none published; pressed unticked, "Tick the box to agree to the terms." under it and nothing sent.
-   The place-order call and Pay carry the tick, and the server refuses without it (`TermsNotAccepted`) whatever
-   the page sent. **A store with no published Terms takes no orders**: "Orders can't be placed until this store's
-   terms are published." in place of the button, no payment form, and the server refuses (`TermsMissing`). The
-   order keeps the Terms' policy, the version ticked and when, with the Returns policy and its version when ticked
-   with it (F16); an online order keeps what Pay ticked, kept on its try. Staff see "Terms v3, accepted 18 Nov
-   2026 14:02" on the order, linking to that version's text.
+5. **Place order · 1,240.00** — a spinner while it goes; pressed twice, placed once (§1.3; R2-17). Above it, and
+   above Pay for an online order, **a required tick** (flags-2026-11.md S3.3; §9.11): "I have read and agree to
+   the Terms and Conditions and the Returns and Refunds policy.", each name a link opening that policy's page in a
+   new tab; with no published Returns policy, "I have read and agree to the Terms and Conditions.". Pressed
+   unticked, "Tick the box to agree to the terms." under it and nothing sent. The place-order call and Pay (the
+   form's wallet buttons included) carry the tick (`agreed`) and **the policies and versions the page showed**
+   (`terms_id`, `terms_version`, `returns_id`, `returns_version`); the server refuses an unticked box
+   (`TermsNotAccepted`) whatever the page sent, and **terms other than the store's now** (`TermsChanged`, 409 as
+   `QuoteChanged`: "The Terms were updated. Read them and tick again."): the page reads the store's terms again,
+   clears the tick and shows the new links (owner, 2026-11-20). **A store with no published Terms takes no
+   orders**: "Orders can't be placed until this store's terms are published." in place of the button, no payment
+   form loaded, and the server refuses (`TermsMissing`). The order keeps the Terms' policy, **the version shown and
+   ticked**, and when, with the Returns policy and its version when the sentence named it (F16); an online order
+   keeps what Pay ticked, kept on its try and handed to the order once paid. Staff see "Terms v3, accepted 18 Nov
+   2026 14:02" on the order (and "Returns and Refunds v2" when kept), each linking to that version's text (§9.11).
 - **The 15 minutes**: no timer; an expired quote is worked out again by itself (R2-16). **Anything that
   changed** — at the new quote or at placing (`QuoteChanged`) — keeps the customer on checkout, shows what
   changed with the new totals, and asks them to press Place order again (R1-21, R1-22).
@@ -1303,7 +1315,7 @@ and the rows of one order carry its store through composite keys.
 | `sales.carts` | `id`, `store_id`, `customer_id` NULL → `access.customers` CASCADE, `guest_id` NULL, `coupon_code` NULL, `notice` NULL (the lines removed at sign-in), `created_at`, `updated_at` | CHECK `num_nonnulls(customer_id, guest_id) = 1`; CHECK `customer_id IS NOT NULL OR coupon_code IS NULL`; UNIQUE (`store_id`, `customer_id`), UNIQUE (`store_id`, `guest_id`) |
 | `sales.cart_lines` | `cart_id` → carts CASCADE, `variant_id` → `catalog.variants` CASCADE, `sale_mode`, `quantity`, `added_at` | PK (`cart_id`, `variant_id`, `sale_mode`); CHECK `sale_mode IN ('RETAIL','WHOLESALE')`, `quantity BETWEEN 1 AND 1000000` |
 | `sales.quotes` | `id`, `store_id` → `platform.stores` RESTRICT, `customer_id` → `access.customers` CASCADE, `address_id`, `coupon_code` NULL, `use_points`, `points_asked` NULL (with `use_points`: none is as many as allowed — answer 44), `way_to_pay`, `result` jsonb (the itemised §1.2), `expires_at`, `created_at` | CHECK `way_to_pay IN ('ONLINE','BANK_TRANSFER','STAFF_CONTACT')`, `points_asked IS NULL OR (use_points AND points_asked >= 1)`, `coupon_code` 1–64 characters, `expires_at > created_at`; indexes on `customer_id` and `expires_at`; deleted nightly once expired and not placed |
-| `sales.orders` | `id`, `store_id`, `number`, `quote_id`, `customer_id` → `access.customers` RESTRICT, `audience`, `locale`, `currency_code` → `platform.currencies`; the snapshot: `customer_name`, `customer_email` NULL (cleared on anonymizing), `customer_phone`, `address` jsonb; `status`, `shipment_status`, `way_to_pay`, `coupon_id` NULL, `coupon_code` NULL, `coupon_discount_minor`, `points_used`, `points_discount_minor`, `gross_subtotal_minor`, `net_subtotal_minor`, `goods_total_minor`, `shipping_fee_minor`, `shipping_rule_fee_minor`, `shipping_rule_free_above_minor` NULL (none: never free), `shipping_free_kind` NULL (`CARRIER`, `STORE`; together with it), `shipping_fee_pending` (the fee to be set: 0, not shipped, no ordered carrier), `ordered_carrier_id` / `_ar` / `_en` NULL (all or none, snapshotted at placing), `taxable_base_minor`, `vat_minor`, `vat_rate_basis_points`, `order_total_minor`, `due_minor`, `paid_minor`, `refunded_minor`, `may_ship_unpaid`, `short_of_stock_at` NULL, `gift_level_id` NULL, `placed_at`, `decided_by` NULL → `access.staff_users`, `decided_at` NULL, `decision_reason` NULL, `cancel_reason` NULL, `cancel_other` NULL, `cancelled_by` NULL, `cancelled_at` NULL, `carrier_id` NULL (none: "Other carrier"), `carrier_ar` / `carrier_en` NULL (set exactly when shipped), `tracking_number` NULL, `tracking_link` NULL (HTTPS, at most 500), `shipped_at` NULL, `delivered_at` NULL, `return_deadline_at` NULL (fixed at delivery — answers 34, 44), `came_back_id` NULL, `came_back_at` NULL | UNIQUE (`store_id`, `number`); UNIQUE (`quote_id`); UNIQUE (`id`, `store_id`); UNIQUE (`id`, `store_id`, `currency_code`); CHECK `audience IN ('PUBLIC','COMPANY')`, `status IN ('PENDING_APPROVAL','APPROVED','REJECTED','CANCELLED','COMPLETED','UNDELIVERED')`, `shipment_status IN ('NOT_SHIPPED','SHIPPED','DELIVERED','CAME_BACK')`, `way_to_pay IN ('ONLINE','BANK_TRANSFER','STAFF_CONTACT')`, `cancel_reason IN ('CHANGED_MIND','ORDERED_BY_MISTAKE','FOUND_CHEAPER','TOO_SLOW','OTHER','BY_STAFF')`; **the decision**: CHECK `(status = 'PENDING_APPROVAL' AND decided_at IS NULL) OR (status IN ('APPROVED','REJECTED','COMPLETED','UNDELIVERED') AND decided_at IS NOT NULL) OR status = 'CANCELLED'` — a cancelled order was cancelled waiting or after approval; CHECK `(decided_by IS NULL) = (decided_at IS NULL)`, `status <> 'REJECTED' OR decision_reason IS NOT NULL`; **the cancellation**: CHECK `(status = 'CANCELLED') = (cancelled_at IS NOT NULL)`, `(status = 'CANCELLED') = (cancel_reason IS NOT NULL)`, `status <> 'CANCELLED' OR shipment_status = 'NOT_SHIPPED'`, `COALESCE(cancel_reason IN ('OTHER','BY_STAFF'), false) = (cancel_other IS NOT NULL)`, `(cancel_reason IS NOT DISTINCT FROM 'BY_STAFF') = (cancelled_by IS NOT NULL)` — a customer's cancellation names a reason from the list, a staff member's is `BY_STAFF` with their words in `cancel_other`; **the shipment**: CHECK `(shipment_status = 'NOT_SHIPPED') = (shipped_at IS NULL)`, `(shipment_status = 'DELIVERED') = (delivered_at IS NOT NULL)`, `num_nonnulls(came_back_at, came_back_id) IN (0, 2)`, `(shipment_status = 'CAME_BACK') = (came_back_at IS NOT NULL)`, `(shipment_status = 'NOT_SHIPPED') = (carrier_en IS NULL)`, `carrier_en IS NOT NULL OR (tracking_number IS NULL AND tracking_link IS NULL)` (stage 7 step 6: `orders_carrier_names`, `orders_carrier_id`, `orders_tracking_link`, `orders_ordered_carrier`, `orders_fee_pending`, `orders_free_kind`), `(status = 'COMPLETED') = (shipment_status = 'DELIVERED')`, `(status = 'UNDELIVERED') = (shipment_status = 'CAME_BACK')`, `shipment_status = 'NOT_SHIPPED' OR status IN ('APPROVED','COMPLETED','UNDELIVERED')`; **the coupon**: CHECK `(coupon_id IS NULL) = (coupon_code IS NULL)`, `coupon_id IS NOT NULL OR coupon_discount_minor = 0` (an edit may leave a coupon at 0); **the points**: CHECK `(points_used = 0) = (points_discount_minor = 0)`; CHECK every amount `>= 0`, `due_minor <= order_total_minor`, `refunded_minor <= paid_minor` |
+| `sales.orders` | `id`, `store_id`, `number`, `quote_id`, `customer_id` → `access.customers` RESTRICT, `audience`, `locale`, `currency_code` → `platform.currencies`; the snapshot: `customer_name`, `customer_email` NULL (cleared on anonymizing), `customer_phone`, `address` jsonb; `status`, `shipment_status`, `way_to_pay`, `coupon_id` NULL, `coupon_code` NULL, `coupon_discount_minor`, `points_used`, `points_discount_minor`, `gross_subtotal_minor`, `net_subtotal_minor`, `goods_total_minor`, `shipping_fee_minor`, `shipping_rule_fee_minor`, `shipping_rule_free_above_minor` NULL (none: never free), `shipping_free_kind` NULL (`CARRIER`, `STORE`; together with it), `shipping_fee_pending` (the fee to be set: 0, not shipped, no ordered carrier), `ordered_carrier_id` / `_ar` / `_en` NULL (all or none, snapshotted at placing), `taxable_base_minor`, `vat_minor`, `vat_rate_basis_points`, `order_total_minor`, `due_minor`, `paid_minor`, `refunded_minor`, `may_ship_unpaid`, `short_of_stock_at` NULL, `gift_level_id` NULL, `placed_at`, `decided_by` NULL → `access.staff_users`, `decided_at` NULL, `decision_reason` NULL, `cancel_reason` NULL, `cancel_other` NULL, `cancelled_by` NULL, `cancelled_at` NULL, `carrier_id` NULL (none: "Other carrier"), `carrier_ar` / `carrier_en` NULL (set exactly when shipped), `tracking_number` NULL, `tracking_link` NULL (HTTPS, at most 500), `shipped_at` NULL, `delivered_at` NULL, `return_deadline_at` NULL (fixed at delivery — answers 34, 44), `came_back_id` NULL, `came_back_at` NULL; **the terms accepted** (§9.11, build 4): `terms_policy_id` NULL, `terms_version` NULL, `terms_accepted_at` NULL, `returns_policy_id` NULL, `returns_version` NULL (Content's ids as plain values, no foreign key; empty on orders from before the tick; the rules in `AcceptedTerms`, no CHECK) | UNIQUE (`store_id`, `number`); UNIQUE (`quote_id`); UNIQUE (`id`, `store_id`); UNIQUE (`id`, `store_id`, `currency_code`); CHECK `audience IN ('PUBLIC','COMPANY')`, `status IN ('PENDING_APPROVAL','APPROVED','REJECTED','CANCELLED','COMPLETED','UNDELIVERED')`, `shipment_status IN ('NOT_SHIPPED','SHIPPED','DELIVERED','CAME_BACK')`, `way_to_pay IN ('ONLINE','BANK_TRANSFER','STAFF_CONTACT')`, `cancel_reason IN ('CHANGED_MIND','ORDERED_BY_MISTAKE','FOUND_CHEAPER','TOO_SLOW','OTHER','BY_STAFF')`; **the decision**: CHECK `(status = 'PENDING_APPROVAL' AND decided_at IS NULL) OR (status IN ('APPROVED','REJECTED','COMPLETED','UNDELIVERED') AND decided_at IS NOT NULL) OR status = 'CANCELLED'` — a cancelled order was cancelled waiting or after approval; CHECK `(decided_by IS NULL) = (decided_at IS NULL)`, `status <> 'REJECTED' OR decision_reason IS NOT NULL`; **the cancellation**: CHECK `(status = 'CANCELLED') = (cancelled_at IS NOT NULL)`, `(status = 'CANCELLED') = (cancel_reason IS NOT NULL)`, `status <> 'CANCELLED' OR shipment_status = 'NOT_SHIPPED'`, `COALESCE(cancel_reason IN ('OTHER','BY_STAFF'), false) = (cancel_other IS NOT NULL)`, `(cancel_reason IS NOT DISTINCT FROM 'BY_STAFF') = (cancelled_by IS NOT NULL)` — a customer's cancellation names a reason from the list, a staff member's is `BY_STAFF` with their words in `cancel_other`; **the shipment**: CHECK `(shipment_status = 'NOT_SHIPPED') = (shipped_at IS NULL)`, `(shipment_status = 'DELIVERED') = (delivered_at IS NOT NULL)`, `num_nonnulls(came_back_at, came_back_id) IN (0, 2)`, `(shipment_status = 'CAME_BACK') = (came_back_at IS NOT NULL)`, `(shipment_status = 'NOT_SHIPPED') = (carrier_en IS NULL)`, `carrier_en IS NOT NULL OR (tracking_number IS NULL AND tracking_link IS NULL)` (stage 7 step 6: `orders_carrier_names`, `orders_carrier_id`, `orders_tracking_link`, `orders_ordered_carrier`, `orders_fee_pending`, `orders_free_kind`), `(status = 'COMPLETED') = (shipment_status = 'DELIVERED')`, `(status = 'UNDELIVERED') = (shipment_status = 'CAME_BACK')`, `shipment_status = 'NOT_SHIPPED' OR status IN ('APPROVED','COMPLETED','UNDELIVERED')`; **the coupon**: CHECK `(coupon_id IS NULL) = (coupon_code IS NULL)`, `coupon_id IS NOT NULL OR coupon_discount_minor = 0` (an edit may leave a coupon at 0); **the points**: CHECK `(points_used = 0) = (points_discount_minor = 0)`; CHECK every amount `>= 0`, `due_minor <= order_total_minor`, `refunded_minor <= paid_minor` |
 | `sales.order_lines` | `id`, `order_id`, `store_id`, `product_id` → `catalog.products` RESTRICT, `variant_id` → `catalog.variants` RESTRICT, `edit_id` NULL (the part an edit added), `is_gift`, the snapshot (`name_ar`, `name_en` — the Arabic name where the product has no English one, answer 44 —, `variant_values` jsonb, `code`), `sale_mode`, `price_kind` NULL (none for the gift), `quantity`, `unit_minor`, `list_unit_minor`, `total_minor`, `coupon_share_minor`, `points_share_minor`, `vat_share_minor` | (`order_id`, `store_id`) → orders (`id`, `store_id`) RESTRICT; (`edit_id`, `order_id`) → order_edits (`id`, `order_id`) RESTRICT; UNIQUE (`id`, `order_id`); CHECK `sale_mode IN ('RETAIL','WHOLESALE')`, `(price_kind IS NULL) = is_gift`, `price_kind IN ('BASE','SALE','CAMPAIGN','CATEGORY','QUANTITY')`, `quantity >= 1`; CHECK every share `>= 0` and `coupon_share_minor + points_share_minor <= total_minor`; CHECK a gift line has `sale_mode = 'RETAIL'`, `unit_minor = 0`, `list_unit_minor = 0`, `total_minor = 0` and every share 0; one gift line per order (UNIQUE (`order_id`) WHERE `is_gift`). Rows change only before shipping (edits) |
 | `sales.order_ticks` | `order_id`, `store_id`, `variant_id`, `ticked_by` → `access.staff_users`, `ticked_at` | PK (`order_id`, `variant_id`); (`order_id`, `store_id`) → orders RESTRICT — "reduced in the provider" |
 | `sales.order_edits` | `id`, `order_id`, `store_id`, `reason`, `by` → `access.staff_users`, `at`, `before` jsonb, `after` jsonb | (`order_id`, `store_id`) → orders RESTRICT; UNIQUE (`id`, `order_id`); CHECK `char_length(reason) BETWEEN 1 AND 500`; append-only (trigger); the edit's id is Loyalty's and Promotions' idempotency key |
@@ -1391,8 +1403,9 @@ Each extends `SalesError`, which extends `Shared\Domain\Error\DomainError`, with
 | `QuoteNotFound` | NOT_FOUND | A quote that is not this buyer's — the same answer as an unknown one |
 | `QuoteExpired` | CONFLICT | Placing after 15 minutes or past the prices' end — checkout quotes again |
 | `QuoteChanged` | CONFLICT | Anything of §1.3 steps 3–5 no longer as quoted |
-| `TermsNotAccepted` | INVALID | Placing or Pay without the terms' tick (flags-2026-11.md S3.3) |
-| `TermsMissing` | FORBIDDEN | Placing or Pay in a store with no published Terms and Conditions (S3.3) |
+| `TermsNotAccepted` | INVALID | Placing or Pay without the terms' tick (flags-2026-11.md S3.3): "Tick the box to agree to the terms." |
+| `TermsMissing` | FORBIDDEN | Placing or Pay in a store with no published Terms and Conditions (S3.3): "Orders can't be placed until this store's terms are published." |
+| `TermsChanged` | CONFLICT | Placing or Pay when the Terms and Conditions or the Returns and Refunds policy the page showed are no longer the store's: another published, a new version, or one taken down (owner, 2026-11-20; §9.11). Nothing placed or held, shaped as `QuoteChanged`: "The Terms were updated. Read them and tick again." |
 | `NotCancellable` | CONFLICT | Shipped, or already cancelled, rejected or finished |
 | `NotEditable` | CONFLICT | Shipped; cancelled, rejected or finished; a line ticked "reduced in the provider" |
 | `NotShippable` | CONFLICT | Not approved; holding less than is due without "may ship unpaid" |
@@ -2040,3 +2053,37 @@ Anyone but the order's customer gets `OrderNotFound` from the customer's four, a
 A live theme may carry a **cart message** (content.md §1.8 part 9): one line per language, an optional link. **The cart page draws
 it at its top from the shop frame** (`frame.content`, Content's `ShopFramePart`), so Sales reads nothing of Content and gains no
 arrow (handoff §4.4). No theme live, or the part left empty: nothing is drawn. It is words only: it changes no price, line or total.
+
+### 9.11 Content's policies (stage 8, build 4) — the terms a checkout ticks (flags-2026-11.md S3.3, F16; built 2026-11-20, `02e7e344`; the links changed 2026-11-21)
+
+The spec was accepted with flags-2026-11.md (2026-11-18); the owner's decisions of 2026-11-20 are written here and in place
+(§1.3, §2.3, S5 step 5, §5, §7). Content keeps the policies (content.md §1.11b); **Sales reads them only through Platform's
+`ShopPolicies`** (platform.md §2.8) and keeps their ids and versions as plain values, with no key to Content's tables.
+
+1. **The tick.** Checkout's tick above Place Order, and above Pay for an online order, names the store's published Terms and
+   Conditions and, when it has one published, its Returns and Refunds policy, each opening its page in a new tab
+   (`CheckoutPage::$terms`, `$returns`, each a `ShopPolicyLinkData`: policy, version, address). One read of the store's policies
+   (`CheckoutTerms::current`, `allPublished`: Content's cache, 2 queries warm).
+2. **Both ways to order check it on the server**: placing (`PlaceOrder`, §1.3) and paying online (`PayOnline`, the wallet buttons
+   included). `TermsNotAccepted` without the tick, whatever the page sent; `TermsMissing` while the store has no published Terms
+   and Conditions (no order is taken, and checkout loads no payment form).
+3. **The version kept is the one the customer was shown** (owner, 2026-11-20, after the independent review: "stop and re-tick").
+   The page sends back the policies and versions it showed (`terms_id`, `terms_version`, `returns_id`, `returns_version`;
+   `ShownTerms`); anything else live now, another policy, a new version, one taken down or one published since a page that
+   showed none, is `TermsChanged` (409, as `QuoteChanged`). The page reads the terms again, clears the tick and shows the new links.
+4. **Read once, before the order's transaction.** Placing reads the store's terms once outside the transaction and compares them
+   inside it after an order already placed from the quote is answered, so placing twice still places once. **Pay checks the
+   tick and the terms before a try is counted** against the limits (owner, 2026-11-20).
+5. **The order keeps what was ticked** (F16; `AcceptedTerms`): the Terms' policy, the version and the moment, and, when the
+   sentence named it, the Returns and Refunds policy and its version **[builder's pick]** (each id with its version, or neither;
+   a version of 1 or more). Pay keeps them on its try (`sales.checkout_tries`, the same five columns) and the order made once
+   paid takes them from the try, so an online order keeps what was ticked when Pay was pressed. Columns in §5; orders and
+   tries from before the tick have none. No CHECK repeats `AcceptedTerms`' rules **[builder's pick]**: no new hand-written SQL.
+6. **Staff's order page** shows "Terms v3, accepted 18 Nov 2026 14:02" (the moment in the store's zone) and, when kept,
+   "Returns and Refunds v2", each linking to **that version's text in the order's store**: the address it was last read at
+   there, in the reader's language, with `?version=N&policy=<id>` (`ShopPolicies::versionAddresses`; `OrderTermsData`). **The
+   link stays once the policy is unpublished or switched off in that store**, since the shop then opens that text labelled
+   "no longer valid" with its dates (the owner's decisions of 2026-11-20; content.md §1.11b rule 12, H8). It is empty only
+   for a version never in force in that store. An order from before the tick shows no line.
+7. **Queries.** Staff's order page: 17 before, 19 with `allPublished` (2026-11-20), **18 since 2026-11-21** (`versionAddresses`,
+   one read of Content's record, never cached, in place of the cache's two; `OrderScreensTest`). Checkout's policy read: 2 warm.

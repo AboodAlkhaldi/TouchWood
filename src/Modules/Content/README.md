@@ -1,17 +1,18 @@
 # Content
 
 Content says what the shop says and how it is dressed: the home page, the frame's announcement bar and footer, banners,
-pop-ups, smart bars, pages, the blog, projects, campaigns and their runs, themes, SEO, the sitemaps and robots file, and the
+pop-ups, smart bars, pages, the blog, projects, policies, campaigns and their runs, themes, SEO, the sitemaps and robots file, and the
 redirects from the old site. **The agreed rules are [`docs/modules/content.md`](../../../docs/modules/content.md)**; this file
 says how the module is built.
 
 The backend, the admin screens W1–W11 and the shop pages H1–H7 are built (content.md's status line: built 2026-11-10 to
-2026-11-15). Content depends on Platform, Catalog and Pricing, and on Access only to declare its permissions
+2026-11-15); policies, W12 and H8, in build 4 (2026-11-20 and 2026-11-21). Content depends on Platform, Catalog and Pricing, and on Access only to declare its permissions
 ([handoff §4.4](../../../docs/HANDOFF.md); content.md §9.4 A1; `deptrac.yaml`: `Content: [+ContentPublic, AccessPublic,
 AppHttp]`). Only Ops depends on Content: it hears `CampaignWentLive` and `CampaignExpiring`, reads `ContentApi`, and binds
 `CampaignNotices`, the port Content declares so that Content never depends on Ops. Content answers Pricing's `CampaignNames`
 port and registers into Platform's and Catalog's registries (`ShopFrameParts`, `UnmatchedAddresses`, `MediaUsages`,
-`AdminMenu`, `CatalogUsages`, `ShopListingSlots`), so none of them depends on Content either. The contracts are content.md §2.
+`AdminMenu`, `CatalogUsages`, `ShopListingSlots`), so none of them depends on Content either; it answers Platform's `ShopPolicies` for Sales, Access and B2B the same way. The
+contracts are content.md §2.
 
 ## Built
 
@@ -43,6 +44,10 @@ Content.
 | #392 | Pricing's follow-up to #388's review (fixed sizes only on a ceiling change; skips reopened on re-wiring) | `src/Modules/Pricing`; Content's `CampaignsScreenTest` |
 | `48946f0e` | The shop pages send Catalog's card words, so product cards on the home, posts, projects and campaigns read in words, not keys | `ShopPagesController` |
 | `f9cf9aed` | #391's review: a recode's codes, one rule for the offer menu, a type's comments, two more tables named in frontend.md | Catalog, Pricing and B2B pages, `docs/modules/frontend.md`; no file of Content's |
+| `fbd14c05` — build 4 step 1 | Policies: their data, rules, versions and permission; Platform's `ShopPolicies` with its stand-in | `Domain/Model/Policy*`, `Application/Policies`, `Command/{Save,Publish,Unpublish,Delete}Policy`, `UploadPolicyImage`; Platform's `Public/Contracts/ShopPolicies` |
+| `cd1e262f` — build 4 steps 2-4 | Policies in the panel (Content › Policies) and the shop (the page, the footer row, the sitemap); `ContentShopPolicies` binds Platform's contract | `PoliciesController`, `ShopPagesController::policy`, `Infrastructure/External/ContentShopPolicies`, `resources/js/pages/Content/{Admin/Policies,Storefront/Policy.tsx}` |
+| `02e7e344` — build 4 steps 5-7 | The Terms ticked at checkout, sign-up and a company application, kept by Sales, Access and B2B | `src/Modules/{Sales,Access,B2B}`; no file of Content's |
+| Build 4, the turn-off | Per-store Unpublish and Delete, the switched-off copy, `content.policy_periods`, old texts readable on the shop, `ShopPolicies::versionAddresses` | `PolicyWriter`, `DatabasePolicies::settlePeriods`, `DatabaseShopDocuments`, `components/content/policy-stores-confirm.tsx` |
 
 ## What is here
 
@@ -192,9 +197,38 @@ is published (`content.slug_history`). Pages under `resources/js/pages/Content/S
 **`/` with no remembered store answers 302** to the base store's home, in the remembered language or else Arabic
 (Platform's `ChooseStoreController`; §1.14, Q20 (a), §9.3f F1); a remembered store goes to it.
 
+### Policies (build 4)
+
+The rules are content.md §1.11b; the owner's decisions of 2026-11-20 and the builder's picks still waiting on the owner are
+there and in §9.3g.
+
+- **A policy serves a list of stores** (`content.policy_stores`), one of nine kinds (`PolicyKind`, fixed once made), at most
+  one published of each kind per store but Other (`PolicyKindTaken`, checked in `PolicyRules` under
+  `ContentLocks::POLICIES`). Its words per language as a page's; addresses unique per store and language, claimed per store
+  in `content.slug_history` under the kind `POLICY`.
+- **`PolicyWriter`** does every change, each under the policies' lock and at the version the form read: **save** changes
+  only the stores ticked (changed words with a store left unticked **split** it into a new policy); **publish** acts on
+  every store it serves; **unpublish** on the stores picked (some of them: a switched-off draft copy for those stores);
+  **delete** only while never published (`PolicyNotDeletable`), on the stores picked.
+- **Versions**: `text_version`, and each published text kept in `content.policy_versions` and `policy_version_images`
+  (F14), never changed. **`content.policy_periods`** records which version was in force in which store, at which address,
+  from when to when (`DatabasePolicies::settlePeriods`, after each change).
+- **Other modules** read policies only through Platform's `ShopPolicies`, answered by `ContentShopPolicies`: a store's
+  published policies from the cache (`policies:{store}`, one query cold, 2 warm), and `versionAddresses` from the periods
+  (one query, never cached) for staff's order page.
+- **The shop**: `ShopPagesController::policy`, `/{store}/{locale}/policies/{slug}` (H8): the current text with "Last
+  updated", a kept version at `?version=N`, and a text no longer valid in the store, labelled with its dates there and a
+  link to the current policy, at `?version=N&policy=<id>` or at its old address (`ShopDocuments::pastPolicy`,
+  `policyPeriods`). The footer's bottom line carries the store's published policies, in the frame's cached copy; the
+  sitemap lists them (`SitemapSources::POLICY`).
+- **The panel**: Content › Policies (W12), `PoliciesController`, `content.policy.manage`; Unpublish… and Delete… ask
+  which stores (`components/content/policy-stores-confirm.tsx`, loaded when asked).
+- **Media**: a published policy's images block their file's delete; an image a version keeps always does
+  (`ContentMediaUsage`).
+
 ### The admin screens
 
-W1–W11 (§4.4), routes `content.admin.*`, pages under `resources/js/pages/Content/Admin`, one menu section, Content, with its
+W1–W11 (§4.4), and W12 Policies (build 4), routes `content.admin.*`, pages under `resources/js/pages/Content/Admin`, one menu section, Content, with its
 eleven entries registered in the provider (§4.3): W1 Home (`HomePageController`, sections and footer), W2 Bars
 (`BarsController`), W3 Banners, W4 Campaigns (and W4b, `/runs/{run}` answering 302 to it), W5 Themes, W6 Pop-Ups, W7 Pages,
 W8 Blog (`DocumentsController`, `BlogCategoriesController`), W9 Projects, W10 SEO, W11 Redirects (and W11b, the checked
@@ -215,6 +249,7 @@ From `ContentPermissions`, declared into Access's catalog at boot (content.md §
 | `content.popup.manage` | Pop-ups (W6) | Per store, any role |
 | `content.blog.manage` | Blog posts and categories (W8) | Per store, any role |
 | `content.project.manage` | Projects (W9) | Per store, any role |
+| `content.policy.manage` | Policies (W12, build 4): a save in each store it ticks or takes off, Publish in every store the policy serves, Unpublish and Delete in each store picked | Per store, any role |
 | `content.seo.manage` | SEO defaults, robots lines, rebuilding the sitemap (W10) | Per store, any role |
 | `content.theme.manage` | Themes (W5) | **Reserved**, Super Admins, checked in every store |
 | `content.redirect.manage` | Redirects (W11) | **Reserved**, Super Admins, store-free |
@@ -263,7 +298,7 @@ takes delete itself. Each job is named at `content::jobs`, for the failed jobs s
 | The end-of-stage checks | The shop pages with no design (blog, post, project, campaign: drawn from its look, frontend.md §2.1); the whole site's wording, approved for now; the build's picks in content.md §9.3a–§9.3f | The owner |
 | Lists still without phone cards | [frontend.md](../../../docs/modules/frontend.md)'s browser tests, "Not yet cards" (around line 1427), names them; all are other modules'. Content's campaign price preview (`components/content/campaign-prices.tsx`) is listed there as not a list | Follow-ups |
 | Toast placement | frontend.md §2.1 says success toasts show at the bottom centre; `components/Toasts.tsx` puts them at the bottom end. Not changed | The owner |
-| **The terms and privacy pages** | **None exist.** The sign-up checkbox "I accept the terms of sale and the privacy policy." (`access::auth.terms_accept`) links to nothing (`resources/js/pages/Access/Storefront/Register.tsx`, around lines 189–205). sales.md says no checkout terms tick until Content writes the terms (R1-25). Staff could write them as Content pages (W7), but nothing wires the box or checkout to them | The owner |
+| Policies: the builder's picks | Built (build 4, §1.11b). Four picks wait on the owner: an address taken from a switched-off policy, the switched-off copy starting at version 1 with no history, the `&policy=` parameter, periods of no length shown (content.md §9.3g G1-G4) | The owner |
 | The real themes | Made with the owner in the panel, as the stage's last step (§1.16) | The owner |
 | The redirect sheet | Parked until the final product list exists; before launch (§1.15) | The owner |
 
@@ -273,14 +308,14 @@ takes delete itself. Each job is named at `content::jobs`, for the failed jobs s
 `HomeAndFrameTest`, `ShopReadsTest`, `TranslateTextTest`, `TranslationMarksTest`, `SeoDefaultsTest`, `RedirectLinesTest`,
 `RedirectSheetTest`, `CheckRedirectsTest`, `SitemapQueueTest`, `RunOnceTest`, `ContentMediaUsageTest`, `ContentLocksTest`,
 `ContentRulesTest`, `ContentFoundationTest`, `ContentAuditNamesTest`, `ContentMenuSectionTest`, `ContentItemsConstraintsTest`,
-`SeoRedirectsConstraintsTest`. `tests/Modules/Content/Feature` over HTTP — `ShopPagesTest`, `ShopFrameTest`, `SitemapTest`,
+`SeoRedirectsConstraintsTest`, `PoliciesTest`, `PolicyTurnOffTest`, `PoliciesConstraintsTest`, `ShopPoliciesTest`. `tests/Modules/Content/Feature` over HTTP — `ShopPagesTest`, `ShopFrameTest`, `SitemapTest`,
 `RobotsTest`, `RedirectAnswerTest`, `TranslateRouteTest`, `ThemePreviewRouteTest`, `ScheduleRefusalAnswerTest`, and each
 screen's: `HomeScreenTest`, `BarsScreenTest`, `BannersScreenTest`, `PopupsScreenTest`, `DocumentsScreensTest`,
-`CampaignsScreenTest`, `ThemesScreenTest`, `SeoRedirectsScreensTest`. `tests/Modules/Content/Unit` — `RichTextTest`,
+`CampaignsScreenTest`, `ThemesScreenTest`, `SeoRedirectsScreensTest`, `PoliciesScreenTest`, `ShopPolicyPagesTest`. `tests/Modules/Content/Unit` — `RichTextTest`,
 `MarkTextTest`, `MarkTextCasesTest`, `RichTextLinkCasesTest`, `LinkMatchTest`, `TranslationTagsTest`, `ContentValuesTest`, with
 the case tables the editors read too (`link-cases.json`, `mark-cases.json`). Helpers in `tests/Modules/Content/Support`.
 Browser tests: `tests/Browser/Content*` (Home, Bars, Banners, Popups, Pages, Blog, Projects, Campaigns, Themes,
-SeoRedirects screens; ShopFrame; ShopPages). Boundaries: `tests/Architecture/ContentAccessUseTest`.
+SeoRedirects screens; ShopFrame; ShopPages; Policies and PolicyStores screens; ShopPolicies). Boundaries: `tests/Architecture/ContentAccessUseTest`.
 
 **The queries**, warm, for a guest, recorded in `ShopPagesTest` (8 a page is a target, not a cap; owner, 2026-10-19): home 9,
 page 8, blog 9, post 10, projects 9, project 9, campaign 11, and a campaign with a category target 12. Each is the frame's 6

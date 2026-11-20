@@ -407,6 +407,7 @@ builder. spatie/laravel-data stays available for the presentation layer (forms, 
 | `MediaUrlsDto` | `original` (PRIVATE only: the expiring link; null for a public image, whose original is never served), `variants` (size slug → format extension → CDN URL, empty until ready), `expiresAt` (PRIVATE only) |
 | `MediaUseDto` | `subjectType`, `subjectId`, `blocksDelete` — one place a module uses media (§2.2) |
 | `AuditEntryDto` | `action`, `subjectType`, `subjectId`, `storeId`, `changes`. The actor, requester, source, dates, correlation id and staff IP are filled in by Platform. |
+| `ShopPolicyDto` | `policyId`, `kind` (`PolicyKind`), `version`, `title`, `slug`, `updatedAt`: a store's published policy in one language (§2.8, 2026-11-20) |
 
 `StoreDto` carries the currency exponent, sign and abbreviation so a price can be formatted with one call.
 
@@ -418,7 +419,8 @@ because a name needs both languages while alt text may be written in one languag
 
 `SettingScope` (`GLOBAL`, `STORE`) · `SettingType` (`INTEGER`, `BOOLEAN`, `TEXT`, `LIST`) · `MediaVisibility` (`PUBLIC`, `PRIVATE`) ·
 `MediaVariantsStatus` (`PENDING`, `READY`, `FAILED`) · `MediaSize` (`THUMB`, `CARD`, `DETAIL`, `ZOOM`) ·
-`ImageFormat` (`AVIF`, `WEBP`, `JPEG`)
+`ImageFormat` (`AVIF`, `WEBP`, `JPEG`) · `PolicyKind` (`TERMS`, `PRIVACY`, `RETURNS`, `SHIPPING`, `WARRANTY`,
+`PAYMENT_METHODS`, `COMPLAINTS`, `COMPANY_TERMS`, `OTHER`; §2.8, 2026-11-20)
 
 ### 2.5 Additions to the Shared kernel
 
@@ -474,6 +476,25 @@ everyone (the review of P6); `ShareStorefront` asks it for
 each off store before leaving it out of the shop's store switch, and lists the ones it may show with
 `isActive: false`. Nothing else changes: `PlatformApi::storeByCode()` and `stores()` still answer as
 if an off store were not there, for every other caller.
+
+### 2.8 `Modules\Platform\Public\Contracts\ShopPolicies` — a store's published policies (§9.4, 2026-11-20)
+
+Content keeps the policies (content.md §1.11b; flags-2026-11.md S3). Sales needs the Terms a checkout
+ticks (sales.md §9.11), Access the Terms and Privacy Policy sign-up names (access.md amendment 99),
+and B2B the Company Terms an application ticks (b2b.md amendment 36), and **none of them may depend
+on Content** (owner, 2026-11-20: "a Platform contract"). So Platform declares the contract, as it
+does `StaffNames` for Access, and Content binds it.
+
+| Type | Purpose |
+|---|---|
+| `ShopPolicies` (interface) | `published(StoreId $store, PolicyKind $kind, string $locale): ?ShopPolicyDto` — the store's published policy of a kind in the language asked (`ar` or `en`), null when it has none; a store has at most one of each kind but Other, and asked for Other it answers the first in the store's order. `allPublished(StoreId $store, string $locale): list<ShopPolicyDto>` — every policy the store has published, in `PolicyKind`'s order (the footer's, F19). `versionAddresses(StoreId $store, list<array{0: string, 1: int}> $versions, string $locale): array<string, string>` — where each policy's version was last read in the store's shop, keyed `"{policyId}:{version}"`, a version never in force there left out; its page is `/{store}/{locale}/policies/{slug}?version={version}&policy={policyId}`, which opens even after the policy is switched off there (the owner's decisions of 2026-11-20; content.md §1.11b rule 12) |
+| `PolicyKind` (enum, `Public/Enums`) | The nine kinds, in the spec's order: `TERMS`, `PRIVACY`, `RETURNS`, `SHIPPING`, `WARRANTY`, `PAYMENT_METHODS`, `COMPLAINTS`, `COMPANY_TERMS`, `OTHER`. Content's own kind carries the same values |
+| `ShopPolicyDto` (`Public/Dto`) | `policyId`, `kind`, `version` (the published text's number, F14: what a customer accepts), `title` and `slug` in the language asked, `updatedAt` (when that version was published: "Last updated", F15) |
+| `ShopPolicyLinkData` (`Public/Dto`, `#[TypeScript]`) | **A published policy as a page names it beside a tick**: `policyId`, `version`, `url`. Checkout, sign-up and the company application send the id and version back with the tick, so the server refuses when what is live now is another (owner, 2026-11-20: "stop and re-tick"). The asking module writes the address; `of(ShopPolicyDto, string $url)` builds it. Platform's, as the shape every such page reads, as `MoneyData` is (`02e7e344`) |
+| `NoShopPolicies` (`Application/Policies`) | **Platform's stand-in until a module binds the contract**: no store has any policy (`null`, `[]`, `[]`), bound `scoped` in `PlatformServiceProvider`, as `UnnamedStaff` stands in for Access's names. **Content replaces it** with `ContentShopPolicies` (registered after Platform), so the stand-in answers only where Content is not loaded |
+
+No permission is checked inside the contract: the calling use case checks its own (§2). The ids and
+versions the callers keep are plain values with no foreign key to Content's tables.
 
 ---
 
@@ -1250,6 +1271,7 @@ in full in that module's specification.
 | 2026-11-10 (accepted with content.md, not built) | Content (the store's home) | **`storefront.home` moves to Content**: `StoreHomeController` and `Platform/Storefront/Home.tsx`, the placeholder of §3, are removed and their tests move; Content registers the route under the same middleware. **`/` with no remembered store answers 302 to the base store's Arabic home** (`ChooseStoreController`; handoff §4.1, owner 2026-11-10, content.md Q20 (a)); with one, as today. **Open for PR 10**: whether the country page stays reachable at an address of its own; content.md says only that a shopper changes store with the header's country switch | content.md §1.14, §2.3 L4, §9.4 A3 |
 | 2026-11-10 (accepted with content.md; **built with Content PR 4**) | Content (SEO) | **One canonical host**: a request on `www.` + `APP_URL`'s host answers 301 to the same path on the canonical one, without www (content.md Q13 (a)); any other host is untouched. *As built:* `CanonicalHost`, the first global middleware; 301 to a read and 308 to anything else (keeps a body); the target from `APP_URL` alone, path and query kept; an `APP_URL` on the `www.` host is refused at boot when serving HTTP (never in the console, so `config:clear` can mend it). **`ReservedPaths::isReserved(string $segment): bool`** joins the public contract, so Content refuses a redirect from a reserved first word (content.md §1.15) | content.md §1.14, §2.3 L5, §9.3a |
 | 2026-11-10 (accepted with content.md; **the robots half built with Content PR 4**: `public/robots.txt` removed, Content's generated `/robots.txt` and `/sitemap.xml` routes in place; the theme middleware waits for PR 9) | Content (the live theme on the shop's pages; robots) | **`StorefrontArea::MIDDLEWARE` gains Content's `content.storefront-theme` after `STORE`** (and `MIDDLEWARE_FINISHING`), which shares `theme.campaign` and `theme.style`; `HandleInertiaRequests` is unchanged and knows no module. `theme.style` holds only values Content's server builds from media ids. **`public/robots.txt` is removed**, as a static file would win over Content's generated one; `ReservedPaths` needs nothing (`/robots.txt` and `/sitemap.xml` hold a dot and never match `{store}`) | content.md §1.8, §1.14, §2.3 L6 |
+| 2026-11-20 (built: Content build 4 step 1, `fbd14c05`; Content binds it in `cd1e262f`; `ShopPolicyLinkData` in `02e7e344`; `versionAddresses` 2026-11-21) | Sales (checkout's Terms), Access (sign-up's Terms and Privacy Policy), B2B (the Company Terms) | **A store's published policies** — `Public/Contracts/ShopPolicies` (`published`, `allPublished`, `versionAddresses`), `Public/Enums/PolicyKind`, `Public/Dto/ShopPolicyDto` and `ShopPolicyLinkData`, and Platform's stand-in `NoShopPolicies` (no store has any) until Content binds `ContentShopPolicies`. Platform keeps no policy: the three modules read Content's through it, so none depends on Content (owner, 2026-11-20) | §2.4, §2.3, §2.8; content.md §1.11b, §2.1; sales.md §9.11; access.md amendment 99; b2b.md amendment 36 |
 
 ### 9.5 The owner's new direction — 2026-10-01 and 2026-10-02
 
