@@ -7,6 +7,7 @@ namespace Modules\Content\Infrastructure\Eloquent;
 use Illuminate\Database\ConnectionInterface;
 use Modules\Content\Application\Moments;
 use Modules\Content\Application\Query\Shop\ShopReads;
+use Modules\Content\Domain\Model\PolicyKind;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use stdClass;
 
@@ -132,7 +133,40 @@ final readonly class DatabaseShopReads implements ShopReads
                 'starts' => self::iso($popup->starts_at),
                 'ends' => self::iso($popup->ends_at),
             ], $popups),
+            // The footer's bottom line links the store's published policies (flags-2026-11.md S3.5, F19): kept with the
+            // frame, so a warm page reads nothing more; publishing, a save or unpublishing a policy forgets the copy.
+            'policies' => $this->policies($storeId),
         ];
+    }
+
+    public function policies(string $storeId): array
+    {
+        /** @var list<stdClass> $rows */
+        $rows = $this->db->select(
+            "SELECT p.id, p.kind, p.text_version, v.published_at, ar.title AS title_ar, ar.slug AS slug_ar, en.title AS title_en, en.slug AS slug_en
+             FROM content.policies p
+             JOIN content.policy_stores s ON s.policy_id = p.id AND s.store_id = ?
+             JOIN content.policy_versions v ON v.policy_id = p.id AND v.number = p.text_version
+             JOIN content.policy_translations ar ON ar.policy_id = p.id AND ar.locale = 'ar'
+             LEFT JOIN content.policy_translations en ON en.policy_id = p.id AND en.locale = 'en'
+             WHERE p.status = 'PUBLISHED' ORDER BY p.id",
+            [strtolower($storeId)],
+        );
+        // The kinds' order (S3.5): the enum's, so no database function is needed for it; the Other ones by when they were
+        // made (a ULID), the order the query gave and a stable sort keeps (the builder's pick).
+        $order = array_flip(array_map(static fn (PolicyKind $kind): string => $kind->value, PolicyKind::cases()));
+        usort($rows, static fn (stdClass $a, stdClass $b): int => ($order[(string) $a->kind] ?? PHP_INT_MAX) <=> ($order[(string) $b->kind] ?? PHP_INT_MAX));
+
+        return array_map(static fn (stdClass $row): array => [
+            'id' => strtolower((string) $row->id),
+            'kind' => (string) $row->kind,
+            'version' => (int) $row->text_version,
+            'updated' => (string) self::iso($row->published_at),
+            'title_ar' => (string) $row->title_ar,
+            'slug_ar' => (string) $row->slug_ar,
+            'title_en' => Rows::text($row->title_en),
+            'slug_en' => Rows::text($row->slug_en),
+        ], $rows);
     }
 
     public function previewTheme(string $themeId, string $storeId): ?array

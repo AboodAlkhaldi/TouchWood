@@ -29,6 +29,7 @@ use Modules\Content\Presentation\Http\Resource\ShopBlogPageData;
 use Modules\Content\Presentation\Http\Resource\ShopCampaignPageData;
 use Modules\Content\Presentation\Http\Resource\ShopDocumentPageData;
 use Modules\Content\Presentation\Http\Resource\ShopHomePageData;
+use Modules\Content\Presentation\Http\Resource\ShopPolicyPageData;
 use Modules\Content\Presentation\Http\Resource\ShopProjectsPageData;
 use Modules\Content\Presentation\Http\ShopFrameOfRequest;
 use Modules\Platform\Public\Contracts\PlatformApi;
@@ -39,7 +40,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
  * **The shop's own Content pages** (content.md §4.5): H1 the store's home, H2 a page, H3 the blog and its categories,
- * H4 a post, H5 the projects, H6 a project, H7 a campaign. Each carries its canonical address and its other language's
+ * H4 a post, H5 the projects, H6 a project, H7 a campaign; and a policy (flags-2026-11.md S3). Each carries its canonical address and its other language's
  * (§1.14) through Content's own `ContentAddressData`; a home names every on store's home too (Q21 (a)).
  *
  * **Only what is published answers.** An old address, or the other language's, answers 301 to the current one **only
@@ -153,6 +154,77 @@ final readonly class ShopPagesController
     public function project(Request $request, PlatformApi $platform, ShopFrameOfRequest $frame, ShopProductCards $cards): Response
     {
         return $this->document($request, $platform, DocumentKind::Project, 'storefront.content.project', $frame, $cards);
+    }
+
+    /**
+     * A policy (flags-2026-11.md S3.1, S3.2): the one published in this store at this address, "Last updated" with the
+     * moment its text was published (F15). `?version=N` (owner, 2026-11-20) shows that kept text - its title, body and
+     * images - with a line naming it and a link to the current one, kept out of search engines (the builder's pick); the
+     * current number shows the current page. A number it never had, anything but a number, or a policy this store has
+     * not published is the shop's 404; an old address forwards (301) as a page's does, the version asked kept.
+     */
+    public function policy(Request $request, PlatformApi $platform, ShopFrameOfRequest $frame): Response
+    {
+        $store = self::store($request);
+        $locale = self::locale();
+        $slug = self::slug($request);
+        $asked = $request->query('version');
+        $number = null;
+
+        if ($asked !== null) {
+            if (! is_string($asked) || preg_match('/\A[1-9][0-9]{0,8}\z/', $asked) !== 1) {
+                throw new NotFoundHttpException;
+            }
+
+            $number = (int) $asked;
+        }
+
+        // A version asked is read with its own text and files (the current number's are the current text's): two reads
+        // either way.
+        $found = $this->documents->policy($store->id, $locale, $slug, images: $number === null);
+
+        if ($found === null) {
+            return $this->movedOrMissing($request, $store, 'POLICY', $locale, $slug, 'storefront.content.policy', fn (string $itemId, string $in): ?string => $this->documents->currentPolicySlug($store->id, $itemId, $in));
+        }
+
+        $past = $number !== null && $number !== $found['version'];
+        $shown = $number === null ? null : ($this->documents->policyVersion($found['id'], $number, $locale) ?? throw new NotFoundHttpException);
+        $title = $shown['title'] ?? $found['title'];
+        $body = $shown['body'] ?? $found['body'];
+        $bodyImages = $shown['images'] ?? $found['images'];
+        $updatedAt = $shown === null ? $found['updatedAt'] : $shown['publishedAt'];
+        $urls = self::urls($platform, [$found['shareMediaId'], ...array_map(static fn (array $image): string => $image['mediaId'], $bodyImages)]);
+        $sizes = $bodyImages === [] ? [] : $platform->mediaOf(array_map(static fn (array $image): string => $image['mediaId'], $bodyImages));
+        $images = [];
+
+        foreach ($bodyImages as $image) {
+            $file = $urls[$image['mediaId']] ?? null;
+            $images[$image['ref']] = [
+                'src' => $file === null ? null : self::format($file['detail'] ?? $file['zoom'] ?? []),
+                'width' => $sizes[$image['mediaId']]->width ?? null,
+                'height' => $sizes[$image['mediaId']]->height ?? null,
+            ];
+        }
+
+        $seo = ContentFrame::seo($frame->of($request, $store, $locale)['kept']);
+        $blocks = is_array($body['blocks'] ?? null) ? array_values(array_filter($body['blocks'], 'is_array')) : [];
+        $here = ['slug' => $found['slug'], ...($past ? ['version' => (string) $number] : [])];
+        $there = $found['otherSlug'] === null ? null : ['slug' => $found['otherSlug'], ...($past ? ['version' => (string) $number] : [])];
+
+        return $this->page->render('Content/Storefront/Policy', (new ShopPolicyPageData(
+            $title,
+            $blocks,
+            $images,
+            $number ?? $found['version'],
+            $updatedAt?->format(DATE_ATOM),
+            $past,
+            $past ? route('storefront.content.policy', ['slug' => $found['slug']]) : null,
+            // A past version names the current address as its own and stays out of search engines.
+            $past
+                ? new ContentAddressData(route('storefront.content.policy', ['slug' => $found['slug']]), $there === null ? null : route('storefront.content.policy', ['locale' => self::other($locale), ...$there]), $there === null ? null : self::other($locale), true)
+                : self::address('storefront.content.policy', $locale, $here, $there, false),
+            new ContentHeadData(self::titled($seo, $past ? $title : ($found['seoTitle'] ?? $title)), $found['seoDescription'] ?? $seo['description'], self::shareImage($urls[$found['shareMediaId'] ?? ''] ?? $seo['image'])),
+        ))->toArray(), self::WORDS)->toResponse($request);
     }
 
     public function blog(Request $request, PlatformApi $platform, ShopFrameOfRequest $frame): Response

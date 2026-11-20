@@ -13,6 +13,7 @@ return [
     'pages' => 'Pages',
     'blog' => 'Blog',
     'projects' => 'Projects',
+    'policies' => 'Policies',
     'seo' => 'SEO',
     'redirects' => 'Redirects',
 ];

@@ -29,4 +29,6 @@ return [
     'stop_preview' => 'Stop Preview',
     'track_order' => 'Track Order',
     'footer_links' => 'More links',
+    // The footer's bottom line: the store's published policies (flags-2026-11.md S3.5, F19).
+    'policies' => 'Policies',
 ];

@@ -11,6 +11,7 @@ use Modules\Content\Presentation\Http\Controller\CampaignRunController;
 use Modules\Content\Presentation\Http\Controller\CampaignsController;
 use Modules\Content\Presentation\Http\Controller\DocumentsController;
 use Modules\Content\Presentation\Http\Controller\HomePageController;
+use Modules\Content\Presentation\Http\Controller\PoliciesController;
 use Modules\Content\Presentation\Http\Controller\PopupsController;
 use Modules\Content\Presentation\Http\Controller\RedirectsController;
 use Modules\Content\Presentation\Http\Controller\SeoController;
@@ -87,6 +88,15 @@ Route::prefix(AdminArea::PREFIX)
             Route::post("{$path}/{document}/unpublish", [DocumentsController::class, 'unpublish'])->name("{$name}.unpublish")->defaults('kind', $kind);
             Route::post("{$path}/{document}/delete", [DocumentsController::class, 'delete'])->name("{$name}.delete")->defaults('kind', $kind);
         }
+
+        // Content › Policies (flags-2026-11.md S3.7): `new` is no policy's id.
+        Route::get('content/policies', [PoliciesController::class, 'index'])->name('content.admin.policies');
+        Route::get('content/policies/new', [PoliciesController::class, 'create'])->name('content.admin.policies.create');
+        Route::post('content/policies', [PoliciesController::class, 'store'])->name('content.admin.policies.store');
+        Route::get('content/policies/{policy}', [PoliciesController::class, 'edit'])->name('content.admin.policies.edit');
+        Route::post('content/policies/{policy}', [PoliciesController::class, 'update'])->name('content.admin.policies.update');
+        Route::post('content/policies/{policy}/unpublish', [PoliciesController::class, 'unpublish'])->name('content.admin.policies.unpublish');
+        Route::post('content/policies/{policy}/delete', [PoliciesController::class, 'delete'])->name('content.admin.policies.delete');
 
         // W10 · SEO.
         Route::get('content/seo', [SeoController::class, 'index'])->name('content.admin.seo');

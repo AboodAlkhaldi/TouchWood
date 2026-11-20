@@ -141,6 +141,8 @@ describe('the admin menu', function () {
             'content/pages',
             'content/blog',
             'content/projects',
+            // Build 4's policies (flags-2026-11.md S3.7).
+            'content/policies',
             'content/seo',
             'content/redirects',
             'support/reviews',

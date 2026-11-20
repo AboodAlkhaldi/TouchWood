@@ -18,7 +18,8 @@ use Modules\Platform\Public\Dto\StoreDto;
  * Content's part of every shop page's frame (`frame.content`, content.md §1.5), from the frame's one cached read:
  *
  * - **the announcement bar**, dressed by a live theme's part 1, `art` when its strip has artwork;
- * - **the footer** per store;
+ * - **the footer** per store, and the row of links to the store's published policies on its bottom line
+ *   (flags-2026-11.md S3.5, F19);
  * - **the pop-up** (§1.10), only on the pages a shopper browses - home, the catalogue's pages and Content's own
  *   (the build's pick: a list of where it may show, so no page added later puts one between a customer and paying) -
  *   and never in a staff view. Once per visitor, its delay and the phone's sheet are the browser's;
@@ -49,6 +50,8 @@ final readonly class ContentFramePart implements ShopFramePart
         return [
             'bar' => $drawn['bar'],
             'footer' => $drawn['footer'],
+            // The footer's bottom line: a link to each published policy, in the kinds' order (flags-2026-11.md S3.5, F19).
+            'policies' => $drawn['policies'],
             'popup' => $staffView || ! $this->request->routeIs(...self::POPUP_PAGES) ? null : $drawn['popup'],
             'theme' => $theme === null ? null : self::theme($theme['parts']),
             'preview' => $preview,

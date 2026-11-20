@@ -9,8 +9,9 @@ use Modules\Content\Presentation\Http\Controller\ThemePreviewController;
 
 /*
 | Content's addresses under a store in the shop (content.md §4.5): the store's home - `storefront.home`, Platform's
-| placeholder until now (§2.3 row L4) - and Content's own pages, H2 to H7. A blog category's address sits before a
-| post's, so a post may still be called "categories". Platform's not-found fallback stays the last route of all.
+| placeholder until now (§2.3 row L4) - and Content's own pages, H2 to H7, and the policies' (flags-2026-11.md S3). A
+| blog category's address sits before a post's, so a post may still be called "categories". Platform's not-found
+| fallback stays the last route of all.
 |
 | And **Stop Preview** on the preview's line (W5b): it only forgets this browser's preview cookie, so it needs no one
 | signed in. Unnamed, as the layout writes it out: it stays out of every shop page's route list (Ziggy's storefront
@@ -27,6 +28,8 @@ Route::prefix('{store}/{locale}')
         Route::get('blog/{slug}', [ShopPagesController::class, 'post'])->name('storefront.content.post');
         Route::get('projects', [ShopPagesController::class, 'projects'])->name('storefront.content.projects');
         Route::get('projects/{slug}', [ShopPagesController::class, 'project'])->name('storefront.content.project');
+        // A policy (flags-2026-11.md S3.1): a past version of its text at `?version=N` (owner, 2026-11-20).
+        Route::get('policies/{slug}', [ShopPagesController::class, 'policy'])->name('storefront.content.policy');
         Route::get('campaigns/{slug}', [ShopPagesController::class, 'campaign'])->name('storefront.content.campaign');
 
         Route::post('theme-preview/stop', [ThemePreviewController::class, 'stopOnShop']);

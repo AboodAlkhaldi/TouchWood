@@ -50,6 +50,7 @@ final readonly class SitemapBuilder
         SitemapSources::POST => 'blog',
         SitemapSources::PROJECT => 'projects',
         SitemapSources::BLOG_CATEGORY => 'blog/categories',
+        SitemapSources::POLICY => 'policies',
     ];
 
     public function __construct(

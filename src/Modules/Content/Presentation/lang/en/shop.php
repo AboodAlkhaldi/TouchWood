@@ -37,6 +37,12 @@ return [
         'products' => 'Products Used',
         'back' => 'Projects',
     ],
+    // A policy's page (flags-2026-11.md S3.2, F15): when its text last changed; a kept version reached by its number.
+    'policy' => [
+        'updated' => 'Last updated :date',
+        'past' => 'This is version :number of this policy, published :date.',
+        'current' => 'See the Current Version',
+    ],
     'campaign' => [
         'ends' => 'Ends :date',
         'empty' => 'No products to show right now.',

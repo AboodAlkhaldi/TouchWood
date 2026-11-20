@@ -47,6 +47,16 @@ interface ScreenReads
     public function documents(DocumentKind $kind, string $storeId, ?Publication $tab, ?string $after, ?string $categoryId): array;
 
     /**
+     * Content › Policies' rows of one tab (flags-2026-11.md S3.7): the policies serving any of these stores (null: every
+     * policy), last changed first, each with its kind, the number of its published text, its stores' ids, its titles,
+     * when and by whom it was last changed; and each tab's count among the same policies.
+     *
+     * @param  list<string>|null  $storeIds
+     * @return array{rows: list<array{id: string, kind: string, status: string, textVersion: int, version: int, titleAr: string, titleEn: string|null, stores: list<string>, changedAt: string|null, changedBy: string|null}>, counts: array<string, int>}
+     */
+    public function policies(?array $storeIds, Publication $tab, ?string $after): array;
+
+    /**
      * W8's categories in order, each with how many posts it holds.
      *
      * @return list<array<string, mixed>>

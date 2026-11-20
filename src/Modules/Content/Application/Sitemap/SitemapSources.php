@@ -21,6 +21,9 @@ interface SitemapSources
 
     public const string BLOG_CATEGORY = 'blog_category';
 
+    /** A published policy serving the store (flags-2026-11.md S3.1): its current address only, never a past version. */
+    public const string POLICY = 'policy';
+
     /**
      * @return list<array{kind: string, slug_ar: string|null, slug_en: string|null, changed_at: DateTimeImmutable}>
      */

@@ -15,6 +15,8 @@ use Modules\Content\Application\Command\UploadHomeImage\UploadHomeImage;
 use Modules\Content\Application\Command\UploadHomeImage\UploadHomeImageHandler;
 use Modules\Content\Application\Command\UploadPageImage\UploadPageImage;
 use Modules\Content\Application\Command\UploadPageImage\UploadPageImageHandler;
+use Modules\Content\Application\Command\UploadPolicyImage\UploadPolicyImage;
+use Modules\Content\Application\Command\UploadPolicyImage\UploadPolicyImageHandler;
 use Modules\Content\Application\Command\UploadPopupImage\UploadPopupImage;
 use Modules\Content\Application\Command\UploadPopupImage\UploadPopupImageHandler;
 use Modules\Content\Application\Command\UploadProjectImage\UploadProjectImage;
@@ -44,6 +46,7 @@ final readonly class UploadsController
         UploadProjectImageHandler $project,
         UploadSeoImageHandler $seo,
         UploadThemeImageHandler $theme,
+        UploadPolicyImageHandler $policy,
     ): JsonResponse {
         $file = $request->file('file');
 
@@ -64,6 +67,7 @@ final readonly class UploadsController
             'project' => $project->handle(new UploadProjectImage($store, $path, $name)),
             'seo' => $seo->handle(new UploadSeoImage($store, $path, $name)),
             'theme' => $theme->handle(new UploadThemeImage($store, $path, $name)),
+            'policy' => $policy->handle(new UploadPolicyImage($store, $path, $name)),
             default => throw new InvalidContentInput('kind', InvalidContentInput::KIND),
         };
 

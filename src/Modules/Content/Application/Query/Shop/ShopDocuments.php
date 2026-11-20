@@ -32,6 +32,31 @@ interface ShopDocuments
     public function currentSlug(DocumentKind $kind, string $itemId, string $locale): ?string;
 
     /**
+     * The published policy serving this store whose current address in this language is this slug (flags-2026-11.md
+     * S3.1), as its page shows it: its words in that language, its address in the other, its body's blocks and their
+     * files, the number of its published text (F14) and when that text was published ("Last updated", F15). Without
+     * `$images` its body's files are not read (empty): a kept version brings its own (`policyVersion`).
+     *
+     * @param  'ar'|'en'  $locale
+     * @return array{id: string, title: string, slug: string, otherSlug: string|null, body: array<string, mixed>, seoTitle: string|null, seoDescription: string|null, shareMediaId: string|null, version: int, updatedAt: DateTimeImmutable|null, images: list<array{ref: int, mediaId: string, alt: string|null}>}|null
+     */
+    public function policy(string $storeId, string $locale, string $slug, bool $images = true): ?array;
+
+    /**
+     * One kept text of a policy by its number (S3.2, F14; owner 2026-11-20: reached at `?version=N`), in this language:
+     * its title, body and the body's files as they were published, and when. Null when it has no text of that number.
+     *
+     * @param  'ar'|'en'  $locale
+     * @return array{title: string, body: array<string, mixed>, publishedAt: DateTimeImmutable|null, images: list<array{ref: int, mediaId: string, alt: string|null}>}|null
+     */
+    public function policyVersion(string $policyId, int $number, string $locale): ?array;
+
+    /**
+     * A policy's current address in this language while it is published and serves this store; null otherwise.
+     */
+    public function currentPolicySlug(string $storeId, string $policyId, string $locale): ?string;
+
+    /**
      * The store's published posts, newest first (H3), in one category or all, from where the last page ended.
      *
      * @param  'ar'|'en'  $locale

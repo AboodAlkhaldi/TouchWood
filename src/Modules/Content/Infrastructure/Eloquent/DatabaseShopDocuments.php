@@ -84,6 +84,83 @@ final readonly class DatabaseShopDocuments implements ShopDocuments
         ];
     }
 
+    public function policy(string $storeId, string $locale, string $slug, bool $images = true): ?array
+    {
+        $locale = self::locale($locale);
+        $other = $locale === 'ar' ? 'en' : 'ar';
+        // A policy serves a list of stores: it answers in this one only while it serves it (flags-2026-11.md S3.1).
+        $row = $this->db->selectOne(
+            "SELECT p.id, p.text_version, p.share_media_{$locale} AS share, t.title, t.slug, t.body, t.seo_title, t.seo_description, o.slug AS other_slug, v.published_at AS updated
+             FROM content.policies p
+             JOIN content.policy_stores s ON s.policy_id = p.id AND s.store_id = ?
+             JOIN content.policy_translations t ON t.policy_id = p.id AND t.locale = ?
+             LEFT JOIN content.policy_translations o ON o.policy_id = p.id AND o.locale = ?
+             LEFT JOIN content.policy_versions v ON v.policy_id = p.id AND v.number = p.text_version
+             WHERE t.slug = ? AND p.status = 'PUBLISHED'",
+            [strtolower($storeId), $locale, $other, $slug],
+        );
+
+        if (! $row instanceof stdClass) {
+            return null;
+        }
+
+        $id = strtolower((string) $row->id);
+        /** @var list<stdClass> $files */
+        $files = $images ? $this->db->select('SELECT ref, media_id::text AS id, alt FROM content.policy_images WHERE policy_id = ? AND locale = ? ORDER BY ref', [$id, $locale]) : [];
+
+        return [
+            'id' => $id,
+            'title' => (string) $row->title,
+            'slug' => (string) $row->slug,
+            'otherSlug' => Rows::text($row->other_slug),
+            'body' => Rows::decode($row->body),
+            'seoTitle' => Rows::text($row->seo_title),
+            'seoDescription' => Rows::text($row->seo_description),
+            'shareMediaId' => Rows::text($row->share),
+            'version' => (int) $row->text_version,
+            'updatedAt' => Rows::moment($row->updated),
+            'images' => array_map(static fn (stdClass $image): array => ['ref' => (int) $image->ref, 'mediaId' => strtolower((string) $image->id), 'alt' => Rows::text($image->alt)], $files),
+        ];
+    }
+
+    public function policyVersion(string $policyId, int $number, string $locale): ?array
+    {
+        $locale = self::locale($locale);
+        // The kept text and its body's files in this language, in one read.
+        /** @var list<stdClass> $rows */
+        $rows = $this->db->select(
+            "SELECT v.title_{$locale} AS title, v.body_{$locale} AS body, v.published_at, i.ref, i.media_id::text AS media, i.alt
+             FROM content.policy_versions v
+             LEFT JOIN content.policy_version_images i ON i.policy_id = v.policy_id AND i.number = v.number AND i.locale = ?
+             WHERE v.policy_id = ? AND v.number = ? ORDER BY i.ref",
+            [$locale, strtolower($policyId), $number],
+        );
+
+        if ($rows === []) {
+            return null;
+        }
+
+        return [
+            'title' => (string) $rows[0]->title,
+            'body' => Rows::decode($rows[0]->body),
+            'publishedAt' => Rows::moment($rows[0]->published_at),
+            'images' => array_values(array_map(static fn (stdClass $image): array => ['ref' => (int) $image->ref, 'mediaId' => strtolower((string) $image->media), 'alt' => Rows::text($image->alt)], array_filter($rows, static fn (stdClass $row): bool => $row->ref !== null))),
+        ];
+    }
+
+    public function currentPolicySlug(string $storeId, string $policyId, string $locale): ?string
+    {
+        $slug = $this->db->selectOne(
+            "SELECT t.slug FROM content.policies p
+             JOIN content.policy_stores s ON s.policy_id = p.id AND s.store_id = ?
+             JOIN content.policy_translations t ON t.policy_id = p.id AND t.locale = ?
+             WHERE p.id = ? AND p.status = 'PUBLISHED'",
+            [strtolower($storeId), self::locale($locale), strtolower($policyId)],
+        );
+
+        return $slug instanceof stdClass ? (string) $slug->slug : null;
+    }
+
     public function currentSlug(DocumentKind $kind, string $itemId, string $locale): ?string
     {
         $tables = DocumentTables::of($kind);

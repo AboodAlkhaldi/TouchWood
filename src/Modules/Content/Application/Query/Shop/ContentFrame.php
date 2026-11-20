@@ -24,6 +24,8 @@ use Modules\Platform\Public\Dto\StoreDto;
  *   part's (§1.10).
  * - The theme: **one live per store at a time** (§1.8), the first live one by its start. A part's image whose sizes
  *   are not ready, or failed later, draws as if left empty (§1.8).
+ * - The policies: the store's published ones, in the kinds' order, for the footer's bottom line (flags-2026-11.md S3.5,
+ *   F19); a policy's change forgets the copy, as every Content change does.
  */
 final readonly class ContentFrame
 {
@@ -33,7 +35,7 @@ final readonly class ContentFrame
     ) {}
 
     /**
-     * @return array{bar: array{text: string, link: string|null, art?: bool}|null, footer: array<string, mixed>|null, popup: array<string, mixed>|null}
+     * @return array{bar: array{text: string, link: string|null, art?: bool}|null, footer: array<string, mixed>|null, popup: array<string, mixed>|null, policies: list<array{title: string, slug: string}>}
      */
     public function for(StoreDto $store, string $locale, ?DateTimeImmutable $now = null): array
     {
@@ -76,7 +78,7 @@ final readonly class ContentFrame
 
     /**
      * @param  array<string, mixed>  $kept
-     * @return array{bar: array{text: string, link: string|null, art?: bool}|null, footer: array<string, mixed>|null, popup: array<string, mixed>|null}
+     * @return array{bar: array{text: string, link: string|null, art?: bool}|null, footer: array<string, mixed>|null, popup: array<string, mixed>|null, policies: list<array{title: string, slug: string}>}
      */
     public function in(array $kept, DateTimeImmutable $now): array
     {
@@ -110,6 +112,7 @@ final readonly class ContentFrame
             'bar' => $bar,
             'footer' => is_array($kept['footer'] ?? null) ? $kept['footer'] : null,
             'popup' => $popup,
+            'policies' => array_map(static fn (array $policy): array => ['title' => (string) ($policy['title'] ?? ''), 'slug' => (string) ($policy['slug'] ?? '')], self::listOf($kept['policies'] ?? null)),
         ];
     }
 
@@ -263,7 +266,23 @@ final readonly class ContentFrame
                 'starts' => $banner['starts'],
                 'ends' => $banner['ends'],
             ], self::listOf($rows['listings'] ?? null)),
+            'policies' => self::policies(self::listOf($rows['policies'] ?? null), $locale),
         ];
+    }
+
+    /**
+     * The store's published policies as the footer links them (flags-2026-11.md S3.5, F19), in the kinds' order the read
+     * gave: each one's title and address in the language asked, the Arabic where it has no English.
+     *
+     * @param  list<array<string, mixed>>  $policies  `ShopReads::policies()`'s rows
+     * @return list<array{title: string, slug: string}>
+     */
+    public static function policies(array $policies, string $locale): array
+    {
+        return array_map(static fn (array $policy): array => [
+            'title' => self::text($policy["title_{$locale}"] ?? null) ?? (string) $policy['title_ar'],
+            'slug' => self::text($policy["slug_{$locale}"] ?? null) ?? (string) $policy['slug_ar'],
+        ], $policies);
     }
 
     /**

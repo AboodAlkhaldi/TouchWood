@@ -68,6 +68,7 @@ use Modules\Content\Infrastructure\Eloquent\DatabaseUnreadTranslations;
 use Modules\Content\Infrastructure\Eloquent\DatabaseWaitingJobs;
 use Modules\Content\Infrastructure\External\ContentApiImpl;
 use Modules\Content\Infrastructure\External\ContentCampaignNames;
+use Modules\Content\Infrastructure\External\ContentShopPolicies;
 use Modules\Content\Infrastructure\External\HttpAddressProbe;
 use Modules\Content\Infrastructure\External\NoCampaignNotices;
 use Modules\Content\Infrastructure\Files\LocalSitemapFiles;
@@ -92,6 +93,7 @@ use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Contracts\ShopFrameParts;
+use Modules\Platform\Public\Contracts\ShopPolicies;
 use Modules\Platform\Public\Contracts\UnmatchedAddresses;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Events\MediaVariantsReady;
@@ -156,6 +158,9 @@ final class ContentServiceProvider extends ServiceProvider
 
         // Build 4: policies, each serving a list of stores (flags-2026-11.md S3).
         $this->app->bind(Policies::class, DatabasePolicies::class);
+        // Platform's contract for the modules that need a store's policies (Sales, Access, B2B), in place of its stand-in
+        // `NoShopPolicies`: Content registers after Platform, so this binding is the one used (step 2b).
+        $this->app->scoped(ShopPolicies::class, ContentShopPolicies::class);
     }
 
     public function boot(): void
@@ -198,6 +203,9 @@ final class ContentServiceProvider extends ServiceProvider
             new MenuEntryDto('content', 'pages', 'content', 'content.admin.pages', ContentPermissions::PAGE_MANAGE, 70, icon: 'document_types'),
             new MenuEntryDto('content', 'blog', 'content', 'content.admin.blog', ContentPermissions::BLOG_MANAGE, 80, icon: 'audit'),
             new MenuEntryDto('content', 'projects', 'content', 'content.admin.projects', ContentPermissions::PROJECT_MANAGE, 90, icon: 'companies'),
+            // Build 4 (flags-2026-11.md S3.7): after Projects, the last of the shop's own pages; a shield, an icon the panel
+            // already draws (the builder's pick).
+            new MenuEntryDto('content', 'policies', 'content', 'content.admin.policies', ContentPermissions::POLICY_MANAGE, 95, icon: 'roles'),
             new MenuEntryDto('content', 'seo', 'content', 'content.admin.seo', ContentPermissions::SEO_MANAGE, 100, icon: 'stores'),
             new MenuEntryDto('content', 'redirects', 'content', 'content.admin.redirects', ContentPermissions::REDIRECT_MANAGE, 110, icon: 'returns'),
         );

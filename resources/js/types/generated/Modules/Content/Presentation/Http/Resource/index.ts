@@ -361,6 +361,46 @@ id: string,
 nameAr: string,
 nameEn: string | null,
 };
+export type PoliciesPageData = {
+tab: string,
+counts: Record<string, number>,
+rows: PolicyRowData[],
+next: string | null,
+};
+export type PolicyData = {
+id: string,
+kind: string,
+stores: string[],
+status: string,
+publishedAt: string | null,
+textVersion: number,
+version: number,
+ar: DocumentTextData,
+en: DocumentTextData | null,
+shareAr: string | null,
+shareEn: string | null,
+translationUnread: boolean,
+};
+export type PolicyFormPageData = {
+stores: ContentStoreData[],
+otherStores: string[],
+policy: PolicyData | null,
+images: Record<string, ContentImageData>,
+kinds: string[],
+shopRoot: string,
+translationReady: boolean,
+};
+export type PolicyRowData = {
+id: string,
+kind: string,
+status: string,
+titleAr: string,
+titleEn: string | null,
+stores: string[],
+textVersion: number,
+changedAt: string | null,
+changedBy: string | null,
+};
 export type PopupData = {
 id: string,
 name: string,
@@ -522,6 +562,21 @@ pointsArt: boolean,
 logosHeading: string | null,
 logosArt: boolean,
 },
+address: ContentAddressData,
+head: ContentHeadData,
+};
+export type ShopPolicyPageData = {
+title: string,
+blocks: Record<string, any>[],
+images: {
+src: string | null,
+width: number | null,
+height: number | null,
+}[],
+version: number,
+updatedAt: string | null,
+past: boolean,
+current: string | null,
 address: ContentAddressData,
 head: ContentHeadData,
 };

@@ -168,6 +168,72 @@ final readonly class DatabaseScreenReads implements ScreenReads
         ];
     }
 
+    public function policies(?array $storeIds, Publication $tab, ?string $after): array
+    {
+        // Only the policies serving one of the reader's stores, when they hold the job in some only (S3.7).
+        $served = '';
+        $held = [];
+
+        if ($storeIds !== null) {
+            $held = array_map(strtolower(...), $storeIds);
+
+            if ($held === []) {
+                return ['rows' => [], 'counts' => [Publication::Published->value => 0, Publication::Draft->value => 0]];
+            }
+
+            $served = ' AND p.id IN (SELECT policy_id FROM content.policy_stores WHERE store_id IN ('.implode(', ', array_fill(0, count($held), '?')).'))';
+        }
+
+        $where = 'p.status = ?'.$served;
+        $bindings = [$tab->value, ...$held];
+
+        if ($after !== null) {
+            $at = $this->db->selectOne('SELECT updated_at, id FROM content.policies WHERE id = ?', [strtolower($after)]);
+
+            if (! $at instanceof stdClass) {
+                return ['rows' => [], 'counts' => $this->policyCounts($served, $held)];
+            }
+
+            $where .= ' AND (p.updated_at, p.id) < (?::timestamptz, ?)';
+            $bindings = [...$bindings, (string) $at->updated_at, (string) $at->id];
+        }
+
+        /** @var list<stdClass> $rows */
+        $rows = $this->db->select(
+            "SELECT p.id, p.kind, p.status, p.text_version, p.version, p.updated_at, p.updated_by, ar.title AS title_ar, en.title AS title_en
+             FROM content.policies p
+             JOIN content.policy_translations ar ON ar.policy_id = p.id AND ar.locale = 'ar'
+             LEFT JOIN content.policy_translations en ON en.policy_id = p.id AND en.locale = 'en'
+             WHERE {$where} ORDER BY p.updated_at DESC, p.id DESC LIMIT ?",
+            [...$bindings, self::PAGE],
+        );
+        $stores = [];
+
+        if ($rows !== []) {
+            // The page's rows' stores, in one read.
+            foreach ($this->db->table('content.policy_stores')->whereIn('policy_id', array_map(static fn (stdClass $row): string => (string) $row->id, $rows))->orderBy('store_id')->get(['policy_id', 'store_id']) as $store) {
+                /** @var stdClass $store */
+                $stores[(string) $store->policy_id][] = strtolower((string) $store->store_id);
+            }
+        }
+
+        return [
+            'rows' => array_map(static fn (stdClass $row): array => [
+                'id' => strtolower((string) $row->id),
+                'kind' => (string) $row->kind,
+                'status' => (string) $row->status,
+                'textVersion' => (int) $row->text_version,
+                'version' => (int) $row->version,
+                'titleAr' => (string) $row->title_ar,
+                'titleEn' => Rows::text($row->title_en),
+                'stores' => $stores[(string) $row->id] ?? [],
+                'changedAt' => Rows::moment($row->updated_at)?->format(DATE_ATOM),
+                'changedBy' => Rows::text($row->updated_by),
+            ], $rows),
+            'counts' => $this->policyCounts($served, $held),
+        ];
+    }
+
     public function blogCategories(string $storeId): array
     {
         /** @var list<stdClass> $rows */
@@ -361,6 +427,24 @@ final readonly class DatabaseScreenReads implements ScreenReads
         $query->where(static fn ($older) => $older->where("{$alias}.created_at", '<', $at->created_at)->orWhere(static fn ($same) => $same->where("{$alias}.created_at", '=', $at->created_at)->where("{$alias}.id", '<', $at->id)));
 
         return true;
+    }
+
+    /**
+     * Each tab's count among the policies serving the reader's stores (`$served`, its `$held` stores bound).
+     *
+     * @param  list<string>  $held
+     * @return array<string, int>
+     */
+    private function policyCounts(string $served, array $held): array
+    {
+        $counts = [Publication::Published->value => 0, Publication::Draft->value => 0];
+
+        foreach ($this->db->select("SELECT p.status, count(*) AS n FROM content.policies p WHERE 1 = 1{$served} GROUP BY p.status", $held) as $count) {
+            /** @var stdClass $count */
+            $counts[(string) $count->status] = (int) $count->n;
+        }
+
+        return $counts;
     }
 
     /**

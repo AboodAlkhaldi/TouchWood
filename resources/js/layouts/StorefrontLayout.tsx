@@ -267,8 +267,23 @@ export function StorefrontLayout({ title, children, address, head, bands = false
                     ) : null}
                     {inStore && content?.footer ? <StoreFooter footer={content.footer} store={shop.code} locale={locale} words={words} /> : null}
                     {/* The theme switch left the footer for the account menu and the drawer (flags-2026-11.md S1.3). */}
-                    <div className="shop-box flex items-center justify-between gap-4 border-t border-sidebar-line py-6">
+                    {/* The bottom line: the copyright, and beside it a link to each of the store's published policies in the
+                        kinds' order (flags-2026-11.md S3.5, F19); none when it has none. They wrap under it on a phone. */}
+                    <div className="shop-box flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-sidebar-line py-6">
                         <span className="text-label-12 text-sidebar-ink-muted">{content?.footer?.copyright ?? 'TouchWood'}</span>
+                        {inStore && (content?.policies ?? []).length > 0 ? (
+                            <nav aria-label={words.policies} data-test="footer-policies">
+                                <ul className="flex flex-wrap gap-x-4 gap-y-1">
+                                    {(content?.policies ?? []).map((policy) => (
+                                        <li key={policy.slug}>
+                                            <Link href={`/${shop.code}/${locale}/policies/${encodeURIComponent(policy.slug)}`} className="inline-flex min-h-6 items-center text-label-12 text-sidebar-ink-muted hover:text-sidebar-ink hover:underline">
+                                                {policy.title}
+                                            </Link>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </nav>
+                        ) : null}
                     </div>
                 </footer>
 

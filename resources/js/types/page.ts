@@ -161,6 +161,8 @@ export type ContentFrame = {
         hidden?: string[];
         columns: { title: string; links: { text: string; link: string }[] }[];
     } | null;
+    /** The store's published policies, in the kinds' order, for the footer's bottom line (flags-2026-11.md S3.5, F19). */
+    policies?: { title: string; slug: string }[];
     popup: { id: string; title: string; text: string; button: string | null; link: string | null; delaySeconds: number; image: ImageSizes } | null;
     theme: { badge: string | null; flag: string | null; ribbon: string | null; cart: { text: string; link: string | null } | null; footerArt: boolean } | null;
     /** The name of the theme a staff member previews here (W5b), or null. */
