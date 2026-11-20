@@ -206,7 +206,7 @@ describe('the job in every store the policy serves (F20)', function () {
             ->and(DB::table('content.policies')->where('id', $policy)->value('status'))->toBe('DRAFT');
     });
 
-    it('checks again after the lock a store added to the policy since it was found, for Publish, Unpublish and Delete', function () {
+    it('checks again after the lock a store added to the policy since it was found, for Publish (Unpublish and Delete touch only the stores picked)', function () {
         Cx::editor([ContentPermissions::POLICY_MANAGE], ['sa', 'eg']);
         $policy = policiesSave([], ['sa', 'eg']);
         Cx::editor([ContentPermissions::POLICY_MANAGE], ['sa']);
@@ -214,8 +214,6 @@ describe('the job in every store the policy serves (F20)', function () {
 
         // As if the handler found the policy serving KSA alone, and Egypt was added before the row was locked.
         expect(fn () => $writer->publish($policy, 1, [Fx::storeId('sa')], null))->toThrow(Unauthorized::class)
-            ->and(fn () => $writer->unpublish($policy, 1, [Fx::storeId('sa')], null))->toThrow(Unauthorized::class)
-            ->and(fn () => $writer->delete($policy, 1, [Fx::storeId('sa')]))->toThrow(Unauthorized::class)
             ->and(DB::table('content.policies')->where('id', $policy)->value('status'))->toBe('DRAFT');
 
         // Every store it serves checked, the same call goes through.

@@ -30,4 +30,16 @@ interface ShopPolicies
      * @return list<ShopPolicyDto>
      */
     public function allPublished(StoreId $store, string $locale): array;
+
+    /**
+     * Where policies' kept versions read in a store's shop, in the language asked (the owner's decisions of 2026-11-20:
+     * a text no longer valid stays readable, labelled as old): each version that was ever in force in the store, by
+     * `"{policyId}:{version}"`, the address it was read at there last. Its page is `/{store}/{locale}/policies/{slug}`
+     * with `?version={version}&policy={policyId}`, which opens even after the policy is switched off there. A version
+     * never in force in the store is left out.
+     *
+     * @param  list<array{0: string, 1: int}>  $versions  each a policy's id and a version of its text
+     * @return array<string, string>
+     */
+    public function versionAddresses(StoreId $store, array $versions, string $locale): array;
 }

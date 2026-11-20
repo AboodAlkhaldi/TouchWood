@@ -53,6 +53,11 @@ final readonly class DatabaseSlugHistory implements SlugHistory
         $this->db->table('content.slug_history')->where('kind', $kind)->where('item_id', strtolower($fromItemId))->whereIn('store_id', array_map(strtolower(...), $storeIds))->update(['item_id' => strtolower($toItemId)]);
     }
 
+    public function takeOver(string $storeId, string $kind, string $locale, string $slug, string $toItemId): void
+    {
+        $this->db->table('content.slug_history')->where(['store_id' => strtolower($storeId), 'kind' => $kind, 'locale' => $locale, 'slug' => $slug])->update(['item_id' => strtolower($toItemId)]);
+    }
+
     public function forgetIn(string $kind, string $itemId, array $storeIds): void
     {
         if ($storeIds === []) {

@@ -52,8 +52,9 @@ it('finds the actions Content records', function () {
     // A guard over files must find something, or it passes over nothing.
     // PR 3's 49, and PR 4's six: the SEO defaults saved and their image detached, a redirect added, changed,
     // deleted and its count reset. PR 6's sixteen: a campaign's eight, a theme's seven and its image detached. Build 4's
-    // seven: a policy created, changed, published, unpublished, split, deleted and its image detached.
-    expect(count(contentAuditNamesRecorded()))->toBe(78)
+    // seven: a policy created, changed, published, unpublished, split, deleted and its image detached; and two more
+    // (owner, 2026-11-20): a policy unpublished in some of its stores, and a draft deleted in some.
+    expect(count(contentAuditNamesRecorded()))->toBe(80)
         ->and(contentAuditNamesRecorded())->toContain('content.banner.scheduled', 'content.home_sections.ordered', 'content.post.published', 'content.policy.published', 'content.policy.split');
 });
 

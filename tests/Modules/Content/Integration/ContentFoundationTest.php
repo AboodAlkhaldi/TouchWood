@@ -166,7 +166,7 @@ describe('the schema', function () {
             'campaign_run_targets', 'campaign_runs', 'campaigns',
             'footers', 'home_section_media', 'home_sections', 'job_runs', 'page_images', 'page_translations', 'pages',
             // The policies (flags-2026-11.md S3, build 4 step 1).
-            'policies', 'policy_images', 'policy_stores', 'policy_translations', 'policy_version_images', 'policy_versions',
+            'policies', 'policy_images', 'policy_periods', 'policy_stores', 'policy_translations', 'policy_version_images', 'policy_versions',
             'popups', 'post_images',
             'project_images', 'project_photos', 'project_products', 'project_translations', 'projects', 'redirect_uploads', 'redirects',
             'seo_defaults', 'sitemaps', 'slug_history', 'smart_bars', 'theme_part_images', 'theme_parts', 'theme_stores', 'themes', 'unread_translations', 'waiting_jobs',

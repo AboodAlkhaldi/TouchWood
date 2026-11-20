@@ -24,4 +24,9 @@ final class NoShopPolicies implements ShopPolicies
     {
         return [];
     }
+
+    public function versionAddresses(StoreId $store, array $versions, string $locale): array
+    {
+        return [];
+    }
 }

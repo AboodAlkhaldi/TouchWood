@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Content\Infrastructure\Eloquent;
 
+use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Modules\Content\Application\Query\Shop\ShopDocuments;
 use Modules\Content\Domain\Model\DocumentKind;
@@ -90,7 +91,7 @@ final readonly class DatabaseShopDocuments implements ShopDocuments
         $other = $locale === 'ar' ? 'en' : 'ar';
         // A policy serves a list of stores: it answers in this one only while it serves it (flags-2026-11.md S3.1).
         $row = $this->db->selectOne(
-            "SELECT p.id, p.text_version, p.share_media_{$locale} AS share, t.title, t.slug, t.body, t.seo_title, t.seo_description, o.slug AS other_slug, v.published_at AS updated
+            "SELECT p.id, p.kind, p.text_version, p.share_media_{$locale} AS share, t.title, t.slug, t.body, t.seo_title, t.seo_description, o.slug AS other_slug, v.published_at AS updated
              FROM content.policies p
              JOIN content.policy_stores s ON s.policy_id = p.id AND s.store_id = ?
              JOIN content.policy_translations t ON t.policy_id = p.id AND t.locale = ?
@@ -110,6 +111,7 @@ final readonly class DatabaseShopDocuments implements ShopDocuments
 
         return [
             'id' => $id,
+            'kind' => (string) $row->kind,
             'title' => (string) $row->title,
             'slug' => (string) $row->slug,
             'otherSlug' => Rows::text($row->other_slug),
@@ -146,6 +148,91 @@ final readonly class DatabaseShopDocuments implements ShopDocuments
             'publishedAt' => Rows::moment($rows[0]->published_at),
             'images' => array_values(array_map(static fn (stdClass $image): array => ['ref' => (int) $image->ref, 'mediaId' => strtolower((string) $image->media), 'alt' => Rows::text($image->alt)], array_filter($rows, static fn (stdClass $row): bool => $row->ref !== null))),
         ];
+    }
+
+    public function policyPeriods(string $storeId, string $policyId, int $number): array
+    {
+        $rows = $this->db->table('content.policy_periods')
+            ->where('store_id', strtolower($storeId))
+            ->where('policy_id', strtolower($policyId))
+            ->where('number', $number)
+            ->orderBy('started_at')
+            ->get(['policy_id', 'number', 'slug_ar', 'slug_en', 'started_at', 'ended_at'])
+            ->all();
+
+        return self::periods($rows) ?? [];
+    }
+
+    public function pastPolicy(string $storeId, string $locale, string $slug, ?int $number, ?string $policyId): ?array
+    {
+        $locale = self::locale($locale);
+        $storeId = strtolower($storeId);
+        // Every period in the store of each version that was ever in force here at this address (one read), grouped by
+        // version below: one still open is no past text.
+        $rows = $this->db->table('content.policy_periods as p')
+            ->join('content.policies as o', 'o.id', '=', 'p.policy_id')
+            ->where('p.store_id', $storeId)
+            ->whereExists(function ($query) use ($locale, $slug, $number, $policyId): void {
+                $query->from('content.policy_periods as m')
+                    ->whereColumn('m.policy_id', 'p.policy_id')
+                    ->whereColumn('m.number', 'p.number')
+                    ->whereColumn('m.store_id', 'p.store_id')
+                    ->where("m.slug_{$locale}", $slug);
+
+                if ($number !== null) {
+                    $query->where('m.number', $number);
+                }
+
+                if ($policyId !== null) {
+                    $query->where('m.policy_id', strtolower($policyId));
+                }
+            })
+            ->orderBy('p.started_at')
+            ->get(['p.policy_id', 'p.number', 'p.slug_ar', 'p.slug_en', 'p.started_at', 'p.ended_at', 'o.kind'])
+            ->all();
+        $groups = [];
+
+        foreach ($rows as $row) {
+            /** @var stdClass $row */
+            $groups[strtolower((string) $row->policy_id).':'.(int) $row->number][] = $row;
+        }
+
+        $latest = null;
+
+        foreach ($groups as $group) {
+            $periods = self::periods($group);
+
+            // The last one to stop being in force at this address.
+            if ($periods !== null && $periods !== [] && ($latest === null || $periods[count($periods) - 1]['until'] > $latest['periods'][count($latest['periods']) - 1]['until'])) {
+                $latest = ['id' => strtolower((string) $group[0]->policy_id), 'kind' => (string) $group[0]->kind, 'number' => (int) $group[0]->number, 'periods' => $periods];
+            }
+        }
+
+        return $latest;
+    }
+
+    /**
+     * One version's periods in one store, ended; null when one is still open (the version is still in force there).
+     *
+     * @param  array<int, stdClass>  $rows  in start order
+     * @return list<array{from: DateTimeImmutable, until: DateTimeImmutable, slugAr: string, slugEn: string}>|null
+     */
+    private static function periods(array $rows): ?array
+    {
+        $periods = [];
+
+        foreach ($rows as $row) {
+            $from = Rows::moment($row->started_at) ?? throw new \LogicException('A period with no start.');
+            $until = Rows::moment($row->ended_at);
+
+            if ($until === null) {
+                return null;
+            }
+
+            $periods[] = ['from' => $from, 'until' => $until, 'slugAr' => (string) $row->slug_ar, 'slugEn' => (string) $row->slug_en];
+        }
+
+        return $periods;
     }
 
     public function currentPolicySlug(string $storeId, string $policyId, string $locale): ?string

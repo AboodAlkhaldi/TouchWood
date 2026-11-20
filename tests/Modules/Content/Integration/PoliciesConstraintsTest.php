@@ -52,6 +52,7 @@ function policiesConstraintRow(string $table): array
         'policy_images' => ['policy_id' => policiesConstraintParent(), 'locale' => 'ar', 'ref' => 1, 'media_id' => Cx::image(), 'alt' => 'صورة'],
         'policy_versions' => ['policy_id' => policiesConstraintParent(), 'number' => 1, 'title_ar' => 'الشروط', 'title_en' => 'Terms', 'body_ar' => '{"blocks": []}', 'body_en' => '{"blocks": []}', 'published_at' => $now],
         'policy_version_images' => [...policiesConstraintVersion(), 'locale' => 'ar', 'ref' => 1, 'media_id' => Cx::image(), 'alt' => 'صورة'],
+        'policy_periods' => ['id' => $id, ...policiesConstraintVersion(), 'store_id' => Fx::storeId('sa'), 'slug_ar' => 'الشروط', 'slug_en' => 'terms', 'started_at' => $now, 'ended_at' => $now->addHour()],
         default => throw new LogicException("No row for {$table}."),
     };
 }
@@ -93,7 +94,7 @@ function policiesConstraintBroken(string $table, array $row): string
 
 it('takes the base rows these cases break, so each break is the only thing wrong', function (string $table) {
     expect(policiesConstraintBroken($table, policiesConstraintRow($table)))->toBe('accepted');
-})->with(['policies', 'policy_translations', 'policy_stores', 'policy_images', 'policy_versions', 'policy_version_images']);
+})->with(['policies', 'policy_translations', 'policy_stores', 'policy_images', 'policy_versions', 'policy_version_images', 'policy_periods']);
 
 it('refuses each row its CHECK or key is for', function (string $table, array $with, string $constraint) {
     expect(policiesConstraintBroken($table, [...policiesConstraintRow($table), ...$with]))->toBe($constraint);
@@ -121,7 +122,18 @@ it('refuses each row its CHECK or key is for', function (string $table, array $w
     'a version image of ref 0' => ['policy_version_images', ['ref' => 0], 'polvi_ref'],
     'a version image in no language' => ['policy_version_images', ['locale' => 'fr'], 'polvi_locale'],
     'a version image of no file' => ['policy_version_images', ['media_id' => strtolower((string) Str::ulid())], 'polvi_media'],
+    // What is in force in each store (owner, 2026-11-20): the code ends a period now, never before it started.
+    'a period ending before it started' => ['policy_periods', ['ended_at' => '2000-01-01 00:00:00+00'], 'polp_dates'],
+    'a period of no version' => ['policy_periods', ['number' => 2], 'polp_version'],
+    'a period in a store that is not there' => ['policy_periods', ['store_id' => strtolower((string) Str::ulid())], 'polp_store'],
 ]);
+
+it('takes a period still open, and one ending as it starts', function () {
+    $row = policiesConstraintRow('policy_periods');
+
+    expect(policiesConstraintBroken('policy_periods', [...$row, 'ended_at' => null]))->toBe('accepted')
+        ->and(policiesConstraintBroken('policy_periods', [...policiesConstraintRow('policy_periods'), 'ended_at' => $row['started_at']]))->toBe('accepted');
+});
 
 it('lets two policies share an address in a language unless in one store: the history\'s unique index, and a file deleted under a version', function () {
     $taken = policiesConstraintRow('policy_translations');

@@ -27,7 +27,9 @@ use Shared\Domain\ValueObject\StoreId;
  * - **A save touches only the stores ticked** - each one the person must hold the job in, checked by the handler -
  *   **and the stores it takes off**, each one they may work in. A store the policy keeps and the save leaves alone is
  *   not asked: one they do not hold, or one that is off to them, is not on their form (`pickable`).
- * - **Publish, Unpublish and Delete change every store the policy serves**: the job in each (`stillMay` after the lock).
+ * - **Publish changes every store the policy serves**: the job in each (`stillMay` after the lock). **Unpublish and Delete
+ *   change the stores picked** (the owner's decisions of 2026-11-20), the job in each, each one the policy serves
+ *   (`within`).
  * - **At least one store.**
  * - **A store has at most one published policy of each kind, Other excepted**: refused naming the store, the kind and
  *   the other policy's title (`PolicyKindTaken`), checked under the policies' lock by whoever publishes or adds a store.
@@ -115,7 +117,7 @@ final readonly class PolicyRules
     }
 
     /**
-     * After the policy's row is locked, for Publish, Unpublish and Delete: a store it serves now that was not checked
+     * After the policy's row is locked, for Publish: a store it serves now that was not checked
      * when it was found (someone added it meanwhile) is checked now.
      *
      * @param  list<string>  $checked
@@ -125,6 +127,20 @@ final readonly class PolicyRules
     public function stillMay(Policy $locked, array $checked): void
     {
         $this->authorizeEach(array_values(array_diff($locked->stores, $checked)));
+    }
+
+    /**
+     * Refuses stores picked for Unpublish or Delete that the policy, locked, does not serve - none picked included.
+     *
+     * @param  list<string>  $picked
+     *
+     * @throws InvalidContentInput
+     */
+    public function within(Policy $policy, array $picked): void
+    {
+        if ($picked === [] || array_diff($picked, $policy->stores) !== []) {
+            throw new InvalidContentInput('stores', InvalidContentInput::CHOICE);
+        }
     }
 
     /**

@@ -29,7 +29,10 @@ import type { ContentImageData, PolicyFormPageData } from '@/types/generated/Mod
 | read-only after), a checkbox per store the person may edit - ticked for the stores the policy serves that they hold -
 | and the stores it also serves that are not theirs, read-only; then title, address, body and SEO per language as a
 | page's (document-form.tsx), with Translate. **Publish** or **Save Draft**; once published, **Save Changes**; ⋯
-| Unpublish… while published; Delete… only while it was never published, else shown disabled with its reason.
+| Unpublish… while published; Delete… only while it was never published, else shown disabled with its reason. Unpublish…
+| and Delete… ask which of the person's stores (the owner's decisions of 2026-11-20: per store, as a save is), the stores
+| that are not theirs shown disabled with the reason; Publish is shown disabled with its reason while the draft also
+| serves a store that is not theirs (it publishes in every store it serves), unless the save splits it.
 |
 | A save changes the stores ticked (PolicyWriter): the form says before saving what will happen - a store unticked from
 | a published policy with its words unchanged is left without that kind of policy (and asked once more at the save),
@@ -37,6 +40,7 @@ import type { ContentImageData, PolicyFormPageData } from '@/types/generated/Mod
 */
 
 const ScheduleConfirm = lazy(() => import('@/components/content/schedule-confirm').then((module) => ({ default: module.ScheduleConfirm })));
+const PolicyStoresConfirm = lazy(() => import('@/components/content/policy-stores-confirm').then((module) => ({ default: module.PolicyStoresConfirm })));
 
 const LIST = '/admin/content/policies';
 const PREFIX = '/policies/';
@@ -134,8 +138,8 @@ export default function Form(page: PolicyFormPageData) {
         form.post(policy === null ? LIST : `${LIST}/${policy.id}`, { preserveScroll: 'errors', onSuccess: () => setTouched(false) });
     };
     const publish = () => tick.ask((read) => send('publish', read), mainLabel);
-    const act = (action: 'unpublish' | 'delete') =>
-        router.post(`${LIST}/${policy?.id ?? ''}/${action}`, { version: policy?.version ?? 0 }, {
+    const act = (action: 'unpublish' | 'delete', ticked: string[]) =>
+        router.post(`${LIST}/${policy?.id ?? ''}/${action}`, { version: policy?.version ?? 0, stores: ticked }, {
             onStart: () => setBusy(true),
             onFinish: () => {
                 setBusy(false);
@@ -143,15 +147,14 @@ export default function Form(page: PolicyFormPageData) {
             },
         });
     const versionsKept = policy !== null && policy.textVersion > 0;
-    const dialog = (() => {
-        if (asking === 'removed') {
-            return { title: t('content::admin_policies.removed_confirm.title'), body: t('content::admin_policies.notices.removed', { stores: list(unticked.map(nameOf)), kind: kindName(form.data.kind) }), label: t('content::admin_policies.removed_confirm.confirm'), focus: main };
-        }
-
-        return asking === 'unpublish'
-            ? { title: t('content::admin_policies.unpublish.title'), body: t('content::admin_policies.unpublish.body'), label: t('content::admin_policies.unpublish.confirm'), focus: more }
-            : { title: t('content::admin_policies.delete.title'), body: t('content::admin_policies.delete.body'), label: t('content::admin_policies.delete.confirm'), focus: more };
-    })();
+    // The stores it serves that are the person's: the ones Unpublish… and Delete… may tick.
+    const theirs = policy === null ? [] : stores.filter((store) => policy.stores.includes(store.id));
+    const others = (ticked: string[]) => [...theirs.filter((store) => !ticked.includes(store.id)).map((store) => store.name), ...page.otherStores];
+    const unpublishSummary = (ticked: string[]) =>
+        others(ticked).length === 0 ? t('content::admin_policies.unpublish.all') : t('content::admin_policies.unpublish.some', { stores: list(ticked.map(nameOf)), others: list(others(ticked)) });
+    const deleteSummary = (ticked: string[]) => (others(ticked).length === 0 ? null : t('content::admin_policies.delete.some', { stores: list(ticked.map(nameOf)), others: list(others(ticked)) }));
+    // A draft publishes in every store it serves: one not theirs blocks it, unless the save splits it into their own.
+    const publishReason = policy !== null && !published && page.otherStores.length > 0 && !splits ? t('content::admin_policies.publish_blocked', { stores: list(page.otherStores) }) : undefined;
 
     return (
         <AdminLayout title={policy === null ? t('content::admin_policies.new') : policy.ar.title} breadcrumbs={[{ label: t('content::admin_policies.title'), href: LIST }]}>
@@ -333,7 +336,7 @@ export default function Form(page: PolicyFormPageData) {
                     </CollapsibleContent>
                 </Collapsible>
                 <div className="flex flex-wrap items-center gap-3">
-                    <ActionButton ref={main} type="submit" loading={form.processing} disabledReason={checks.reason ?? storesReason} data-test="publish">
+                    <ActionButton ref={main} type="submit" loading={form.processing} disabledReason={checks.reason ?? storesReason ?? publishReason} data-test="publish">
                         {mainLabel}
                     </ActionButton>
                     {published ? null : (
@@ -349,62 +352,75 @@ export default function Form(page: PolicyFormPageData) {
                             <DropdownMenuContent align="end" className="min-w-48">
                                 {published ? (
                                     <DropdownMenuItem variant="destructive" onSelect={() => setAsking('unpublish')} data-test="menu-unpublish">{`${t('content::admin_policies.unpublish.menu')}…`}</DropdownMenuItem>
-                                ) : (
-                                    // Once published, its versions are kept for good (owner, 2026-11-20): Delete stays in
-                                    // the menu, out of reach, its reason written under it (Geist; as the media's).
-                                    <DropdownMenuItem
-                                        variant="destructive"
-                                        aria-disabled={versionsKept || undefined}
-                                        className={cn(versionsKept && 'cursor-not-allowed')}
-                                        onSelect={(event) => {
-                                            if (versionsKept) {
-                                                event.preventDefault();
+                                ) : null}
+                                {/* Once published, its versions are kept for good (owner, 2026-11-20): Delete stays in the menu, out
+                                    of reach, its reason written under it (Geist; as the media's). */}
+                                <DropdownMenuItem
+                                    variant="destructive"
+                                    aria-disabled={versionsKept || undefined}
+                                    className={cn(versionsKept && 'cursor-not-allowed')}
+                                    onSelect={(event) => {
+                                        if (versionsKept) {
+                                            event.preventDefault();
 
-                                                return;
-                                            }
+                                            return;
+                                        }
 
-                                            setAsking('delete');
-                                        }}
-                                        data-test="menu-delete"
-                                    >
-                                        <span className="grid gap-0.5">
-                                            <span className={versionsKept ? 'opacity-60' : undefined}>{`${t('content::admin_policies.delete.menu')}…`}</span>
-                                            {versionsKept ? (
-                                                <span className="text-copy-13 text-ink-muted" data-test="delete-blocked">
-                                                    {t('content::admin_policies.delete.blocked')}
-                                                </span>
-                                            ) : null}
-                                        </span>
-                                    </DropdownMenuItem>
-                                )}
+                                        setAsking('delete');
+                                    }}
+                                    data-test="menu-delete"
+                                >
+                                    <span className="grid gap-0.5">
+                                        <span className={versionsKept ? 'opacity-60' : undefined}>{`${t('content::admin_policies.delete.menu')}…`}</span>
+                                        {versionsKept ? (
+                                            <span className="text-copy-13 text-ink-muted" data-test="delete-blocked">
+                                                {t('content::admin_policies.delete.blocked')}
+                                            </span>
+                                        ) : null}
+                                    </span>
+                                </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     )}
                 </div>
             </form>
-            {asking === null ? null : (
+            {asking === 'removed' ? (
                 <Suspense fallback={null}>
                     <ScheduleConfirm
-                        returnFocusTo={dialog.focus}
-                        title={dialog.title}
-                        description={dialog.body}
-                        label={dialog.label}
+                        returnFocusTo={main}
+                        title={t('content::admin_policies.removed_confirm.title')}
+                        description={t('content::admin_policies.notices.removed', { stores: list(unticked.map(nameOf)), kind: kindName(form.data.kind) })}
+                        label={t('content::admin_policies.removed_confirm.confirm')}
                         busy={busy || form.processing}
                         onConfirm={() => {
-                            if (asking === 'removed') {
-                                setAsking(null);
-                                publish();
-
-                                return;
-                            }
-
-                            act(asking);
+                            setAsking(null);
+                            publish();
                         }}
+                        onClose={() => setAsking(null)}
+                        test="confirm-removed"
+                    />
+                </Suspense>
+            ) : null}
+            {asking === 'unpublish' || asking === 'delete' ? (
+                <Suspense fallback={null}>
+                    <PolicyStoresConfirm
+                        returnFocusTo={more}
+                        title={asking === 'unpublish' ? t('content::admin_policies.unpublish.title') : t('content::admin_policies.delete.title')}
+                        description={asking === 'unpublish' ? t('content::admin_policies.unpublish.body') : t('content::admin_policies.delete.body')}
+                        label={asking === 'unpublish' ? t('content::admin_policies.unpublish.confirm') : t('content::admin_policies.delete.confirm')}
+                        legend={asking === 'unpublish' ? t('content::admin_policies.unpublish.stores') : t('content::admin_policies.delete.stores')}
+                        stores={theirs}
+                        others={page.otherStores}
+                        notYours={t('content::admin_policies.unpublish.not_yours')}
+                        pickReason={t('content::admin_policies.unpublish.pick')}
+                        summary={asking === 'unpublish' ? unpublishSummary : deleteSummary}
+                        busy={busy}
+                        onConfirm={(ticked) => act(asking, ticked)}
                         onClose={() => setAsking(null)}
                         test={`confirm-${asking}`}
                     />
                 </Suspense>
-            )}
+            ) : null}
             {translation.dialog}
             {tick.dialog}
             {leave}

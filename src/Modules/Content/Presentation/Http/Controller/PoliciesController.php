@@ -28,6 +28,7 @@ use Modules\Content\Presentation\Http\Resource\PolicyData;
 use Modules\Content\Presentation\Http\Resource\PolicyFormPageData;
 use Modules\Content\Presentation\Http\Resource\PolicyRowData;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
 
 /*
@@ -95,26 +96,53 @@ final readonly class PoliciesController
         return $this->save($request, $policy, $policies);
     }
 
+    /**
+     * Unpublish in the stores ticked (the owner's decisions of 2026-11-20). Some of them: they leave it into a
+     * switched-off copy of their own, whose page is where the person lands - the policy left behind may serve no store of
+     * theirs. All of them: the policy is a draft again, its page reloaded.
+     */
     public function unpublish(Request $request, string $policy, UnpublishPolicyHandler $handler): RedirectResponse
     {
         try {
-            $handler->handle(new UnpublishPolicy($policy, Inputs::version($request)));
+            $copy = $handler->handle(new UnpublishPolicy($policy, Inputs::version($request), self::stores($request)));
         } catch (DomainError $error) {
-            return Refusals::back($request, $error, []);
+            return Refusals::back($request, $error, ['stores']);
         }
 
-        return back()->with('status', __('content::admin_policies.unpublished'));
+        return $copy === null
+            ? back()->with('status', __('content::admin_policies.unpublished'))
+            : redirect(self::LIST."/{$copy}")->with('status', __('content::admin_policies.turned_off'));
     }
 
-    public function delete(Request $request, string $policy, DeletePolicyHandler $handler): RedirectResponse
+    /**
+     * Delete from the stores ticked (the owner's decisions of 2026-11-20): all of them deletes the draft, back to the
+     * list; some take those stores off it, and the person lands on its page when it still serves a store of theirs.
+     */
+    public function delete(Request $request, string $policy, DeletePolicyHandler $handler, PoliciesHandler $policies): RedirectResponse
     {
         try {
-            $handler->handle(new DeletePolicy($policy, Inputs::version($request)));
+            $handler->handle(new DeletePolicy($policy, Inputs::version($request), self::stores($request)));
         } catch (DomainError $error) {
-            return Refusals::back($request, $error, []);
+            return Refusals::back($request, $error, ['stores']);
         }
 
-        return redirect(self::LIST.'?tab=draft')->with('status', __('content::admin_policies.deleted'));
+        try {
+            $policies->policy($policy);
+        } catch (DomainError|Unauthorized) {
+            return redirect(self::LIST.'?tab=draft')->with('status', __('content::admin_policies.deleted'));
+        }
+
+        return redirect(self::LIST."/{$policy}")->with('status', __('content::admin_policies.deleted_in'));
+    }
+
+    /**
+     * The stores ticked in Unpublish's or Delete's dialog; none sent is every store the policy serves (the handler's).
+     *
+     * @return list<string>|null
+     */
+    private static function stores(Request $request): ?array
+    {
+        return $request->has('stores') ? Inputs::texts($request, 'stores') : null;
     }
 
     /**

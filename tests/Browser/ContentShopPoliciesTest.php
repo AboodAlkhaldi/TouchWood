@@ -10,6 +10,8 @@ use Modules\Content\Application\Command\PublishPolicy\PublishPolicy;
 use Modules\Content\Application\Command\PublishPolicy\PublishPolicyHandler;
 use Modules\Content\Application\Command\SavePolicy\SavePolicy;
 use Modules\Content\Application\Command\SavePolicy\SavePolicyHandler;
+use Modules\Content\Application\Command\UnpublishPolicy\UnpublishPolicy;
+use Modules\Content\Application\Command\UnpublishPolicy\UnpublishPolicyHandler;
 use Modules\Content\Application\ContentCache;
 use Modules\Content\Application\ContentPermissions;
 use Modules\Content\Application\Policies\PolicyInput;
@@ -68,7 +70,9 @@ it('draws a policy with "Last updated", a kept version with its line to the curr
         foreach (["/eg/{$locale}/policies/{$slug}", "/eg/{$locale}/policies/{$slug}?version=1"] as $address) {
             $page->navigate($address, BROWSER_PAGE_LOAD);
 
-            expect(browserSoon($page, "document.querySelector('[data-test=\"content-policy\"]') !== null && document.querySelector('[data-test=\"policy-updated\"]') !== null"))->toBeTrue("{$address}: not drawn")
+            // The current text says when it was updated; version 1 says it is old instead (owner, 2026-11-20).
+            $mark = str_contains($address, 'version=') ? 'policy-past' : 'policy-updated';
+            expect(browserSoon($page, "document.querySelector('[data-test=\"content-policy\"]') !== null && document.querySelector('[data-test=\"{$mark}\"]') !== null"))->toBeTrue("{$address}: not drawn")
                 ->and($page->script('document.documentElement.lang'))->toBe($locale)
                 ->and(browserSoon($page, "[...document.querySelectorAll('[data-test=\"footer-policies\"] a')].some((link) => link.textContent.includes('{$run}'))"))->toBeTrue("{$address}: no policy link in the footer")
                 ->and(Cb::fitsPhone($page))->toBeTrue("{$address}: ".Cb::overflow($page))
@@ -80,7 +84,8 @@ it('draws a policy with "Last updated", a kept version with its line to the curr
     $page->navigate("/eg/en/policies/{$slugs['slugEn']}", BROWSER_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"policy-updated\"]')?.textContent === 'Last updated November 18, 2026' && document.querySelector('[data-test=\"policy-past\"]') === null && document.body.textContent.includes('Three years')"))->toBeTrue();
     $page->navigate("/eg/en/policies/{$slugs['slugEn']}?version=1", BROWSER_PAGE_LOAD);
-    expect(browserSoon($page, "document.querySelector('[data-test=\"policy-past\"]')?.textContent.startsWith('This is version 1 of this policy, published November 1, 2026.') && document.body.textContent.includes('Two years')"))->toBeTrue()
+    expect(browserSoon($page, "document.querySelector('[data-test=\"policy-old\"]')?.textContent === 'This is an old version of the Warranty terms {$run}. It is no longer valid.' && document.querySelector('[data-test=\"policy-in-force\"]')?.textContent === 'In force from November 1, 2026 to November 18, 2026.' && document.querySelector('[data-test=\"policy-updated\"]') === null && document.body.textContent.includes('Two years')"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=\"policy-current\"]').textContent"))->toBe("Read the current Warranty terms {$run}")
         ->and($page->script("document.querySelector('meta[name=\"robots\"]')?.getAttribute('content') ?? ''"))->toContain('noindex');
     $page->click('[data-test="policy-current"]');
     expect(browserSoon($page, "window.location.search === '' && document.body.textContent.includes('Three years')"))->toBeTrue();
@@ -89,5 +94,36 @@ it('draws a policy with "Last updated", a kept version with its line to the curr
     $page->navigate('/eg/en', BROWSER_PAGE_LOAD);
     $page->click("[data-test=\"footer-policies\"] a[href=\"/eg/en/policies/{$slugs['slugEn']}\"]");
     expect(browserSoon($page, "window.location.pathname === '/eg/en/policies/{$slugs['slugEn']}' && document.querySelector('[data-test=\"content-policy\"]') !== null"))->toBeTrue();
+    $page->assertNoJavaScriptErrors();
+});
+
+it('opens a store\'s switched-off policy labelled as old, with its dates there and no current one to link, on a phone in both languages; the other store still has it in force', function () {
+    $run = Cb::run();
+    Cx::editor([ContentPermissions::POLICY_MANAGE], ['ae', 'eg']);
+    $words = ['kind' => 'OTHER', 'storeIds' => [Fx::storeId('ae'), Fx::storeId('eg')], 'titleAr' => "سياسة التركيب {$run}", 'titleEn' => "Fitting terms {$run}", 'slugAr' => "التركيب-{$run}", 'slugEn' => "fitting-{$run}", 'bodyAr' => 'نركّب خلال أسبوع.', 'bodyEn' => 'We fit within a week.'];
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-11-02 08:00:00+00'));
+    $id = app(SavePolicyHandler::class)->handle(new SavePolicy(new PolicyInput(...[...$words, 'id' => null, 'version' => 0])));
+    app(PublishPolicyHandler::class)->handle(new PublishPolicy($id, 1));
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-11-10 08:00:00+00'));
+    app(UnpublishPolicyHandler::class)->handle(new UnpublishPolicy($id, 2, [Fx::storeId('eg')]));
+    CarbonImmutable::setTestNow();
+    app(ContentCache::class)->invalidate();
+
+    $page = visit("/eg/en/policies/fitting-{$run}");
+    $page->resize(375, 812);
+
+    expect(browserSoon($page, "document.querySelector('[data-test=\"policy-old\"]')?.textContent === 'This is an old version of the Fitting terms {$run}. It is no longer valid.' && document.querySelector('[data-test=\"policy-in-force\"]')?.textContent === 'In force from November 2, 2026 to November 10, 2026.' && document.querySelector('[data-test=\"policy-current\"]') === null"))->toBeTrue()
+        ->and($page->script("document.querySelector('meta[name=\"robots\"]')?.getAttribute('content') ?? ''"))->toContain('noindex')
+        ->and($page->script("[...document.querySelectorAll('[data-test=\"footer-policies\"] a')].some((link) => link.textContent.includes('{$run}'))"))->toBeFalse()
+        ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
+
+    $page->navigate('/eg/ar/policies/'.rawurlencode("التركيب-{$run}"), BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "document.documentElement.lang === 'ar' && document.querySelector('[data-test=\"policy-in-force\"]')?.textContent.includes('2026')"))->toBeTrue()
+        ->and(Cb::latinDigits($page))->toBeTrue()
+        ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
+
+    // The UAE still has it in force: its current page.
+    $page->navigate("/ae/en/policies/fitting-{$run}", BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"policy-updated\"]') !== null && document.querySelector('[data-test=\"policy-past\"]') === null"))->toBeTrue();
     $page->assertNoJavaScriptErrors();
 });

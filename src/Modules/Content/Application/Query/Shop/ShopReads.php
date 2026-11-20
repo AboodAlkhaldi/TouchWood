@@ -30,6 +30,15 @@ interface ShopReads
     public function policies(string $storeId): array;
 
     /**
+     * Where these versions of policies were last read in the store, both languages, by `"{policyId}:{version}"` (the
+     * owner's decisions of 2026-11-20); a version never in force there is left out. One query, never cached.
+     *
+     * @param  list<array{0: string, 1: int}>  $versions
+     * @return array<string, array{ar: string, en: string}>
+     */
+    public function policyVersionSlugs(string $storeId, array $versions): array;
+
+    /**
      * One theme of this store as Preview Theme shows it (content.md W5b), whatever its state and dates, read past the
      * cache: shaped as one of `frame()`'s themes, with no start or end, plus its name. Null when it is not one of this
      * store's.

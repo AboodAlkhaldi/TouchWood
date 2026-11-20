@@ -10,8 +10,8 @@ use Modules\Platform\Public\Enums\PolicyKind;
 /**
  * A store's published policy as a shopper reads it now (flags-2026-11.md S3): which one it is, the version of its text
  * shown (F14 - what a customer accepts is this number), its title and address in the language asked, and when its text
- * last changed ("Last updated", F15). Its page is `/{store}/{locale}/policies/{slug}`; a past version's text is the
- * same address with `?version={number}`.
+ * last changed ("Last updated", F15). Its page is `/{store}/{locale}/policies/{slug}`; a past version's text is at the
+ * address it last had in the store with `?version={number}&policy={policyId}` (ShopPolicies::versionAddresses).
  */
 final readonly class ShopPolicyDto
 {

@@ -161,7 +161,7 @@ it('shows the terms the order was placed under, linking to that version\'s text,
         ->and($page->script("document.querySelector('[data-test=\"order-terms\"]').textContent"))->toStartWith("Terms v{$row?->terms_version}, accepted ")
         ->and($page->script("document.querySelector('[data-test=\"order-terms\"]').target"))->toBe('_blank')
         ->and($page->script("document.querySelector('[data-test=\"order-terms\"]').getAttribute('href')"))->toContain('/sa/en/policies/')
-        ->and($page->script("document.querySelector('[data-test=\"order-terms\"]').getAttribute('href')"))->toEndWith("?version={$row?->terms_version}")
+        ->and($page->script("document.querySelector('[data-test=\"order-terms\"]').getAttribute('href')"))->toContain("?version={$row?->terms_version}&policy=")
         ->and(salesOrderScreensWide($page))->toBe('', 'the order with its terms scrolls sideways');
 
     // In Arabic, a reader of the store's orders: the line in its words, Latin digits, the Arabic page.

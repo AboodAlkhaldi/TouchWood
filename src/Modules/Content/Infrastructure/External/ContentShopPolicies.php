@@ -44,6 +44,12 @@ final readonly class ContentShopPolicies implements ShopPolicies
         return array_map(static fn (array $row): ShopPolicyDto => self::dto($row, $locale), $this->rows($store));
     }
 
+    public function versionAddresses(StoreId $store, array $versions, string $locale): array
+    {
+        // Read as it is now, never cached: a staff page asks it, a version or two at a time.
+        return array_map(static fn (array $slugs): string => $locale === 'ar' ? $slugs['ar'] : $slugs['en'], $this->reads->policyVersionSlugs($store->value, $versions));
+    }
+
     /**
      * @return list<array{id: string, kind: string, version: int, updated: string, title_ar: string, slug_ar: string, title_en: string|null, slug_en: string|null}>
      */

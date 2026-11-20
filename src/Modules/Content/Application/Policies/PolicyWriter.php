@@ -62,7 +62,13 @@ use Shared\Domain\ValueObject\StoreId;
  *   of a published policy changes the live text at once, so a changed text there is a new version too (the builder's
  *   pick). Each version is read by its number (`Policies::version`).
  * - **Deleted only if never published** (owner, 2026-11-20: `text_version` 0), its addresses freed; once published it is
- *   only unpublished, so every version stays (`PolicyNotDeletable`).
+ *   only unpublished, so every version stays (`PolicyNotDeletable`). **Unpublish and Delete act on the stores picked**
+ *   (the owner's decisions of 2026-11-20): some of its stores turned off leave it into a switched-off copy of their own
+ *   (option A); some of a draft's deleted leave it.
+ * - **What is in force in each store is recorded** (`Policies::settlePeriods`): each version, in each store, from when to
+ *   when, so a text no longer valid is shown to shoppers with its dates.
+ * - **An address a policy switched off in a store holds there is free for another policy** (the builder's pick of
+ *   2026-11-21): taken by the one saved or published with it; a policy published again is held to its addresses.
  * - **Two people**: every change is at the version the form read (`StaleEdit`); all of them run under the policies'
  *   lock, taken first (`ContentLocks::POLICIES`).
  * - Audited by value, with no store (it serves several, as a campaign's shared fields); a body as changed with its
@@ -149,6 +155,11 @@ final readonly class PolicyWriter
                 $this->policies->addVersion($kept);
             }
 
+            if ($was->isPublished()) {
+                // What is in force in each store follows: a new version, a store added or taken off, an address changed.
+                $this->policies->settlePeriods($policy, $now);
+            }
+
             $this->marks->saved(self::KIND, $policy->id, $policy->stores[0], $input->translated, $input->read, $was->isPublished());
             $this->platform->recordAudit(ContentAudit::entry('content.policy.changed', 'content.policy', $policy->id, null, self::changes($was, $policy)));
             $this->cache->invalidate();
@@ -178,6 +189,8 @@ final readonly class PolicyWriter
             [$number, $isNew] = $this->textNumber($was);
             $policy = $this->with($was, Publication::Published, $now, $number, $staffId, $now);
             $this->requirePublishable($policy);
+            // Its addresses are asked again: one switched off may have lost an address in a store to another policy since.
+            $this->addresses($policy);
             $this->marks->showing(self::KIND, $was->id, $read);
             // Only the state and the version's number change: its words, images and stores are left as they are.
             $this->policies->updateRow($policy);
@@ -185,6 +198,8 @@ final readonly class PolicyWriter
             if ($isNew) {
                 $this->policies->addVersion(PolicyVersion::of($policy, $number, $now, $staffId));
             }
+
+            $this->policies->settlePeriods($policy, $now);
 
             $changes = AuditChanges::none()->changed('status', $was->status->value, Publication::Published->value);
 
@@ -198,44 +213,92 @@ final readonly class PolicyWriter
     }
 
     /**
-     * @param  list<string>  $checked  the stores the policy served when found, each checked
+     * Turns a published policy off in the stores picked (the owner's decisions of 2026-11-20: per store, as a save is).
+     * Every store it serves picked: the whole policy is unpublished, its versions kept. Some of them: **those stores leave
+     * it into a switched-off copy of their own** (option A) - a new draft of the kind with the same words and images,
+     * serving exactly them, editable and published again at its own version 1 - and their addresses go with them; the
+     * policy stays published in the others, untouched. Either way what was in force in a store turned off ends there now.
+     * A draft is left as it is.
+     *
+     * @param  list<string>  $picked  the stores to turn off, each checked
+     * @return string|null the switched-off copy's id, when only some of its stores were turned off
      *
      * @throws ContentError|Unauthorized
      */
-    public function unpublish(string $id, int $version, array $checked, ?string $staffId): void
+    public function unpublish(string $id, int $version, array $picked, ?string $staffId): ?string
     {
-        $this->db->transaction(function () use ($id, $version, $checked, $staffId): void {
+        return $this->db->transaction(function () use ($id, $version, $picked, $staffId): ?string {
             $this->locks->lock(ContentLocks::ALL_STORES, ContentLocks::POLICIES);
             $was = $this->policies->lock($id) ?? throw new ContentNotFound;
-            $this->rules->stillMay($was, $checked);
             $this->check->version($version, $was->version, $was->updatedBy, $was->updatedAt, $this->firstStore($was));
+            $this->rules->within($was, $picked);
 
             if (! $was->isPublished()) {
-                return;
+                return null;
             }
 
-            $this->policies->updateRow($this->with($was, Publication::Draft, null, $was->textVersion, $staffId, Moments::now()));
-            $this->platform->recordAudit(ContentAudit::entry('content.policy.unpublished', 'content.policy', $was->id, null, AuditChanges::none()->changed('status', $was->status->value, Publication::Draft->value)));
+            $now = Moments::now();
+            $untouched = array_values(array_diff($was->stores, $picked));
+
+            if ($untouched === []) {
+                $policy = $this->with($was, Publication::Draft, null, $was->textVersion, $staffId, $now);
+                $this->policies->updateRow($policy);
+                $this->policies->settlePeriods($policy, $now);
+                $this->platform->recordAudit(ContentAudit::entry('content.policy.unpublished', 'content.policy', $was->id, null, AuditChanges::none()->changed('status', $was->status->value, Publication::Draft->value)));
+                $this->cache->invalidate();
+
+                return null;
+            }
+
+            $copyId = strtolower((string) Str::ulid());
+            $original = $this->with($was, $was->status, $was->publishedAt, $was->textVersion, $staffId, $now, $untouched);
+            $this->policies->update($original);
+            $this->policies->settlePeriods($original, $now);
+            // The stores turned off keep their addresses with their copy, as a split's do.
+            $this->history->handOver(self::KIND, $was->id, $copyId, $picked);
+            $copy = new Policy($copyId, $was->kind, $picked, Publication::Draft, null, $was->texts, $was->shareAr, $was->shareEn, 0, 1, $staffId, $now);
+            $this->addresses($copy);
+            $this->policies->add($copy, $staffId);
+            $this->platform->recordAudit(ContentAudit::entry('content.policy.created', 'content.policy', $copyId, null, self::changes(null, $copy, AuditChanges::none()->changed('turned_off_from', null, $was->id))));
+            $this->platform->recordAudit(ContentAudit::entry('content.policy.turned_off', 'content.policy', $was->id, null, ContentAudit::diff(['stores' => implode(',', $was->stores)], ['stores' => implode(',', $untouched)])->changed('turned_off_to', null, $copyId)));
             $this->cache->invalidate();
+
+            return $copyId;
         }, 3);
     }
 
     /**
-     * @param  list<string>  $checked  the stores the policy served when found, each checked
+     * Deletes a policy never published from the stores picked (the owner's decisions of 2026-11-20): every store it
+     * serves, the policy itself, its addresses freed; some of them, only those stores leave it, their addresses freed
+     * there. Once published it is only ever turned off, so every version a customer may have accepted stays.
+     *
+     * @param  list<string>  $picked  the stores to delete it from, each checked
      *
      * @throws ContentError|Unauthorized
      */
-    public function delete(string $id, int $version, array $checked): void
+    public function delete(string $id, int $version, array $picked, ?string $staffId = null): void
     {
-        $this->db->transaction(function () use ($id, $version, $checked): void {
+        $this->db->transaction(function () use ($id, $version, $picked, $staffId): void {
             $this->locks->lock(ContentLocks::ALL_STORES, ContentLocks::POLICIES);
             $was = $this->policies->lock($id) ?? throw new ContentNotFound;
-            $this->rules->stillMay($was, $checked);
             $this->check->version($version, $was->version, $was->updatedBy, $was->updatedAt, $this->firstStore($was));
+            $this->rules->within($was, $picked);
 
             // Once published, its versions are what customers accepted: it is only ever unpublished (owner, 2026-11-20).
             if ($was->wasPublished()) {
                 throw new PolicyNotDeletable;
+            }
+
+            $untouched = array_values(array_diff($was->stores, $picked));
+
+            if ($untouched !== []) {
+                $policy = $this->with($was, $was->status, $was->publishedAt, $was->textVersion, $staffId, Moments::now(), $untouched);
+                $this->policies->update($policy);
+                $this->history->forgetIn(self::KIND, $was->id, $picked);
+                $this->platform->recordAudit(ContentAudit::entry('content.policy.deleted_in', 'content.policy', $was->id, null, ContentAudit::diff(['stores' => implode(',', $was->stores)], ['stores' => implode(',', $untouched)])));
+                $this->cache->invalidate();
+
+                return;
             }
 
             $this->policies->delete($was->id);
@@ -292,6 +355,7 @@ final readonly class PolicyWriter
 
         if ($published) {
             $this->policies->addVersion(PolicyVersion::of($policy, 1, $now, $staffId));
+            $this->policies->settlePeriods($policy, $now);
         }
 
         $this->marks->saved(self::KIND, $policy->id, $storeIds[0], $input->translated, $input->read, $published);
@@ -315,6 +379,8 @@ final readonly class PolicyWriter
         $original = $this->with($was, $was->status, $was->publishedAt, $was->textVersion, $staffId, $now, $untouched);
         // The original first, so the copy's stores are no longer its own when the copy is checked against its kind.
         $this->policies->update($original);
+        // What was in force in the stores that moved ends there now; the copy's own version 1 starts with it.
+        $this->policies->settlePeriods($original, $now);
         $this->history->handOver(self::KIND, $was->id, $copyId, array_values(array_intersect($picked, $was->stores)));
         $this->create($copyId, $was->kind, $picked, ['texts' => $asked->texts, 'share' => ['ar' => $asked->shareAr, 'en' => $asked->shareEn]], $input, $staffId, $now, $was->isPublished(), AuditChanges::none()->changed('split_from', null, $was->id));
         $this->platform->recordAudit(ContentAudit::entry('content.policy.split', 'content.policy', $was->id, null, ContentAudit::diff(['stores' => implode(',', $was->stores)], ['stores' => implode(',', $untouched)])->changed('split_to', null, $copyId)));
@@ -347,14 +413,26 @@ final readonly class PolicyWriter
      */
     private function addresses(Policy $policy): void
     {
+        $taken = [];
+
         foreach ($policy->stores as $storeId) {
             foreach ($policy->texts as $locale => $text) {
                 $holder = $this->history->holder($storeId, self::KIND, $locale, $text->slug);
 
-                if ($holder !== null && $holder !== $policy->id) {
+                if ($holder === null || $holder === $policy->id) {
+                    continue;
+                }
+
+                if (! $this->switchedOffIn($holder, $storeId)) {
                     throw new SlugTaken($locale, $text->slug);
                 }
+
+                $taken[] = [$storeId, $locale, $text->slug];
             }
+        }
+
+        foreach ($taken as [$storeId, $locale, $slug]) {
+            $this->history->takeOver($storeId, self::KIND, $locale, $slug, $policy->id);
         }
 
         foreach ($policy->stores as $storeId) {
@@ -362,6 +440,19 @@ final readonly class PolicyWriter
                 $this->history->claim($storeId, self::KIND, $policy->id, $locale, $text->slug);
             }
         }
+    }
+
+    /**
+     * Whether the policy holding an address in a store was published once and is switched off there now: its address
+     * there is then free for another policy (the builder's pick of 2026-11-21, for the owner to confirm). Its old text
+     * stays readable by its own version link, and at the address itself until the new one is published. A draft never
+     * published keeps its addresses, as before: it can be edited or deleted instead.
+     */
+    private function switchedOffIn(string $holderId, string $storeId): bool
+    {
+        $holder = $this->policies->find($holderId);
+
+        return $holder !== null && $holder->wasPublished() && ! ($holder->isPublished() && in_array(strtolower($storeId), $holder->stores, true));
     }
 
     /**

@@ -579,6 +579,11 @@ past: boolean,
 current: string | null,
 address: ContentAddressData,
 head: ContentHeadData,
+kind: string,
+inForce: {
+from: string,
+until: string,
+}[],
 };
 export type ShopProjectsPageData = {
 projects: Record<string, any>[],

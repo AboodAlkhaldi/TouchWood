@@ -84,5 +84,7 @@ return [
     'policy.unpublished' => 'Policy unpublished',
     'policy.split' => 'Policy split: some of its stores given their own copy',
     'policy.deleted' => 'Policy deleted',
+    'policy.deleted_in' => 'Draft policy deleted in some of its stores',
+    'policy.turned_off' => 'Policy unpublished in some of its stores: they keep their own copy as a draft',
     'policy.image_detached' => 'Image removed from a policy',
 ];

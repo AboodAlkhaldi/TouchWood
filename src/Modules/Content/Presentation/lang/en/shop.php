@@ -37,11 +37,13 @@ return [
         'products' => 'Products Used',
         'back' => 'Projects',
     ],
-    // A policy's page (flags-2026-11.md S3.2, F15): when its text last changed; a kept version reached by its number.
+    // A policy's page (flags-2026-11.md S3.2, F15): when its text last changed. A text no longer valid in the store - a
+    // past version, or a policy switched off there - says so, with its dates there (the owner's decisions of 2026-11-20).
     'policy' => [
         'updated' => 'Last updated :date',
-        'past' => 'This is version :number of this policy, published :date.',
-        'current' => 'See the Current Version',
+        'old' => 'This is an old version of the :title. It is no longer valid.',
+        'in_force' => 'In force from :from to :to.',
+        'current' => 'Read the current :kind',
     ],
     'campaign' => [
         'ends' => 'Ends :date',

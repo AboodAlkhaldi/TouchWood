@@ -193,6 +193,54 @@ it('unpublishes a policy, refuses to delete one once published, and deletes a dr
     expect(DB::table('content.policies')->where('id', $draft)->exists())->toBeFalse();
 });
 
+it('unpublishes in the stores ticked: one of two lands on the switched-off copy, a refused store says so on the stores (owner, 2026-11-20)', function () {
+    $browser = policiesScreenEditor();
+    $browser->post('/admin/content/policies', policiesScreenFields(['intent' => 'publish']), Screen::fromPage('/admin/content/policies/new'));
+    $shared = policiesScreenLatest();
+    // Ahmed holds KSA alone: Egypt is not his to tick.
+    $ahmed = policiesScreenEditor(['sa']);
+
+    $browser = $ahmed;
+    $refused = $browser->post("/admin/content/policies/{$shared}/unpublish", ['version' => policiesScreenVersion($shared), 'stores' => [Fx::storeId('eg')]], Screen::fromPage("/admin/content/policies/{$shared}"));
+    expect(Screen::errors($refused)['form'] ?? '')->toContain('isn\'t one of your jobs')
+        ->and(DB::table('content.policies')->where('id', $shared)->value('status'))->toBe('PUBLISHED');
+
+    // A store it does not serve, ticked by one who holds it: said on the stores.
+    $unknown = policiesScreenEditor(['sa', 'ae'])->post("/admin/content/policies/{$shared}/unpublish", ['version' => policiesScreenVersion($shared), 'stores' => [Fx::storeId('ae')]], Screen::fromPage("/admin/content/policies/{$shared}"));
+    expect(Screen::errors($unknown))->toHaveKey('stores')
+        ->and(DB::table('content.policies')->count())->toBe(1);
+
+    $off = $browser->post("/admin/content/policies/{$shared}/unpublish", ['version' => policiesScreenVersion($shared), 'stores' => [Fx::storeId('sa')]], Screen::fromPage("/admin/content/policies/{$shared}"));
+    $copy = (string) DB::table('content.policies')->where('id', '<>', $shared)->value('id');
+
+    $off->assertRedirect("/admin/content/policies/{$copy}");
+    expect(AdminBrowser::flashed($off, 'status'))->toBe(__('content::admin_policies.turned_off'))
+        ->and(DB::table('content.policies')->where('id', $copy)->value('status'))->toBe('DRAFT')
+        ->and(DB::table('content.policies')->where('id', $shared)->value('status'))->toBe('PUBLISHED')
+        ->and(DB::table('content.policy_stores')->where('policy_id', $shared)->pluck('store_id')->all())->toBe([Fx::storeId('eg')]);
+
+    // The copy's page, his: KSA ticked, nothing else served.
+    $browser->get("/admin/content/policies/{$copy}")->assertOk()->assertInertia(fn (AssertableInertia $screen) => $screen
+        ->where('policy.stores', [Fx::storeId('sa')])
+        ->where('policy.textVersion', 0)
+        ->where('otherStores', []));
+});
+
+it('deletes a draft in the stores ticked: some keep the person on its page, all of them back to the list (owner, 2026-11-20)', function () {
+    $browser = policiesScreenEditor(['sa', 'eg', 'ae']);
+    $browser->post('/admin/content/policies', policiesScreenFields([], ['sa', 'eg', 'ae']), Screen::fromPage('/admin/content/policies/new'));
+    $draft = policiesScreenLatest();
+
+    $some = $browser->post("/admin/content/policies/{$draft}/delete", ['version' => 1, 'stores' => [Fx::storeId('ae')]], Screen::fromPage("/admin/content/policies/{$draft}"));
+    $some->assertRedirect("/admin/content/policies/{$draft}");
+    expect(AdminBrowser::flashed($some, 'status'))->toBe(__('content::admin_policies.deleted_in'))
+        ->and(DB::table('content.policy_stores')->where('policy_id', $draft)->count())->toBe(2);
+
+    $all = $browser->post("/admin/content/policies/{$draft}/delete", ['version' => 2, 'stores' => [Fx::storeId('sa'), Fx::storeId('eg')]], Screen::fromPage("/admin/content/policies/{$draft}"));
+    $all->assertRedirect('/admin/content/policies?tab=draft');
+    expect(DB::table('content.policies')->where('id', $draft)->exists())->toBeFalse();
+});
+
 it('uploads an image under the job only', function () {
     Storage::fake('local');
     Storage::fake('public');

@@ -12,7 +12,11 @@ use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Repository\Policies;
 use Shared\Application\Unauthorized;
 
-/** Unpublishes a policy (flags-2026-11.md S3.1): back to a draft, its versions kept. The job in every store it serves. */
+/**
+ * Unpublishes a policy (flags-2026-11.md S3.1) in the stores picked (the owner's decisions of 2026-11-20): all of them,
+ * back to a draft, its versions kept; some, those stores leave it into a switched-off copy of their own
+ * (`PolicyWriter::unpublish`). The job in each store picked; one it does not serve is refused.
+ */
 final readonly class UnpublishPolicyHandler
 {
     public const string PERMISSION = ContentPermissions::POLICY_MANAGE;
@@ -27,15 +31,16 @@ final readonly class UnpublishPolicyHandler
     /**
      * @throws ContentError|Unauthorized
      */
-    public function handle(UnpublishPolicy $command): void
+    public function handle(UnpublishPolicy $command): ?string
     {
         $this->access->holds(self::PERMISSION);
-        $checked = $this->rules->served($this->policies->find($command->id));
+        $served = $this->rules->served($this->policies->find($command->id));
+        $picked = $command->storeIds === null ? $served : $this->rules->picked($command->storeIds);
 
-        foreach ($checked as $storeId) {
+        foreach ($picked as $storeId) {
             $this->access->authorize(self::PERMISSION, $storeId);
         }
 
-        $this->writer->unpublish($command->id, $command->version, $checked, $this->access->staffId());
+        return $this->writer->unpublish($command->id, $command->version, $picked, $this->access->staffId());
     }
 }

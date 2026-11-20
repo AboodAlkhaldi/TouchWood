@@ -38,9 +38,28 @@ interface ShopDocuments
      * `$images` its body's files are not read (empty): a kept version brings its own (`policyVersion`).
      *
      * @param  'ar'|'en'  $locale
-     * @return array{id: string, title: string, slug: string, otherSlug: string|null, body: array<string, mixed>, seoTitle: string|null, seoDescription: string|null, shareMediaId: string|null, version: int, updatedAt: DateTimeImmutable|null, images: list<array{ref: int, mediaId: string, alt: string|null}>}|null
+     * @return array{id: string, kind: string, title: string, slug: string, otherSlug: string|null, body: array<string, mixed>, seoTitle: string|null, seoDescription: string|null, shareMediaId: string|null, version: int, updatedAt: DateTimeImmutable|null, images: list<array{ref: int, mediaId: string, alt: string|null}>}|null
      */
     public function policy(string $storeId, string $locale, string $slug, bool $images = true): ?array;
+
+    /**
+     * When a version of a policy was in force in this store and is no longer (the owner's decisions of 2026-11-20): each
+     * period there, in order, from and to, with the addresses it had. Empty when that version was never in force there,
+     * or still is.
+     *
+     * @return list<array{from: DateTimeImmutable, until: DateTimeImmutable, slugAr: string, slugEn: string}>
+     */
+    public function policyPeriods(string $storeId, string $policyId, int $number): array;
+
+    /**
+     * The text last in force in this store at this address in this language and in force no more (the owner's decisions
+     * of 2026-11-20: a past version, or a policy switched off there) - of the version and the policy asked, when asked:
+     * its policy, kind, number and periods there, as `policyPeriods`. Null when there is none.
+     *
+     * @param  'ar'|'en'  $locale
+     * @return array{id: string, kind: string, number: int, periods: list<array{from: DateTimeImmutable, until: DateTimeImmutable, slugAr: string, slugEn: string}>}|null
+     */
+    public function pastPolicy(string $storeId, string $locale, string $slug, ?int $number, ?string $policyId): ?array;
 
     /**
      * One kept text of a policy by its number (S3.2, F14; owner 2026-11-20: reached at `?version=N`), in this language:

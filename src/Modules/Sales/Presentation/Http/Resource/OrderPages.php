@@ -249,23 +249,26 @@ final readonly class OrderPages
     }
 
     /**
-     * "Terms v3, accepted …" (flags-2026-11.md S3.3, F16), each version linking to its text in the shop: the policy's
-     * address now, in the reader's language - found among the store's published policies by its id, as Sales asks only
-     * Platform's `ShopPolicies` (owner, 2026-11-20) - with `?version=`. One read of the store's policies.
+     * "Terms v3, accepted …" (flags-2026-11.md S3.3, F16), each version linking to its text in the shop: where that
+     * version was read in the order's store, in the reader's language, with `?version=` and `?policy=` - found through
+     * Platform's `ShopPolicies`, as Sales asks only it (owner, 2026-11-20). The link stays once the policy is switched
+     * off there, since the page then opens labelled as old (the owner's decisions of 2026-11-20). One read.
      */
     private function terms(AcceptedTerms $terms, string $storeId, ?StoreDto $store): OrderTermsData
     {
-        $slugs = [];
+        $versions = [[$terms->policyId, $terms->version]];
 
-        foreach ($this->policies->allPublished(StoreId::fromString($storeId), $this->locale()) as $policy) {
-            $slugs[strtolower($policy->policyId)] = $policy->slug;
+        if ($terms->returnsPolicyId !== null && $terms->returnsVersion !== null) {
+            $versions[] = [$terms->returnsPolicyId, $terms->returnsVersion];
         }
 
-        $link = function (?string $policyId, ?int $version) use ($slugs, $store): ?string {
-            $slug = $policyId === null ? null : ($slugs[$policyId] ?? null);
+        $slugs = $this->policies->versionAddresses(StoreId::fromString($storeId), $versions, $this->locale());
 
-            return $slug === null || $version === null || $store === null ? null : route('storefront.content.policy', [
-                'store' => strtolower($store->code), 'locale' => $this->locale(), 'slug' => $slug, 'version' => $version,
+        $link = function (?string $policyId, ?int $version) use ($slugs, $store): ?string {
+            $slug = $policyId === null || $version === null ? null : ($slugs["{$policyId}:{$version}"] ?? null);
+
+            return $slug === null || $store === null ? null : route('storefront.content.policy', [
+                'store' => strtolower($store->code), 'locale' => $this->locale(), 'slug' => $slug, 'version' => $version, 'policy' => $policyId,
             ]);
         };
 

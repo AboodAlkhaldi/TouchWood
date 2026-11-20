@@ -158,42 +158,154 @@ final readonly class ShopPagesController
 
     /**
      * A policy (flags-2026-11.md S3.1, S3.2): the one published in this store at this address, "Last updated" with the
-     * moment its text was published (F15). `?version=N` (owner, 2026-11-20) shows that kept text - its title, body and
-     * images - with a line naming it and a link to the current one, kept out of search engines (the builder's pick); the
-     * current number shows the current page. A number it never had, anything but a number, or a policy this store has
-     * not published is the shop's 404; an old address forwards (301) as a page's does, the version asked kept.
+     * moment its text was published (F15). `?version=N` (owner, 2026-11-20) shows that kept text; the current number shows
+     * the current page; anything but a number is the shop's 404.
+     *
+     * **A text no longer valid stays readable** (the owner's decisions of 2026-11-20): a past version, or the text of a
+     * policy switched off in this store, opens labelled as old - the dates it was in force in this store and a link to the
+     * store's current policy of its kind, if any - kept out of search engines, the sitemap and the footer. `?policy=<id>`
+     * names the policy a version belongs to (the builder's pick: after a split, a turn-off or an address taken, two
+     * policies' version 3 may have been read at one address in one store); the staff's order page links that way. Only a
+     * version that was in force in this store opens; one never published, never.
+     *
+     * A plain address forwards (301) to where its policy is now, as a page's does, before an old text is looked for; an
+     * address asking for a version looks for it first, then forwards, the version asked kept.
      */
     public function policy(Request $request, PlatformApi $platform, ShopFrameOfRequest $frame): Response
     {
         $store = self::store($request);
         $locale = self::locale();
         $slug = self::slug($request);
-        $asked = $request->query('version');
-        $number = null;
-
-        if ($asked !== null) {
-            if (! is_string($asked) || preg_match('/\A[1-9][0-9]{0,8}\z/', $asked) !== 1) {
-                throw new NotFoundHttpException;
-            }
-
-            $number = (int) $asked;
-        }
-
-        // A version asked is read with its own text and files (the current number's are the current text's): two reads
-        // either way.
+        $number = self::askedNumber($request);
+        $pinned = self::askedPolicy($request);
+        // A version asked is read with its own text and files (the current number's are the current text's).
         $found = $this->documents->policy($store->id, $locale, $slug, images: $number === null);
 
-        if ($found === null) {
-            return $this->movedOrMissing($request, $store, 'POLICY', $locale, $slug, 'storefront.content.policy', fn (string $itemId, string $in): ?string => $this->documents->currentPolicySlug($store->id, $itemId, $in));
+        if ($found !== null && ($pinned === null || $pinned === $found['id'])) {
+            if ($number === null || $number === $found['version']) {
+                $there = $found['otherSlug'] === null ? null : ['slug' => $found['otherSlug']];
+
+                return $this->policyPage($request, $platform, $frame, $store, $locale, [
+                    'title' => $found['title'], 'body' => $found['body'], 'images' => $found['images'], 'version' => $found['version'],
+                    'updatedAt' => $found['updatedAt'], 'kind' => $found['kind'], 'past' => false, 'current' => null, 'inForce' => [],
+                    'address' => self::address('storefront.content.policy', $locale, ['slug' => $found['slug']], $there, false),
+                    'seoTitle' => $found['seoTitle'], 'seoDescription' => $found['seoDescription'], 'shareMediaId' => $found['shareMediaId'],
+                ]);
+            }
+
+            $periods = $this->documents->policyPeriods($store->id, $found['id'], $number);
+
+            if ($periods === []) {
+                // A number alone the current policy never had here: another policy's text once read at this address with
+                // that number (one switched off or split away before this one took the address), else nothing.
+                $other = $pinned === null ? $this->documents->pastPolicy($store->id, $locale, $slug, $number, null) : null;
+
+                if ($other === null || $other['id'] === $found['id']) {
+                    throw new NotFoundHttpException;
+                }
+
+                $current = self::currentOfKind($frame->of($request, $store, $locale)['kept'], $other['kind'], $other['id']);
+
+                return $this->pastPolicyPage($request, $platform, $frame, $store, $locale, $other['id'], $other['kind'], $other['number'], $other['periods'], $current, null);
+            }
+
+            $current = route('storefront.content.policy', ['slug' => $found['slug']]);
+
+            return $this->pastPolicyPage($request, $platform, $frame, $store, $locale, $found['id'], $found['kind'], $number, $periods, $current, $found['shareMediaId']);
         }
 
-        $past = $number !== null && $number !== $found['version'];
-        $shown = $number === null ? null : ($this->documents->policyVersion($found['id'], $number, $locale) ?? throw new NotFoundHttpException);
-        $title = $shown['title'] ?? $found['title'];
-        $body = $shown['body'] ?? $found['body'];
-        $bodyImages = $shown['images'] ?? $found['images'];
-        $updatedAt = $shown === null ? $found['updatedAt'] : $shown['publishedAt'];
-        $urls = self::urls($platform, [$found['shareMediaId'], ...array_map(static fn (array $image): string => $image['mediaId'], $bodyImages)]);
+        // An address asking for a version: that version first. A plain one: where its policy is now first.
+        $explicit = $number !== null || $pinned !== null;
+        $past = $explicit ? $this->documents->pastPolicy($store->id, $locale, $slug, $number, $pinned) : null;
+
+        if ($past === null) {
+            $moved = $this->movedTo($request, $store, 'POLICY', $locale, $slug, 'storefront.content.policy', fn (string $itemId, string $in): ?string => $this->documents->currentPolicySlug($store->id, $itemId, $in));
+
+            if ($moved !== null) {
+                return $moved;
+            }
+
+            $past = $explicit ? null : $this->documents->pastPolicy($store->id, $locale, $slug, null, null);
+        }
+
+        if ($past === null) {
+            throw new NotFoundHttpException;
+        }
+
+        $current = self::currentOfKind($frame->of($request, $store, $locale)['kept'], $past['kind'], $past['id']);
+
+        return $this->pastPolicyPage($request, $platform, $frame, $store, $locale, $past['id'], $past['kind'], $past['number'], $past['periods'], $current, null);
+    }
+
+    /**
+     * A text no longer in force in this store, labelled as old (the owner's decisions of 2026-11-20): its version's words
+     * and files, the dates it was in force here (periods one after another read as one), the current policy's link.
+     *
+     * @param  'ar'|'en'  $locale
+     * @param  list<array{from: \DateTimeImmutable, until: \DateTimeImmutable, slugAr: string, slugEn: string}>  $periods  at least one
+     */
+    private function pastPolicyPage(Request $request, PlatformApi $platform, ShopFrameOfRequest $frame, StoreDto $store, string $locale, string $policyId, string $kind, int $number, array $periods, ?string $current, ?string $shareMediaId): Response
+    {
+        $shown = $this->documents->policyVersion($policyId, $number, $locale) ?? throw new NotFoundHttpException;
+        $inForce = [];
+
+        foreach ($periods as $period) {
+            $last = count($inForce) - 1;
+
+            if ($last >= 0 && $inForce[$last]['until'] == $period['from']) {
+                $inForce[$last]['until'] = $period['until'];
+
+                continue;
+            }
+
+            $inForce[] = ['from' => $period['from'], 'until' => $period['until']];
+        }
+
+        // Its own address: the one it had here last, in each language, the version and the policy named.
+        $lastPeriod = $periods[count($periods) - 1];
+        $query = ['version' => (string) $number, 'policy' => $policyId];
+        $here = route('storefront.content.policy', ['slug' => $locale === 'ar' ? $lastPeriod['slugAr'] : $lastPeriod['slugEn'], ...$query]);
+        $other = self::other($locale);
+        $there = route('storefront.content.policy', ['locale' => $other, 'slug' => $other === 'ar' ? $lastPeriod['slugAr'] : $lastPeriod['slugEn'], ...$query]);
+
+        return $this->policyPage($request, $platform, $frame, $store, $locale, [
+            'title' => $shown['title'], 'body' => $shown['body'], 'images' => $shown['images'], 'version' => $number,
+            'updatedAt' => $shown['publishedAt'], 'kind' => $kind, 'past' => true, 'current' => $current,
+            'inForce' => array_map(static fn (array $period): array => ['from' => $period['from']->format(DATE_ATOM), 'until' => $period['until']->format(DATE_ATOM)], $inForce),
+            // Kept out of search engines; the current text, when there is one, is the page they should know.
+            'address' => new ContentAddressData($current ?? $here, $there, $other, true),
+            'seoTitle' => null, 'seoDescription' => null, 'shareMediaId' => $shareMediaId,
+        ]);
+    }
+
+    /**
+     * The store's current policy of a kind, from the frame's copy (no query): the one published there; for Other, of
+     * which a store may publish several, only the same policy while it is published there.
+     *
+     * @param  array<string, mixed>  $kept
+     */
+    private static function currentOfKind(array $kept, string $kind, string $policyId): ?string
+    {
+        foreach (is_array($kept['policies'] ?? null) ? $kept['policies'] : [] as $policy) {
+            if (! is_array($policy) || ($policy['kind'] ?? null) !== $kind || ($kind === 'OTHER' && ($policy['id'] ?? null) !== $policyId)) {
+                continue;
+            }
+
+            return route('storefront.content.policy', ['slug' => (string) ($policy['slug'] ?? '')]);
+        }
+
+        return null;
+    }
+
+    /**
+     * A policy's page, current or past.
+     *
+     * @param  array{title: string, body: array<string, mixed>, images: list<array{ref: int, mediaId: string, alt: string|null}>, version: int, updatedAt: \DateTimeImmutable|null, kind: string, past: bool, current: string|null, inForce: list<array{from: string, until: string}>, address: ContentAddressData, seoTitle: string|null, seoDescription: string|null, shareMediaId: string|null}  $page
+     */
+    private function policyPage(Request $request, PlatformApi $platform, ShopFrameOfRequest $frame, StoreDto $store, string $locale, array $page): Response
+    {
+        $bodyImages = $page['images'];
+        $urls = self::urls($platform, [$page['shareMediaId'], ...array_map(static fn (array $image): string => $image['mediaId'], $bodyImages)]);
         $sizes = $bodyImages === [] ? [] : $platform->mediaOf(array_map(static fn (array $image): string => $image['mediaId'], $bodyImages));
         $images = [];
 
@@ -207,24 +319,55 @@ final readonly class ShopPagesController
         }
 
         $seo = ContentFrame::seo($frame->of($request, $store, $locale)['kept']);
+        $body = $page['body'];
         $blocks = is_array($body['blocks'] ?? null) ? array_values(array_filter($body['blocks'], 'is_array')) : [];
-        $here = ['slug' => $found['slug'], ...($past ? ['version' => (string) $number] : [])];
-        $there = $found['otherSlug'] === null ? null : ['slug' => $found['otherSlug'], ...($past ? ['version' => (string) $number] : [])];
+        $title = $page['title'];
 
         return $this->page->render('Content/Storefront/Policy', (new ShopPolicyPageData(
             $title,
             $blocks,
             $images,
-            $number ?? $found['version'],
-            $updatedAt?->format(DATE_ATOM),
-            $past,
-            $past ? route('storefront.content.policy', ['slug' => $found['slug']]) : null,
-            // A past version names the current address as its own and stays out of search engines.
-            $past
-                ? new ContentAddressData(route('storefront.content.policy', ['slug' => $found['slug']]), $there === null ? null : route('storefront.content.policy', ['locale' => self::other($locale), ...$there]), $there === null ? null : self::other($locale), true)
-                : self::address('storefront.content.policy', $locale, $here, $there, false),
-            new ContentHeadData(self::titled($seo, $past ? $title : ($found['seoTitle'] ?? $title)), $found['seoDescription'] ?? $seo['description'], self::shareImage($urls[$found['shareMediaId'] ?? ''] ?? $seo['image'])),
-        ))->toArray(), self::WORDS)->toResponse($request);
+            $page['version'],
+            $page['updatedAt']?->format(DATE_ATOM),
+            $page['past'],
+            $page['current'],
+            $page['address'],
+            new ContentHeadData(self::titled($seo, $page['past'] ? $title : ($page['seoTitle'] ?? $title)), $page['seoDescription'] ?? $seo['description'], self::shareImage($urls[$page['shareMediaId'] ?? ''] ?? $seo['image'])),
+            $page['kind'],
+            $page['inForce'],
+        ))->toArray(), [...self::WORDS, 'content::policies'])->toResponse($request);
+    }
+
+    /** `?version=N`: a number from 1, written one way only; anything else is no page (404). */
+    private static function askedNumber(Request $request): ?int
+    {
+        $asked = $request->query('version');
+
+        if ($asked === null) {
+            return null;
+        }
+
+        if (! is_string($asked) || preg_match('/\A[1-9][0-9]{0,8}\z/', $asked) !== 1) {
+            throw new NotFoundHttpException;
+        }
+
+        return (int) $asked;
+    }
+
+    /** `?policy=<id>`: a policy's id; anything but one text is no page (404), and a text no policy has finds none. */
+    private static function askedPolicy(Request $request): ?string
+    {
+        $asked = $request->query('policy');
+
+        if ($asked === null) {
+            return null;
+        }
+
+        if (! is_string($asked)) {
+            throw new NotFoundHttpException;
+        }
+
+        return strtolower($asked);
     }
 
     public function blog(Request $request, PlatformApi $platform, ShopFrameOfRequest $frame): Response
@@ -414,6 +557,12 @@ final readonly class ShopPagesController
      */
     private function movedOrMissing(Request $request, StoreDto $store, string $kind, string $locale, string $slug, string $route, callable $current): RedirectResponse
     {
+        return $this->movedTo($request, $store, $kind, $locale, $slug, $route, $current) ?? throw new NotFoundHttpException;
+    }
+
+    /** The permanent move to where the item holding the address now is, or null when it is nowhere now. */
+    private function movedTo(Request $request, StoreDto $store, string $kind, string $locale, string $slug, string $route, callable $current): ?RedirectResponse
+    {
         foreach ([$locale, self::other($locale)] as $held) {
             $itemId = $this->slugs->holder($store->id, $kind, $held, $slug);
             $now = $itemId === null ? null : $current(strtolower($itemId), $locale);
@@ -423,7 +572,7 @@ final readonly class ShopPagesController
             }
         }
 
-        throw new NotFoundHttpException;
+        return null;
     }
 
     /**

@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Schema;
 | - `terms_version`, the version a staff member typed into `access.customer.terms_version`, is kept for the accounts
 |   made before: it is what they accepted, and is history now. New accounts leave it empty.
 | - `terms_policy_id` and `terms_policy_version` name the policy and the version accepted; empty for the accounts
-|   made before, and for one made while its store had no published terms (the builder's pick: sign-up is not refused).
+|   made before, and for one made while its store had no published terms (the owner, 2026-11-20: sign-up is not refused).
 |   The Customer object holds the rule (both or neither, a version of 1 or more); no CHECK repeats it.
 | - `privacy_policy_id` and `privacy_policy_version`, the same for the store's Privacy Policy, which the same tick
 |   accepts (owner, 2026-11-20).

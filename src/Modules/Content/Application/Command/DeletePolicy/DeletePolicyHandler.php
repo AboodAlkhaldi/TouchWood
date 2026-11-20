@@ -14,7 +14,8 @@ use Shared\Application\Unauthorized;
 
 /**
  * Deletes a policy never published (flags-2026-11.md S3.1; owner, 2026-11-20): once published it is only unpublished,
- * so every version stays (`PolicyNotDeletable`); its addresses are freed. The job in every store it serves.
+ * so every version stays (`PolicyNotDeletable`); its addresses are freed. In the stores picked (the owner's decisions of
+ * 2026-11-20): all of them deletes it, some take those stores off it. The job in each store picked.
  */
 final readonly class DeletePolicyHandler
 {
@@ -33,12 +34,13 @@ final readonly class DeletePolicyHandler
     public function handle(DeletePolicy $command): void
     {
         $this->access->holds(self::PERMISSION);
-        $checked = $this->rules->served($this->policies->find($command->id));
+        $served = $this->rules->served($this->policies->find($command->id));
+        $picked = $command->storeIds === null ? $served : $this->rules->picked($command->storeIds);
 
-        foreach ($checked as $storeId) {
+        foreach ($picked as $storeId) {
             $this->access->authorize(self::PERMISSION, $storeId);
         }
 
-        $this->writer->delete($command->id, $command->version, $checked);
+        $this->writer->delete($command->id, $command->version, $picked, $this->access->staffId());
     }
 }

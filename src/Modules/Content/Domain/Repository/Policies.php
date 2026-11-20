@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Content\Domain\Repository;
 
+use DateTimeImmutable;
 use Modules\Content\Domain\Model\Policy;
 use Modules\Content\Domain\Model\PolicyKind;
 use Modules\Content\Domain\Model\PolicyVersion;
@@ -45,4 +46,12 @@ interface Policies
 
     /** Keeps a published text, with its images by key; a version is never changed after. */
     public function addVersion(PolicyVersion $version): void;
+
+    /**
+     * Brings the policy's record of what is in force in each store up to it, as of this moment (the owner's decisions of
+     * 2026-11-20): while published, each store it serves has its current version in force at its addresses now - a row
+     * opened where none is; every other row of it still open (a store turned off or taken off, an earlier version, an
+     * address since changed, the policy unpublished) is ended. Called after the policy and its version are written.
+     */
+    public function settlePeriods(Policy $policy, DateTimeImmutable $at): void;
 }

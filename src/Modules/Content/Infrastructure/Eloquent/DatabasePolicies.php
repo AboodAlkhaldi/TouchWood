@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Modules\Content\Infrastructure\Eloquent;
 
+use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Str;
 use Modules\Content\Domain\Model\Policy;
 use Modules\Content\Domain\Model\PolicyKind;
 use Modules\Content\Domain\Model\PolicyText;
@@ -140,6 +142,49 @@ final readonly class DatabasePolicies implements Policies
                 }
             }
         });
+    }
+
+    public function settlePeriods(Policy $policy, DateTimeImmutable $at): void
+    {
+        $id = strtolower($policy->id);
+        $wanted = [];
+
+        if ($policy->isPublished()) {
+            $slugs = ['slug_ar' => $policy->text('ar')?->slug, 'slug_en' => $policy->text('en')?->slug];
+
+            if ($slugs['slug_ar'] === null || $slugs['slug_en'] === null) {
+                throw new \LogicException('A published policy has both languages.');
+            }
+
+            foreach ($policy->stores as $store) {
+                $wanted[strtolower($store)] = ['number' => $policy->textVersion, ...$slugs];
+            }
+        }
+
+        foreach ($this->db->table('content.policy_periods')->where('policy_id', $id)->whereNull('ended_at')->get() as $row) {
+            /** @var stdClass $row */
+            $store = (string) $row->store_id;
+            $want = $wanted[$store] ?? null;
+
+            if ($want !== null && (int) $row->number === $want['number'] && (string) $row->slug_ar === $want['slug_ar'] && (string) $row->slug_en === $want['slug_en']) {
+                // Still in force as it is: nothing to open there.
+                unset($wanted[$store]);
+
+                continue;
+            }
+
+            $this->db->table('content.policy_periods')->where('id', $row->id)->update(['ended_at' => Rows::at($at)]);
+        }
+
+        foreach ($wanted as $store => $want) {
+            $this->db->table('content.policy_periods')->insert([
+                'id' => strtolower((string) Str::ulid()),
+                'policy_id' => $id,
+                'store_id' => $store,
+                'started_at' => Rows::at($at),
+                ...$want,
+            ]);
+        }
     }
 
     /**

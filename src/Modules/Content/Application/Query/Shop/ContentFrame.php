@@ -275,11 +275,14 @@ final readonly class ContentFrame
      * gave: each one's title and address in the language asked, the Arabic where it has no English.
      *
      * @param  list<array<string, mixed>>  $policies  `ShopReads::policies()`'s rows
-     * @return list<array{title: string, slug: string}>
+     * @return list<array{id: string, kind: string, title: string, slug: string}>
      */
     public static function policies(array $policies, string $locale): array
     {
+        // Its id and kind kept too: a policy's old text links the store's current one of its kind (owner, 2026-11-20).
         return array_map(static fn (array $policy): array => [
+            'id' => (string) ($policy['id'] ?? ''),
+            'kind' => (string) ($policy['kind'] ?? ''),
             'title' => self::text($policy["title_{$locale}"] ?? null) ?? (string) $policy['title_ar'],
             'slug' => self::text($policy["slug_{$locale}"] ?? null) ?? (string) $policy['slug_ar'],
         ], $policies);

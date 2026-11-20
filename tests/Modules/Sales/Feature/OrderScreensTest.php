@@ -335,7 +335,10 @@ describe('P2 · An order', function () {
         // 19 since 2026-11-20 (flags-2026-11.md S3.3, F16): the terms the order was placed under link to their text, the
         // policy's address found among the store's published ones through Platform's ShopPolicies - Content's cache,
         // its version and copy (no choice: Sales may not read Content, and the address follows the policy's).
-        expect(orderScreensOwnQueries($browser, "/admin/orders/{$order}"))->toBe(19)
+        // 18 since 2026-11-21 (the owner's decisions of 2026-11-20): the link is where that version was read in the store,
+        // so it stays once the policy is switched off - one read of its record (ShopPolicies::versionAddresses), never
+        // cached, in place of the cache's two.
+        expect(orderScreensOwnQueries($browser, "/admin/orders/{$order}"))->toBe(18)
             ->and(orderScreensOwnQueries($browser, '/admin/orders'))->toBe($one)
             ->and($one)->toBe(6);
     });

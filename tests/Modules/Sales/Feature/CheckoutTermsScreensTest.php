@@ -278,15 +278,16 @@ describe('P2 · The terms on the order (F16)', function () {
         expect([$order->terms_policy_id, (int) $order->terms_version])->toBe([$terms, 1])
             ->and($page['terms']['version'])->toBe(1)
             ->and($page['terms']['acceptedAt'])->toBe(CarbonImmutable::parse((string) $order->terms_accepted_at)->utc()->format('Y-m-d\TH:i:s.vP'))
-            ->and($page['terms']['url'])->toEndWith('/sa/en/policies/'.checkoutTermsScreensSlug(PolicyKind::Terms, 'en').'?version=1')
+            ->and($page['terms']['url'])->toEndWith('/sa/en/policies/'.checkoutTermsScreensSlug(PolicyKind::Terms, 'en')."?version=1&policy={$terms}")
             ->and([$page['terms']['returnsVersion'], $page['terms']['returnsUrl']])->toBe([null, null]);
     });
 
-    it('keeps the line, with no link, once the policy is no longer published, and shows nothing on an order from before', function () {
+    it('keeps the line and its link once the policy is no longer published (its page then opens labelled as old, owner 2026-11-20), and shows nothing on an order from before', function () {
         [$browser, $ready, $terms] = checkoutTermsScreensCustomer();
         $checkout = checkoutTermsScreensProps($browser, '/sa/en/checkout', 'Sales/Storefront/Checkout');
         $browser->post('/sa/en/checkout/place', ['quote' => $checkout['quoteId'], 'agreed' => true, ...Cx::shownSent()]);
         $order = (string) DB::table('sales.orders')->where('customer_id', $ready['customer'])->value('id');
+        $slug = checkoutTermsScreensSlug(PolicyKind::Terms, 'en');
         checkoutTermsScreensAsAdmin(fn () => app(UnpublishPolicyHandler::class)->handle(new UnpublishPolicy($terms, (int) DB::table('content.policies')->where('id', $terms)->value('version'))));
         $staff = checkoutTermsScreensStaff();
 
@@ -294,7 +295,8 @@ describe('P2 · The terms on the order (F16)', function () {
         DB::table('sales.orders')->where('id', $order)->update(['terms_policy_id' => null, 'terms_version' => null, 'terms_accepted_at' => null]);
         $before = checkoutTermsScreensProps($staff, "/admin/orders/{$order}", 'Sales/Admin/Orders/Show');
 
-        expect([$unpublished['terms']['version'], $unpublished['terms']['url']])->toBe([1, null])
+        expect($unpublished['terms']['version'])->toBe(1)
+            ->and($unpublished['terms']['url'])->toEndWith("/sa/en/policies/{$slug}?version=1&policy={$terms}")
             ->and($before['terms'])->toBeNull();
     });
 });

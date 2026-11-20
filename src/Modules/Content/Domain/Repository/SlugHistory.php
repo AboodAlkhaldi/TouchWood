@@ -34,6 +34,12 @@ interface SlugHistory
     public function handOver(string $kind, string $fromItemId, string $toItemId, array $storeIds): void;
 
     /**
+     * Gives one address in one store to another item: a policy taking the address of one switched off there (the
+     * builder's pick of 2026-11-21, for the owner to confirm), whose old text stays readable by its own version link.
+     */
+    public function takeOver(string $storeId, string $kind, string $locale, string $slug, string $toItemId): void;
+
+    /**
      * Frees the item's addresses in these stores: a store taken off a policy is left without it, its addresses free.
      *
      * @param  list<string>  $storeIds

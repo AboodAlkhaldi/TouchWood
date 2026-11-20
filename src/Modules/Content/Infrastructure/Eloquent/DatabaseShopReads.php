@@ -169,6 +169,33 @@ final readonly class DatabaseShopReads implements ShopReads
         ], $rows);
     }
 
+    public function policyVersionSlugs(string $storeId, array $versions): array
+    {
+        if ($versions === []) {
+            return [];
+        }
+
+        $rows = $this->db->table('content.policy_periods')
+            ->where('store_id', strtolower($storeId))
+            ->where(function ($query) use ($versions): void {
+                foreach ($versions as [$policyId, $number]) {
+                    $query->orWhere(fn ($one) => $one->where('policy_id', strtolower($policyId))->where('number', $number));
+                }
+            })
+            ->orderBy('started_at')
+            ->get(['policy_id', 'number', 'slug_ar', 'slug_en'])
+            ->all();
+        $slugs = [];
+
+        // In start order: the last one read wins.
+        foreach ($rows as $row) {
+            /** @var stdClass $row */
+            $slugs[strtolower((string) $row->policy_id).':'.(int) $row->number] = ['ar' => (string) $row->slug_ar, 'en' => (string) $row->slug_en];
+        }
+
+        return $slugs;
+    }
+
     public function previewTheme(string $themeId, string $storeId): ?array
     {
         $theme = $this->db->selectOne(
