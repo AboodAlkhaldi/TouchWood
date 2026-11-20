@@ -105,6 +105,18 @@ function supportScreensSaved(string $customerId, string $productId): void
     DB::table('feedback.wishlist_items')->insert(['customer_id' => $customerId, 'product_id' => $productId, 'store_id' => Fx::storeId('sa'), 'saved_at' => CarbonImmutable::now()]);
 }
 
+/**
+ * The shop's product page for a product link a page carries (storefront.catalog.product), in the language the link
+ * itself is in: `/{store}/{locale}/products/{slug}`.
+ */
+function supportScreensProductPath(string $productId, string $href): string
+{
+    $locale = explode('/', $href)[2] ?? '';
+    $slug = (string) DB::table('catalog.product_slugs')->where('product_id', $productId)->where('locale', $locale)->where('is_current', true)->value('slug');
+
+    return route('storefront.catalog.product', ['store' => 'sa', 'locale' => $locale, 'slug' => $slug], false);
+}
+
 function supportScreensOwnQueries(AdminBrowser $browser, string $uri): int
 {
     $browser->get($uri)->assertOk();
@@ -134,7 +146,11 @@ describe('F1 · Reviews', function () {
 
         $props = supportScreensProps(supportScreens([FeedbackPermissions::REVIEW_MODERATE]), '/admin/reviews', 'Feedback/Admin/Reviews');
 
+        $href = (string) $props['reviews'][0]['product']['href'];
+
         expect(array_column($props['reviews'], 'id'))->toBe([$older, $newer])
+            // The product's link is the shop's product page, not a 404 (found 2026-11-20).
+            ->and($href)->toBe(supportScreensProductPath($sold['product'], $href))
             ->and($props['reviews'][0]['author'])->toBe(['firstName' => 'Amal', 'lastInitial' => 'S', 'deleted' => false])
             ->and([$props['status'], $props['mayAct'], $props['storeCode']])->toBe(['PENDING', true, 'sa']);
     });
@@ -297,7 +313,11 @@ describe('F4 · A customer\'s wishlist on the staff customer page', function () 
         $other = supportScreensProps(supportScreens([AccessPermissions::CUSTOMER_VIEW]), "/admin/customers/{$customer}", 'Access/Admin/Customers/Show');
         $wishlist = static fn (array $props): array => array_values(array_filter((array) $props['sections'], static fn (mixed $section): bool => is_array($section) && $section['key'] === 'wishlist'));
 
+        $href = (string) ($wishlist($reader)[0]['data']['stores'][0]['items'][0]['product']['href'] ?? '');
+
         expect($wishlist($reader)[0]['data']['stores'][0]['items'][0]['product']['id'] ?? null)->toBe($product)
+            // The product's link is the shop's product page, not a 404 (found 2026-11-20).
+            ->and($href)->toBe(supportScreensProductPath($product, $href))
             ->and($wishlist($other))->toBe([]);
     });
 });

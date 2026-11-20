@@ -49,7 +49,8 @@ final readonly class WishlistCustomerSection implements CustomerPageSection
                     new ProductCardData(
                         $item->product->productId,
                         $item->product->name,
-                        $code === null || $item->product->slug === null || $item->product->removed ? null : '/'.strtolower($code).'/'.$locale.'/'.$item->product->slug,
+                        // The shop's product page, `{store}/{locale}/products/{slug}` (storefront.catalog.product).
+                        $code === null || $item->product->slug === null || $item->product->removed ? null : '/'.strtolower($code).'/'.$locale.'/products/'.$item->product->slug,
                         null,
                         ! $item->unavailable,
                         $item->product->archived,

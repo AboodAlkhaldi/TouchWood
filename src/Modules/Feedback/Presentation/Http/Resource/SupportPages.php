@@ -217,7 +217,8 @@ final readonly class SupportPages
         return new ProductCardData(
             $card->productId,
             $card->name,
-            $card->slug === null || $card->removed ? null : '/'.strtolower($store->code).'/'.$this->locale().'/'.$card->slug,
+            // The shop's product page, `{store}/{locale}/products/{slug}` (storefront.catalog.product).
+            $card->slug === null || $card->removed ? null : '/'.strtolower($store->code).'/'.$this->locale().'/products/'.$card->slug,
             self::thumb($card->photo),
             $card->sold,
             $card->archived,
