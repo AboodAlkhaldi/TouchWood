@@ -16,7 +16,8 @@ import type { SharedProps } from '@/types/page';
 | hands nothing to the content: the panel's dialogs draw no Close button of their own (frontend.md §1.11, edit 5)
 | and give focus back to what opened them (§6, useReturnFocus). Each entry's value is its own (`module.key`): two
 | entries share a name - Access's and Loyalty's "Customers" - and cmdk lights and opens by value, so the second
-| could not be reached. The typing still matches the entry's name, through its keywords (as RoleChoice does).
+| could not be reached. The typing matches the entry's name or its section's (owner, 2026-11-20: "Points" lists the
+| Points pages), through its keywords (as RoleChoice does).
 */
 
 type Props = {
@@ -59,7 +60,7 @@ export function AdminSearchDialog({ open, onOpenChange }: Props) {
                                         <CommandItem
                                             key={`${entry.module}.${entry.key}`}
                                             value={`${entry.module}.${entry.key}`}
-                                            keywords={[entry.label]}
+                                            keywords={[entry.label, group.label]}
                                             data-test={`admin-search-${entry.module}-${entry.key}`}
                                             onSelect={() => {
                                                 onOpenChange(false);

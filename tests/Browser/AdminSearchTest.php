@@ -104,6 +104,16 @@ it('reaches both pages called Customers by keyboard, gives focus back, and works
     $page->keys('[data-test="admin-search-input"]', 'Escape');
     expect(browserUntil($page, "document.querySelector('[data-test=\"admin-search-input\"]') === null && document.activeElement?.dataset.test === 'admin-search'"))->toBeTrue();
 
+    // A section's name finds its pages (owner, 2026-11-20): the Points section's name lists Loyalty's Customers page,
+    // not Access's, which sits in another section.
+    $page->click('[data-test="admin-search"]');
+    expect(browserUntil($page, "document.querySelector('[data-test=\"admin-search-loyalty-customers\"]') !== null"))->toBeTrue();
+    $section = (string) $page->script("document.querySelector('[data-test=\"admin-search-loyalty-customers\"]').closest('[cmdk-group]').querySelector('[cmdk-group-heading]').textContent.trim()");
+    expect($section)->not->toBe('');
+    $page->type('[data-test="admin-search-input"]', $section);
+    expect(browserUntil($page, "document.querySelector('[data-test=\"admin-search-loyalty-customers\"]') !== null && document.querySelector('[data-test=\"admin-search-access-customers\"]') === null"))->toBeTrue("typing '{$section}' does not list its pages");
+    $page->keys('[data-test="admin-search-input"]', 'Escape');
+
     // In Arabic, right to left, an Arabic name narrows the list.
     $page->click('[data-test="language"]');
     expect(browserSoon($page, "document.documentElement.getAttribute('dir') === 'rtl'"))->toBeTrue();

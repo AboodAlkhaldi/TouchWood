@@ -768,7 +768,7 @@ From the design, with the decided rules applied:
   more it opens a short menu (shadcn's DropdownMenu) of the stores the person may view — their own
   stores that are on, and for a Super Admin every store, an off one marked Off (access.md amendment
   64). **[DECIDED 2026-09-19] The search box (⌘K) and the notifications bell are hidden** until a
-  module gives them content. **[AMENDED, owner 2026-11-18, flags-2026-11.md S7] The search (Ctrl K, ⌘K on a Mac) is built:** a header button opening shadcn's CommandDialog over the pages the person may open, from the menu already on the page; products and orders are a later step with Sales, one search for both; Catalog's
+  module gives them content. **[AMENDED, owner 2026-11-18, flags-2026-11.md S7] The search (Ctrl K, ⌘K on a Mac) is built:** a header button opening shadcn's CommandDialog over the pages the person may open, from the menu already on the page; typing finds a page by its own name or its section's (owner, 2026-11-20: "Points" lists the Points pages); products and orders are a later step with Sales, one search for both; Catalog's
   products list has its own until then (catalog.md §4.4, owner 2026-10-07). The bell with Ops
   (ops.md §4.15 O1, owner 2026-11-02: in this top bar, before View Store).
 - **[REPLACED by the owner, 2026-10-06] No store "worked in":** ~~the store picker remembered on the
