@@ -8,11 +8,12 @@ import { useLoadMore } from '@/lib/use-load-more';
 import type { ShopProjectsPageData } from '@/types/generated/Modules/Content/Presentation/Http/Resource';
 
 /*
-| H5, the projects (content.md §1.13, §4.5): cards of photo, title and city, newest first, 12 then Show More - and no
-| page at all until the first is published. The design has none: drawn from its look (frontend.md §2.1; plan P4).
+| H5, the projects (content.md §1.13, §4.5): cards of photo, title, city and client, newest first, 12 then Show More - and
+| no page at all until the first is published. The caption is under the photo, which carries no overlay (flags-2026-11.md
+| S4.2): the title at 16 px, then the city and "With <client>" in the muted ink.
 */
 
-type Project = { id: string; title: string; slug: string; city: string | null; photo: PhotoSizes | null };
+type Project = { id: string; title: string; slug: string; city: string | null; client: string | null; photo: PhotoSizes | null };
 
 export default function Projects(props: ShopProjectsPageData) {
     const t = useTranslator();
@@ -26,11 +27,13 @@ export default function Projects(props: ShopProjectsPageData) {
                 <ul className="grid gap-4 sm:grid-cols-2">
                     {list.rows.map((project) => (
                         <li key={project.id}>
-                            <Link href={link('storefront.content.project', { slug: project.slug })} className="group relative block overflow-hidden rounded-xl" data-test="project-card">
-                                <ShopPhoto photo={project.photo} size="detail" alt="" className="aspect-[2/1] w-full" />
-                                <span className="absolute inset-x-0 bottom-0 grid gap-1 bg-[var(--tw-overlay)] p-4 text-ink-on-brand">
-                                    {project.city ? <span className="text-label-13">{project.city}</span> : null}
-                                    <span className="text-heading-16 group-hover:underline sm:text-heading-20">{project.title}</span>
+                            <Link href={link('storefront.content.project', { slug: project.slug })} className="group grid grid-cols-1 gap-3" data-test="project-card">
+                                <ShopPhoto photo={project.photo} size="detail" alt="" className="aspect-[2/1] w-full rounded-xl" />
+                                <span className="grid grid-cols-1 gap-1" data-test="project-caption">
+                                    <span className="text-heading-16 text-ink group-hover:underline">{project.title}</span>
+                                    {project.city || project.client ? (
+                                        <span className="text-copy-14 break-words text-ink-muted">{[project.city, project.client ? t('content::shop.project.with', { client: project.client }) : null].filter(Boolean).join(' · ')}</span>
+                                    ) : null}
                                 </span>
                             </Link>
                         </li>

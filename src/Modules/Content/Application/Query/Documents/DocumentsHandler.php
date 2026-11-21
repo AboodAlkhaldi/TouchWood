@@ -104,6 +104,7 @@ final readonly class DocumentsHandler
                 'summary' => $text->summary,
                 'coverAlt' => $text->coverAlt,
                 'city' => $text->city,
+                'clientName' => $text->clientName,
             ], $document->texts),
             'products' => $document->products,
             'photos' => $document->photos,

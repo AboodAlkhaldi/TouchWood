@@ -31,7 +31,7 @@ use stdClass;
  * |---|---|
  * | a home section's logo | the section is shown |
  * | a banner's artwork, a pop-up's image | it is scheduled and has not ended |
- * | a page's, post's or project's share image, cover, photo or body image | it is published |
+ * | a page's, post's or project's share image, cover, photo or body image, and a project's client logo | it is published |
  * | a store's SEO defaults' share image (PR 4) | always: the defaults are live once saved |
  * | a theme's artwork (PR 6) | it is scheduled and has not ended in all its stores |
  * | a policy's share image or body image (build 4) | it is published |
@@ -136,7 +136,7 @@ final readonly class ContentMediaUsage implements MediaUsage
             "SELECT 'content.popup', id, store_id, {$live} FROM content.popups WHERE media_id = ?",
             "SELECT 'content.page', id, store_id, status = 'PUBLISHED' FROM content.pages WHERE ? IN (share_media_ar, share_media_en) OR id IN (SELECT page_id FROM content.page_images WHERE media_id = ?)",
             "SELECT 'content.post', id, store_id, status = 'PUBLISHED' FROM content.blog_posts WHERE ? IN (share_media_ar, share_media_en, cover_media_id) OR id IN (SELECT post_id FROM content.post_images WHERE media_id = ?)",
-            "SELECT 'content.project', id, store_id, status = 'PUBLISHED' FROM content.projects WHERE ? IN (share_media_ar, share_media_en) OR id IN (SELECT project_id FROM content.project_images WHERE media_id = ?) OR id IN (SELECT project_id FROM content.project_photos WHERE media_id = ?)",
+            "SELECT 'content.project', id, store_id, status = 'PUBLISHED' FROM content.projects WHERE ? IN (share_media_ar, share_media_en, client_logo_media) OR id IN (SELECT project_id FROM content.project_images WHERE media_id = ?) OR id IN (SELECT project_id FROM content.project_photos WHERE media_id = ?)",
             // PR 4: a store's SEO defaults are live from the moment they are saved, so their share image always blocks.
             "SELECT 'content.seo', store_id, store_id, true FROM content.seo_defaults WHERE share_media_id = ?",
             // PR 6: a theme's artwork blocks while the theme is scheduled and has not ended in every store; it is filed
@@ -243,7 +243,7 @@ final readonly class ContentMediaUsage implements MediaUsage
             default => ['content.project_translations', 'content.project_images', 'project_id'],
         };
 
-        foreach (['share_media_ar', 'share_media_en', ...($kind === 'post' ? ['cover_media_id'] : [])] as $column) {
+        foreach (['share_media_ar', 'share_media_en', ...($kind === 'post' ? ['cover_media_id'] : []), ...($kind === 'project' ? ['client_logo_media'] : [])] as $column) {
             $this->db->table($items)->where('id', $id)->where($column, $mediaId)->update([$column => null]);
         }
 

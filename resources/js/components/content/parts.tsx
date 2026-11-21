@@ -1,5 +1,5 @@
 import { TextareaField, TextField } from '@/components/Fields';
-import { isShopLink } from '@/components/content/links';
+import { isHttpsLink, isShopLink } from '@/components/content/links';
 import { TranslateButton, type Translation } from '@/components/content/translate';
 import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
@@ -31,10 +31,13 @@ type PairProps = {
     placeholders?: { ar: string; en: string };
 };
 
-export { isShopLink };
+export { isHttpsLink, isShopLink };
 
 /** A link box's own rule, for `use-checks`: its sentence's key when the link is not one the server takes. */
 export const linkRule = (text: string): string | null => (isShopLink(text) ? null : 'content::admin_shared.link_rule');
+
+/** A box that takes an https:// address only: its sentence's key when the link is not one. */
+export const httpsLinkRule = (text: string): string | null => (isHttpsLink(text) ? null : 'content::admin_shared.https_link_rule');
 
 /** Arabic and English side by side, stacked on a phone, each in its own direction, Translate under the English. */
 export function PairFields({ name, labelAr, labelEn, helper, ar, en, onChange, errors, checks, translation, rows, rich = false, helpers, placeholders }: PairProps) {

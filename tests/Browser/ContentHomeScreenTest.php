@@ -99,19 +99,24 @@ it('draws right to left in Arabic, in Latin digits, and fits a phone, the sectio
     $page->assertNoJavaScriptErrors();
 });
 
-it('says a fact\'s refusal under that fact alone', function () {
+it('says a promise\'s refusal under that promise alone', function () {
     $page = Cb::signIn([ContentPermissions::HOMEPAGE_MANAGE]);
 
-    $page->navigate('/admin/content/home/'.contentHomeSection('HERO'), BROWSER_SLOW_PAGE_LOAD);
+    // The hero's facts became promises (flags-2026-11.md S1.7): the same rows, in the PROMISES section.
+    $page->navigate('/admin/content/home/'.contentHomeSection('PROMISES'), BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"section-form\"]') !== null"))->toBeTrue();
-    $page->click('[data-test="add-fact"]')->click('[data-test="add-fact"]');
-    expect(browserSoon($page, "document.querySelector('#fact1_en') !== null"))->toBeTrue();
-    $page->type('#fact0_ar', 'توصيل مجاني')->type('#fact1_en', 'Free returns');
+    // At least two promises, each with empty words, whatever the section held.
+    $page->click('[data-test="add-promise"]')->click('[data-test="add-promise"]');
+    expect(browserSoon($page, "document.querySelector('#promise1title_en') !== null"))->toBeTrue();
+    foreach (['promise0title_ar', 'promise0title_en', 'promise1title_ar', 'promise1title_en'] as $box) {
+        $page->clear("#{$box}");
+    }
+    $page->type('#promise0title_ar', 'توصيل مجاني')->type('#promise1title_en', 'Free returns');
     $page->click('[data-test="save-section"]');
 
-    // The server refuses an English fact with no Arabic (`fact_ar`): said under the second fact, not under each, nor above.
-    expect(browserSoon($page, "document.querySelector('#fact1_ar-error') !== null"))->toBeTrue()
-        ->and($page->script("document.querySelector('#fact0_ar-error') === null && document.querySelector('[data-test=\"facts\"] > p.text-bad') === null"))->toBeTrue();
+    // The server refuses an English title with no Arabic (`promise_title_ar`): said under the second promise, not under each, nor above.
+    expect(browserSoon($page, "document.querySelector('#promise1title_ar-error') !== null"))->toBeTrue()
+        ->and($page->script("document.querySelector('#promise0title_ar-error') === null && document.querySelector('[data-test=\"promises\"] > p.text-bad') === null"))->toBeTrue();
     $page->assertNoJavaScriptErrors();
 });
 

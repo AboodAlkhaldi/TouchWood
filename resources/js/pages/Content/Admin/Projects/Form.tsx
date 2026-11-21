@@ -2,17 +2,19 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import { DocumentForm } from '@/components/content/document-form';
 import { ImageBox } from '@/components/content/image-box';
-import { PairFields } from '@/components/content/parts';
+import { httpsLinkRule, PairFields } from '@/components/content/parts';
 import { ProductsField } from '@/components/content/products-field';
 import { SortableList } from '@/components/content/sortable';
 import { Button } from '@/components/ui/button';
+import { TextField } from '@/components/Fields';
 import { FieldDescription, FieldError, FieldLegend, FieldSet } from '@/components/ui/field';
 import { useTranslator } from '@/lib/t';
 import type { ContentImageData, DocumentFormPageData } from '@/types/generated/Modules/Content/Presentation/Http/Resource';
 
 /*
-| W9 · New Project and a project's own page (content.md §4.4, §1.13): as a page, plus its city per language, its photos -
-| 1 to 20, a grid dragged into order, each uploaded at once - and up to 20 products used.
+| W9 · New Project and a project's own page (content.md §4.4, §1.13): as a page, plus its city per language, its client
+| (a name per language, a logo from the library's upload box, an https link; all optional, flags-2026-11.md S4.1), its
+| photos - 1 to 20, a grid dragged into order, each uploaded at once - and up to 20 products used.
 */
 
 export default function Form(page: DocumentFormPageData) {
@@ -38,11 +40,17 @@ export default function Form(page: DocumentFormPageData) {
             extraChecks={(data) => [
                 { id: 'city_ar', label: t('content::admin_projects.fields.city_ar'), value: data.city_ar, rules: { length: { max: 100 } } },
                 { id: 'city_en', label: t('content::admin_projects.fields.city_en'), value: data.city_en, rules: { length: { max: 100 } } },
+                { id: 'client_name_ar', label: t('content::admin_projects.fields.client_name_ar'), value: data.client_name_ar, rules: { length: { max: 100 } } },
+                { id: 'client_name_en', label: t('content::admin_projects.fields.client_name_en'), value: data.client_name_en, rules: { length: { max: 100 } } },
+                { id: 'client_link', label: t('content::admin_projects.fields.client_link'), value: data.client_link, rules: { own: httpsLinkRule } },
             ]}
         >
-            {({ form, errors, checks, translation, set, photos, setPhotos, products, setProducts, uploadKind, storeId }) => (
+            {({ form, errors, checks, translation, set, clientLogo, setClientLogo, photos, setPhotos, products, setProducts, uploadKind, storeId }) => (
                 <>
                     <PairFields name="city" labelAr={t('content::admin_projects.fields.city_ar')} labelEn={t('content::admin_projects.fields.city_en')} helper={t('content::admin_projects.fields.city_rule')} ar={form.data.city_ar} en={form.data.city_en} onChange={set('city')} errors={errors} checks={checks} translation={translation} />
+                    <PairFields name="client_name" labelAr={t('content::admin_projects.fields.client_name_ar')} labelEn={t('content::admin_projects.fields.client_name_en')} helper={t('content::admin_projects.fields.client_name_rule')} ar={form.data.client_name_ar} en={form.data.client_name_en} onChange={set('client_name')} errors={errors} checks={checks} translation={translation} />
+                    <ImageBox id="client_logo" label={t('content::admin_projects.fields.client_logo')} helper={t('content::admin_projects.fields.client_logo_helper')} kind={uploadKind} store={storeId} image={clientLogo} onChange={setClientLogo} size={{ width: 360, height: 156, png: true }} error={errors.client_logo} />
+                    <TextField id="client_link" type="url" dir="ltr" label={t('content::admin_projects.fields.client_link')} helper={t('content::admin_projects.fields.client_link_helper')} value={form.data.client_link} onChange={(event) => form.setData('client_link', event.target.value)} error={errors.client_link} check={checks.box('client_link', errors.client_link)} data-test="client_link" />
                     <Photos photos={photos} onChange={setPhotos} kind={uploadKind} store={storeId} error={errors.photos} />
                     <ProductsField products={products} onChange={setProducts} max={20} search="/admin/content/projects/products" store={storeId} error={errors.products} />
                 </>

@@ -33,12 +33,18 @@ it('saves a project as a draft and refuses its Publish without a photo', functio
     $page->navigate('/admin/content/projects/new?store=ae', BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"document-form\"]') !== null && document.querySelector('[data-test=\"photos\"]') !== null"))->toBeTrue();
     $page->type('#title_ar', "مطبخ {$run}")->type('#title_en', "Kitchen {$run}")->type('#body_ar', 'قصة')->type('#body_en', 'A story')->type('#city_ar', 'الرياض')->type('#city_en', 'Riyadh');
+    // The client (S4.1): a name per language and a link that must be https://; an http address is said wrong as it is typed.
+    $page->type('#client_name_ar', 'شركة الأفق')->type('#client_name_en', 'Horizon Co')->type('#client_link', 'http://horizon.example');
+    expect(browserSoon($page, "document.querySelector('#client_link').getAttribute('aria-invalid') === 'true' && document.body.textContent.includes('https://')"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=\"image-client_logo\"]') !== null"))->toBeTrue('the client logo\'s upload box');
+    $page->clear('#client_link')->type('#client_link', 'https://horizon.example/work');
+    expect(browserSoon($page, "document.querySelector('#client_link').getAttribute('aria-invalid') !== 'true'"))->toBeTrue();
     $page->click('[data-test="save-draft"]');
     expect(browserSoon($page, "window.location.pathname === '/admin/content/projects' && document.body.textContent.includes('Project saved')"))->toBeTrue();
 
     $id = (string) DB::table('content.project_translations')->where('title', "Kitchen {$run}")->value('project_id');
     $page->navigate("/admin/content/projects/{$id}", BROWSER_SLOW_PAGE_LOAD);
-    expect(browserSoon($page, "document.querySelector('[data-test=\"publish\"]') !== null && document.querySelector('#city_en').value === 'Riyadh'"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"publish\"]') !== null && document.querySelector('#city_en').value === 'Riyadh' && document.querySelector('#client_name_en').value === 'Horizon Co' && document.querySelector('#client_link').value === 'https://horizon.example/work'"))->toBeTrue();
     $page->click('[data-test="publish"]');
     expect(browserSoon($page, "document.querySelector('[role=\"alert\"]')?.textContent.length > 0"))->toBeTrue()
         ->and(DB::table('content.projects')->where('id', $id)->value('status'))->toBe('DRAFT');

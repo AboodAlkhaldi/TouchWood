@@ -117,6 +117,7 @@ final readonly class ContentHome
             'title' => $document["title_{$locale}"],
             'slug' => $document["slug_{$locale}"],
             'line' => $document["line_{$locale}"],
+            'client' => $document["client_{$locale}"] ?? null,
             'image' => $document['image'],
         ];
     }

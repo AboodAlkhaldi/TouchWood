@@ -35,6 +35,7 @@ final class ForeignKeyRefusals
         'blog_posts_category' => ['category', InvalidContentInput::CATEGORY],
         'projects_share_ar' => ['share_image_ar', InvalidContentInput::IMAGE_FILE],
         'projects_share_en' => ['share_image_en', InvalidContentInput::IMAGE_FILE],
+        'projects_client_logo' => ['client_logo', InvalidContentInput::IMAGE_FILE],
         'pi_media' => ['images', InvalidContentInput::IMAGE_FILE],
         'poi_media' => ['images', InvalidContentInput::IMAGE_FILE],
         'pri_media' => ['images', InvalidContentInput::IMAGE_FILE],

@@ -34,6 +34,8 @@ final readonly class Document
         public int $version,
         public ?string $updatedBy,
         public ?DateTimeImmutable $updatedAt,
+        public ?string $clientLogoMediaId = null,
+        public ?string $clientLink = null,
     ) {}
 
     public function text(string $locale): ?DocumentText
@@ -48,7 +50,7 @@ final readonly class Document
      */
     public function images(): array
     {
-        $images = ['share_image_ar' => $this->shareAr, 'share_image_en' => $this->shareEn, 'cover' => $this->coverMediaId];
+        $images = ['share_image_ar' => $this->shareAr, 'share_image_en' => $this->shareEn, 'cover' => $this->coverMediaId, 'client_logo' => $this->clientLogoMediaId];
 
         foreach ($this->photos as $index => $photo) {
             $images['photo#'.($index + 1)] = $photo;
@@ -76,6 +78,8 @@ final readonly class Document
             'cover_media_id' => $this->coverMediaId,
             'products' => implode(',', $this->products),
             'photos' => implode(',', $this->photos),
+            'client_logo_media' => $this->clientLogoMediaId,
+            'client_link' => $this->clientLink,
         ];
 
         foreach (['ar', 'en'] as $locale) {

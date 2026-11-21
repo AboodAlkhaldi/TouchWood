@@ -29,7 +29,7 @@ final readonly class DatabaseShopDocuments implements ShopDocuments
         $extra = match ($kind) {
             DocumentKind::Page => '',
             DocumentKind::Post => ", t.summary, t.cover_alt, i.cover_media_id, c.name_{$locale} AS category_name, c.slug_{$locale} AS category_slug",
-            DocumentKind::Project => ', t.city',
+            DocumentKind::Project => ', t.city, t.client_name, i.client_logo_media, i.client_link',
         };
         $join = $kind === DocumentKind::Post ? ' LEFT JOIN content.blog_categories c ON c.id = i.category_id' : '';
 
@@ -78,6 +78,9 @@ final readonly class DatabaseShopDocuments implements ShopDocuments
             'coverMediaId' => Rows::text($row->cover_media_id ?? null),
             'coverAlt' => Rows::text($row->cover_alt ?? null),
             'city' => Rows::text($row->city ?? null),
+            'clientName' => Rows::text($row->client_name ?? null),
+            'clientLogoMediaId' => Rows::text($row->client_logo_media ?? null),
+            'clientLink' => Rows::text($row->client_link ?? null),
             'category' => Rows::text($row->category_slug ?? null) === null ? null : ['name' => (string) $row->category_name, 'slug' => (string) $row->category_slug],
             'images' => array_map(static fn (stdClass $image): array => ['ref' => (int) $image->ref, 'mediaId' => strtolower((string) $image->id), 'alt' => Rows::text($image->alt)], $of('image')),
             'products' => array_map(static fn (stdClass $product): string => strtolower((string) $product->id), $of('product')),
@@ -313,7 +316,7 @@ final readonly class DatabaseShopDocuments implements ShopDocuments
 
         /** @var list<stdClass> $rows */
         $rows = $this->db->select(
-            "SELECT p.id, p.published_at, t.title, t.slug, t.city,
+            "SELECT p.id, p.published_at, t.title, t.slug, t.city, t.client_name,
                     (SELECT ph.media_id FROM content.project_photos ph WHERE ph.project_id = p.id ORDER BY ph.position LIMIT 1) AS photo
              FROM content.projects p JOIN content.project_translations t ON t.project_id = p.id AND t.locale = ?
              WHERE p.store_id = ? AND p.status = 'PUBLISHED'{$where} ORDER BY p.published_at DESC, p.id DESC LIMIT ?",
@@ -325,6 +328,7 @@ final readonly class DatabaseShopDocuments implements ShopDocuments
             'title' => (string) $row->title,
             'slug' => (string) $row->slug,
             'city' => Rows::text($row->city),
+            'clientName' => Rows::text($row->client_name),
             'photoMediaId' => Rows::text($row->photo),
             'publishedAt' => Rows::moment($row->published_at) ?? throw new \LogicException('A published project has its moment.'),
         ], $rows);

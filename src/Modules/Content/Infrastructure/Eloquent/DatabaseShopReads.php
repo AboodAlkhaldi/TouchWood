@@ -291,7 +291,7 @@ final readonly class DatabaseShopReads implements ShopReads
 
         /** @var list<stdClass> $projects */
         $projects = $this->db->select(
-            "SELECT p.id, ar.title AS title_ar, en.title AS title_en, ar.slug AS slug_ar, en.slug AS slug_en, ar.city AS line_ar, en.city AS line_en,
+            "SELECT p.id, ar.title AS title_ar, en.title AS title_en, ar.slug AS slug_ar, en.slug AS slug_en, ar.city AS line_ar, en.city AS line_en, ar.client_name AS client_ar, en.client_name AS client_en,
                     (SELECT media_id FROM content.project_photos WHERE project_id = p.id ORDER BY position LIMIT 1) AS media_id
              FROM content.projects p JOIN content.project_translations ar ON ar.project_id = p.id AND ar.locale = 'ar' JOIN content.project_translations en ON en.project_id = p.id AND en.locale = 'en'
              WHERE p.store_id = ? AND p.status = 'PUBLISHED' ORDER BY p.published_at DESC, p.id DESC LIMIT 1",
@@ -327,6 +327,9 @@ final readonly class DatabaseShopReads implements ShopReads
             'line_ar' => Rows::text($row->line_ar),
             'line_en' => Rows::text($row->line_en),
             'image' => $urls[(string) $row->media_id] ?? [],
+            // A project's client; a post has none (flags-2026-11.md S4.1).
+            'client_ar' => Rows::text($row->client_ar ?? null),
+            'client_en' => Rows::text($row->client_en ?? null),
         ];
 
         return [

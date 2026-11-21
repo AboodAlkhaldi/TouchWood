@@ -155,4 +155,26 @@ final class Words
 
         return RichText::link($value) ?? throw new InvalidContentInput($attribute, InvalidContentInput::LINK);
     }
+
+    /**
+     * A full `https://` address only (flags-2026-11.md S4.1: a project's client link), or null for none. A page of the
+     * shop, `http://` and every other scheme are refused, by the same reading of the address as `link`.
+     *
+     * @throws InvalidContentInput
+     */
+    public static function httpsLink(string $attribute, ?string $value): ?string
+    {
+        if ($value === null || trim($value) === '') {
+            return null;
+        }
+
+        $link = RichText::link($value);
+
+        if ($link === null || ! str_starts_with(strtolower($link), 'https://')) {
+            throw new InvalidContentInput($attribute, InvalidContentInput::HTTPS_LINK);
+        }
+
+        // Kept with the scheme in lower case ("Https://" typed by a phone): the column's CHECK reads it so.
+        return 'https://'.substr($link, 8);
+    }
 }

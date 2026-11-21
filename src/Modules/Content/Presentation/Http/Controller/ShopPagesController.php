@@ -30,6 +30,7 @@ use Modules\Content\Presentation\Http\Resource\ShopCampaignPageData;
 use Modules\Content\Presentation\Http\Resource\ShopDocumentPageData;
 use Modules\Content\Presentation\Http\Resource\ShopHomePageData;
 use Modules\Content\Presentation\Http\Resource\ShopPolicyPageData;
+use Modules\Content\Presentation\Http\Resource\ShopProjectPageData;
 use Modules\Content\Presentation\Http\Resource\ShopProjectsPageData;
 use Modules\Content\Presentation\Http\ShopFrameOfRequest;
 use Modules\Platform\Public\Contracts\PlatformApi;
@@ -398,7 +399,7 @@ final readonly class ShopPagesController
         $seo = ContentFrame::seo($frame->of($request, $store, $locale)['kept']);
 
         return $this->page->render('Content/Storefront/Projects', (new ShopProjectsPageData(
-            array_map(static fn (array $row): array => ['id' => $row['id'], 'title' => $row['title'], 'slug' => $row['slug'], 'city' => $row['city'], 'photo' => $urls[$row['photoMediaId'] ?? ''] ?? null], $rows),
+            array_map(static fn (array $row): array => ['id' => $row['id'], 'title' => $row['title'], 'slug' => $row['slug'], 'city' => $row['city'], 'client' => $row['clientName'], 'photo' => $urls[$row['photoMediaId'] ?? ''] ?? null], $rows),
             $next,
             self::address('storefront.content.projects', $locale, [], [], $after !== null),
             new ContentHeadData(self::titled($seo, self::word('content::shop.projects.title')), $seo['description'], self::shareImage($seo['image'])),
@@ -455,7 +456,7 @@ final readonly class ShopPagesController
             return $this->movedOrMissing($request, $store, $kind->value, $locale, $slug, $route, fn (string $itemId, string $in): ?string => $this->documents->currentSlug($kind, $itemId, $in));
         }
 
-        $mediaIds = [$found['shareMediaId'], $found['coverMediaId'], ...$found['photos'], ...array_map(static fn (array $image): string => $image['mediaId'], $found['images'])];
+        $mediaIds = [$found['shareMediaId'], $found['coverMediaId'], $found['clientLogoMediaId'], ...$found['photos'], ...array_map(static fn (array $image): string => $image['mediaId'], $found['images'])];
         $urls = self::urls($platform, $mediaIds);
         // A body image is drawn with its own width and height (§1.2): asked only of a body holding one.
         $sizes = $found['images'] === [] ? [] : $platform->mediaOf(array_map(static fn (array $image): string => $image['mediaId'], $found['images']));
@@ -475,6 +476,26 @@ final readonly class ShopPagesController
         $picture = $urls[$found['shareMediaId'] ?? ''] ?? $urls[$found['coverMediaId'] ?? ''] ?? $urls[$found['photos'][0] ?? ''] ?? $seo['image'];
         $blocks = is_array($found['body']['blocks'] ?? null) ? array_values(array_filter($found['body']['blocks'], 'is_array')) : [];
 
+        $address = self::address($route, $locale, ['slug' => $found['slug']], $found['otherSlug'] === null ? null : ['slug' => $found['otherSlug']], false);
+        $head = new ContentHeadData(self::titled($seo, $found['seoTitle'] ?? $found['title']), $found['seoDescription'] ?? $found['summary'] ?? $seo['description'], self::shareImage($picture));
+
+        if ($kind === DocumentKind::Project) {
+            return $this->page->render('Content/Storefront/Project', (new ShopProjectPageData(
+                $found['title'],
+                $blocks,
+                $images,
+                $found['city'],
+                $found['clientName'],
+                // The client box (S4.1): drawn when a name, a logo or a link is set.
+                $found['clientName'] === null && $found['clientLogoMediaId'] === null && $found['clientLink'] === null ? null : ['name' => $found['clientName'], 'logo' => $urls[$found['clientLogoMediaId'] ?? ''] ?? null, 'link' => $found['clientLink']],
+                array_values(array_filter(array_map(static fn (string $photo): ?array => $urls[$photo] ?? null, $found['photos']))),
+                $products['cards'],
+                $products['cardFacts'],
+                $address,
+                $head,
+            ))->toArray(), self::WORDS)->toResponse($request);
+        }
+
         return $this->page->render('Content/Storefront/Document', (new ShopDocumentPageData(
             $kind->key(),
             $found['title'],
@@ -484,13 +505,11 @@ final readonly class ShopPagesController
             $found['summary'],
             $urls[$found['coverMediaId'] ?? ''] ?? null,
             $found['coverAlt'],
-            $found['city'],
             $found['category'],
-            array_values(array_filter(array_map(static fn (string $photo): ?array => $urls[$photo] ?? null, $found['photos']))),
             $products['cards'],
             $products['cardFacts'],
-            self::address($route, $locale, ['slug' => $found['slug']], $found['otherSlug'] === null ? null : ['slug' => $found['otherSlug']], false),
-            new ContentHeadData(self::titled($seo, $found['seoTitle'] ?? $found['title']), $found['seoDescription'] ?? $found['summary'] ?? $seo['description'], self::shareImage($picture)),
+            $address,
+            $head,
         ))->toArray(), self::WORDS)->toResponse($request);
     }
 

@@ -8,7 +8,7 @@ use Modules\Content\Domain\ValueObject\RichText;
 
 /**
  * A page's, a post's or a project's words in one language (content.md §1.11-§1.14): title, address, body, SEO title
- * and description; a post's summary and cover description; a project's city. `images` are the body's image rows,
+ * and description; a post's summary and cover description; a project's city and the client it was made with. `images` are the body's image rows,
  * ref => [media id, description].
  */
 final readonly class DocumentText
@@ -26,6 +26,7 @@ final readonly class DocumentText
         public ?string $coverAlt,
         public ?string $city,
         public array $images,
+        public ?string $clientName = null,
     ) {}
 
     /**
@@ -41,6 +42,7 @@ final readonly class DocumentText
             "summary_{$locale}" => $this->summary,
             "cover_alt_{$locale}" => $this->coverAlt,
             "city_{$locale}" => $this->city,
+            "client_name_{$locale}" => $this->clientName,
         ];
     }
 }

@@ -4,7 +4,6 @@ import type { Block } from '@/components/content/marks';
 import { ContentBlocks } from '@/components/shop/ContentBlocks';
 import { ProductCards, useCardFacts } from '@/components/shop/ProductCards';
 import { ShopPhoto, type PhotoSizes } from '@/components/shop/ShopPhoto';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { StorefrontLayout } from '@/layouts/StorefrontLayout';
 import { intlLocale } from '@/lib/digits';
 import { useLink } from '@/lib/routes';
@@ -14,24 +13,22 @@ import type { ShopDocumentPageData } from '@/types/generated/Modules/Content/Pre
 import type { SharedProps } from '@/types/page';
 
 /*
-| H2 a page, H4 a blog post, H6 a project (content.md §1.11-§1.13, §4.5). The design has none of them: drawn from its
-| look (frontend.md §2.1), to be shown to the owner (plan P4). One reading column: the title, a post's date (Latin
-| digits) and cover, a project's city and its photos - swiped on a phone - then the body from its blocks (§1.2, the same
-| renderer as the editor's preview), then a post's or a project's products as the shop's cards, only those this
-| shopper can order now.
+| H2 a page, H4 a blog post (content.md §1.11, §1.12, §4.5). The design has none of them: drawn from its look
+| (frontend.md §2.1), to be shown to the owner (plan P4). One reading column: the title, a post's date (Latin digits) and
+| cover, then the body from its blocks (§1.2, the same renderer as the editor's preview), then a post's products as the
+| shop's cards, only those this shopper can order now. A project has its own page, Project.tsx (flags-2026-11.md S4.3).
 */
 
 export default function Document(props: ShopDocumentPageData) {
     const t = useTranslator();
     const link = useLink();
-    const { shop, locale, direction } = usePage<SharedProps>().props;
+    const { shop, locale } = usePage<SharedProps>().props;
     const store = shop?.code ?? '';
     const products = props.products as unknown as ShopCardData[];
     const facts = useCardFacts(props.cardFacts, products[0]?.productId);
     const images = props.images as Record<number, { src: string | null; width: number | null; height: number | null }>;
-    const photos = props.photos as unknown as PhotoSizes[];
     const date = props.publishedAt === null ? null : new Intl.DateTimeFormat(intlLocale(locale), { dateStyle: 'long', timeZone: shop?.timezone }).format(new Date(props.publishedAt));
-    const back = props.kind === 'post' ? { href: link('storefront.content.blog'), label: t('content::shop.post.back') } : props.kind === 'project' ? { href: link('storefront.content.projects'), label: t('content::shop.project.back') } : null;
+    const back = props.kind === 'post' ? { href: link('storefront.content.blog'), label: t('content::shop.post.back') } : null;
 
     return (
         <StorefrontLayout title={props.head.title} address={props.address} head={props.head}>
@@ -48,7 +45,6 @@ export default function Document(props: ShopDocumentPageData) {
                         </Link>
                     ) : null}
                     <h1 className="text-heading-32 text-ink">{props.title}</h1>
-                    {props.city ? <p className="text-copy-14 text-ink-muted">{props.city}</p> : null}
                     {date ? (
                         <p className="text-copy-14 text-ink-muted" data-test="post-date">
                             {t('content::shop.post.published', { date })}
@@ -59,27 +55,12 @@ export default function Document(props: ShopDocumentPageData) {
 
                 {props.cover ? <ShopPhoto photo={props.cover as PhotoSizes} size="detail" alt={props.coverAlt ?? ''} eager className="aspect-[3/2] w-full rounded-lg" /> : null}
 
-                {photos.length > 0 ? (
-                    <section aria-label={t('content::shop.project.photos')} data-test="project-photos">
-                        <ScrollArea className="w-full" dir={direction}>
-                            <ul className="flex snap-x snap-mandatory gap-3 pb-3">
-                                {photos.map((photo, index) => (
-                                    <li key={index} className="w-[85%] shrink-0 snap-center sm:w-[70%]">
-                                        <ShopPhoto photo={photo} size="detail" alt="" eager={index === 0} className="aspect-[3/2] w-full rounded-lg" />
-                                    </li>
-                                ))}
-                            </ul>
-                            <ScrollBar orientation="horizontal" />
-                        </ScrollArea>
-                    </section>
-                ) : null}
-
                 <ContentBlocks blocks={props.blocks as unknown as Block[]} image={(ref) => images[ref] ?? null} href={(to) => shopHref(to, store, locale)?.href ?? null} />
             </article>
 
             {products.length > 0 ? (
                 <section className="mt-10 grid gap-4" data-test="content-products">
-                    <h2 className="text-heading-20 text-ink">{t(props.kind === 'project' ? 'content::shop.project.products' : 'content::shop.post.products')}</h2>
+                    <h2 className="text-heading-20 text-ink">{t('content::shop.post.products')}</h2>
                     <ProductCards facts={facts} cards={products} />
                 </section>
             ) : null}

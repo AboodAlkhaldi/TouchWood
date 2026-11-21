@@ -62,7 +62,7 @@ final readonly class DocumentsController
     /** @var list<string> the form's boxes, by the names it posts */
     private const array BOXES = [
         'title_ar', 'title_en', 'slug_ar', 'slug_en', 'body_ar', 'body_en', 'seo_title_ar', 'seo_title_en', 'seo_description_ar', 'seo_description_en',
-        'share_image_ar', 'share_image_en', 'summary_ar', 'summary_en', 'cover', 'cover_alt_ar', 'cover_alt_en', 'category', 'city_ar', 'city_en', 'products', 'photos',
+        'share_image_ar', 'share_image_en', 'summary_ar', 'summary_en', 'cover', 'cover_alt_ar', 'cover_alt_en', 'category', 'city_ar', 'city_en', 'client_name_ar', 'client_name_en', 'client_logo', 'client_link', 'products', 'photos',
     ];
 
     public function __construct(
@@ -279,6 +279,10 @@ final readonly class DocumentsController
             Inputs::texts($request, 'photos'),
             Inputs::flag($request, 'translated'),
             Inputs::flag($request, 'read'),
+            Inputs::typed($request, 'client_name_ar'),
+            Inputs::typed($request, 'client_name_en'),
+            Inputs::text($request, 'client_logo_media_id'),
+            Inputs::typed($request, 'client_link'),
         );
     }
 

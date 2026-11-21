@@ -156,14 +156,18 @@ function contentShopPost(string $titleEn = 'Choosing a drawer slide', array $pro
     return $post;
 }
 
-/** A published project, its one photo ready. */
-function contentShopProject(): string
+/**
+ * A published project, its photos ready (one, unless told), and a client when `$with` gives one (S4.1).
+ *
+ * @param  array<string, mixed>  $with
+ */
+function contentShopProject(array $with = []): string
 {
     Cx::editor([ContentPermissions::PROJECT_MANAGE]);
-    $project = app(SaveProjectHandler::class)->handle(new SaveProject(new DocumentInput(
-        id: null, storeId: Fx::storeId('sa'), version: 0, titleAr: 'غرفة ملابس', titleEn: 'A dressing room', slugAr: 'غرفة-ملابس', slugEn: 'dressing-room', bodyAr: 'القصة', bodyEn: 'The story',
-        cityAr: 'جدة', cityEn: 'Jeddah', photos: [Cx::image()],
-    )));
+    $project = app(SaveProjectHandler::class)->handle(new SaveProject(new DocumentInput(...[
+        'id' => null, 'storeId' => Fx::storeId('sa'), 'version' => 0, 'titleAr' => 'غرفة ملابس', 'titleEn' => 'A dressing room', 'slugAr' => 'غرفة-ملابس', 'slugEn' => 'dressing-room', 'bodyAr' => 'القصة', 'bodyEn' => 'The story',
+        'cityAr' => 'جدة', 'cityEn' => 'Jeddah', 'photos' => [Cx::image()], ...$with,
+    ])));
     app(PublishProjectHandler::class)->handle(new PublishProject($project, 1));
 
     return $project;
@@ -318,15 +322,61 @@ describe('H5 the projects and H6 a project (§1.13)', function () {
         contentShopProject();
 
         $list = contentShopPage('/sa/en/projects', 'Content/Storefront/Projects');
-        $project = contentShopPage('/sa/en/projects/dressing-room', 'Content/Storefront/Document');
+        $project = contentShopPage('/sa/en/projects/dressing-room', 'Content/Storefront/Project');
 
         expect($list['projects'][0]['title'])->toBe('A dressing room')
             ->and($list['projects'][0]['city'])->toBe('Jeddah')
+            ->and($list['projects'][0]['client'])->toBeNull()
             ->and($list['projects'][0]['photo'])->not->toBeNull()
-            ->and($project['kind'])->toBe('project')
             ->and($project['city'])->toBe('Jeddah')
             ->and($project['photos'])->toHaveCount(1)
             ->and($project['address']['alternate'])->toBe(url('/sa/ar/projects/'.rawurlencode('غرفة-ملابس')));
+    });
+
+    it('gives a project with no client no client name and no box', function () {
+        contentShopProject();
+
+        $project = contentShopPage('/sa/en/projects/dressing-room', 'Content/Storefront/Project');
+
+        expect($project['clientName'])->toBeNull()
+            ->and($project['client'])->toBeNull();
+    });
+
+    it('gives a project its client in the language of the page: the name on the card and the page, the logo and link in the box (S4.1)', function () {
+        $logo = Cx::image();
+        contentShopProject(['clientNameAr' => 'شركة الأفق', 'clientNameEn' => 'Horizon Co', 'clientLogoMediaId' => $logo, 'clientLink' => 'https://horizon.example/work']);
+
+        $en = contentShopPage('/sa/en/projects/dressing-room', 'Content/Storefront/Project');
+        $ar = contentShopPage('/sa/ar/projects/'.rawurlencode('غرفة-ملابس'), 'Content/Storefront/Project');
+        $list = contentShopPage('/sa/ar/projects', 'Content/Storefront/Projects');
+
+        expect($en['clientName'])->toBe('Horizon Co')
+            ->and($ar['clientName'])->toBe('شركة الأفق')
+            ->and($en['client']['name'])->toBe('Horizon Co')
+            ->and($en['client']['link'])->toBe('https://horizon.example/work')
+            ->and($en['client']['logo'])->toBeArray()
+            ->and($en['client']['logo'])->not->toBeEmpty()
+            ->and($list['projects'][0]['client'])->toBe('شركة الأفق');
+    });
+
+    it('draws the box from a logo or a link alone, with no name and so no chip', function () {
+        contentShopProject(['clientLink' => 'https://horizon.example']);
+
+        $project = contentShopPage('/sa/en/projects/dressing-room', 'Content/Storefront/Project');
+
+        expect($project['clientName'])->toBeNull()
+            ->and($project['client'])->toBe(['name' => null, 'logo' => null, 'link' => 'https://horizon.example']);
+    });
+
+    it('gives the home\'s project card its client', function () {
+        contentShopSection('PROJECTS', ['heading' => ['ar' => 'مشاريع', 'en' => 'Projects']]);
+        contentShopProject(['clientNameAr' => 'شركة الأفق', 'clientNameEn' => 'Horizon Co']);
+
+        $home = contentShopPage('/sa/en', 'Content/Storefront/Home');
+        $section = array_values(array_filter($home['sections'], static fn (array $section): bool => $section['type'] === 'PROJECTS'))[0];
+
+        expect($section['project']['client'])->toBe('Horizon Co')
+            ->and($section['guides'])->toBe([]);
     });
 });
 
@@ -446,7 +496,8 @@ describe('the queries (owner, 2026-10-19: 8 a shop page is a target, not a cap)'
         contentShopSection('CATEGORIES', ['heading' => ['ar' => 'الفئات', 'en' => 'Categories'], 'count' => 4]);
         contentShopPublishedPage();
         $post = contentShopPost(products: [$p['product']]);
-        contentShopProject();
+        // With a client and its logo, the most a project card and page read (S4.1): the client rides the queries the page already asks.
+        contentShopProject(['clientNameAr' => 'شركة الأفق', 'clientNameEn' => 'Horizon Co', 'clientLogoMediaId' => Cx::image(), 'clientLink' => 'https://horizon.example']);
         ['run' => $run] = contentShopCampaign($p['product']);
         Cx::clockOn(2);
         Fx::asSystem(fn (): int => app(AdvanceCampaignsHandler::class)->handle(new AdvanceCampaigns));
@@ -468,7 +519,7 @@ describe('the queries (owner, 2026-10-19: 8 a shop page is a target, not a cap)'
         // again) and the best sellers' cards 1 - a tile's photos 1 more once a category has one; a page 2 (the item, then its
         // files, products and photos in one); the blog 3 (its categories, its posts, the covers' addresses); a post 4 (its
         // 2, the files' addresses, the products' cards); the projects 3 (whether any is published, the list, the photos); a
-        // project 3; a campaign 5 (the run, Pricing's three reads of the run's products, the cards). Over the target of 8:
+        // project 3 (its client's name, logo and link ride the item's own read and the files' addresses: no query more, S4.1, build 5a); a campaign 5 (the run, Pricing's three reads of the run's products, the cards). Over the target of 8:
         // recorded, not hidden (owner, 2026-10-19).
         expect($counts)->toBe(['home' => 9, 'page' => 8, 'blog' => 9, 'post' => 10, 'projects' => 9, 'project' => 9, 'campaign' => 11]);
     });

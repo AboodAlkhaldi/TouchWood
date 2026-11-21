@@ -32,4 +32,7 @@ export function shopLink(value: string): string | null {
     return address.startsWith('//') || page.includes(':') || page.includes('//') ? null : page;
 }
 
+/** A link where only a full https:// address is taken (a project's client site, flags-2026-11.md S4.1; Words::httpsLink). */
+export const isHttpsLink = (value: string): boolean => (shopLink(value) ?? '').slice(0, 8).toLowerCase() === 'https://';
+
 export const isShopLink = (value: string): boolean => shopLink(value) !== null;

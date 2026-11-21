@@ -27,6 +27,7 @@ final class DocumentTextData extends Data
         public ?string $summary,
         public ?string $coverAlt,
         public ?string $city,
+        public ?string $clientName = null,
     ) {}
 
     /**
@@ -43,6 +44,6 @@ final class DocumentTextData extends Data
             }
         }
 
-        return new self((string) $words('title'), (string) $words('slug'), (string) $words('body'), $images, $words('seoTitle'), $words('seoDescription'), $words('summary'), $words('coverAlt'), $words('city'));
+        return new self((string) $words('title'), (string) $words('slug'), (string) $words('body'), $images, $words('seoTitle'), $words('seoDescription'), $words('summary'), $words('coverAlt'), $words('city'), $words('clientName'));
     }
 }

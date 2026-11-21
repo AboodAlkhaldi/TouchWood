@@ -267,6 +267,27 @@ it('keeps a project\'s photos in their order, and says the Projects page stays h
     expect(Screen::errors($browser->post('/admin/content/projects', documentsScreenFields(['intent' => 'publish', 'title_ar' => 'بلا صور', 'title_en' => 'No photos']), Screen::fromPage('/admin/content/projects/new'))))->toHaveKey('photos');
 });
 
+it('keeps a project\'s client from its form, shows it again on the form, and refuses an http link on the link\'s box (S4.1)', function () {
+    $browser = documentsScreenEditor();
+    $logo = Cx::image();
+    $fields = documentsScreenFields(['city_ar' => 'الرياض', 'city_en' => 'Riyadh', 'photos' => [Cx::image()], 'client_name_ar' => 'شركة الأفق', 'client_name_en' => 'Horizon Co', 'client_logo_media_id' => $logo, 'client_link' => 'https://horizon.example/work']);
+
+    expect(Screen::errors($browser->post('/admin/content/projects', [...$fields, 'client_link' => 'http://horizon.example'], Screen::fromPage('/admin/content/projects/new'))))->toHaveKey('client_link')
+        ->and(Screen::errors($browser->post('/admin/content/projects', [...$fields, 'client_name_ar' => str_repeat('ع', 101)], Screen::fromPage('/admin/content/projects/new'))))->toHaveKey('client_name_ar')
+        ->and(DB::table('content.projects')->exists())->toBeFalse();
+
+    $browser->post('/admin/content/projects', $fields, Screen::fromPage('/admin/content/projects/new'));
+    $project = documentsScreenId('content.projects');
+
+    $browser->get("/admin/content/projects/{$project}")->assertInertia(fn (AssertableInertia $screen) => $screen
+        ->component('Content/Admin/Projects/Form')
+        ->where('document.ar.clientName', 'شركة الأفق')
+        ->where('document.en.clientName', 'Horizon Co')
+        ->where('document.clientLogoMediaId', $logo)
+        ->where('document.clientLink', 'https://horizon.example/work')
+        ->where("images.{$logo}.id", $logo));
+});
+
 it('uploads an image under the kind\'s own permission only', function () {
     Storage::fake('local');
     Storage::fake('public');

@@ -91,7 +91,9 @@ function contentShopBrowserItems(): array
 
         $project = app(SaveProjectHandler::class)->handle(new SaveProject(new DocumentInput(
             id: null, storeId: $store, version: 0, titleAr: "غرفة ملابس كاملة {$n}", titleEn: "A Whole Dressing Room {$n}", slugAr: "غرفة-ملابس-{$n}", slugEn: "dressing-room-{$n}",
-            bodyAr: 'أدراج أحذية وعلاقات هيدروليك وإضاءة داخلية.', bodyEn: 'Shoe drawers, hydraulic hangers and inside lighting.', cityAr: 'القاهرة', cityEn: 'Cairo', photos: [Cx::image(), Cx::image()], products: [$p['product']],
+            bodyAr: 'أدراج أحذية وعلاقات هيدروليك وإضاءة داخلية.', bodyEn: 'Shoe drawers, hydraulic hangers and inside lighting.', cityAr: 'القاهرة', cityEn: 'Cairo', photos: array_map(static fn (): string => Cx::image(), range(1, 5)), products: [$p['product']],
+            // S4.1: the client, so the chips, the client box and the cards' "With ..." are drawn.
+            clientNameAr: 'شركة الأفق', clientNameEn: 'Horizon Co', clientLogoMediaId: Cx::image(), clientLink: 'https://horizon.example/work',
         )));
         app(PublishProjectHandler::class)->handle(new PublishProject($project, 1));
 
@@ -140,21 +142,133 @@ it('draws every Content page at 375 x 812 in both languages, nothing sideways, e
     $page->navigate("/eg/en{$paths['post']}", BROWSER_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelectorAll('[data-test=\"content-products\"] [data-test=\"card\"]').length === 1"))->toBeTrue();
     $page->navigate("/eg/en{$paths['project']}", BROWSER_PAGE_LOAD);
-    expect(browserSoon($page, "document.querySelectorAll('[data-test=\"project-photos\"] img').length === 2"))->toBeTrue();
+    // The gallery: the first photo, two beside it stacked (the third carrying "+2"), and the phone's strip of the other four.
+    expect(browserSoon($page, "document.querySelector('[data-test=\"gallery-main\"] img') !== null && document.querySelectorAll('[data-test=\"gallery-strip\"] button').length === 4"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=\"gallery-stack\"]') !== null && getComputedStyle(document.querySelector('[data-test=\"gallery-stack\"]')).display === 'none'"))->toBeTrue('the stack is the wide layout\'s: hidden on a phone')
+        ->and($page->script("getComputedStyle(document.querySelector('[data-test=\"gallery-strip\"]')).display !== 'none'"))->toBeTrue('the strip is the phone\'s')
+        ->and($page->script("document.querySelector('[data-test=\"chip-client\"]').textContent.trim()"))->toBe('With Horizon Co')
+        ->and($page->script("document.querySelector('[data-test=\"chip-link\"]').textContent.trim() + ' ' + document.querySelector('[data-test=\"chip-link\"]').getAttribute('href') + ' ' + document.querySelector('[data-test=\"chip-link\"]').getAttribute('rel')"))->toBe('Client\'s site https://horizon.example/work noopener noreferrer')
+        ->and($page->script("document.querySelector('[data-test=\"client-box\"] [data-test=\"client-link\"]') !== null && document.querySelector('[data-test=\"client-box\"]').textContent.includes('Horizon Co')"))->toBeTrue();
     $page->navigate("/eg/en{$paths['home']}", BROWSER_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test=\"home-best-sellers\"] [data-test=\"card\"]') !== null && document.querySelector('[data-test=\"home-projects\"]') !== null && document.querySelector('[data-test=\"home-tile\"]') !== null"))->toBeTrue();
 
-    // The project's caption reads in both modes: light words on a navy fade, even over a white photo (shop-design.md §12, bug 1).
+    // The project's caption is under the photo, which has no overlay and no gradient (S4.2): the title at 16 px, then the city
+    // and the client in the muted ink, readable on the page's ground in both modes.
     $dark = visit('/eg/en')->inDarkMode();
+    $dark->resize(375, 812);
     expect(browserSoon($dark, "document.querySelector('[data-test=\"home-project-caption\"]') !== null"))->toBeTrue();
     foreach (['light' => $page, 'dark' => $dark] as $mode => $shown) {
-        foreach (['first-child' => 'line', 'last-child' => 'title'] as $child => $part) {
-            expect(Cb::contrast($shown, "[data-test=\"home-project-caption\"] span:{$child}", '[data-test="home-project-caption"]'))->toBeGreaterThanOrEqual(4.5, "{$mode}: the project's {$part} does not read");
+        expect($shown->script("(() => { const link = document.querySelector('[data-test=\"home-project\"]'); const photo = link.querySelector('img, [aria-hidden]'); const caption = link.querySelector('[data-test=\"home-project-caption\"]'); const title = caption.firstElementChild; return caption.getBoundingClientRect().top >= photo.getBoundingClientRect().bottom - 1 && getComputedStyle(link).backgroundImage === 'none' && getComputedStyle(caption).backgroundImage === 'none' && getComputedStyle(title).fontSize === '16px'; })()"))->toBeTrue("{$mode}: the caption is not under a bare photo with its title at 16 px")
+            ->and($shown->script("document.querySelector('[data-test=\"home-project-caption\"]').textContent.includes('With Horizon Co') && document.querySelector('[data-test=\"home-project-caption\"]').textContent.includes('Cairo')"))->toBeTrue("{$mode}: the city and the client are not under the title");
+
+        foreach (['first-child' => 'title', 'last-child' => 'line'] as $child => $part) {
+            expect(Cb::contrast($shown, "[data-test=\"home-project-caption\"] span:{$child}", 'body'))->toBeGreaterThanOrEqual(4.5, "{$mode}: the project's {$part} does not read");
+        }
+    }
+
+    // The projects list: the same caption, under each photo.
+    $page->navigate("/eg/en{$paths['projects']}", BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"project-card\"]') !== null"))->toBeTrue()
+        ->and($page->script("(() => { const card = document.querySelector('[data-test=\"project-card\"]'); const photo = card.querySelector('img, [aria-hidden]'); const caption = card.querySelector('[data-test=\"project-caption\"]'); return caption.getBoundingClientRect().top >= photo.getBoundingClientRect().bottom - 1 && getComputedStyle(card).backgroundImage === 'none' && getComputedStyle(caption.firstElementChild).fontSize === '16px' && caption.textContent.includes('Cairo') && caption.textContent.includes('With Horizon Co'); })()"))->toBeTrue('the list\'s caption is not under a bare photo');
+
+    $page->assertNoJavaScriptErrors();
+    $dark->assertNoJavaScriptErrors();
+});
+
+it('lays a project\'s page out as the gallery, the story and the client box, and opens every photo in the viewer, in both directions', function () {
+    $paths = contentShopBrowserItems();
+
+    foreach (['en' => 'ltr', 'ar' => 'rtl'] as $locale => $direction) {
+        $page = visit("/eg/{$locale}");
+        $page->resize(1280, 900);
+        $page->navigate("/eg/{$locale}{$paths['project']}", BROWSER_PAGE_LOAD);
+        expect(browserSoon($page, "document.querySelector('[data-test=\"gallery-main\"] img') !== null && document.documentElement.dir === '{$direction}'"))->toBeTrue("{$locale}: not drawn");
+
+        // The first photo about two thirds of the gallery's width, the next two stacked in the third that is left, the
+        // client box beside the story in the other column; in Arabic everything the other way round.
+        $layout = json_decode((string) $page->script("(() => { const r = (s) => { const e = document.querySelector(s); const b = e.getBoundingClientRect(); return { left: b.left, right: b.right, top: b.top, bottom: b.bottom, width: b.width }; }; const tiles = [...document.querySelectorAll('[data-test=\"gallery-tile\"]')].map((e) => { const b = e.getBoundingClientRect(); return { left: b.left, top: b.top, bottom: b.bottom, width: b.width }; }); return JSON.stringify({ main: r('[data-test=\"gallery-main\"]'), section: r('[data-test=\"project-photos\"]'), tiles, story: r('[data-test=\"project-story\"]'), box: r('[data-test=\"client-box\"]'), strip: getComputedStyle(document.querySelector('[data-test=\"gallery-strip\"]').closest('[data-slot=\"scroll-area\"]')).display, more: document.querySelector('[data-test=\"gallery-more\"]')?.textContent }); })()"), true, 512, JSON_THROW_ON_ERROR);
+        $share = $layout['main']['width'] / $layout['section']['width'];
+
+        expect($share)->toBeGreaterThan(0.6)->toBeLessThan(0.72)
+            ->and(count($layout['tiles']))->toBe(2)
+            ->and($layout['tiles'][0]['left'])->toBe($layout['tiles'][1]['left'])
+            ->and($layout['tiles'][0]['bottom'])->toBeLessThanOrEqual($layout['tiles'][1]['top'] + 1)
+            ->and($layout['more'])->toBe('+2')
+            ->and($layout['strip'])->toBe('none');
+
+        if ($direction === 'ltr') {
+            expect($layout['tiles'][0]['left'])->toBeGreaterThanOrEqual($layout['main']['right'])
+                ->and($layout['box']['left'])->toBeGreaterThanOrEqual($layout['story']['right']);
+        } else {
+            expect($layout['tiles'][0]['left'] + $layout['tiles'][0]['width'])->toBeLessThanOrEqual($layout['main']['left'] + 1)
+                ->and($layout['box']['right'])->toBeLessThanOrEqual($layout['story']['left'] + 1);
+        }
+
+        // Every photo opens in the viewer, which counts them and moves on with its arrows; Escape closes it.
+        $page->click('[data-test="gallery-main"]');
+        expect(browserSoon($page, "document.querySelector('[data-test=\"photo-viewer\"] [data-test=\"viewer-count\"]')?.textContent.trim() === '".($locale === 'en' ? '1 of 5' : '1 من 5')."'"))->toBeTrue("{$locale}: the viewer did not open on the first photo");
+        $page->click('[data-test="viewer-next"]');
+        expect(browserSoon($page, "document.querySelector('[data-test=\"viewer-count\"]')?.textContent.trim() === '".($locale === 'en' ? '2 of 5' : '2 من 5')."'"))->toBeTrue("{$locale}: Next did not move on")
+            ->and(Cb::latinDigits($page))->toBeTrue();
+        // The arrow keys follow the page's direction: the right one is Next in English, the left one in Arabic.
+        [$next, $previous] = $direction === 'ltr' ? ['ArrowRight', 'ArrowLeft'] : ['ArrowLeft', 'ArrowRight'];
+        $page->keys('[data-test="photo-viewer"]', $next);
+        expect(browserSoon($page, "document.querySelector('[data-test=\"viewer-count\"]')?.textContent.trim() === '".($locale === 'en' ? '3 of 5' : '3 من 5')."'"))->toBeTrue("{$locale}: the {$next} key did not go to the next photo");
+        $page->keys('[data-test="photo-viewer"]', $previous);
+        expect(browserSoon($page, "document.querySelector('[data-test=\"viewer-count\"]')?.textContent.trim() === '".($locale === 'en' ? '2 of 5' : '2 من 5')."'"))->toBeTrue("{$locale}: the {$previous} key did not go back")
+            // Close is in the page's language.
+            ->and($page->script("document.querySelector('[data-test=\"viewer-close\"]').getAttribute('aria-label')"))->toBe($locale === 'en' ? 'Close' : 'إغلاق');
+        $page->keys('[data-test="photo-viewer"]', 'Escape');
+        expect(browserSoon($page, "document.querySelector('[data-test=\"photo-viewer\"]') === null"))->toBeTrue("{$locale}: Escape did not close the viewer")
+            // Focus goes back to the tile that opened it.
+            ->and(browserSoon($page, "document.activeElement?.getAttribute('data-test') === 'gallery-main'"))->toBeTrue("{$locale}: focus did not return to the photo that opened the viewer");
+        $page->click('[data-test="gallery-stack"] li:first-child button');
+        expect(browserSoon($page, "document.querySelector('[data-test=\"viewer-count\"]')?.textContent.trim() === '".($locale === 'en' ? '2 of 5' : '2 من 5')."'"))->toBeTrue("{$locale}: a stacked photo did not open at its own place");
+
+        $page->assertNoJavaScriptErrors();
+    }
+});
+
+it('draws a project with no client with no client box, chip or caption line, one photo large and no strip', function () {
+    $paths = contentShopBrowserItems();
+    $slug = substr($paths['project'], strlen('/projects/'));
+    $id = (string) DB::table('content.project_translations')->where('slug', $slug)->value('project_id');
+    DB::table('content.projects')->where('id', $id)->update(['client_logo_media' => null, 'client_link' => null]);
+    DB::table('content.project_translations')->where('project_id', $id)->update(['client_name' => null]);
+    DB::table('content.project_photos')->where('project_id', $id)->where('position', '>', 0)->delete();
+    app(ContentCache::class)->invalidate();
+
+    $page = visit('/eg/en');
+    $page->resize(375, 812);
+    $page->navigate("/eg/en{$paths['project']}", BROWSER_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"gallery-main\"] img') !== null"))->toBeTrue()
+        ->and($page->script("['client-box', 'chip-client', 'chip-link', 'gallery-strip', 'gallery-stack'].filter((name) => document.querySelector('[data-test=\"' + name + '\"]') !== null)"))->toBe([])
+        ->and($page->script("document.querySelector('[data-test=\"chip-city\"]').textContent.trim()"))->toBe('Cairo')
+        ->and($page->script("document.querySelector('[data-test=\"project-columns\"]').className.includes('lg:grid-cols')"))->toBeFalse()
+        ->and(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page));
+    $page->assertNoJavaScriptErrors();
+});
+
+it('keeps a 100-character client name inside the phone on the project\'s page, the list and the home, in both languages', function () {
+    $paths = contentShopBrowserItems();
+    $slug = substr($paths['project'], strlen('/projects/'));
+    $id = (string) DB::table('content.project_translations')->where('slug', $slug)->value('project_id');
+    DB::table('content.project_translations')->where('project_id', $id)->where('locale', 'en')->update(['client_name' => str_repeat('W', 100)]);
+    DB::table('content.project_translations')->where('project_id', $id)->where('locale', 'ar')->update(['client_name' => str_repeat('ع', 100)]);
+    app(ContentCache::class)->invalidate();
+
+    $page = visit('/eg/en');
+    $page->resize(375, 812);
+
+    foreach (['en', 'ar'] as $locale) {
+        foreach (['project' => $paths['project'], 'projects' => '/projects', 'home' => ''] as $name => $path) {
+            $page->navigate("/eg/{$locale}{$path}", BROWSER_PAGE_LOAD);
+            expect(browserSoon($page, "document.body.textContent.includes('".($locale === 'en' ? str_repeat('W', 100) : str_repeat('ع', 100))."')"))->toBeTrue("{$locale} {$name}: the name is not drawn")
+                ->and(Cb::fitsPhone($page))->toBeTrue("{$locale} {$name}: ".Cb::overflow($page));
         }
     }
 
     $page->assertNoJavaScriptErrors();
-    $dark->assertNoJavaScriptErrors();
 });
 
 it('sends brand.com/ to the base store\'s Arabic home with no store remembered, and to the remembered one with it', function () {

@@ -18,10 +18,10 @@ interface ShopDocuments
     /**
      * The published item of this store whose current address in this language is this slug, as its page shows it:
      * its words in that language, its address in the other, its body's blocks and the files they name, and what its kind
-     * adds (a post's summary, cover and category; a project's city and photos; their products, in their order).
+     * adds (a post's summary, cover and category; a project's city, client and photos; their products, in their order).
      *
      * @param  'ar'|'en'  $locale
-     * @return array{id: string, title: string, slug: string, otherSlug: string|null, body: array<string, mixed>, seoTitle: string|null, seoDescription: string|null, shareMediaId: string|null, publishedAt: DateTimeImmutable|null, summary: string|null, coverMediaId: string|null, coverAlt: string|null, city: string|null, category: array{name: string, slug: string}|null, images: list<array{ref: int, mediaId: string, alt: string|null}>, products: list<string>, photos: list<string>}|null
+     * @return array{id: string, title: string, slug: string, otherSlug: string|null, body: array<string, mixed>, seoTitle: string|null, seoDescription: string|null, shareMediaId: string|null, publishedAt: DateTimeImmutable|null, summary: string|null, coverMediaId: string|null, coverAlt: string|null, city: string|null, clientName: string|null, clientLogoMediaId: string|null, clientLink: string|null, category: array{name: string, slug: string}|null, images: list<array{ref: int, mediaId: string, alt: string|null}>, products: list<string>, photos: list<string>}|null
      */
     public function published(DocumentKind $kind, string $storeId, string $locale, string $slug): ?array;
 
@@ -89,7 +89,7 @@ interface ShopDocuments
      *
      * @param  'ar'|'en'  $locale
      * @param  array{0: string, 1: string}|null  $after
-     * @return list<array{id: string, title: string, slug: string, city: string|null, photoMediaId: string|null, publishedAt: DateTimeImmutable}>
+     * @return list<array{id: string, title: string, slug: string, city: string|null, clientName: string|null, photoMediaId: string|null, publishedAt: DateTimeImmutable}>
      */
     public function projects(string $storeId, string $locale, ?array $after, int $limit): array;
 

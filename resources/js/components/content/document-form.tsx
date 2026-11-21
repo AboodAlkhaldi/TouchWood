@@ -24,7 +24,7 @@ import type { ContentImageData, DocumentFormPageData, ProductChoiceData } from '
 | address made from the title until typed, the whole of it shown), the body in the text editor with Translate under its
 | English, Search and Sharing in a `Collapsible` (title 70, description 160, each with its count, the default as its
 | placeholder; a share image per language), and what the kind adds (a post's summary, cover and category, a project's
-| city and photos, their products), drawn by the page. **Publish** or **Save Draft**; once published, **Save Changes**;
+| city, client and photos, their products), drawn by the page. **Publish** or **Save Draft**; once published, **Save Changes**;
 | ⋯ Unpublish… while published, Delete… while a draft, each naming first where Content's links point at it.
 |
 | Publish and a published item's Save Changes ask the one tick while Translate's mark stays on (§1.3), and the mark
@@ -58,9 +58,11 @@ export type DocumentState = {
     errors: Record<string, string | undefined>;
     checks: Checks;
     translation: Translation;
-    set: (name: 'summary' | 'cover_alt' | 'city') => (language: Lang, value: string) => void;
+    set: (name: 'summary' | 'cover_alt' | 'city' | 'client_name') => (language: Lang, value: string) => void;
     cover: ContentImageData | null;
     setCover: (image: ContentImageData | null) => void;
+    clientLogo: ContentImageData | null;
+    setClientLogo: (image: ContentImageData | null) => void;
     photos: ContentImageData[];
     setPhotos: (photos: ContentImageData[]) => void;
     products: ProductChoiceData[];
@@ -72,7 +74,7 @@ export type DocumentState = {
 function useDocumentData(page: DocumentFormPageData) {
     const document = page.document;
     const text = (language: Lang) => (language === 'ar' ? document?.ar : document?.en);
-    const words = (key: 'title' | 'slug' | 'body' | 'seoTitle' | 'seoDescription' | 'summary' | 'coverAlt' | 'city', language: Lang) => text(language)?.[key] ?? '';
+    const words = (key: 'title' | 'slug' | 'body' | 'seoTitle' | 'seoDescription' | 'summary' | 'coverAlt' | 'city' | 'clientName', language: Lang) => text(language)?.[key] ?? '';
 
     return useForm({
         title_ar: words('title', 'ar'),
@@ -91,6 +93,9 @@ function useDocumentData(page: DocumentFormPageData) {
         cover_alt_en: words('coverAlt', 'en'),
         city_ar: words('city', 'ar'),
         city_en: words('city', 'en'),
+        client_name_ar: words('clientName', 'ar'),
+        client_name_en: words('clientName', 'en'),
+        client_link: document?.clientLink ?? '',
         category_id: document?.categoryId ?? '',
     });
 }
@@ -107,6 +112,7 @@ export function DocumentForm({ page, words, children, extraChecks }: { page: Doc
     const [images, setImages] = useState<Record<Lang, Record<number, ContentImageData>>>(() => ({ ar: bodyImages('ar'), en: bodyImages('en') }));
     const [share, setShare] = useState<Record<Lang, ContentImageData | null>>(() => ({ ar: imageOf(document?.shareAr ?? null), en: imageOf(document?.shareEn ?? null) }));
     const [cover, setCover] = useState<ContentImageData | null>(() => imageOf(document?.coverMediaId ?? null));
+    const [clientLogo, setClientLogo] = useState<ContentImageData | null>(() => imageOf(document?.clientLogoMediaId ?? null));
     const [photos, setPhotos] = useState<ContentImageData[]>(() => (document?.photos ?? []).flatMap((id) => (page.images[id] ? [page.images[id]] : [])));
     const [products, setProducts] = useState<ProductChoiceData[]>(page.products);
     const [touched, setTouched] = useState(false);
@@ -136,7 +142,7 @@ export function DocumentForm({ page, words, children, extraChecks }: { page: Doc
         setTouched(true);
     };
     const pairsOf = (names: string[]): Pair[] => names.map((name) => ({ name, ar: form.data[`${name}_ar` as 'title_ar'], en: form.data[`${name}_en` as 'title_en'], fill: (value: string) => form.setData(`${name}_en` as 'title_en', value) }));
-    const own = kind === 'post' ? ['summary', 'cover_alt'] : kind === 'project' ? ['city'] : [];
+    const own = kind === 'post' ? ['summary', 'cover_alt'] : kind === 'project' ? ['city', 'client_name'] : [];
     const bodyPair: Pair = { name: 'body', ar: form.data.body_ar, en: form.data.body_en, rich: true, fill: (value) => form.setData('body_en', value) };
     const pairs = [...pairsOf(['title', ...own, 'seo_title', 'seo_description']), bodyPair];
     const base = kind === 'page' ? '/admin/content/pages' : kind === 'post' ? '/admin/content/blog/posts' : '/admin/content/projects';
@@ -167,6 +173,7 @@ export function DocumentForm({ page, words, children, extraChecks }: { page: Doc
             share_ar: share.ar?.id ?? '',
             share_en: share.en?.id ?? '',
             cover_media_id: cover?.id ?? '',
+            client_logo_media_id: clientLogo?.id ?? '',
             photos: photos.map((photo) => photo.id),
             products: products.map((product) => product.id),
             intent,
@@ -181,7 +188,7 @@ export function DocumentForm({ page, words, children, extraChecks }: { page: Doc
                 setAsking(null);
             },
         });
-    const state: DocumentState = { form, errors, checks, translation, set, cover, setCover: (image) => changed(() => setCover(image)), photos, setPhotos: (next) => changed(() => setPhotos(next)), products, setProducts: (next) => changed(() => setProducts(next)), uploadKind, storeId: store.id };
+    const state: DocumentState = { form, errors, checks, translation, set, cover, setCover: (image) => changed(() => setCover(image)), clientLogo, setClientLogo: (image) => changed(() => setClientLogo(image)), photos, setPhotos: (next) => changed(() => setPhotos(next)), products, setProducts: (next) => changed(() => setProducts(next)), uploadKind, storeId: store.id };
 
     return (
         <AdminLayout title={document === null ? words.new : document.ar.title} breadcrumbs={[{ label: words.list, href: `${kind === 'post' ? '/admin/content/blog' : base}?store=${encodeURIComponent(store.code)}` }]}>

@@ -263,6 +263,8 @@ coverMediaId: string | null,
 products: string[],
 photos: string[],
 translationUnread: boolean,
+clientLogoMediaId: string | null,
+clientLink: string | null,
 };
 export type DocumentFormPageData = {
 store: ContentStoreData,
@@ -299,6 +301,7 @@ seoDescription: string | null,
 summary: string | null,
 coverAlt: string | null,
 city: string | null,
+clientName: string | null,
 };
 export type DocumentsPageData = {
 stores: ContentStoreData[],
@@ -532,12 +535,10 @@ publishedAt: string | null,
 summary: string | null,
 cover: Record<string, Record<string, string>> | null,
 coverAlt: string | null,
-city: string | null,
 category: {
 name: string,
 slug: string,
 } | null,
-photos: Record<string, Record<string, string>>[],
 products: Record<string, any>[],
 cardFacts: Record<string, any>,
 address: ContentAddressData,
@@ -584,6 +585,27 @@ inForce: {
 from: string,
 until: string,
 }[],
+};
+export type ShopProjectPageData = {
+title: string,
+blocks: Record<string, any>[],
+images: {
+src: string | null,
+width: number | null,
+height: number | null,
+}[],
+city: string | null,
+clientName: string | null,
+client: {
+name: string | null,
+logo: Record<string, Record<string, string>> | null,
+link: string | null,
+} | null,
+photos: Record<string, Record<string, string>>[],
+products: Record<string, any>[],
+cardFacts: Record<string, any>,
+address: ContentAddressData,
+head: ContentHeadData,
 };
 export type ShopProjectsPageData = {
 projects: Record<string, any>[],

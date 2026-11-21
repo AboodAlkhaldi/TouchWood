@@ -6,7 +6,7 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { shopLink } from '../../resources/js/components/content/links';
+import { isHttpsLink, shopLink } from '../../resources/js/components/content/links';
 import table from '../Modules/Content/Unit/link-cases.json';
 
 describe('a link staff type', () => {
@@ -15,6 +15,15 @@ describe('a link staff type', () => {
             assert.equal(shopLink(typed), kept);
         });
     }
+
+    it('takes an https address only where a client site is asked for, as Words::httpsLink does', () => {
+        assert.equal(isHttpsLink('https://client.example/work'), true);
+        assert.equal(isHttpsLink('HTTPS://client.example'), true);
+        assert.equal(isHttpsLink('http://client.example'), false);
+        assert.equal(isHttpsLink('/projects/other'), false);
+        assert.equal(isHttpsLink('client.example'), false);
+        assert.equal(isHttpsLink('https:///x'), false);
+    });
 
     it('counts its 2,000 characters as the server does, one each however JavaScript stores them', () => {
         assert.equal(shopLink(`/${'a'.repeat(1999)}`), `/${'a'.repeat(1999)}`);

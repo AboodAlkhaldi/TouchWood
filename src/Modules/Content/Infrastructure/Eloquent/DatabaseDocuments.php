@@ -92,6 +92,11 @@ final readonly class DatabaseDocuments implements Documents
             $written['cover_media_id'] = $document->coverMediaId;
         }
 
+        if ($document->kind === DocumentKind::Project) {
+            $written['client_logo_media'] = $document->clientLogoMediaId;
+            $written['client_link'] = $document->clientLink;
+        }
+
         return $written;
     }
 
@@ -123,6 +128,7 @@ final readonly class DatabaseDocuments implements Documents
 
             if ($document->kind === DocumentKind::Project) {
                 $row['city'] = $text->city;
+                $row['client_name'] = $text->clientName;
             }
 
             $this->db->table($tables->texts)->insert($row);
@@ -181,6 +187,7 @@ final readonly class DatabaseDocuments implements Documents
                 Rows::text($text->cover_alt ?? null),
                 Rows::text($text->city ?? null),
                 $images[$locale] ?? [],
+                Rows::text($text->client_name ?? null),
             );
         }
 
@@ -209,6 +216,8 @@ final readonly class DatabaseDocuments implements Documents
             (int) $row->version,
             Rows::text($row->updated_by),
             Rows::moment($row->updated_at),
+            Rows::text($row->client_logo_media ?? null),
+            Rows::text($row->client_link ?? null),
         );
     }
 }

@@ -33,6 +33,8 @@ final class DocumentData extends Data
         public array $products,
         public array $photos,
         public bool $translationUnread,
+        public ?string $clientLogoMediaId = null,
+        public ?string $clientLink = null,
     ) {}
 
     /**
@@ -58,6 +60,8 @@ final class DocumentData extends Data
             $list('products'),
             $list('photos'),
             ($read['translationUnread'] ?? false) === true,
+            $text('client_logo_media'),
+            $text('client_link'),
         );
     }
 
@@ -68,6 +72,6 @@ final class DocumentData extends Data
      */
     public function mediaIds(): array
     {
-        return array_values(array_filter([$this->shareAr, $this->shareEn, $this->coverMediaId, ...$this->photos, ...array_values($this->ar->images), ...array_values($this->en->images ?? [])]));
+        return array_values(array_filter([$this->shareAr, $this->shareEn, $this->coverMediaId, $this->clientLogoMediaId, ...$this->photos, ...array_values($this->ar->images), ...array_values($this->en->images ?? [])]));
     }
 }

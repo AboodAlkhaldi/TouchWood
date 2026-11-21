@@ -12,6 +12,8 @@ use Modules\Content\Application\Command\SaveBar\SaveBar;
 use Modules\Content\Application\Command\SaveBar\SaveBarHandler;
 use Modules\Content\Application\Command\SavePage\SavePage;
 use Modules\Content\Application\Command\SavePage\SavePageHandler;
+use Modules\Content\Application\Command\SaveProject\SaveProject;
+use Modules\Content\Application\Command\SaveProject\SaveProjectHandler;
 use Modules\Content\Application\Command\SaveSmartBar\SaveSmartBar;
 use Modules\Content\Application\Command\SaveSmartBar\SaveSmartBarHandler;
 use Modules\Content\Application\Command\SchedulePopup\SchedulePopup;
@@ -55,6 +57,7 @@ function constraintRow(string $table): array
         'pages', 'projects' => ['id' => $id, 'store_id' => $store, 'created_at' => $now, 'updated_at' => $now],
         'blog_posts' => ['id' => $id, 'store_id' => $store, 'created_at' => $now, 'updated_at' => $now],
         'page_translations' => ['page_id' => constraintParent('pages'), 'locale' => 'ar', 'store_id' => $store, 'title' => 'عنوان', 'slug' => 'عنوان-'.$id, 'body' => '{"blocks": []}'],
+        'project_translations' => ['project_id' => constraintParent('projects'), 'locale' => 'ar', 'store_id' => $store, 'title' => 'مشروع', 'slug' => 'مشروع-'.$id, 'body' => '{"blocks": []}'],
         'blog_categories' => ['id' => $id, 'store_id' => $store, 'name_ar' => 'أدلة', 'name_en' => 'Guides', 'slug_ar' => 'أدلة', 'slug_en' => 'guides', 'position' => 0, 'created_at' => $now, 'updated_at' => $now],
         'home_section_media' => ['section_id' => constraintParent('home_sections'), 'slot' => 'LOGO', 'position' => 0, 'media_id' => Cx::image(), 'name_ar' => 'عميل'],
         'banner_images' => ['banner_id' => constraintParent('banners'), 'kind' => 'PHONE', 'locale' => 'any', 'media_id' => Cx::image()],
@@ -105,7 +108,7 @@ it('takes the base rows these cases break, so each break is the only thing wrong
     }
 
     expect(constraintBroken($table, constraintRow($table)))->toBe('accepted');
-})->with(['home_sections', 'bars', 'footers', 'banners', 'popups', 'smart_bars', 'pages', 'blog_posts', 'page_translations', 'blog_categories', 'home_section_media', 'banner_images', 'page_images', 'project_photos']);
+})->with(['home_sections', 'bars', 'footers', 'banners', 'popups', 'smart_bars', 'pages', 'blog_posts', 'page_translations', 'blog_categories', 'home_section_media', 'banner_images', 'page_images', 'project_photos', 'project_translations']);
 
 it('refuses each row its CHECK is for, a NULL left where it would slip through', function (string $table, array $with, string $constraint) {
     if ($table === 'home_sections') {
@@ -148,7 +151,18 @@ it('refuses each row its CHECK is for, a NULL left where it would slip through',
     'a banner image of no language' => ['banner_images', ['locale' => 'fr'], 'bi_locale'],
     'a body image of ref 0' => ['page_images', ['ref' => 0], 'pi_ref'],
     'a twenty-first photo' => ['project_photos', ['position' => 20], 'pp_position'],
+    // flags-2026-11.md S4.1: a project's client.
+    'a client link over http' => ['projects', ['client_link' => 'http://client.example/'], 'projects_client_link'],
+    'a client link that is a shop page' => ['projects', ['client_link' => '/projects/a'], 'projects_client_link'],
+    'a client link with a space' => ['projects', ['client_link' => 'https://client.example/a b'], 'projects_client_link'],
+    'a client link with no host' => ['projects', ['client_link' => 'https:///a'], 'projects_client_link'],
+    'a client link of 2,001 characters' => ['projects', ['client_link' => 'https://client.example/'.str_repeat('a', 1978)], 'projects_client_link'],
+    'a client name of spaces' => ['project_translations', ['client_name' => '  '], 'prt_client_name'],
 ]);
+
+it('refuses a client name of 101 characters in the column itself, as the city', function () {
+    expect(fn () => DB::transaction(fn () => DB::table('content.project_translations')->insert([...constraintRow('project_translations'), 'client_name' => str_repeat('ع', 101)])))->toThrow(QueryException::class);
+});
 
 it('refuses a file deleted under a banner, a file named by nothing, a category in use: their RESTRICT keys', function () {
     $image = constraintRow('banner_images');
@@ -177,11 +191,27 @@ it('refuses in the code first, with the constraint dropped behind it', function 
         Cx::editor([ContentPermissions::BAR_MANAGE]);
         app(SaveSmartBarHandler::class)->handle(new SaveSmartBar(null, Fx::storeId('sa'), 'CATEGORY', null, null, 'رسالة', 'Message', null));
     }],
+    'a client link over http' => ['projects_client_link', 'projects', function (): void {
+        Cx::editor([ContentPermissions::PROJECT_MANAGE]);
+        app(SaveProjectHandler::class)->handle(new SaveProject(new DocumentInput(null, Fx::storeId('sa'), 0, 'مشروع', null, clientLink: 'http://client.example/')));
+    }],
+    'a client name of 101 characters' => ['prt_client_name', 'project_translations', function (): void {
+        Cx::editor([ContentPermissions::PROJECT_MANAGE]);
+        app(SaveProjectHandler::class)->handle(new SaveProject(new DocumentInput(null, Fx::storeId('sa'), 0, 'مشروع', null, clientNameAr: str_repeat('ع', 101))));
+    }],
     'an address with a slash' => ['pt_slug', 'page_translations', function (): void {
         Cx::editor([ContentPermissions::PAGE_MANAGE]);
         app(SavePageHandler::class)->handle(new SavePage(new DocumentInput(null, Fx::storeId('sa'), 0, 'عنوان', null, 'a/b')));
     }],
 ]);
+
+it('turns a blank client name into none in the code, so the CHECK on it is never reached: dropped, nothing breaks', function () {
+    DB::statement('ALTER TABLE content.project_translations DROP CONSTRAINT prt_client_name');
+    Cx::editor([ContentPermissions::PROJECT_MANAGE]);
+    $project = app(SaveProjectHandler::class)->handle(new SaveProject(new DocumentInput(null, Fx::storeId('sa'), 0, 'مشروع', null, clientNameAr: '   ')));
+
+    expect(DB::table('content.project_translations')->where('project_id', $project)->where('locale', 'ar')->value('client_name'))->toBeNull();
+});
 
 it('refuses to schedule a pop-up with no English in the code first, the CHECK dropped', function () {
     Cx::editor([ContentPermissions::POPUP_MANAGE]);

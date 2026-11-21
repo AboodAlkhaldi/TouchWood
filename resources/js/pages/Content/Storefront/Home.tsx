@@ -29,7 +29,7 @@ import type { SharedProps } from '@/types/page';
 type Words = Record<string, unknown>;
 type ButtonWords = { text: string | null; link: string | null } | null;
 type Section = { type: string; words: Words; project?: Document; guides?: Document[]; logos?: Logo[] };
-type Document = { title: string; slug: string; line: string | null; image: PhotoSizes | [] };
+type Document = { title: string; slug: string; line: string | null; client?: string | null; image: PhotoSizes | [] };
 type Logo = { name: string | null; link: string | null; image: PhotoSizes };
 
 type Tile = { name: string; slug: string; photo: PhotoSizes | null };
@@ -222,12 +222,14 @@ function Projects({ heading, project, guides }: { heading: string | null; projec
             }
         >
             <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-                <Link href={link('storefront.content.project', { slug: project.slug })} className="group relative block overflow-hidden rounded-xl" data-test="home-project">
-                    <ShopPhoto photo={Array.isArray(project.image) ? null : project.image} size="detail" alt="" className="aspect-[2/1] w-full" />
-                    {/* The design's caption: the sidebar's navy, dark in both modes, solid behind the words and fading out above them; the words light (shop-design.md §12, bug 1). */}
-                    <span className="absolute inset-x-0 bottom-0 grid gap-1 bg-linear-to-t from-sidebar/85 from-60% to-transparent p-4 pt-12 text-sidebar-ink" data-test="home-project-caption">
-                        {project.line ? <span className="text-label-13">{project.line}</span> : null}
-                        <span className="text-heading-16 group-hover:underline sm:text-heading-20">{project.title}</span>
+                <Link href={link('storefront.content.project', { slug: project.slug })} className="group grid grid-cols-1 content-start gap-3" data-test="home-project">
+                    <ShopPhoto photo={Array.isArray(project.image) ? null : project.image} size="detail" alt="" className="aspect-[2/1] w-full rounded-xl" />
+                    {/* The caption is under the photo, which has no overlay and no gradient (flags-2026-11.md S4.2): the title at 16 px, then the city and the client in the muted ink. */}
+                    <span className="grid grid-cols-1 gap-1" data-test="home-project-caption">
+                        <span className="text-heading-16 text-ink group-hover:underline">{project.title}</span>
+                        {project.line || project.client ? (
+                            <span className="text-copy-14 break-words text-ink-muted">{[project.line, project.client ? t('content::shop.project.with', { client: project.client }) : null].filter(Boolean).join(' · ')}</span>
+                        ) : null}
                     </span>
                 </Link>
                 {guides.length > 0 ? (

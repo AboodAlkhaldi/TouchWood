@@ -52,7 +52,7 @@ use Shared\Domain\ValueObject\StoreId;
  * - **Two people**: a save over a newer version is refused with who and when (§1.1 rule 12, `StaleEdit`).
  * - Audited by value; a body as changed with its length (§1.1 rule 13).
  *
- * Lengths that are the build's picks: title 150, summary 200, cover description 200, city 100; SEO 70 and 160 (W7).
+ * Lengths that are the build's picks: title 150, summary 200, cover description 200, city 100, client name 100; SEO 70 and 160 (W7).
  */
 final readonly class DocumentWriter
 {
@@ -204,6 +204,7 @@ final readonly class DocumentWriter
         Words::requireEnglish('seo_title', $ar->seoTitle, $en->seoTitle);
         Words::requireEnglish('seo_description', $ar->seoDescription, $en->seoDescription);
         Words::requireEnglish('city', $ar->city, $en->city);
+        Words::requireEnglish('client_name', $ar->clientName, $en->clientName);
 
         if ($document->kind === DocumentKind::Post) {
             self::requirePair('summary', $ar->summary, $en->summary);
@@ -224,7 +225,7 @@ final readonly class DocumentWriter
     /**
      * What the form sent, read and checked before anything is locked.
      *
-     * @return array{texts: array<string, DocumentText>, share: array{ar: string|null, en: string|null}, category: string|null, cover: string|null, products: list<string>, photos: list<string>}
+     * @return array{texts: array<string, DocumentText>, share: array{ar: string|null, en: string|null}, category: string|null, cover: string|null, products: list<string>, photos: list<string>, clientLogo: string|null, clientLink: string|null}
      *
      * @throws ContentError
      */
@@ -236,6 +237,7 @@ final readonly class DocumentWriter
         $summary = $kind === DocumentKind::Post ? Words::pair('summary', $input->summaryAr, $input->summaryEn, 200) : ['ar' => null, 'en' => null];
         $coverAlt = $kind === DocumentKind::Post ? Words::pair('cover_alt', $input->coverAltAr, $input->coverAltEn, 200) : ['ar' => null, 'en' => null];
         $city = $kind === DocumentKind::Project ? Words::pair('city', $input->cityAr, $input->cityEn, 100) : ['ar' => null, 'en' => null];
+        $client = $kind === DocumentKind::Project ? Words::pair('client_name', $input->clientNameAr, $input->clientNameEn, 100) : ['ar' => null, 'en' => null];
 
         $bodies = ['ar' => $input->bodyAr, 'en' => $input->bodyEn];
         $sentImages = ['ar' => $input->imagesAr, 'en' => $input->imagesEn];
@@ -263,10 +265,14 @@ final readonly class DocumentWriter
                 $coverAlt[$locale],
                 $city[$locale],
                 $this->bodyImages($locale, $body, $sentImages[$locale]),
+                $client[$locale],
             );
         }
 
         $share = $this->images->files(['share_image_ar' => $input->shareAr, 'share_image_en' => $input->shareEn]);
+        // A project's client (S4.1): the logo a public image of the library, the link https:// only.
+        $clientLogo = $kind === DocumentKind::Project ? $this->images->files(['client_logo' => $input->clientLogoMediaId])['client_logo'] : null;
+        $clientLink = $kind === DocumentKind::Project ? Words::httpsLink('client_link', $input->clientLink) : null;
 
         return [
             'texts' => $texts,
@@ -275,6 +281,8 @@ final readonly class DocumentWriter
             'cover' => $kind === DocumentKind::Post ? $this->images->files(['cover' => $input->coverMediaId])['cover'] : null,
             'products' => $this->products($kind, $input->products, $was->products ?? [], $store),
             'photos' => $kind === DocumentKind::Project ? $this->photos($input->photos) : [],
+            'clientLogo' => $clientLogo,
+            'clientLink' => $clientLink,
         ];
     }
 
@@ -411,16 +419,16 @@ final readonly class DocumentWriter
     }
 
     /**
-     * @param  array{texts: array<string, DocumentText>, share: array{ar: string|null, en: string|null}, category: string|null, cover: string|null, products: list<string>, photos: list<string>}  $read
+     * @param  array{texts: array<string, DocumentText>, share: array{ar: string|null, en: string|null}, category: string|null, cover: string|null, products: list<string>, photos: list<string>, clientLogo: string|null, clientLink: string|null}  $read
      */
     private function document(string $id, DocumentKind $kind, StoreDto $store, Publication $status, ?DateTimeImmutable $publishedAt, array $read, int $version, ?string $staffId, DateTimeImmutable $now): Document
     {
-        return new Document($id, $kind, $store->id, $status, $publishedAt, $read['share']['ar'], $read['share']['en'], $read['category'], $read['cover'], $read['texts'], $read['products'], $read['photos'], $version, $staffId, $now);
+        return new Document($id, $kind, $store->id, $status, $publishedAt, $read['share']['ar'], $read['share']['en'], $read['category'], $read['cover'], $read['texts'], $read['products'], $read['photos'], $version, $staffId, $now, $read['clientLogo'], $read['clientLink']);
     }
 
     private function with(Document $was, Publication $status, ?DateTimeImmutable $publishedAt, ?string $staffId, DateTimeImmutable $now): Document
     {
-        return new Document($was->id, $was->kind, $was->storeId, $status, $publishedAt, $was->shareAr, $was->shareEn, $was->categoryId, $was->coverMediaId, $was->texts, $was->products, $was->photos, $was->version + 1, $staffId, $now);
+        return new Document($was->id, $was->kind, $was->storeId, $status, $publishedAt, $was->shareAr, $was->shareEn, $was->categoryId, $was->coverMediaId, $was->texts, $was->products, $was->photos, $was->version + 1, $staffId, $now, $was->clientLogoMediaId, $was->clientLink);
     }
 
     /**
