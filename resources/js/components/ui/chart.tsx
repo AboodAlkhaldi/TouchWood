@@ -3,6 +3,10 @@ import { cn } from "cn"
 import * as RechartsPrimitive from "recharts"
 import type { TooltipValueType } from "recharts"
 
+// TouchWood's one change to shadcn's Chart (owner, 2026-11-21): the tooltip's default value in Latin digits,
+// grouped by the page's language, not the browser's (`toLocaleString()`; frontend.md §1.8).
+import { figure } from "@/lib/digits"
+
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const
 
@@ -252,7 +256,12 @@ function ChartTooltipContent({
                       {item.value != null && (
                         <span className="font-mono font-medium text-foreground tabular-nums">
                           {typeof item.value === "number"
-                            ? item.value.toLocaleString()
+                            ? figure(
+                                typeof document === "undefined"
+                                  ? "en"
+                                  : document.documentElement.lang,
+                                item.value
+                              )
                             : String(item.value)}
                         </span>
                       )}

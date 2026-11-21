@@ -8,13 +8,20 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Modules\Platform\Public\Contracts\HomeCard;
 use Modules\Platform\Public\Dto\HomeCardData;
 use Modules\Platform\Public\Dto\HomeMetric;
 use Modules\Platform\Public\Dto\HomeScope;
 use Modules\Platform\Public\Enums\HomePeriod;
+use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
+use Modules\Sales\Application\Command\ApproveOrder\ApproveOrderHandler;
 use Modules\Sales\Application\Command\CancelOrder\CancelOrder;
 use Modules\Sales\Application\Command\CancelOrder\CancelOrderHandler;
+use Modules\Sales\Application\Command\RecordPayment\RecordPayment;
+use Modules\Sales\Application\Command\RecordPayment\RecordPaymentHandler;
+use Modules\Sales\Application\Command\ShipOrder\ShipOrder;
+use Modules\Sales\Application\Command\ShipOrder\ShipOrderHandler;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Presentation\Home\AudienceCard;
 use Modules\Sales\Presentation\Home\AverageOrderCard;
@@ -161,6 +168,14 @@ it('shows "—" for an average with no order, and an average with no order befor
 
 it('counts the orders waiting, to ship and on the way now, whatever the period, and those cancelled in the period', function () {
     salesHomeAMonth();
+    // One more approved and not shipped, one more approved, paid and shipped: one in each of the other two.
+    $approved = salesHomeOrder()['order'];
+    $shipped = salesHomeOrder()['order'];
+    Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL, SalesPermissions::PAYMENT_RECORD], ['sa']));
+    app(ApproveOrderHandler::class)->handle(new ApproveOrder($approved));
+    app(ApproveOrderHandler::class)->handle(new ApproveOrder($shipped));
+    app(RecordPaymentHandler::class)->handle(new RecordPayment($shipped, 'BANK_TRANSFER', 'T-1', null, '2026-11-02', (string) Str::uuid()));
+    app(ShipOrderHandler::class)->handle(new ShipOrder($shipped, otherCarrier: 'SMSA', trackingNumber: 'T-1'));
     salesHomeReader();
 
     $week = salesHomeRead(OrdersNowCard::class, period: HomePeriod::Today);
@@ -170,7 +185,10 @@ it('counts the orders waiting, to ship and on the way now, whatever the period, 
     expect($labels)->toBe(['Waiting', 'To Ship', 'On the Way', 'Cancelled and Came Back'])
         ->and(salesHomeMetric($week, 0)->lines[0]->value?->value)->toBe(3)
         ->and(salesHomeMetric($week, 0)->href)->toBe('/admin/orders?store=sa&tab=WAITING_APPROVAL')
-        ->and(salesHomeMetric($week, 1)->lines[0]->value?->value)->toBe(0)
+        ->and(salesHomeMetric($week, 1)->lines[0]->value?->value)->toBe(1)
+        ->and(salesHomeMetric($week, 1)->href)->toBe('/admin/orders?store=sa&tab=TO_SHIP')
+        ->and(salesHomeMetric($week, 2)->lines[0]->value?->value)->toBe(1)
+        ->and(salesHomeMetric($week, 2)->href)->toBe('/admin/orders?store=sa&tab=SHIPPED')
         ->and(salesHomeMetric($week, 3)->lines[0]->value?->value)->toBe(1)
         ->and(salesHomeMetric($week, 3)->lines[0]->change?->percent)->toBeNull()
         ->and(salesHomeMetric($week, 3)->href)->toBeNull();
@@ -246,14 +264,32 @@ it('gives the chart a point a day with the period before\'s Sales under the same
         ->and($year?->points[10]->values['orders'])->toBe(2);
 });
 
-it('counts the customers registered in the period, against the one before', function () {
-    salesHomeOrder();
-    salesHomeReader();
+it('counts the customers registered in the period by the store\'s day, against the one before', function () {
+    $when = [
+        // 1 November in Riyadh (UTC+3) starts at 21:00 UTC on 31 October: the first two are the 1st and the 2nd.
+        'first' => '2026-10-31 21:00:00+00', 'second' => '2026-11-01 21:30:00+00', 'company' => '2026-11-02 06:00:00+00',
+        // Just before the period, and in the period before (1 to 2 October at 15:00).
+        'before' => '2026-10-31 20:59:59+00', 'beforePeriod' => '2026-10-01 09:00:00+00',
+        'elsewhere' => '2026-11-02 06:00:00+00',
+    ];
+    $accounts = [
+        'first' => Fx::customer('nc-first@example.test'), 'second' => Fx::customer('nc-second@example.test'),
+        'company' => Fx::customer('nc-company@example.test', 'sa', 'company'), 'before' => Fx::customer('nc-before@example.test'),
+        'beforePeriod' => Fx::customer('nc-before-period@example.test'), 'elsewhere' => Fx::customer('nc-elsewhere@example.test', 'eg'),
+    ];
 
+    foreach ($accounts as $name => $id) {
+        DB::statement('UPDATE access.customers SET created_at = ?::timestamptz WHERE id = ?', [$when[$name], $id]);
+    }
+
+    salesHomeReader();
     $line = salesHomeMetric(salesHomeRead(NewCustomersCard::class))->lines[0];
 
-    expect($line->value?->value)->toBeGreaterThan(0)
-        ->and($line->trend)->toBe([]);
+    // The 1st: one; the 2nd: one individual and one company; another store's never. The period before runs 1 to
+    // 2 October at 15:30, so only `beforePeriod` is in it: 3 against 1.
+    expect($line->value?->value)->toBe(3)
+        ->and($line->trend)->toBe([1, 2])
+        ->and($line->change?->percent)->toBe(200.0);
 });
 
 it('lists every store for All Stores, the base store first, each in its own currency, and totals a count', function () {

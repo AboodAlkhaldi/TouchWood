@@ -87,43 +87,14 @@ it('formats every number and date through intlLocale, never a language tag of it
         }
 
         // toLocale*() follows the browser's own language: only shadcn's calendar uses it, for a month's
-        // name and a data attribute, never a digit on screen; and shadcn's Chart, in its tooltip's default value -
-        // which no chart of ours reaches: the one tooltip on the admin home writes its own (`formatter`,
-        // components/home/charts.tsx; dashboard.md §4).
-        if (! in_array($relative, ['resources/js/components/ui/calendar.tsx', 'resources/js/components/ui/chart.tsx'], true) && preg_match('/\.toLocale(?:String|DateString|TimeString)\(/', $text) === 1) {
+        // name and a data attribute, never a digit on screen. (shadcn's Chart wrote its tooltip's default value with
+        // it; ours writes it with lib/digits' figure() - owner, 2026-11-21.)
+        if ($relative !== 'resources/js/components/ui/calendar.tsx' && preg_match('/\.toLocale(?:String|DateString|TimeString)\(/', $text) === 1) {
             $offending[] = "{$relative}: toLocale*";
         }
     }
 
     expect($offending)->toBe([]);
-});
-
-it('gives every chart tooltip its own way of writing a value, so shadcn\'s browser-language default is never reached', function () {
-    $tooltips = 0;
-    $unwritten = [];
-
-    foreach (latinDigitsFiles(['resources/js'], ['*.tsx']) as $path) {
-        $relative = str_replace('\\', '/', substr($path, strlen(latinDigitsRoot()) + 1));
-
-        if ($relative === 'resources/js/components/ui/chart.tsx') {
-            continue;
-        }
-
-        // Each tooltip element, from its name to the end of its own tag.
-        preg_match_all('/<ChartTooltipContent\b(?:[^<>]|=>|<[^>]*>)*?\/>/s', (string) file_get_contents($path), $elements);
-
-        foreach ($elements[0] as $element) {
-            $tooltips++;
-
-            if (! str_contains($element, 'formatter={')) {
-                $unwritten[] = $relative;
-            }
-        }
-    }
-
-    // The home's line chart has one (dashboard.md §2 C): a guard that finds none checks nothing.
-    expect($tooltips)->toBeGreaterThan(0)
-        ->and($unwritten)->toBe([]);
 });
 
 it('writes Arabic-Indic digits in the screens only where typed ones are turned into Latin', function () {

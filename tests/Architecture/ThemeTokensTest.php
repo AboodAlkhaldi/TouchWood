@@ -34,10 +34,13 @@ function mayHoldColours(string $path): bool
  *
  * @return list<string>
  */
-function colourLiteralsIn(string $code): array
+function colourLiteralsIn(string $code, bool $isShadcnChart = false): array
 {
     $found = [];
-    $code = (string) preg_replace("/\\[(stroke|fill)='#[0-9a-fA-F]{3,8}'\\]/", '', $code);
+
+    if ($isShadcnChart) {
+        $code = (string) preg_replace("/\\[(stroke|fill)='#[0-9a-fA-F]{3,8}'\\]/", '', $code);
+    }
 
     foreach (['/#[0-9a-fA-F]{3,8}\b/', '/\b(rgb|rgba|hsl|hsla|oklch|lab)\s*\(/'] as $pattern) {
         if (preg_match_all($pattern, $code, $matches) > 0) {
@@ -60,9 +63,11 @@ it('detects a colour written into code', function (string $code) {
 ]);
 
 it('ignores a selector that finds Recharts\' default lines by their value, and still sees a colour painted beside it', function () {
-    expect(colourLiteralsIn("className=\"[&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50\""))->toBeEmpty()
-        ->and(colourLiteralsIn("className=\"[&_line[stroke='#ccc']]:stroke-[#ccc]\""))->toBe(['#ccc'])
-        ->and(colourLiteralsIn('stroke="#ccc"'))->toBe(['#ccc']);
+    expect(colourLiteralsIn("className=\"[&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50\"", true))->toBeEmpty()
+        ->and(colourLiteralsIn("className=\"[&_line[stroke='#ccc']]:stroke-[#ccc]\"", true))->toBe(['#ccc'])
+        ->and(colourLiteralsIn('stroke="#ccc"', true))->toBe(['#ccc'])
+        // Only in shadcn's Chart: anywhere else the same selector is a colour like any other.
+        ->and(colourLiteralsIn("className=\"[&_line[stroke='#ccc']]:stroke-border\""))->toBe(['#ccc']);
 });
 
 it('ignores code that names a token instead of a colour', function () {
@@ -89,7 +94,7 @@ it('keeps every colour in the theme files, so a campaign theme is data', functio
             }
 
             $scanned++;
-            $literals = colourLiteralsIn((string) file_get_contents($file->getPathname()));
+            $literals = colourLiteralsIn((string) file_get_contents($file->getPathname()), $path === 'resources/js/components/ui/chart.tsx');
 
             if ($literals !== []) {
                 $offenders[] = $path.': '.implode(', ', array_unique($literals));

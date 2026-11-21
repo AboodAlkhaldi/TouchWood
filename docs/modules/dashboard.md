@@ -50,7 +50,7 @@ the full width.
 | B | **Four figure cards** | Sales · Orders · Average Order · New Customers. Each: the figure, its change against the period before (§3.4), and a **small trend line** of the period by day (by month for Year) | eCommerce's top cards with their small charts |
 | C | **Sales and orders by day** | One line chart, days along the bottom (months for Year): Sales, Orders, and the period before's Sales dotted. A tooltip names the day and its figures | eCommerce's Order Overview |
 | D | **Individuals and companies** | A ring: each one's share of Sales, the total in its middle; under it each one's Sales and its change | eCommerce's Customer Segmentation |
-| E | **Orders now** | Four small cards: **Waiting** (placed, not yet approved or rejected) · **To Ship** (approved, not shipped) · **On the Way** (shipped, not delivered) · **Cancelled and Came Back** (in the period). The first three are now, whatever the period **[PROPOSED D2]**; each links to Orders filtered the same way | eCommerce's Total Orders / Orders Shipped; the hand-off's "not yet shipped" |
+| E | **Orders now** | Four small cards: **Waiting** (placed, not yet approved or rejected) · **To Ship** (approved, not shipped) · **On the Way** (shipped, not delivered) · **Cancelled and Came Back** (in the period). The first three are now, whatever the period **[PROPOSED D2]**; each of those three links to Orders filtered the same way (Cancelled and Came Back links nowhere: §10 #2) | eCommerce's Total Orders / Orders Shipped; the hand-off's "not yet shipped" |
 | F | **Average rating** | The store's approved reviews' average, out of 5, and their count; its change against the period before is not shown (a rating is an average of all time) **[PROPOSED D3]** | eCommerce's Customer Satisfaction 4.9 / 5 |
 | G | **Recent orders** | The last 8 placed **[PROPOSED D4]**: the first line's photo and name ("+2 more" when there are more), the customer, pieces, the way to pay, the status badge, the total; **View All Orders** | eCommerce's Recent Sales Orders |
 | H | **Best sellers** | The 10 sizes sold most in the period (ops.md §1.11's product read): photo, name and size, rating, pieces sold, their Sales | Analytics' Top Selling Products |
@@ -80,7 +80,7 @@ Every figure is read **in each store's own day** (its time zone, ops.md §1.11) 
 | Refunds | Shown under Sales in small text ("Refunds 120.00 SAR"), **not taken off it**, as the daily report shows them apart **[PROPOSED D7]** | the same read (`refunds`) |
 | **Orders** | Orders placed in the period that count | `counts` (`counted`) |
 | **Average Order** | Sales ÷ Orders; "—" with no order | worked out |
-| **New Customers** | Accounts registered in the store in the period, individuals and companies | `AccessApi::customersRegistered` |
+| **New Customers** | Accounts registered in the store in the period, individuals and companies | `AccessApi::customersRegisteredByDay` for the period and its trend line, `customersRegistered` for the period before (§10 #1) |
 | Individuals / companies | Sales split by who ordered | new: `revenueByDay` split by audience (§6) |
 | Orders now | §2 E | new: `ordersNow` (§6) |
 | Best sellers | §2 H | `productSales` |
@@ -159,7 +159,8 @@ new:
    and Returns Waiting. New reads in `SalesReports`: `ordersNow(store)` (§2 E's three counts), `recentOrders(store,
    limit)`, `returnsWaiting(store)` (returns asked and not yet finished, for J), the audience split of
    `revenueByDay` (§3.1).
-3. **Access:** nothing new; Sales' card reads `customersRegistered`.
+3. **Access:** ~~nothing new~~ **one new read** (§10 #1, access.md amendment 100): `customersRegisteredByDay`, for
+   New Customers' trend line; the period before still reads `customersRegistered`.
 4. **Feedback:** section F and the J card Questions Waiting. New read: `averageRating(store)`: the approved
    reviews' average and count.
 5. **Catalog:** nothing new; photos and names of G and H come from `productCards` / `variants`, as the daily
@@ -213,3 +214,29 @@ new:
 | D9 | The dashboard opens on This Month |
 | D10 | New Customers shows with Sales' permission |
 | D11 | Figures kept 5 minutes, with "Updated … ago" and Refresh |
+
+---
+
+## 10 · Amendments while building (2026-11-21)
+
+**The owner's decisions:**
+1. **New Customers gets its trend line** (§2 B as written; §6.3 amended): Access adds `customersRegisteredByDay`
+   (access.md amendment 100). Two reads a store, inside the 5-minute cache.
+2. **Cancelled and Came Back links nowhere** (§2 E amended from "each links"): the Orders list has no tab for
+   them, and a link to a list that disagrees with the figure is worse than none. A Cancelled tab can be its own job.
+3. **shadcn's Chart writes its tooltip's default value in Latin digits** (`components/ui/chart.tsx`, our one change
+   to that file, using `lib/digits`' `figure()`), so `LatinDigitsTest` keeps no exemption for it.
+
+**The builder's picks, checked against this spec, the policies spec and the architecture rules (2026-11-21):**
+
+| # | Pick | Fits because |
+|---|---|---|
+| 2 | Sales' home figures are read inside Sales (`SalesHomeReads`, Application), not added to `SalesReports` (§6.2's wording) | Only Sales' own cards read them; a public contract carries what other modules need (Ops reads `SalesReports`) |
+| 3 | Best sellers' ratings from `CatalogApi::productRatings` (§6.5 said "nothing new") | The shop's own copy of each product's rating, which Feedback pushes to Catalog (`ListingFacts::ratings`): the same number the shop shows, one query |
+| 4 | The No Terms warning (F17) is Sales' card, with `sales.order.view`, no link | The orders are what stop (`TermsMissing`); asked of Platform's `ShopPolicies`, never Content (build 4's rule); a Content link would refuse readers without `content.policy.manage` |
+| 5 | Recent Orders and Best Sellers also get the store tabs | D8's reason (one store's money at a time) holds for the tables' totals |
+| 7 | "Before" ends at the same time of day | §1 #5: the period before is of the same length |
+| 8 | A **half** card size beside §6.1's four | Layout only |
+| 9 | Each card's figures kept per **reader**, store, period and language (D11 named store, period and language) | Who may see what differs by reader; the reader in the key keeps one person's figures from another's. Each reader pays one cold read |
+| 10 | Today's Report on a day still running | Ops' own "Today So Far" (ops.md, Daily Reports) |
+| 1, 6 | No trend line on New Customers; no link on Cancelled and Came Back | Decided by the owner above |

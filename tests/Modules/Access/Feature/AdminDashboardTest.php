@@ -222,6 +222,28 @@ it('keeps one reader\'s figures from another: each is read for whoever asks', fu
         ->and((int) adminDashboardPage($first)['sections'][1]['metrics'][0]['lines'][0]['value']['value'])->toBe(1);
 });
 
+it('keeps one store\'s figures from another\'s, and one language\'s words from the other\'s', function () {
+    // Two orders in Saudi Arabia, one in Egypt: a reader of both opens each store in turn, inside the 5 minutes.
+    adminDashboardOrder();
+    adminDashboardOrder();
+    Fx::asSystem(static function (): void {
+        $ready = Cx::ready(storeCode: 'eg');
+        Cx::place(Cx::start($ready['address'], storeCode: 'eg')->id, 'eg');
+    });
+    adminDashboardLater();
+    $browser = adminDashboardSignIn(Fx::staffWith([SalesPermissions::ORDER_VIEW], ['sa', 'eg']));
+    $orders = static fn (array $page): int => (int) $page['sections'][1]['metrics'][0]['lines'][0]['value']['value'];
+    $title = static fn (array $page): string => (string) $page['sections'][1]['metrics'][0]['label'];
+
+    expect($orders(adminDashboardPage($browser, '/admin?store=sa')))->toBe(2)
+        ->and($orders(adminDashboardPage($browser, '/admin?store=eg')))->toBe(1)
+        ->and($title(adminDashboardPage($browser, '/admin?store=sa')))->toBe('Orders');
+
+    // The same store and period in Arabic: its words, not the English ones kept a moment ago.
+    $browser->post('/admin/preferences', ['preference' => 'locale', 'value' => 'ar']);
+    expect($title(adminDashboardPage($browser, '/admin?store=sa')))->toBe('الطلبات');
+});
+
 it('refuses Refresh for a store that is not the reader\'s, as the home does', function () {
     $browser = adminDashboardSignIn(Fx::staffWith([SalesPermissions::ORDER_VIEW], ['sa']));
 

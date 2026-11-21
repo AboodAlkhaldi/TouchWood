@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Modules\Access\Application;
 
 use DateTimeImmutable;
+use DateTimeZone;
+use Exception;
 use InvalidArgumentException;
 use Modules\Access\Application\Address\AddressMapper;
 use Modules\Access\Application\Address\OpenStores;
@@ -232,6 +234,21 @@ final readonly class AccessApiImpl implements AccessApi
         }
 
         return $this->customers->countRegistered($store->value, $from, $to);
+    }
+
+    public function customersRegisteredByDay(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to, string $timezone): array
+    {
+        if ($from >= $to) {
+            throw new InvalidArgumentException('A range of registrations ends after it starts.');
+        }
+
+        try {
+            new DateTimeZone($timezone);
+        } catch (Exception) {
+            throw new InvalidArgumentException('Not a time zone.');
+        }
+
+        return $this->customers->countRegisteredByDay($store->value, $from, $to, $timezone);
     }
 
     public function withdrawMarketingConsent(string $customerId, MarketingConsentSource $source): void

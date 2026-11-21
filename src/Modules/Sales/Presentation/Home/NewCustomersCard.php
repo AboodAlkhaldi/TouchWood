@@ -17,11 +17,10 @@ use Shared\Domain\ValueObject\StoreId;
 
 /**
  * Home's **New Customers** figure (dashboard.md §2 B, §3.1): the accounts registered in the store in the period,
- * individuals and companies, against the period before - shown with Sales' permission (D10), read from Access's
- * `customersRegistered` (§6.3: nothing new in Access). All Stores: a line per store and their total.
- *
- * **No trend line**: Access answers a range's total only, and §6.3 adds nothing to Access, so a line by day
- * would cost a read per day (the builder's pick, listed for the owner).
+ * individuals and companies, against the period before - shown with Sales' permission (D10). The period by day
+ * from Access's `customersRegisteredByDay` (its figure and its small trend line, §2 B; the owner, 2026-11-21,
+ * amending §6.3), the period before from `customersRegistered`: two reads a store. All Stores: a line per store
+ * and their total.
  */
 final readonly class NewCustomersCard implements HomeCard
 {
@@ -43,11 +42,24 @@ final readonly class NewCustomersCard implements HomeCard
 
         foreach ($stores as $store) {
             $range = $scope->range($store->timezone);
-            $now = $this->registered($store->storeId(), $range->from, $range->to);
+            $trend = array_fill_keys($range->points(), 0);
+
+            // An empty range (the very first moment of a day) is refused by Access: nobody registered in it.
+            if ($range->from < $range->to) {
+                foreach ($this->access->customersRegisteredByDay($store->storeId(), $range->from, $range->to, $store->timezone) as $day => $count) {
+                    $point = $range->pointOf($day);
+
+                    if (array_key_exists($point, $trend)) {
+                        $trend[$point] += $count;
+                    }
+                }
+            }
+
+            $now = array_sum($trend);
             $before = $this->registered($store->storeId(), $range->beforeFrom, $range->beforeTo);
             $all += $now;
             $allBefore += $before;
-            $lines[] = new HomeMetricLine(count($stores) > 1 ? SalesHome::name($store) : null, HomeValue::count($now), SalesHome::change($now, $before));
+            $lines[] = new HomeMetricLine(count($stores) > 1 ? SalesHome::name($store) : null, HomeValue::count($now), SalesHome::change($now, $before), array_values($trend));
         }
 
         $total = count($stores) > 1 ? new HomeMetricLine(null, HomeValue::count($all), SalesHome::change($all, $allBefore)) : null;

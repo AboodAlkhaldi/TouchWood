@@ -55,6 +55,14 @@ interface CustomerRepository
     public function countRegistered(string $storeId, DateTimeImmutable $from, DateTimeImmutable $to): array;
 
     /**
+     * The same accounts, both types together, counted by the day they registered on in `$timezone`
+     * (`Y-m-d`); a day nobody registered on is left out.
+     *
+     * @return array<string, int>
+     */
+    public function countRegisteredByDay(string $storeId, DateTimeImmutable $from, DateTimeImmutable $to, string $timezone): array;
+
+    /**
      * The customers, not anonymized, whose first or last name holds the text in any store, or whose
      * email or phone holds it among those registered in `$contactStoreIds` — null for every store,
      * an empty list for none — by id, at most `$limit` (amendment 72(b)). Matched as the staff list's

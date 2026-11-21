@@ -167,6 +167,15 @@ interface AccessApi
     public function customersRegistered(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): array;
 
     /**
+     * For the admin home's New Customers trend line (dashboard.md §2 B, amendment of 2026-11-21): the same
+     * accounts as `customersRegistered`, both types together, counted by the day (`Y-m-d`) they registered on in
+     * the store's time zone `$timezone`. A day nobody registered on is left out. Counts only; no person.
+     *
+     * @return array<string, int>
+     */
+    public function customersRegisteredByDay(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to, string $timezone): array;
+
+    /**
      * For Ops (amendment 79): the customer unsubscribed — by a marketing email's link or at the
      * newsletter provider — so their marketing consent is withdrawn, at once and everywhere.
      * **Run as the system** (a queued job): the permission is reserved. The job may have been queued
