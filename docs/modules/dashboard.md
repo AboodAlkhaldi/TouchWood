@@ -226,6 +226,9 @@ new:
    them, and a link to a list that disagrees with the figure is worse than none. A Cancelled tab can be its own job.
 3. **shadcn's Chart writes its tooltip's default value in Latin digits** (`components/ui/chart.tsx`, our one change
    to that file, using `lib/digits`' `figure()`), so `LatinDigitsTest` keeps no exemption for it.
+4. **The chart's grid lines in our colour** (owner, after seeing both looks in light and dark): shadcn's selector
+   that repaints Recharts' default `#ccc` lines with the border token stays; `ThemeTokensTest` ignores that one
+   selector in `components/ui/chart.tsx` only.
 
 **The builder's picks, checked against this spec, the policies spec and the architecture rules (2026-11-21):**
 
