@@ -15,7 +15,9 @@ use Modules\Catalog\Public\Events\StoreListingChanged;
 use Modules\Catalog\Public\Events\VariantCodeCorrected;
 use Modules\Inventory\Public\Contracts\StoreWiring as InventoryWiring;
 use Modules\Platform\Public\Contracts\AdminMenu;
+use Modules\Platform\Public\Contracts\HomeCards;
 use Modules\Platform\Public\Contracts\ReservedPaths;
+use Modules\Platform\Public\Dto\HomeCardDto;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Pricing\Public\Contracts\StoreWiring as PricingWiring;
 use Modules\Pricing\Public\Events\CampaignReachChecked;
@@ -53,6 +55,7 @@ use Modules\Sync\Infrastructure\Provider\OdooAdapter;
 use Modules\Sync\Infrastructure\Queue\PruneSyncLogJob;
 use Modules\Sync\Infrastructure\Queue\QueueHourlyReadsJob;
 use Modules\Sync\Infrastructure\Queue\QueueNightlyReadsJob;
+use Modules\Sync\Presentation\Home\SyncProblemsCard;
 use Modules\Sync\Public\Contracts\SyncApi;
 
 /**
@@ -129,6 +132,11 @@ final class SyncServiceProvider extends ServiceProvider
         $this->app->make(AdminMenu::class)->register(
             new MenuEntryDto('sync', 'report', PermissionGroup::Sync->value, 'sync.admin.report', SyncPermissions::REPORT_VIEW, 10, icon: 'sync', count: SyncReportCount::class),
             new MenuEntryDto('sync', 'provider', PermissionGroup::Sync->value, 'sync.admin.provider', SyncPermissions::CONNECTION_MANAGE, 20, icon: 'sync'),
+        );
+
+        // Needs Attention's Sync Problems on the admin home (dashboard.md §2 J, D6), for the Sync Report's readers.
+        $this->app->make(HomeCards::class)->register(
+            new HomeCardDto('sync', 'problems', SyncPermissions::REPORT_VIEW, SyncProblemsCard::class, 60),
         );
 
         if (! $this->app->routesAreCached()) {

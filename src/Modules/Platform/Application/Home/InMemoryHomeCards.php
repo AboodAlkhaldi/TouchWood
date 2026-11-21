@@ -8,9 +8,11 @@ use Illuminate\Contracts\Container\Container;
 use LogicException;
 use Modules\Platform\Public\Contracts\HomeCard;
 use Modules\Platform\Public\Contracts\HomeCards;
+use Modules\Platform\Public\Dto\HomeCardData;
 use Modules\Platform\Public\Dto\HomeCardDto;
 use Modules\Platform\Public\Dto\HomeCardView;
 use Modules\Platform\Public\Dto\HomeScope;
+use Modules\Platform\Public\Enums\HomePeriod;
 use Shared\Application\Authorizer;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -68,33 +70,19 @@ final class InMemoryHomeCards implements HomeCards
         return $this->cards;
     }
 
-    public function forCurrentActor(?string $storeWorkedIn, bool $allStores): array
+    public function forCurrentActor(?string $storeWorkedIn, bool $allStores, HomePeriod $period = HomePeriod::OPENS_ON): array
     {
         $store = $storeWorkedIn === null ? null : StoreId::fromString($storeWorkedIn);
-        $scope = $allStores ? HomeScope::allStores() : ($store === null ? null : HomeScope::store($store));
+        $scope = $allStores ? HomeScope::allStores($period) : ($store === null ? null : HomeScope::store($store, $period));
 
         if ($scope === null) {
             return [];
         }
 
-        $authorizer = $this->container->make(Authorizer::class);
-        $cards = $this->cards;
-        usort($cards, fn (HomeCardDto $a, HomeCardDto $b): int => [$a->position, $a->module, $a->key] <=> [$b->position, $b->module, $b->key]);
         $views = [];
 
-        foreach ($cards as $card) {
-            if (! $this->mayShow($authorizer, $card, $allStores ? null : $store)) {
-                continue;
-            }
-
-            $drawer = $this->container->make($card->card);
-
-            // Checked when the card was registered; resolved from the container, so asked again.
-            if (! $drawer instanceof HomeCard) {
-                throw new LogicException("\"{$card->card}\" does not implement ".HomeCard::class.'.');
-            }
-
-            $data = $drawer->data($scope);
+        foreach ($this->offeredTo($storeWorkedIn, $allStores) as $card) {
+            $data = $this->read($card, $scope);
 
             if ($data !== null) {
                 $views[] = new HomeCardView($card, $data);
@@ -102,6 +90,33 @@ final class InMemoryHomeCards implements HomeCards
         }
 
         return $views;
+    }
+
+    public function offeredTo(?string $storeWorkedIn, bool $allStores): array
+    {
+        $store = $storeWorkedIn === null ? null : StoreId::fromString($storeWorkedIn);
+
+        if (! $allStores && $store === null) {
+            return [];
+        }
+
+        $authorizer = $this->container->make(Authorizer::class);
+        $cards = $this->cards;
+        usort($cards, fn (HomeCardDto $a, HomeCardDto $b): int => [$a->position, $a->module, $a->key] <=> [$b->position, $b->module, $b->key]);
+
+        return array_values(array_filter($cards, fn (HomeCardDto $card): bool => $this->mayShow($authorizer, $card, $allStores ? null : $store)));
+    }
+
+    public function read(HomeCardDto $card, HomeScope $scope): ?HomeCardData
+    {
+        $drawer = $this->container->make($card->card);
+
+        // Checked when the card was registered; resolved from the container, so asked again.
+        if (! $drawer instanceof HomeCard) {
+            throw new LogicException("\"{$card->card}\" does not implement ".HomeCard::class.'.');
+        }
+
+        return $drawer->data($scope);
     }
 
     /**

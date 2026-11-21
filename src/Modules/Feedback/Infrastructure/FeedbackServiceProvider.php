@@ -36,6 +36,8 @@ use Modules\Feedback\Infrastructure\Listener\ClearAnonymizedWishlist;
 use Modules\Feedback\Infrastructure\Listener\FlipReturnedReviews;
 use Modules\Feedback\Infrastructure\Listener\TellCatalogOfRatingsSwitch;
 use Modules\Feedback\Presentation\Console\RepushRatingsCommand;
+use Modules\Feedback\Presentation\Home\AverageRatingCard;
+use Modules\Feedback\Presentation\Home\QuestionsWaitingCard;
 use Modules\Feedback\Presentation\Http\Resource\WishlistCustomerSection;
 use Modules\Feedback\Presentation\Storefront\QuestionsSection;
 use Modules\Feedback\Presentation\Storefront\ReviewsSection;
@@ -43,8 +45,11 @@ use Modules\Feedback\Presentation\Storefront\SavedCardFact;
 use Modules\Feedback\Presentation\Storefront\WishlistSection;
 use Modules\Feedback\Public\Contracts\FeedbackApi;
 use Modules\Platform\Public\Contracts\AdminMenu;
+use Modules\Platform\Public\Contracts\HomeCards;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Dto\HomeCardDto;
 use Modules\Platform\Public\Dto\MenuEntryDto;
+use Modules\Platform\Public\Enums\HomeBand;
 use Modules\Platform\Public\Events\SettingChanged;
 use Modules\Sales\Public\Events\ReturnCompleted;
 
@@ -109,6 +114,13 @@ final class FeedbackServiceProvider extends ServiceProvider
             new MenuEntryDto('feedback', 'favourites', 'customers', 'feedback.admin.favourites', FeedbackPermissions::WISHLIST_VIEW, 30, icon: 'favourites'),
             // The ready reasons, one list for every store: read by moderators, edited with the settings job everywhere (§4.2 B4).
             new MenuEntryDto('feedback', 'reasons', 'support', 'feedback.admin.reasons', [FeedbackPermissions::REVIEW_MODERATE, FeedbackPermissions::QUESTION_ANSWER, FeedbackPermissions::SETTINGS_UPDATE], 40, icon: 'reasons'),
+        );
+
+        // Its parts of the admin home (dashboard.md §2 F, J; §5): the stores' average rating for review moderators,
+        // and the questions waiting for whoever answers them.
+        $this->app->make(HomeCards::class)->register(
+            new HomeCardDto('feedback', 'rating', FeedbackPermissions::REVIEW_MODERATE, AverageRatingCard::class, 31, band: HomeBand::Overview),
+            new HomeCardDto('feedback', 'questions', FeedbackPermissions::QUESTION_ANSWER, QuestionsWaitingCard::class, 50),
         );
 
         // A customer's wishlist on the staff customer page, a block per store the reader covers (§4.1 F4).

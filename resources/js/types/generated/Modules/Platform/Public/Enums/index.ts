@@ -1,4 +1,7 @@
 export type AuditSource = 'WEB' | 'INTEGRATION' | 'CONSOLE' | 'JOB' | 'IMPORT';
+export type HomeBand = 'greeting' | 'overview' | 'attention';
+export type HomePeriod = 'today' | '7days' | 'month' | '3months' | 'year';
+export type HomeSize = 'full' | 'two_thirds' | 'half' | 'third' | 'quarter';
 export type ImageFormat = 'AVIF' | 'WEBP' | 'JPEG';
 export type MediaSize = 'THUMB' | 'CARD' | 'DETAIL' | 'ZOOM';
 export type MediaVariantsStatus = 'PENDING' | 'READY' | 'FAILED';

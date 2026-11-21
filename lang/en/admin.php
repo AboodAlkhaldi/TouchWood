@@ -55,6 +55,38 @@ return [
         // and one sentence; each row then opens its screen and shows its count.
         'waiting_label' => 'Waiting',
         'waiting_note' => 'Some things need you.',
+        // The dashboard (dashboard.md): the greeting by the store's clock (D1), the periods (§3.3), when the
+        // figures were read and Refresh (§7, D11), Needs Attention (§2 J), and the words around the figures.
+        'greeting' => [
+            'morning' => 'Good morning',
+            'morning_named' => 'Good morning, :name',
+            'afternoon' => 'Good afternoon',
+            'afternoon_named' => 'Good afternoon, :name',
+            'evening' => 'Good evening',
+            'evening_named' => 'Good evening, :name',
+        ],
+        'period' => [
+            'label' => 'Period',
+            'today' => 'Today',
+            '7days' => '7 Days',
+            'month' => 'This Month',
+            '3months' => '3 Months',
+            'year' => 'Year',
+        ],
+        'updated' => 'Updated',
+        'refresh' => 'Refresh',
+        'attention' => 'Needs Attention',
+        'store_tabs' => 'Store',
+        'day' => 'Day',
+        'month' => 'Month',
+        'total' => 'Total',
+        'nothing' => 'Nothing in this period.',
+        'change' => [
+            'new' => 'New',
+            'up' => 'Up :percent on the period before',
+            'down' => 'Down :percent on the period before',
+            'none' => 'No change on the period before',
+        ],
     ],
 
     // The panel's error page (frontend.md §2.6): its title and sentence come translated with it; this is

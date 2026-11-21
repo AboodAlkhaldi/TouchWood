@@ -28,11 +28,16 @@ function mayHoldColours(string $path): bool
 /**
  * Colour values written directly: #0b3b63, rgb(...), rgba(...), hsl(...), oklch(...).
  *
+ * One exception, shadcn's Chart (`components/ui/chart.tsx`, as its CLI writes it; dashboard.md §4): a Tailwind
+ * selector that **finds** Recharts' own default lines by the value they carry (`[stroke='#ccc']`) to paint them
+ * with a token. The value there is matched, never painted.
+ *
  * @return list<string>
  */
 function colourLiteralsIn(string $code): array
 {
     $found = [];
+    $code = (string) preg_replace("/\\[(stroke|fill)='#[0-9a-fA-F]{3,8}'\\]/", '', $code);
 
     foreach (['/#[0-9a-fA-F]{3,8}\b/', '/\b(rgb|rgba|hsl|hsla|oklch|lab)\s*\(/'] as $pattern) {
         if (preg_match_all($pattern, $code, $matches) > 0) {
@@ -53,6 +58,12 @@ it('detects a colour written into code', function (string $code) {
     'rgba with spaces' => ['box-shadow: 0 0 0 rgba (0,0,0,.4)'],
     'oklch' => ['--x: oklch(0.7 0.1 250)'],
 ]);
+
+it('ignores a selector that finds Recharts\' default lines by their value, and still sees a colour painted beside it', function () {
+    expect(colourLiteralsIn("className=\"[&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50\""))->toBeEmpty()
+        ->and(colourLiteralsIn("className=\"[&_line[stroke='#ccc']]:stroke-[#ccc]\""))->toBe(['#ccc'])
+        ->and(colourLiteralsIn('stroke="#ccc"'))->toBe(['#ccc']);
+});
 
 it('ignores code that names a token instead of a colour', function () {
     expect(colourLiteralsIn('className="bg-brand text-ink-muted rounded-lg shadow-card"'))->toBeEmpty();

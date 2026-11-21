@@ -168,6 +168,11 @@ final readonly class CatalogApiImpl implements CatalogApi
         return $this->reads->productCards($store->value, $locale, $productIds);
     }
 
+    public function productRatings(array $productIds): array
+    {
+        return $this->reads->productRatings($productIds);
+    }
+
     public function storeVariants(StoreId $store, array $variantIds): array
     {
         return $this->reads->storeVariants($store->value, $variantIds);

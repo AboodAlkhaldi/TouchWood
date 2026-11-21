@@ -98,6 +98,12 @@ interface ApiReads
     public function productCards(string $storeId, string $locale, array $productIds): array;
 
     /**
+     * @param  list<string>  $productIds
+     * @return array<string, array{sum: int, count: int}> keyed by lower-case id; a product never reviewed left out
+     */
+    public function productRatings(array $productIds): array;
+
+    /**
      * @param  list<string>  $variantIds
      * @return array<string, StoreVariantDto> keyed by id (amendment 29(a))
      */

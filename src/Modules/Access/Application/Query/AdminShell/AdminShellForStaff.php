@@ -68,6 +68,7 @@ final class AdminShellForStaff
             avatarUrl: $this->avatarUrl($row['avatar_media_id']),
             isSuperAdmin: $row['is_super_admin'],
             locale: $row['locale'],
+            firstName: $row['first_name'],
         );
     }
 

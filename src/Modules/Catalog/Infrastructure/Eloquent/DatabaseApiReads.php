@@ -308,6 +308,24 @@ final readonly class DatabaseApiReads implements ApiReads
             ->all()));
     }
 
+    public function productRatings(array $productIds): array
+    {
+        $ids = self::ids($productIds);
+        $ratings = [];
+
+        if ($ids === []) {
+            return [];
+        }
+
+        foreach ($this->db->table('catalog.product_ratings')->whereIn('product_id', $ids)->where('rating_count', '>', 0)
+            ->get(['product_id', 'rating_sum', 'rating_count']) as $row) {
+            /** @var stdClass $row */
+            $ratings[strtolower((string) $row->product_id)] = ['sum' => (int) $row->rating_sum, 'count' => (int) $row->rating_count];
+        }
+
+        return $ratings;
+    }
+
     public function productCards(string $storeId, string $locale, array $productIds): array
     {
         $ids = self::ids($productIds);
