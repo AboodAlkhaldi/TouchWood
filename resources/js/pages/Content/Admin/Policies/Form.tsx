@@ -35,8 +35,9 @@ import type { ContentImageData, PolicyFormPageData } from '@/types/generated/Mod
 | serves a store that is not theirs (it publishes in every store it serves), unless the save splits it.
 |
 | A save changes the stores ticked (PolicyWriter): the form says before saving what will happen - a store unticked from
-| a published policy with its words unchanged is left without that kind of policy (and asked once more at the save),
-| and changed words with a store it serves left unticked split it into a copy of their own.
+| a published policy with its words unchanged is turned off there, keeping a switched-off copy of its own as Unpublish
+| does (the owner's decision of 2026-11-21; asked once more at the save), and changed words with a store it serves left
+| unticked split it into a copy of their own.
 */
 
 const ScheduleConfirm = lazy(() => import('@/components/content/schedule-confirm').then((module) => ({ default: module.ScheduleConfirm })));
@@ -162,7 +163,7 @@ export default function Form(page: PolicyFormPageData) {
                 className="grid max-w-5xl min-w-0 gap-6"
                 onSubmit={(event) => {
                     event.preventDefault();
-                    // A published policy's store taken off with its words unchanged: asked once more (S3.7).
+                    // A published policy's store unticked with its words unchanged, so turned off there: asked once more (S3.7).
                     checks.submit(() => (removes ? setAsking('removed') : publish()));
                 }}
                 data-test="policy-form"

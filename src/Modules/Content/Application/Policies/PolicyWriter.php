@@ -52,8 +52,9 @@ use Shared\Domain\ValueObject\StoreId;
  *   words, published at its version 1 when the original was published (held to Publish's rules), else a draft; the
  *   original keeps its other stores with its words, state and versions, and its addresses in the stores that moved pass
  *   to the new one. Otherwise the one policy is changed: its stores become those ticked, plus those it serves that the
- *   person may not work in (not on their form); **a store unticked with the words unchanged is taken off** (the
- *   builder's pick), its addresses there freed.
+ *   person may not work in (not on their form). **A store unticked with the words unchanged** is taken off a draft, its
+ *   addresses there freed; **a published policy is turned off there, as Unpublish for those stores does** (the owner's
+ *   decision of 2026-11-21): the same switched-off copy, addresses, audit and periods (`turnOff`).
  * - **Published at once** with both languages' title and body, the SEO boxes' English, every image ready, and **no
  *   other published policy of its kind in any of its stores** (Other excepted). A published policy stays held to those
  *   rules on every save, a store added to it included.
@@ -67,7 +68,7 @@ use Shared\Domain\ValueObject\StoreId;
  *   (option A); some of a draft's deleted leave it.
  * - **What is in force in each store is recorded** (`Policies::settlePeriods`): each version, in each store, from when to
  *   when, so a text no longer valid is shown to shoppers with its dates.
- * - **An address a policy switched off in a store holds there is free for another policy** (the builder's pick of
+ * - **An address a policy switched off in a store holds there is free for another policy** (confirmed by the owner,
  *   2026-11-21): taken by the one saved or published with it; a policy published again is held to its addresses.
  * - **Two people**: every change is at the version the form read (`StaleEdit`); all of them run under the policies'
  *   lock, taken first (`ContentLocks::POLICIES`).
@@ -131,9 +132,21 @@ final readonly class PolicyWriter
             }
 
             // The one policy changed. Its words changed only with every store it serves ticked; unchanged, a store unticked
-            // is taken off when the person may work in it (else it is not on their form, and stays).
+            // leaves it when the person may work in it (else it is not on their form, and stays): a draft's is taken off; a
+            // published one's is turned off there, as Unpublish for those stores does (the owner's decision of 2026-11-21).
             $removed = $this->rules->pickable($untouched);
             $this->rules->authorizeEach($removed);
+            $off = $was->isPublished() ? $removed : [];
+
+            if ($off !== [] && array_diff($picked, $was->stores) === []) {
+                // Nothing else to save: the words are unchanged and no store is added, so it is Unpublish there alone.
+                $this->marks->saved(self::KIND, $was->id, $was->stores[0], $input->translated, $input->read, true);
+                $this->turnOff($was, $off, $staffId, $now);
+
+                return $was->id;
+            }
+
+            $removed = $off === [] ? $removed : [];
             $storeIds = array_values(array_unique([...array_diff($was->stores, $removed), ...$picked]));
             sort($storeIds);
             $policy = $this->with($asked, $was->status, $was->publishedAt, $was->textVersion, $staffId, $now, $storeIds);
@@ -163,6 +176,11 @@ final readonly class PolicyWriter
             $this->marks->saved(self::KIND, $policy->id, $policy->stores[0], $input->translated, $input->read, $was->isPublished());
             $this->platform->recordAudit(ContentAudit::entry('content.policy.changed', 'content.policy', $policy->id, null, self::changes($was, $policy)));
             $this->cache->invalidate();
+
+            if ($off !== []) {
+                // A store added, and a store unticked: the store added first, then the unticked ones turned off.
+                $this->turnOff($policy, $off, $staffId, $now);
+            }
 
             return $policy->id;
         }, 3);
@@ -250,20 +268,7 @@ final readonly class PolicyWriter
                 return null;
             }
 
-            $copyId = strtolower((string) Str::ulid());
-            $original = $this->with($was, $was->status, $was->publishedAt, $was->textVersion, $staffId, $now, $untouched);
-            $this->policies->update($original);
-            $this->policies->settlePeriods($original, $now);
-            // The stores turned off keep their addresses with their copy, as a split's do.
-            $this->history->handOver(self::KIND, $was->id, $copyId, $picked);
-            $copy = new Policy($copyId, $was->kind, $picked, Publication::Draft, null, $was->texts, $was->shareAr, $was->shareEn, 0, 1, $staffId, $now);
-            $this->addresses($copy);
-            $this->policies->add($copy, $staffId);
-            $this->platform->recordAudit(ContentAudit::entry('content.policy.created', 'content.policy', $copyId, null, self::changes(null, $copy, AuditChanges::none()->changed('turned_off_from', null, $was->id))));
-            $this->platform->recordAudit(ContentAudit::entry('content.policy.turned_off', 'content.policy', $was->id, null, ContentAudit::diff(['stores' => implode(',', $was->stores)], ['stores' => implode(',', $untouched)])->changed('turned_off_to', null, $copyId)));
-            $this->cache->invalidate();
-
-            return $copyId;
+            return $this->turnOff($was, $picked, $staffId, $now);
         }, 3);
     }
 
@@ -389,6 +394,36 @@ final readonly class PolicyWriter
     }
 
     /**
+     * Some of a published policy's stores turned off (option A): they leave it into a switched-off copy of their own - a
+     * new draft of the kind with the same words and images, serving exactly them - and take their addresses, old
+     * forwarding ones included; the policy stays published in the others, and what was in force in the stores turned off
+     * ends there now. Unpublish's way, and a save's that unticks them with the words unchanged (owner, 2026-11-21).
+     *
+     * @param  list<string>  $off  the stores to turn off: some of those it serves, not all
+     * @return string the copy's id
+     *
+     * @throws ContentError
+     */
+    private function turnOff(Policy $was, array $off, ?string $staffId, DateTimeImmutable $now): string
+    {
+        $copyId = strtolower((string) Str::ulid());
+        $untouched = array_values(array_diff($was->stores, $off));
+        $original = $this->with($was, $was->status, $was->publishedAt, $was->textVersion, $staffId, $now, $untouched);
+        $this->policies->update($original);
+        $this->policies->settlePeriods($original, $now);
+        // The stores turned off keep their addresses with their copy, as a split's do.
+        $this->history->handOver(self::KIND, $was->id, $copyId, $off);
+        $copy = new Policy($copyId, $was->kind, $off, Publication::Draft, null, $was->texts, $was->shareAr, $was->shareEn, 0, 1, $staffId, $now);
+        $this->addresses($copy);
+        $this->policies->add($copy, $staffId);
+        $this->platform->recordAudit(ContentAudit::entry('content.policy.created', 'content.policy', $copyId, null, self::changes(null, $copy, AuditChanges::none()->changed('turned_off_from', null, $was->id))));
+        $this->platform->recordAudit(ContentAudit::entry('content.policy.turned_off', 'content.policy', $was->id, null, ContentAudit::diff(['stores' => implode(',', $was->stores)], ['stores' => implode(',', $untouched)])->changed('turned_off_to', null, $copyId)));
+        $this->cache->invalidate();
+
+        return $copyId;
+    }
+
+    /**
      * The number the policy's text publishes as: the last version's when the text is that version's, else the next;
      * and whether it is a new version to keep.
      *
@@ -444,7 +479,7 @@ final readonly class PolicyWriter
 
     /**
      * Whether the policy holding an address in a store was published once and is switched off there now: its address
-     * there is then free for another policy (the builder's pick of 2026-11-21, for the owner to confirm). Its old text
+     * there is then free for another policy (confirmed by the owner, 2026-11-21). Its old text
      * stays readable by its own version link, and at the address itself until the new one is published. A draft never
      * published keeps its addresses, as before: it can be edited or deleted instead.
      */

@@ -23,6 +23,7 @@ use Modules\Content\Domain\Exception\InvalidContentInput;
 use Modules\Content\Domain\Exception\PolicyNotDeletable;
 use Modules\Content\Domain\Exception\SlugTaken;
 use Modules\Content\Domain\Exception\StaleEdit;
+use Modules\Content\Domain\Exception\TranslationUnread;
 use Modules\Content\Domain\Model\PolicyKind;
 use Modules\Content\Domain\Model\Publication;
 use Modules\Content\Domain\Repository\Policies;
@@ -41,8 +42,9 @@ use function Pest\Laravel\seed;
 | they hold; all of them unpublishes the whole policy; some of them (option A) take those stores out into a switched-off
 | copy of their own, a draft with the same words, its addresses with it, while the others keep the published policy.
 | Delete acts per store too, on a policy never published. What is in force in each store is recorded, version by version,
-| from when to when (`content.policy_periods`). And the builder's pick: an address a policy switched off in a store holds
-| there is free for another policy. Every helper here is named after this file's subject: a Pest file's functions are
+| from when to when (`content.policy_periods`). The owner's decisions of 2026-11-21: an address a policy switched off in a
+| store holds there is free for another policy; a save unticking a published policy's store, its words unchanged, turns
+| it off there as Unpublish does. Every helper here is named after this file's subject: a Pest file's functions are
 | global.
 */
 
@@ -144,6 +146,39 @@ function policyTurnOffAddresses(string $code): array
     }
 
     return $held;
+}
+
+/**
+ * Every row a turn-off may write, ids and the audit's own clock left out, the copy's id named COPY: two ways of doing it
+ * compare equal when they wrote the same.
+ */
+function policyTurnOffSnapshot(string $original, int $auditsAfter): string
+{
+    $copy = (string) DB::table('content.policies')->where('id', '!=', $original)->where('kind', 'TERMS')->value('id');
+    $rows = static function (string $table, ?callable $where = null): array {
+        $query = DB::table($table);
+        $found = array_map(static function (object $row): string {
+            $values = (array) $row;
+            unset($values['id'], $values['occurred_at'], $values['recorded_at'], $values['correlation_id']);
+
+            return (string) json_encode($values);
+        }, ($where === null ? $query : $where($query))->get()->all());
+        sort($found);
+
+        return $found;
+    };
+    $snapshot = (string) json_encode([
+        'policies' => $rows('content.policies'),
+        'translations' => $rows('content.policy_translations'),
+        'stores' => $rows('content.policy_stores'),
+        'images' => $rows('content.policy_images'),
+        'versions' => $rows('content.policy_versions'),
+        'periods' => $rows('content.policy_periods'),
+        'addresses' => $rows('content.slug_history', static fn ($query) => $query->where('kind', 'POLICY')),
+        'audits' => $rows('platform.audit_entries', static fn ($query) => $query->where('id', '>', $auditsAfter)),
+    ]);
+
+    return $copy === '' ? $snapshot : str_replace($copy, 'COPY', $snapshot);
 }
 
 /** Moves the clock to this hour of the frozen day (UTC). */
@@ -311,6 +346,175 @@ describe('Unpublish in some of its stores (owner, 2026-11-20: option A)', functi
     });
 });
 
+describe('a save unticking a published policy\'s store, its words unchanged (owner, 2026-11-21: as Unpublish there)', function () {
+    it('turns Egypt off when Sara, who holds both, saves it unticked: Egypt\'s own switched-off copy, KSA keeps the published policy', function () {
+        policyTurnOffAt('08:00');
+        $sara = Cx::editor([ContentPermissions::POLICY_MANAGE], ['sa', 'eg']);
+        $share = Cx::image();
+        $body = Cx::image();
+        $shared = policyTurnOffSave(['shareEn' => $share, 'bodyEn' => "The terms\n\n![A sofa](image:1)", 'imagesEn' => [1 => $body]]);
+        policyTurnOffPublish($shared);
+        policyTurnOffAt('09:00');
+        // An old address, so the one handed over forwards too.
+        policyTurnOffSave(['id' => $shared, 'version' => policyTurnOffVersion($shared), 'shareEn' => $share, 'bodyEn' => "The terms\n\n![A sofa](image:1)", 'imagesEn' => [1 => $body], 'slugEn' => 'conditions']);
+        policyTurnOffAt('10:00');
+        $version = policyTurnOffVersion($shared);
+
+        expect(policyTurnOffSave(['id' => $shared, 'version' => $version, 'shareEn' => $share, 'bodyEn' => "The terms\n\n![A sofa](image:1)", 'imagesEn' => [1 => $body], 'slugEn' => 'conditions'], ['sa']))->toBe($shared);
+
+        $copy = (string) DB::table('content.policies')->where('id', '!=', $shared)->value('id');
+        $kept = app(Policies::class)->find($copy);
+        $original = app(Policies::class)->find($shared) ?? throw new LogicException('No original.');
+        $turned = json_decode((string) DB::table('platform.audit_entries')->where('action', 'content.policy.turned_off')->where('subject_id', $shared)->value('changes'), true);
+        $created = json_decode((string) DB::table('platform.audit_entries')->where('action', 'content.policy.created')->where('subject_id', $copy)->value('changes'), true);
+
+        expect(DB::table('content.policies')->count())->toBe(2)
+            // The copy: a draft of the kind, Egypt alone, the same words, body image and share image.
+            ->and($kept?->kind)->toBe(PolicyKind::Terms)
+            ->and($kept?->stores)->toBe([Fx::storeId('eg')])
+            ->and($kept?->status)->toBe(Publication::Draft)
+            ->and([$kept?->textVersion, $kept?->version, $kept?->updatedBy])->toBe([0, 1, $sara])
+            ->and($kept?->sameContentAs($original))->toBeTrue()
+            ->and($kept?->shareEn)->toBe($share)
+            ->and($kept?->images())->toMatchArray(['share_image_en' => $share])
+            ->and(DB::table('content.policy_images')->where('policy_id', $copy)->pluck('media_id')->all())->toBe([$body])
+            ->and(DB::table('content.policy_versions')->where('policy_id', $copy)->count())->toBe(0)
+            // The original: published in KSA alone, its text and version as they were, one change of its row.
+            ->and($original->stores)->toBe([Fx::storeId('sa')])
+            ->and($original->status)->toBe(Publication::Published)
+            ->and($original->textVersion)->toBe(1)
+            ->and($original->version)->toBe($version + 1)
+            // Egypt's addresses, the old one included, went with Egypt's copy; KSA's stayed.
+            ->and(policyTurnOffAddresses('eg'))->toBe(['ar:الشروط' => $copy, 'en:conditions' => $copy, 'en:terms' => $copy])
+            ->and(policyTurnOffAddresses('sa'))->toBe(['ar:الشروط' => $shared, 'en:conditions' => $shared, 'en:terms' => $shared])
+            // In force in Egypt until now; still in KSA.
+            ->and(policyTurnOffPeriods($shared))->toBe(['eg' => ['1 08:00..09:00 terms', '1 09:00..10:00 conditions'], 'sa' => ['1 08:00..09:00 terms', '1 09:00..open conditions']])
+            ->and(policyTurnOffPeriods($copy))->toBe([])
+            // Audited as Unpublish is, not as a change.
+            ->and($turned['turned_off_to'] ?? null)->toBe([null, $copy])
+            ->and($turned['stores'] ?? null)->toBe([implode(',', policyTurnOffStores('sa', 'eg')), Fx::storeId('sa')])
+            ->and($created['turned_off_from'] ?? null)->toBe([null, $shared])
+            ->and(Fx::audits('content.policy.changed', $shared))->toBe(1)
+            // The shop: Egypt has no Terms now, KSA still has them.
+            ->and(app(ShopPolicies::class)->published(StoreId::fromString(Fx::storeId('eg')), ShopPolicyKind::Terms, 'en'))->toBeNull()
+            ->and(app(ShopPolicies::class)->published(StoreId::fromString(Fx::storeId('sa')), ShopPolicyKind::Terms, 'en')?->policyId)->toBe($shared);
+    });
+
+    it('writes exactly what Unpublish in those stores writes', function () {
+        policyTurnOffAt('08:00');
+        Cx::editor([ContentPermissions::POLICY_MANAGE], ['sa', 'eg', 'ae']);
+        $shared = policyTurnOffSave([], ['sa', 'eg', 'ae']);
+        policyTurnOffPublish($shared);
+        policyTurnOffSave(['id' => $shared, 'version' => policyTurnOffVersion($shared), 'slugEn' => 'conditions'], ['sa', 'eg', 'ae']);
+        policyTurnOffAt('10:00');
+        $version = policyTurnOffVersion($shared);
+        $audits = (int) DB::table('platform.audit_entries')->max('id');
+        $ways = [
+            'unpublish' => fn () => policyTurnOffOff($shared, ['eg', 'ae']),
+            'save' => fn () => policyTurnOffSave(['id' => $shared, 'version' => $version, 'slugEn' => 'conditions'], ['sa']),
+        ];
+        $written = [];
+
+        foreach ($ways as $way => $work) {
+            DB::beginTransaction();
+            $work();
+            $written[$way] = policyTurnOffSnapshot($shared, $audits);
+            DB::rollBack();
+        }
+
+        expect($written['save'])->toBe($written['unpublish'])
+            ->and($written['save'])->toContain('COPY')
+            ->and($written['save'])->toContain('content.policy.turned_off')
+            ->and($written['save'])->not->toContain('content.policy.changed');
+    });
+
+    it('leaves Ahmed, who holds KSA alone, nothing to untick: Egypt is not his, and his one store is refused unticked', function () {
+        Cx::editor([ContentPermissions::POLICY_MANAGE], ['sa', 'eg']);
+        $shared = policyTurnOffSave();
+        policyTurnOffPublish($shared);
+        Cx::editor([ContentPermissions::POLICY_MANAGE], ['sa']);
+        $refusal = static function (callable $work): string {
+            try {
+                $work();
+            } catch (InvalidContentInput $refused) {
+                return "{$refused->attribute}:{$refused->rule}";
+            }
+
+            return 'not refused';
+        };
+
+        // Egypt is not on his form: a save with KSA alone leaves it on the policy.
+        expect(policyTurnOffSave(['id' => $shared, 'version' => policyTurnOffVersion($shared)], ['sa']))->toBe($shared)
+            ->and($refusal(fn () => policyTurnOffSave(['id' => $shared, 'version' => policyTurnOffVersion($shared)], [])))->toBe('stores:too_few')
+            ->and(DB::table('content.policies')->count())->toBe(1)
+            ->and(app(Policies::class)->find($shared)?->stores)->toBe(policyTurnOffStores('sa', 'eg'))
+            ->and(Fx::audits('content.policy.turned_off'))->toBe(0);
+    });
+
+    it('is refused, writing nothing, as any save of a published policy is: an English box still marked as translated', function () {
+        Cx::editor([ContentPermissions::POLICY_MANAGE], ['sa', 'eg']);
+        $shared = policyTurnOffSave();
+        policyTurnOffPublish($shared);
+
+        expect(fn () => policyTurnOffSave(['id' => $shared, 'version' => policyTurnOffVersion($shared), 'translated' => true], ['sa']))->toThrow(TranslationUnread::class)
+            ->and(DB::table('content.policies')->count())->toBe(1)
+            ->and(app(Policies::class)->find($shared)?->stores)->toBe(policyTurnOffStores('sa', 'eg'));
+    });
+
+    it('adds a store ticked and turns off a store unticked in one save, the one left in the original\'s place included', function () {
+        policyTurnOffAt('08:00');
+        Cx::editor([ContentPermissions::POLICY_MANAGE], ['sa', 'eg', 'ae']);
+        $shared = policyTurnOffSave();
+        policyTurnOffPublish($shared);
+        policyTurnOffAt('09:00');
+        policyTurnOffSave(['id' => $shared, 'version' => policyTurnOffVersion($shared), 'slugEn' => 'conditions']);
+        policyTurnOffAt('10:00');
+
+        // The UAE ticked, Egypt unticked: the UAE added to the published policy, Egypt into its own switched-off copy.
+        expect(policyTurnOffSave(['id' => $shared, 'version' => policyTurnOffVersion($shared), 'slugEn' => 'conditions'], ['sa', 'ae']))->toBe($shared);
+        $egypt = (string) DB::table('content.policies')->where('id', '!=', $shared)->value('id');
+
+        expect(app(Policies::class)->find($shared)?->stores)->toBe(policyTurnOffStores('sa', 'ae'))
+            ->and(DB::table('content.policies')->where('id', $shared)->value('status'))->toBe('PUBLISHED')
+            ->and(app(Policies::class)->find($egypt)?->stores)->toBe([Fx::storeId('eg')])
+            ->and(DB::table('content.policies')->where('id', $egypt)->value('status'))->toBe('DRAFT')
+            ->and(policyTurnOffAddresses('eg'))->toBe(['ar:الشروط' => $egypt, 'en:conditions' => $egypt, 'en:terms' => $egypt])
+            ->and(policyTurnOffAddresses('ae'))->toBe(['ar:الشروط' => $shared, 'en:conditions' => $shared])
+            ->and(policyTurnOffPeriods($shared))->toBe([
+                'ae' => ['1 10:00..open conditions'],
+                'eg' => ['1 08:00..09:00 terms', '1 09:00..10:00 conditions'],
+                'sa' => ['1 08:00..09:00 terms', '1 09:00..open conditions'],
+            ]);
+
+        // Every store it serves unticked, another ticked: the policy goes on there; the ones unticked are turned off.
+        policyTurnOffAt('11:00');
+        $privacy = policyTurnOffSave(['kind' => 'PRIVACY', 'titleAr' => 'الخصوصية', 'titleEn' => 'Privacy', 'slugAr' => 'الخصوصية', 'slugEn' => 'privacy'], ['sa']);
+        policyTurnOffPublish($privacy);
+        policyTurnOffAt('12:00');
+        policyTurnOffSave(['id' => $privacy, 'version' => policyTurnOffVersion($privacy), 'kind' => 'PRIVACY', 'titleAr' => 'الخصوصية', 'titleEn' => 'Privacy', 'slugAr' => 'الخصوصية', 'slugEn' => 'privacy'], ['eg']);
+        $ksa = (string) DB::table('content.policies')->where('kind', 'PRIVACY')->where('id', '!=', $privacy)->value('id');
+
+        expect(app(Policies::class)->find($privacy)?->stores)->toBe([Fx::storeId('eg')])
+            ->and(DB::table('content.policies')->where('id', $privacy)->value('status'))->toBe('PUBLISHED')
+            ->and(app(Policies::class)->find($ksa)?->stores)->toBe([Fx::storeId('sa')])
+            ->and(DB::table('content.policies')->where('id', $ksa)->value('status'))->toBe('DRAFT')
+            ->and(policyTurnOffPeriods($privacy))->toBe(['eg' => ['1 12:00..open privacy'], 'sa' => ['1 11:00..12:00 privacy']]);
+    });
+
+    it('still just takes an unticked store off a draft, its addresses there freed, no copy made', function () {
+        Cx::editor([ContentPermissions::POLICY_MANAGE], ['sa', 'eg']);
+        $draft = policyTurnOffSave();
+
+        expect(policyTurnOffSave(['id' => $draft, 'version' => policyTurnOffVersion($draft)], ['sa']))->toBe($draft)
+            ->and(DB::table('content.policies')->count())->toBe(1)
+            ->and(app(Policies::class)->find($draft)?->stores)->toBe([Fx::storeId('sa')])
+            ->and(DB::table('content.policies')->where('id', $draft)->value('status'))->toBe('DRAFT')
+            ->and(policyTurnOffAddresses('eg'))->toBe([])
+            ->and(Fx::audits('content.policy.turned_off'))->toBe(0)
+            ->and(Fx::audits('content.policy.changed', $draft))->toBe(1);
+    });
+});
+
 describe('Delete in some of its stores (owner, 2026-11-20)', function () {
     it('takes the stores picked off a draft, freeing their addresses there; all of them deletes it', function () {
         Cx::editor([ContentPermissions::POLICY_MANAGE], ['sa', 'eg']);
@@ -366,7 +570,7 @@ describe('what is in force in each store, from when to when (owner, 2026-11-20)'
         // The UAE added: version 2 there from now.
         policyTurnOffSave(['id' => $policy, 'version' => policyTurnOffVersion($policy), 'bodyEn' => 'New terms'], ['sa', 'eg', 'ae']);
         policyTurnOffAt('11:00');
-        // Egypt taken off by a save, the words unchanged.
+        // Egypt unticked by a save, the words unchanged: turned off there, as Unpublish does (owner, 2026-11-21).
         policyTurnOffSave(['id' => $policy, 'version' => policyTurnOffVersion($policy), 'bodyEn' => 'New terms'], ['sa', 'ae']);
         policyTurnOffAt('12:00');
         // A new address, the words unchanged: the same version, read at its new address from now.
@@ -417,7 +621,7 @@ describe('what is in force in each store, from when to when (owner, 2026-11-20)'
     });
 });
 
-describe('an address held by a policy switched off in a store (the builder\'s pick, 2026-11-21)', function () {
+describe('an address held by a policy switched off in a store (confirmed by the owner, 2026-11-21)', function () {
     it('is taken by a new policy saved with it; the old one published again there is refused it', function () {
         Cx::editor([ContentPermissions::POLICY_MANAGE], ['sa']);
         $old = policyTurnOffSave([], ['sa']);

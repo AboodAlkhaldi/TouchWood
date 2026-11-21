@@ -28,11 +28,12 @@ return [
     ],
     // The builder's picks of wording (owner, 2026-11-20): said before the save, as the person ticks and types.
     'notices' => [
-        'removed' => ':stores will have no published :kind.',
+        // The owner's decision of 2026-11-21: a store unticked from a published policy is turned off there, as Unpublish.
+        'removed' => ':stores will have no published :kind. As with Unpublish, they keep a copy of their own as a draft, to edit and publish again.',
         'split' => ':ticked will get its own copy; :others will keep the current text.',
     ],
     'removed_confirm' => [
-        'title' => 'Take these stores off the policy?',
+        'title' => 'Unpublish the policy in these stores?',
         'confirm' => 'Save Changes',
     ],
     'publish' => 'Publish Policy',

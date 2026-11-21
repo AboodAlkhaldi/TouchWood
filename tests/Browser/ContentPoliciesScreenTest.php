@@ -19,8 +19,9 @@ use function Pest\Laravel\seed;
 /*
 | Content › Policies in a real browser (flags-2026-11.md S3.7; the owner's answers of 2026-11-20): a policy made with
 | its kind and two stores ticked, published; on its page, a store unticked with the words unchanged says that store
-| will be left without it and asks once more at the save, and changed words say the stores ticked get their own copy -
-| the save landing on that copy; Arabic, right to left, in Latin digits, on a phone.
+| will be left without it, keeping a switched-off copy of its own (owner, 2026-11-21), and asks once more at the save,
+| and changed words say the stores ticked get their own copy - the save landing on that copy; Arabic, right to left, in
+| Latin digits, on a phone.
 |
 | Deliberately no RefreshDatabase: every title carries the run's own number (lesson 174), and the policies are of the
 | kind Other, which a store may publish several of, so earlier runs' never block this one's Publish.
@@ -61,11 +62,11 @@ it('makes a policy for two stores, publishes it, and says before saving when a s
         // Once published, Delete stays in the menu out of reach, its reason under it - only Unpublish is offered here.
         ->and($page->script("document.querySelector('[data-test=\"text-version\"]').textContent"))->toBe('Version 1');
 
-    // Egypt unticked, the words unchanged: Egypt is left without it, said now and asked again at the save.
+    // Egypt unticked, the words unchanged: Egypt is turned off, keeping its own copy, said now and asked again at the save.
     $page->click('[data-test="store-eg"]');
-    expect(browserSoon($page, "document.querySelector('[data-test=\"removed-note\"]')?.textContent === 'Egypt will have no published Other.'"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"removed-note\"]')?.textContent === 'Egypt will have no published Other. As with Unpublish, they keep a copy of their own as a draft, to edit and publish again.'"))->toBeTrue();
     $page->click('[data-test="publish"]');
-    expect(browserSoon($page, "document.querySelector('[data-test=\"confirm-removed\"]') !== null"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"confirm-removed\"]') !== null && document.body.textContent.includes('Unpublish the policy in these stores?')"))->toBeTrue();
     $page->keys('[data-test="confirm-removed"]', 'Escape');
     expect(browserSoon($page, "document.querySelector('[data-test=\"confirm-removed\"]') === null"))->toBeTrue();
 

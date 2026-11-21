@@ -574,19 +574,17 @@ describe('a policy shared by several stores, changed for some (owner, 2026-11-20
             ->and(Fx::audits('content.policy.split'))->toBe(0);
     });
 
-    it('takes a store off a published policy when it is unticked with the words unchanged, freeing its addresses there', function () {
+    it('takes a store off a draft when it is unticked with the words unchanged, freeing its addresses there (a published one\'s is turned off: PolicyTurnOffTest)', function () {
         Cx::editor([ContentPermissions::POLICY_MANAGE], ['sa', 'eg']);
         $shared = policiesSave([], ['sa', 'eg']);
-        policiesPublish($shared);
 
         expect(policiesSave(['id' => $shared, 'version' => policiesVersion($shared)], ['sa']))->toBe($shared)
             ->and(app(Policies::class)->find($shared)?->stores)->toBe([Fx::storeId('sa')])
-            ->and(DB::table('content.policies')->where('id', $shared)->value('status'))->toBe('PUBLISHED')
-            ->and(policiesTextVersion($shared))->toBe(1)
+            ->and(DB::table('content.policies')->where('id', $shared)->value('status'))->toBe('DRAFT')
             ->and(DB::table('content.policies')->count())->toBe(1)
             ->and(policiesAddresses('eg'))->toBe([]);
 
-        // Egypt, without Terms now, takes a policy of its own at the same address.
+        // Egypt takes a policy of its own at the same address.
         $egypt = policiesSave(['titleAr' => 'الشروط والأحكام'], ['eg']);
         policiesPublish($egypt);
 
