@@ -1,4 +1,4 @@
-import type { ShopPolicyLinkData } from '../../../../Platform/Public/Dto';
+import type { ShopPolicyLinkData, HomeMetric, HomeStorePanel, HomeAction } from '../../../../Platform/Public/Dto';
 export type AccountPage = {
 email: string,
 pendingEmail: string | null,
@@ -205,6 +205,10 @@ rows: HomeRowBlock[],
 rowsLabel: string | null,
 href: string | null,
 openLabel: string | null,
+size: string,
+metrics: HomeMetric[],
+panels: HomeStorePanel[],
+action: HomeAction | null,
 };
 export type HomeFigureBlock = {
 label: string,
@@ -219,6 +223,16 @@ offersAllStores: boolean,
 stores: StoreOptionBlock[],
 cards: HomeCardBlock[],
 storeTimezone: string | null,
+period: string,
+periods: HomePeriodBlock[],
+greeting: string,
+sections: HomeCardBlock[],
+actions: HomeCardBlock[],
+readAt: string | null,
+};
+export type HomePeriodBlock = {
+value: string,
+label: string,
 };
 export type HomeRowBlock = {
 label: string,

@@ -120,6 +120,25 @@ final readonly class DatabaseCustomerRepository implements CustomerRepository
         ];
     }
 
+    public function countRegisteredByDay(string $storeId, DateTimeImmutable $from, DateTimeImmutable $to, string $timezone): array
+    {
+        $days = $this->db->table(self::TABLE)
+            ->selectRaw("to_char(created_at AT TIME ZONE ?, 'YYYY-MM-DD') AS day, count(*) AS total", [$timezone])
+            ->where('home_store_id', strtolower($storeId))
+            ->where('created_at', '>=', self::utc($from))
+            ->where('created_at', '<', self::utc($to))
+            ->groupBy('day')
+            ->pluck('total', 'day');
+
+        $counts = [];
+
+        foreach ($days as $day => $total) {
+            $counts[(string) $day] = (int) $total;
+        }
+
+        return $counts;
+    }
+
     private static function utc(DateTimeImmutable $at): string
     {
         return $at->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s.uP');

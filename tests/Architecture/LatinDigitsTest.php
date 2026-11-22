@@ -87,7 +87,8 @@ it('formats every number and date through intlLocale, never a language tag of it
         }
 
         // toLocale*() follows the browser's own language: only shadcn's calendar uses it, for a month's
-        // name and a data attribute, never a digit on screen.
+        // name and a data attribute, never a digit on screen. (shadcn's Chart wrote its tooltip's default value with
+        // it; ours writes it with lib/digits' figure() - owner, 2026-11-21.)
         if ($relative !== 'resources/js/components/ui/calendar.tsx' && preg_match('/\.toLocale(?:String|DateString|TimeString)\(/', $text) === 1) {
             $offending[] = "{$relative}: toLocale*";
         }

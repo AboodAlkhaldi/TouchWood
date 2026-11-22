@@ -113,16 +113,20 @@ use Modules\Ops\Infrastructure\Queue\StartDueNoticesJob;
 use Modules\Ops\Presentation\Bell\PanelBellPart;
 use Modules\Ops\Presentation\Console\BrevoCheckCommand;
 use Modules\Ops\Presentation\Frame\ShopPart;
+use Modules\Ops\Presentation\Home\TodaysReportCard;
 use Modules\Payments\Public\Events\GatewayKeyExpiring;
 use Modules\Payments\Public\Events\GatewayKeyRejected;
 use Modules\Payments\Public\Events\PaymentNotAccepted;
 use Modules\Payments\Public\Events\PaymentRequested;
 use Modules\Platform\Public\Contracts\AdminFrameParts;
 use Modules\Platform\Public\Contracts\AdminMenu;
+use Modules\Platform\Public\Contracts\HomeCards;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Contracts\ShopFrameParts;
+use Modules\Platform\Public\Dto\HomeCardDto;
 use Modules\Platform\Public\Dto\MenuEntryDto;
+use Modules\Platform\Public\Enums\HomeBand;
 use Modules\Promotions\Public\Events\CouponAssigned;
 use Modules\Sales\Public\Events\LatePaymentRefundDue;
 use Modules\Sales\Public\Events\OrderApproved;
@@ -246,6 +250,11 @@ final class OpsServiceProvider extends ServiceProvider
         $this->loadViewsFrom(dirname(__DIR__).'/Presentation/views', 'ops');
 
         $this->app->make(PermissionCatalog::class)->declare('ops', ...OpsPermissions::definitions());
+
+        // Today's Report in the admin home's greeting row (dashboard.md §2.1), for the daily report's makers.
+        $this->app->make(HomeCards::class)->register(
+            new HomeCardDto('ops', 'report', OpsPermissions::REPORT_DAILY, TodaysReportCard::class, 10, band: HomeBand::Greeting),
+        );
 
         // Each entry lands with its page (ops.md §4.15, the menu).
         $this->app->make(AdminMenu::class)->register(

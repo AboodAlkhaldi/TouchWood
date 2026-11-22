@@ -137,6 +137,14 @@ final readonly class DatabaseFeedbackQueries implements FeedbackQueries
         return $row instanceof stdClass ? DatabaseQuestions::toQuestion($row) : null;
     }
 
+    public function averageRating(StoreId $store): array
+    {
+        $row = $this->db->table('feedback.reviews')->where('store_id', $store->value)->where('status', ReviewStatus::Approved->value)
+            ->first([$this->db->raw('count(*) AS reviews'), $this->db->raw('coalesce(sum(rating), 0) AS stars')]);
+
+        return $row instanceof stdClass ? ['count' => (int) $row->reviews, 'sum' => (int) $row->stars] : ['count' => 0, 'sum' => 0];
+    }
+
     public function counts(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): array
     {
         $range = [$store->value, Moment::of($from), Moment::of($to)];

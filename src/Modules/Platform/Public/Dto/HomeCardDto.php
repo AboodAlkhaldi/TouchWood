@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Platform\Public\Dto;
 
+use Modules\Platform\Public\Enums\HomeBand;
+
 /**
  * One card of the admin home, declared by the module whose figures it shows (platform.md §2.6), as
  * a menu entry is (MenuEntryDto). Platform keeps the list; every module, Platform included, adds
@@ -24,6 +26,7 @@ final readonly class HomeCardDto
      * @param  list<string>  $storeFree  store-free actions that show the card too, in either scope;
      *                                   held at all is held everywhere, so they never offer All Stores
      *                                   to someone whose stores are fewer
+     * @param  HomeBand  $band  where on the home it is drawn (dashboard.md §2): Needs Attention unless said
      */
     public function __construct(
         public string $module,
@@ -32,6 +35,7 @@ final readonly class HomeCardDto
         public string $card,
         public int $position = 0,
         public array $storeFree = [],
+        public HomeBand $band = HomeBand::Attention,
     ) {}
 
     /**

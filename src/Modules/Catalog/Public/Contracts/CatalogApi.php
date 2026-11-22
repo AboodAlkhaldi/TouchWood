@@ -205,6 +205,17 @@ interface CatalogApi
     public function productCards(StoreId $store, string $locale, array $productIds): array;
 
     /**
+     * For Sales' Best Sellers on the admin home (dashboard.md §2 H): **each product's rating as the shop shows it**
+     * - the sum and count of its approved reviews, which Feedback pushes here (`ListingFacts::ratings`), one for
+     * every store - in one query, however many. Keyed by lower-case id; a product never reviewed, or an id that is
+     * not one, left out.
+     *
+     * @param  list<string>  $productIds
+     * @return array<string, array{sum: int, count: int}>
+     */
+    public function productRatings(array $productIds): array;
+
+    /**
      * For Sales — a cart, a checkout, an edit (amendment 29(a); sales.md §2.3): **many sizes in a store
      * in one query**, each answered exactly as `storeVariant` answers it. Keyed by lower-case id; an
      * unknown id left out.

@@ -22,11 +22,15 @@ use Modules\Payments\Public\Events\PaymentNotAccepted;
 use Modules\Payments\Public\Events\PaymentNotTaken;
 use Modules\Payments\Public\Events\PaymentSucceeded;
 use Modules\Platform\Public\Contracts\AdminMenu;
+use Modules\Platform\Public\Contracts\HomeCards;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Contracts\ShopFrameParts;
+use Modules\Platform\Public\Dto\HomeCardDto;
 use Modules\Platform\Public\Dto\MenuEntryDto;
+use Modules\Platform\Public\Enums\HomeBand;
 use Modules\Platform\Public\Events\StoreCreated;
+use Modules\Sales\Application\Query\Home\SalesHomeReads;
 use Modules\Sales\Application\Query\Own\OwnReads;
 use Modules\Sales\Application\Query\Staff\StaffReads;
 use Modules\Sales\Application\Query\Staff\StaffReturnReads;
@@ -48,6 +52,7 @@ use Modules\Sales\Infrastructure\Eloquent\DatabasePaymentOrderNumbers;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseQuotes;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseReturns;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseSalesApi;
+use Modules\Sales\Infrastructure\Eloquent\DatabaseSalesHomeReads;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseSalesReports;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseStaffReads;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseStaffReturnReads;
@@ -67,6 +72,20 @@ use Modules\Sales\Infrastructure\Queue\EmptyOldCartsJob;
 use Modules\Sales\Infrastructure\Queue\PushSalesRanksJob;
 use Modules\Sales\Infrastructure\Queue\ReviewCheckoutTriesJob;
 use Modules\Sales\Infrastructure\Queue\TellOverdueTransfersJob;
+use Modules\Sales\Presentation\Home\AudienceCard;
+use Modules\Sales\Presentation\Home\AverageOrderCard;
+use Modules\Sales\Presentation\Home\BestSellersCard;
+use Modules\Sales\Presentation\Home\DistributionCard;
+use Modules\Sales\Presentation\Home\NewCustomersCard;
+use Modules\Sales\Presentation\Home\OrdersFigureCard;
+use Modules\Sales\Presentation\Home\OrdersNowCard;
+use Modules\Sales\Presentation\Home\RecentOrdersCard;
+use Modules\Sales\Presentation\Home\ReturnsWaitingCard;
+use Modules\Sales\Presentation\Home\SalesByDayCard;
+use Modules\Sales\Presentation\Home\SalesFigureCard;
+use Modules\Sales\Presentation\Home\SalesHome;
+use Modules\Sales\Presentation\Home\TermsMissingCard;
+use Modules\Sales\Presentation\Home\TransfersOverdueCard;
 use Modules\Sales\Presentation\Http\Resource\OrdersCustomerSection;
 use Modules\Sales\Presentation\Storefront\CartSection;
 use Modules\Sales\Presentation\Storefront\SalesFramePart;
@@ -97,6 +116,9 @@ final class SalesServiceProvider extends ServiceProvider
         $this->app->bind(OwnReads::class, DatabaseOwnReads::class);
         $this->app->bind(StaffReads::class, DatabaseStaffReads::class);
         $this->app->bind(StaffReturnReads::class, DatabaseStaffReturnReads::class);
+        // Home's own reads, and its sections' shared figures, kept for the request answering (dashboard.md §6.2).
+        $this->app->bind(SalesHomeReads::class, DatabaseSalesHomeReads::class);
+        $this->app->scoped(SalesHome::class);
     }
 
     public function boot(): void
@@ -153,6 +175,25 @@ final class SalesServiceProvider extends ServiceProvider
         $this->app->make(AdminMenu::class)->register(
             new MenuEntryDto('sales', 'orders', 'orders', 'sales.admin.orders', SalesPermissions::ORDER_VIEW, 10, icon: 'orders'),
             new MenuEntryDto('sales', 'returns', 'orders', 'sales.admin.returns', SalesPermissions::ORDER_VIEW, 20, icon: 'returns'),
+        );
+
+        // Its sections of the admin home (dashboard.md §2 B-I, J; §5, §6.2; flags-2026-11.md S3.3 F17): the period's
+        // figures for whoever views the store's orders, New Customers with them (D10); Needs Attention's cards each
+        // with its own permission.
+        $this->app->make(HomeCards::class)->register(
+            new HomeCardDto('sales', 'sales', SalesPermissions::ORDER_VIEW, SalesFigureCard::class, 10, band: HomeBand::Overview),
+            new HomeCardDto('sales', 'orders', SalesPermissions::ORDER_VIEW, OrdersFigureCard::class, 11, band: HomeBand::Overview),
+            new HomeCardDto('sales', 'average_order', SalesPermissions::ORDER_VIEW, AverageOrderCard::class, 12, band: HomeBand::Overview),
+            new HomeCardDto('sales', 'new_customers', SalesPermissions::ORDER_VIEW, NewCustomersCard::class, 13, band: HomeBand::Overview),
+            new HomeCardDto('sales', 'by_day', SalesPermissions::ORDER_VIEW, SalesByDayCard::class, 20, band: HomeBand::Overview),
+            new HomeCardDto('sales', 'audience', SalesPermissions::ORDER_VIEW, AudienceCard::class, 21, band: HomeBand::Overview),
+            new HomeCardDto('sales', 'orders_now', SalesPermissions::ORDER_VIEW, OrdersNowCard::class, 30, band: HomeBand::Overview),
+            new HomeCardDto('sales', 'recent_orders', SalesPermissions::ORDER_VIEW, RecentOrdersCard::class, 40, band: HomeBand::Overview),
+            new HomeCardDto('sales', 'best_sellers', SalesPermissions::ORDER_VIEW, BestSellersCard::class, 50, band: HomeBand::Overview),
+            new HomeCardDto('sales', 'distribution', SalesPermissions::ORDER_VIEW, DistributionCard::class, 60, band: HomeBand::Overview),
+            new HomeCardDto('sales', 'transfers_overdue', SalesPermissions::PAYMENT_RECORD, TransfersOverdueCard::class, 40),
+            new HomeCardDto('sales', 'returns_waiting', SalesPermissions::RETURN_MANAGE, ReturnsWaitingCard::class, 70),
+            new HomeCardDto('sales', 'terms_missing', SalesPermissions::ORDER_VIEW, TermsMissingCard::class, 80),
         );
 
         if (! $this->app->routesAreCached()) {

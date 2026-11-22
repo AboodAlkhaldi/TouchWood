@@ -80,6 +80,8 @@ Route::prefix('admin')
             Route::get('authenticator/recovery-codes', [StaffAuthenticatorController::class, 'recoveryCodes'])->name('access.staff.authenticator.recovery-codes.page');
 
             Route::get('/', [AdminPanelController::class, 'home'])->name('access.staff.home');
+            // Refresh on Home: forgets the reader's kept figures for the store and period (dashboard.md §7, D11).
+            Route::post('home/refresh', [AdminPanelController::class, 'refresh'])->name('access.staff.home.refresh');
 
             // View Store: the shop of the store chosen in its menu, as themselves (spec §1.11,
             // amendment 64); the handler takes only one of their own stores.

@@ -90,4 +90,12 @@ interface FeedbackQueries
      * @return array{int, int, int}
      */
     public function counts(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): array;
+
+    /**
+     * A store's approved reviews - their count and the sum of their stars - for Home's Average Rating (dashboard.md
+     * §2 F, D3), of all time. One query.
+     *
+     * @return array{count: int, sum: int}
+     */
+    public function averageRating(StoreId $store): array;
 }

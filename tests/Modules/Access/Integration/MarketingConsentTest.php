@@ -287,6 +287,13 @@ describe('new customers per day (amendment 83)', function () {
         DB::table('access.customers')->where('id', $at['last'])->update(['anonymized_at' => now()]);
 
         expect(app(AccessApi::class)->customersRegistered($sa, $day, $day->addDay()))->toBe(['individuals' => 2, 'companies' => 1])
-            ->and(fn () => app(AccessApi::class)->customersRegistered($sa, $day, $day))->toThrow(InvalidArgumentException::class);
+            ->and(fn () => app(AccessApi::class)->customersRegistered($sa, $day, $day))->toThrow(InvalidArgumentException::class)
+            // By the store's day (the admin home's trend line): the same three, all on the 28th in Riyadh. In UTC
+            // two fall on the 27th: `created_at` keeps whole seconds (lesson 223), so the ".999" moments above are
+            // stored rounded up to 21:00:00 - `before` lands on midnight (in), `last` on the next one (out).
+            ->and(app(AccessApi::class)->customersRegisteredByDay($sa, $day, $day->addDay(), 'Asia/Riyadh'))->toBe(['2026-10-28' => 3])
+            ->and(app(AccessApi::class)->customersRegisteredByDay($sa, $day, $day->addDay(), 'UTC'))->toBe(['2026-10-27' => 2, '2026-10-28' => 1])
+            ->and(fn () => app(AccessApi::class)->customersRegisteredByDay($sa, $day, $day, 'Asia/Riyadh'))->toThrow(InvalidArgumentException::class)
+            ->and(fn () => app(AccessApi::class)->customersRegisteredByDay($sa, $day, $day->addDay(), 'Not/A_Zone'))->toThrow(InvalidArgumentException::class);
     });
 });

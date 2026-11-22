@@ -23,6 +23,7 @@ final readonly class AdminShellDto
      * @param  string|null  $avatarUrl  null when they have not set a picture
      * @param  string  $locale  their **communication** language (amendment 16), which is the
      *                          panel's language only until this browser chooses otherwise
+     * @param  string  $firstName  the first part of the name alone, for Home's greeting (dashboard.md §2 A, D1)
      */
     public function __construct(
         public string $id,
@@ -32,6 +33,7 @@ final readonly class AdminShellDto
         public ?string $avatarUrl,
         public bool $isSuperAdmin,
         public string $locale,
+        public string $firstName = '',
     ) {}
 
     /**
