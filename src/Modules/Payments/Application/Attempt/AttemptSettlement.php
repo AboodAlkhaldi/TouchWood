@@ -181,6 +181,10 @@ final readonly class AttemptSettlement
         $currencyOk = $answer->displayCurrency === $attempt->currencyCode
             && ($attempt->mode === PaymentMode::Test || $answer->baseCurrency === $attempt->currencyCode);
         $amountOk = $paid !== null && $paid === $attempt->amountMinor;
+        // Sales is told only of money it can book as it really was (rule 8): an amount that cannot be read exactly
+        // stays here, flagged, as a refused currency does - never booked as the amount expected (security review,
+        // owner, 2026-11-22).
+        $accepted = $currencyOk && $paid !== null;
         $paidAt = self::moment($answer->transactionDate);
 
         $id = $this->transactions->record($attempt, new TransactionFacts(
@@ -199,10 +203,10 @@ final readonly class AttemptSettlement
             null,
             ! $currencyOk || ! $amountOk,
             ! $first,
-            $currencyOk,
+            $accepted,
         ));
 
-        if ($currencyOk) {
+        if ($accepted) {
             $this->outbox->record(new PaymentSucceeded((string) Str::uuid(), $id, $attempt->orderId, $attempt->storeId, $now));
         } elseif ($first) {
             $this->outbox->record(new PaymentNotAccepted((string) Str::uuid(), $attempt->id, $attempt->ownerId, $attempt->orderId, $attempt->storeId, $now));

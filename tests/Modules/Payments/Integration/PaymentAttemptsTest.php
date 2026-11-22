@@ -1009,7 +1009,12 @@ describe('the answers (rules 1, 5, 6, 8)', function () {
 
         expect(attemptsRow($id)->paid_minor)->toBeNull()
             ->and(attemptsRow($id)->mismatch)->toBeTrue()
-            ->and(DB::table('payments.transactions')->value('amount_text'))->toBe('1180.505');
+            ->and(DB::table('payments.transactions')->value('amount_text'))->toBe('1180.505')
+            // Never booked in Sales as the amount expected: kept here, flagged, as a refused currency is (review, 2026-11-22).
+            ->and(DB::table('payments.transactions')->value('published'))->toBeFalse()
+            ->and(attemptsEvents(PaymentSucceeded::class))->toBe(0)
+            ->and(attemptsEvents(PaymentNotAccepted::class))->toBe(1)
+            ->and(attemptsRow($id)->needs_attention)->toBeTrue();
     });
 
     it('keeps a different currency in Payments, flagged, and never sends it to Sales (§8 #18, #38)', function () {
