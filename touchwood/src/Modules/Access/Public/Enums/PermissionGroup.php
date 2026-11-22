@@ -1,0 +1,74 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Access\Public\Enums;
+
+/**
+ * The business area an action belongs to, so the role editor and the admin menu group actions the
+ * way staff think of them rather than by the module that happens to own them (stage 2b, P2 and P6;
+ * handoff §14). One list serves both (owner, 2026-09-22).
+ *
+ * Every group is named in Arabic and English at `access::permission_groups.{value}`.
+ *
+ * A permission needs a group only if a role can hold it: reserved actions and the ones everybody of
+ * a kind holds automatically are never offered in the editor. A menu entry names its own group, so a
+ * reserved action may still have one - Catalog's Products Import, the Super Admin's (catalog.md §4.4
+ * S11, its menu entry 100).
+ */
+enum PermissionGroup: string
+{
+    case StaffAndPermissions = 'staff_and_permissions';
+
+    case Customers = 'customers';
+
+    case StoreSettings = 'store_settings';
+
+    case Media = 'media';
+
+    case Audit = 'audit';
+
+    /** The running of the system — first the failed jobs (owner, 2026-09-29; frontend.md E7). */
+    case System = 'system';
+
+    /** Catalog's jobs (catalog.md §3, from 2026-10-02). */
+    case Catalog = 'catalog';
+
+    /** Pricing's jobs (pricing.md §3, from 2026-10-10). */
+    case Pricing = 'pricing';
+
+    /** For Sales, still to be built (handoff §14 and the design's own grouping). */
+    case Orders = 'orders';
+
+    /** Shipping's jobs: carriers, prices, free shipping, boxes (shipping.md §3, access.md amendment 77); after Orders (owner, 2026-10-29, step 2 Q4). */
+    case Shipping = 'shipping';
+
+    /** Payments' jobs: the bank account, releasing an attempt (payments.md §3, access.md amendment 78). */
+    case Payments = 'payments';
+
+    /** B2B's staff jobs (b2b.md amendment 10). */
+    case Companies = 'companies';
+
+    /** Loyalty's jobs: the store's points and its programme (loyalty.md §3, access.md amendment 66). */
+    case Points = 'points';
+
+    /** Sync's jobs: the report of a store's reads from its provider (sync.md §3, access.md amendment 68). */
+    case Sync = 'sync';
+
+    /** Promotions' jobs: the store's coupons, segments and gifts (promotions.md §3, access.md amendment 69). */
+    case Marketing = 'marketing';
+
+    /** Feedback's staff jobs: reviews, product questions, the ratings switch (feedback.md §3, access.md amendment 73). */
+    case Support = 'support';
+
+    /** Ops' jobs: messages to customers, offer notices, newsletter subscribers, the reports (ops.md §3, access.md amendment 86). */
+    case MessagesAndReports = 'messages_and_reports';
+
+    /** Content's jobs: the home page, bars, banners, campaigns, pop-ups, pages, blog, projects, SEO (content.md §3, row X1). */
+    case Content = 'content';
+
+    public function labelKey(): string
+    {
+        return "access::permission_groups.{$this->value}";
+    }
+}

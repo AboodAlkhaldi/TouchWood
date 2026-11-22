@@ -1,0 +1,12 @@
+<?php
+
+declare(strict_types=1);
+
+// The names of Sales's settings, as the settings screen shows them (SalesSettings, sales.md §1.10).
+return [
+    'module' => 'Orders',
+    'returns.window_days' => 'Return Window (Days After Delivery)',
+    'coupons.wrong_codes' => 'Wrong Coupon Codes Allowed (Per Customer, Every Store)',
+    'coupons.window_minutes' => 'Wrong Coupon Codes Window (Minutes, Every Store)',
+    'orders.waiting_most' => 'Orders Waiting for Approval Allowed (Per Customer in Each Store, Every Store)',
+];

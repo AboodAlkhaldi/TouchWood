@@ -1,0 +1,154 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Http\AdminArea;
+use Illuminate\Support\Facades\Route;
+use Modules\Content\Presentation\Http\Controller\BannersController;
+use Modules\Content\Presentation\Http\Controller\BarsController;
+use Modules\Content\Presentation\Http\Controller\BlogCategoriesController;
+use Modules\Content\Presentation\Http\Controller\CampaignRunController;
+use Modules\Content\Presentation\Http\Controller\CampaignsController;
+use Modules\Content\Presentation\Http\Controller\DocumentsController;
+use Modules\Content\Presentation\Http\Controller\HomePageController;
+use Modules\Content\Presentation\Http\Controller\PoliciesController;
+use Modules\Content\Presentation\Http\Controller\PopupsController;
+use Modules\Content\Presentation\Http\Controller\RedirectsController;
+use Modules\Content\Presentation\Http\Controller\SeoController;
+use Modules\Content\Presentation\Http\Controller\ThemePreviewController;
+use Modules\Content\Presentation\Http\Controller\ThemesController;
+use Modules\Content\Presentation\Http\Controller\TranslateController;
+use Modules\Content\Presentation\Http\Controller\UploadsController;
+
+/*
+| Content's routes in the admin panel (content.md §4.3): Translate, which every Content editor calls (§1.3), the upload
+| boxes' images, and the screens' pages, each with its own reads and changes (PR 7).
+|
+| Mounted into the area App\Http\AdminArea names, as Sync's are. Who may do any of this is Content's answer,
+| never the routing's: each handler asks for its permission in the store (§3).
+|
+| Named content.admin.*, which the panel's route list carries (config/ziggy.php).
+*/
+Route::prefix(AdminArea::PREFIX)
+    ->middleware([...AdminArea::MIDDLEWARE, AdminArea::SIGNED_IN])
+    ->group(function (): void {
+        Route::post('content/translate', TranslateController::class)->name('content.admin.translate');
+        // S8's link (ops.md §9.7 #3): a run's page is its campaign's (W4b, PR 8).
+        Route::get('content/campaigns/runs/{run}', CampaignRunController::class)->name('content.admin.campaigns.run');
+        // Preview Theme's signed cookie for this browser (W5b); the shop draws it with its frame (PR 9).
+        Route::delete('content/themes/preview', [ThemePreviewController::class, 'stop'])->name('content.admin.themes.preview.stop');
+        Route::post('content/themes/{theme}/preview', [ThemePreviewController::class, 'start'])->name('content.admin.themes.preview');
+        Route::post('content/uploads/{kind}', UploadsController::class)->name('content.admin.upload');
+
+        // W1 · Home Page.
+        Route::get('content/home', [HomePageController::class, 'index'])->name('content.admin.home');
+        Route::post('content/home/sections', [HomePageController::class, 'add'])->name('content.admin.home.add');
+        Route::post('content/home/sections/order', [HomePageController::class, 'order'])->name('content.admin.home.order');
+        Route::post('content/home/sections/{section}/show', [HomePageController::class, 'show'])->name('content.admin.home.show');
+        Route::post('content/home/sections/{section}/remove', [HomePageController::class, 'remove'])->name('content.admin.home.remove');
+        Route::post('content/home/footer', [HomePageController::class, 'saveFooter'])->name('content.admin.home.footer');
+        Route::get('content/home/{section}', [HomePageController::class, 'edit'])->name('content.admin.home.edit');
+        Route::post('content/home/{section}', [HomePageController::class, 'fill'])->name('content.admin.home.fill');
+
+        // W2 · Bars.
+        Route::get('content/bars', [BarsController::class, 'index'])->name('content.admin.bars');
+        Route::post('content/bars/announcement', [BarsController::class, 'saveBar'])->name('content.admin.bars.save');
+        Route::post('content/bars/smart', [BarsController::class, 'saveSmartBar'])->name('content.admin.smart-bars.add');
+        Route::post('content/bars/smart/{smartBar}', [BarsController::class, 'saveSmartBar'])->name('content.admin.smart-bars.save');
+        Route::post('content/bars/smart/{smartBar}/delete', [BarsController::class, 'deleteSmartBar'])->name('content.admin.smart-bars.delete');
+
+        // W3 · Banners.
+        Route::get('content/banners', [BannersController::class, 'index'])->name('content.admin.banners');
+        Route::get('content/banners/new', [BannersController::class, 'create'])->name('content.admin.banners.create');
+        Route::post('content/banners', [BannersController::class, 'store'])->name('content.admin.banners.store');
+        Route::post('content/banners/order', [BannersController::class, 'order'])->name('content.admin.banners.order');
+        Route::get('content/banners/{banner}', [BannersController::class, 'edit'])->name('content.admin.banners.edit');
+        Route::post('content/banners/{banner}', [BannersController::class, 'update'])->name('content.admin.banners.update');
+        Route::post('content/banners/{banner}/end', [BannersController::class, 'end'])->name('content.admin.banners.end');
+        Route::post('content/banners/{banner}/draft', [BannersController::class, 'draft'])->name('content.admin.banners.draft');
+        Route::post('content/banners/{banner}/delete', [BannersController::class, 'delete'])->name('content.admin.banners.delete');
+
+        // W7 · Pages, W8 · Blog (posts and categories), W9 · Projects: one controller, each route naming its kind. The
+        // product searches come first: `products` is no item's id.
+        Route::get('content/blog/products', [DocumentsController::class, 'products'])->name('content.admin.posts.products')->defaults('kind', 'post');
+        Route::get('content/projects/products', [DocumentsController::class, 'products'])->name('content.admin.projects.products')->defaults('kind', 'project');
+        Route::get('content/blog/categories', [BlogCategoriesController::class, 'index'])->name('content.admin.blog.categories');
+        Route::post('content/blog/categories', [BlogCategoriesController::class, 'save'])->name('content.admin.blog.categories.add');
+        Route::post('content/blog/categories/order', [BlogCategoriesController::class, 'order'])->name('content.admin.blog.categories.order');
+        Route::post('content/blog/categories/{category}', [BlogCategoriesController::class, 'save'])->name('content.admin.blog.categories.save');
+        Route::post('content/blog/categories/{category}/delete', [BlogCategoriesController::class, 'delete'])->name('content.admin.blog.categories.delete');
+
+        foreach (['page' => 'content/pages', 'post' => 'content/blog/posts', 'project' => 'content/projects'] as $kind => $path) {
+            $name = "content.admin.{$kind}s";
+            Route::get($kind === 'post' ? 'content/blog' : $path, [DocumentsController::class, 'index'])->name($kind === 'post' ? 'content.admin.blog' : $name)->defaults('kind', $kind);
+            Route::get("{$path}/new", [DocumentsController::class, 'create'])->name("{$name}.create")->defaults('kind', $kind);
+            Route::post($path, [DocumentsController::class, 'store'])->name("{$name}.store")->defaults('kind', $kind);
+            Route::get("{$path}/{document}", [DocumentsController::class, 'edit'])->name("{$name}.edit")->defaults('kind', $kind);
+            Route::post("{$path}/{document}", [DocumentsController::class, 'update'])->name("{$name}.update")->defaults('kind', $kind);
+            Route::post("{$path}/{document}/unpublish", [DocumentsController::class, 'unpublish'])->name("{$name}.unpublish")->defaults('kind', $kind);
+            Route::post("{$path}/{document}/delete", [DocumentsController::class, 'delete'])->name("{$name}.delete")->defaults('kind', $kind);
+        }
+
+        // Content › Policies (flags-2026-11.md S3.7): `new` is no policy's id.
+        Route::get('content/policies', [PoliciesController::class, 'index'])->name('content.admin.policies');
+        Route::get('content/policies/new', [PoliciesController::class, 'create'])->name('content.admin.policies.create');
+        Route::post('content/policies', [PoliciesController::class, 'store'])->name('content.admin.policies.store');
+        Route::get('content/policies/{policy}', [PoliciesController::class, 'edit'])->name('content.admin.policies.edit');
+        Route::post('content/policies/{policy}', [PoliciesController::class, 'update'])->name('content.admin.policies.update');
+        Route::post('content/policies/{policy}/unpublish', [PoliciesController::class, 'unpublish'])->name('content.admin.policies.unpublish');
+        Route::post('content/policies/{policy}/delete', [PoliciesController::class, 'delete'])->name('content.admin.policies.delete');
+
+        // W10 · SEO.
+        Route::get('content/seo', [SeoController::class, 'index'])->name('content.admin.seo');
+        Route::post('content/seo', [SeoController::class, 'save'])->name('content.admin.seo.save');
+        Route::post('content/seo/sitemap', [SeoController::class, 'rebuild'])->name('content.admin.seo.sitemap');
+
+        // W11 · Redirects, and W11b the checked sheet. A line is named in the body: an address holds slashes.
+        Route::get('content/redirects', [RedirectsController::class, 'index'])->name('content.admin.redirects');
+        Route::post('content/redirects', [RedirectsController::class, 'add'])->name('content.admin.redirects.add');
+        Route::post('content/redirects/change', [RedirectsController::class, 'change'])->name('content.admin.redirects.change');
+        Route::post('content/redirects/reset', [RedirectsController::class, 'reset'])->name('content.admin.redirects.reset');
+        Route::post('content/redirects/final', [RedirectsController::class, 'final'])->name('content.admin.redirects.final');
+        Route::post('content/redirects/delete', [RedirectsController::class, 'delete'])->name('content.admin.redirects.delete');
+        Route::post('content/redirects/check', [RedirectsController::class, 'check'])->name('content.admin.redirects.check');
+        Route::post('content/redirects/sheets', [RedirectsController::class, 'upload'])->name('content.admin.redirects.upload');
+        Route::get('content/redirects/sheets/{upload}', [RedirectsController::class, 'sheet'])->name('content.admin.redirects.sheet');
+        Route::post('content/redirects/sheets/{upload}/apply', [RedirectsController::class, 'apply'])->name('content.admin.redirects.apply');
+
+        // W4 · Campaigns and W4b, a campaign's page. The searches and the preview come first: `targets`, `preview` and
+        // `new` are no campaign's id. A run's prices and notice are named by the run (`runs/{run}`, as S8's link).
+        Route::get('content/campaigns', [CampaignsController::class, 'index'])->name('content.admin.campaigns');
+        Route::get('content/campaigns/new', [CampaignsController::class, 'create'])->name('content.admin.campaigns.create');
+        Route::get('content/campaigns/targets', [CampaignsController::class, 'targets'])->name('content.admin.campaigns.targets');
+        Route::get('content/campaigns/preview', [CampaignsController::class, 'preview'])->name('content.admin.campaigns.preview');
+        Route::post('content/campaigns', [CampaignsController::class, 'store'])->name('content.admin.campaigns.store');
+        Route::post('content/campaigns/runs/{run}/prices', [CampaignsController::class, 'prices'])->name('content.admin.campaigns.prices');
+        Route::post('content/campaigns/runs/{run}/notice', [CampaignsController::class, 'notice'])->name('content.admin.campaigns.notice');
+        Route::get('content/campaigns/{campaign}', [CampaignsController::class, 'edit'])->name('content.admin.campaigns.edit');
+        Route::post('content/campaigns/{campaign}', [CampaignsController::class, 'update'])->name('content.admin.campaigns.update');
+        Route::post('content/campaigns/{campaign}/schedule', [CampaignsController::class, 'schedule'])->name('content.admin.campaigns.schedule');
+        Route::post('content/campaigns/{campaign}/cancel', [CampaignsController::class, 'cancel'])->name('content.admin.campaigns.cancel');
+        Route::post('content/campaigns/{campaign}/end', [CampaignsController::class, 'end'])->name('content.admin.campaigns.end');
+        Route::post('content/campaigns/{campaign}/theme-dates', [CampaignsController::class, 'themeDates'])->name('content.admin.campaigns.theme-dates');
+        Route::post('content/campaigns/{campaign}/delete', [CampaignsController::class, 'delete'])->name('content.admin.campaigns.delete');
+
+        // W5 · Themes and W5b, a theme's page; Preview Theme's two routes are above.
+        Route::get('content/themes', [ThemesController::class, 'index'])->name('content.admin.themes');
+        Route::get('content/themes/new', [ThemesController::class, 'create'])->name('content.admin.themes.create');
+        Route::post('content/themes', [ThemesController::class, 'store'])->name('content.admin.themes.store');
+        Route::get('content/themes/{theme}', [ThemesController::class, 'edit'])->name('content.admin.themes.edit');
+        Route::post('content/themes/{theme}', [ThemesController::class, 'update'])->name('content.admin.themes.update');
+        Route::post('content/themes/{theme}/end', [ThemesController::class, 'end'])->name('content.admin.themes.end');
+        Route::post('content/themes/{theme}/draft', [ThemesController::class, 'draft'])->name('content.admin.themes.draft');
+        Route::post('content/themes/{theme}/delete', [ThemesController::class, 'delete'])->name('content.admin.themes.delete');
+
+        // W6 · Pop-Ups.
+        Route::get('content/popups', [PopupsController::class, 'index'])->name('content.admin.popups');
+        Route::get('content/popups/new', [PopupsController::class, 'create'])->name('content.admin.popups.create');
+        Route::post('content/popups', [PopupsController::class, 'store'])->name('content.admin.popups.store');
+        Route::get('content/popups/{popup}', [PopupsController::class, 'edit'])->name('content.admin.popups.edit');
+        Route::post('content/popups/{popup}', [PopupsController::class, 'update'])->name('content.admin.popups.update');
+        Route::post('content/popups/{popup}/end', [PopupsController::class, 'end'])->name('content.admin.popups.end');
+        Route::post('content/popups/{popup}/draft', [PopupsController::class, 'draft'])->name('content.admin.popups.draft');
+        Route::post('content/popups/{popup}/delete', [PopupsController::class, 'delete'])->name('content.admin.popups.delete');
+    });

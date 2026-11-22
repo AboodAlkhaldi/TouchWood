@@ -1,0 +1,317 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Access\Infrastructure\Eloquent;
+
+use Carbon\CarbonImmutable;
+use Closure;
+use DateTimeImmutable;
+use DateTimeZone;
+use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Query\Builder;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Str;
+use Modules\Access\Domain\Exception\EmailAlreadyRegistered;
+use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
+use Modules\Access\Domain\Model\Customer;
+use Modules\Access\Domain\Repository\CustomerRepository;
+use Modules\Access\Domain\ValueObject\EmailAddress;
+use Modules\Access\Domain\ValueObject\Language;
+use Modules\Access\Domain\ValueObject\PhoneNumber;
+use Modules\Access\Public\Enums\AccountType;
+use Modules\Access\Public\Enums\CustomerStatus;
+use Modules\Access\Public\Enums\MarketingConsentSource;
+use Shared\Domain\Text\LatinDigits;
+use Shared\Infrastructure\Persistence\Ulids;
+use stdClass;
+
+final readonly class DatabaseCustomerRepository implements CustomerRepository
+{
+    private const string TABLE = 'access.customers';
+
+    public function __construct(
+        private ConnectionInterface $db,
+    ) {}
+
+    public function nextId(): string
+    {
+        return strtolower((string) Str::ulid());
+    }
+
+    public function byId(string $id): ?Customer
+    {
+        if (! Ulids::valid($id)) {
+            return null;
+        }
+
+        $row = $this->db->table(self::TABLE)->where('id', strtolower($id))->lockForUpdate()->first();
+
+        return $row instanceof stdClass ? $this->toCustomer($row) : null;
+    }
+
+    public function find(string $id): ?Customer
+    {
+        if (! Ulids::valid($id)) {
+            return null;
+        }
+
+        $row = $this->db->table(self::TABLE)->where('id', strtolower($id))->first();
+
+        return $row instanceof stdClass ? $this->toCustomer($row) : null;
+    }
+
+    public function byEmail(EmailAddress $email): ?Customer
+    {
+        $row = $this->db->table(self::TABLE)
+            ->whereRaw('lower(email) = lower(?)', [$email->value])
+            ->lockForUpdate()
+            ->first();
+
+        return $row instanceof stdClass ? $this->toCustomer($row) : null;
+    }
+
+    public function findMany(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map(static fn (string $id): string => strtolower(trim($id)), $ids), Ulids::valid(...))));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        return array_values(array_map($this->toCustomer(...), $this->db->table(self::TABLE)->whereIn('id', $ids)->orderBy('id')->get()->all()));
+    }
+
+    public function idsRegisteredIn(string $storeId, AccountType $type, ?string $after, int $limit): array
+    {
+        return array_values(array_map(strval(...), $this->db->table(self::TABLE)
+            ->where('home_store_id', strtolower($storeId))
+            ->where('account_type', $type->value)
+            ->whereNull('anonymized_at')
+            ->when($after !== null, fn ($query) => $query->where('id', '>', strtolower((string) $after)))
+            ->orderBy('id')
+            ->limit($limit)
+            ->pluck('id')
+            ->all()));
+    }
+
+    public function countRegisteredIn(string $storeId): int
+    {
+        return $this->db->table(self::TABLE)
+            ->where('home_store_id', strtolower($storeId))
+            ->whereNull('anonymized_at')
+            ->count();
+    }
+
+    public function countRegistered(string $storeId, DateTimeImmutable $from, DateTimeImmutable $to): array
+    {
+        $counts = $this->db->table(self::TABLE)
+            ->where('home_store_id', strtolower($storeId))
+            // In UTC with its offset: Laravel's own format drops the zone and the session reads UTC.
+            ->where('created_at', '>=', self::utc($from))
+            ->where('created_at', '<', self::utc($to))
+            ->groupBy('account_type')
+            ->selectRaw('account_type, count(*) AS total')
+            ->pluck('total', 'account_type');
+
+        return [
+            'individuals' => (int) ($counts[AccountType::Individual->value] ?? 0),
+            'companies' => (int) ($counts[AccountType::Company->value] ?? 0),
+        ];
+    }
+
+    public function countRegisteredByDay(string $storeId, DateTimeImmutable $from, DateTimeImmutable $to, string $timezone): array
+    {
+        $days = $this->db->table(self::TABLE)
+            ->selectRaw("to_char(created_at AT TIME ZONE ?, 'YYYY-MM-DD') AS day, count(*) AS total", [$timezone])
+            ->where('home_store_id', strtolower($storeId))
+            ->where('created_at', '>=', self::utc($from))
+            ->where('created_at', '<', self::utc($to))
+            ->groupBy('day')
+            ->pluck('total', 'day');
+
+        $counts = [];
+
+        foreach ($days as $day => $total) {
+            $counts[(string) $day] = (int) $total;
+        }
+
+        return $counts;
+    }
+
+    private static function utc(DateTimeImmutable $at): string
+    {
+        return $at->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s.uP');
+    }
+
+    public function idsMatching(string $text, ?array $contactStoreIds, int $limit): array
+    {
+        $like = self::like($text);
+        // A phone is saved in Latin digits, so it is searched in Latin however it was typed, as the
+        // staff list's search does (amendment 63).
+        $phone = self::like(LatinDigits::of($text));
+        $contacts = $contactStoreIds === null ? null : array_map(strtolower(...), $contactStoreIds);
+
+        return array_values(array_map(strval(...), $this->db->table(self::TABLE)
+            ->whereNull('anonymized_at')
+            ->where(function (Builder $where) use ($like, $phone, $contacts): void {
+                $where->whereRaw('lower(first_name) like ?', [$like])
+                    ->orWhereRaw('lower(last_name) like ?', [$like]);
+
+                // An email or a phone names its owner, so it is matched only among the customers
+                // the reader may already see (amendment 44(b)): none at all for an empty list.
+                if ($contacts !== []) {
+                    $where->orWhere(function (Builder $contact) use ($like, $phone, $contacts): void {
+                        if ($contacts !== null) {
+                            $contact->whereIn('home_store_id', $contacts);
+                        }
+
+                        $contact->where(function (Builder $either) use ($like, $phone): void {
+                            $either->whereRaw('lower(email) like ?', [$like])->orWhere('phone', 'like', $phone);
+                        });
+                    });
+                }
+            })
+            ->orderBy('id')
+            ->limit($limit)
+            ->pluck('id')
+            ->all()));
+    }
+
+    /**
+     * A search as a LIKE pattern, as the staff list's: the backslash escaped first, PostgreSQL's own
+     * escape inside LIKE, so escaping only % and _ would let a trailing one swallow the wildcard.
+     */
+    private static function like(string $text): string
+    {
+        return '%'.str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], mb_strtolower(trim($text))).'%';
+    }
+
+    public function dueForAnonymizing(DateTimeImmutable $now, int $limit): array
+    {
+        $ids = $this->db->table(self::TABLE)
+            ->whereNotNull('deletion_scheduled_for')
+            ->where('deletion_scheduled_for', '<=', $now)
+            ->whereNull('anonymized_at')
+            ->orderBy('deletion_scheduled_for')
+            ->limit($limit)
+            ->pluck('id');
+
+        return array_values(array_map(strval(...), $ids->all()));
+    }
+
+    public function emailInUse(EmailAddress $email): bool
+    {
+        return $this->db->table(self::TABLE)
+            ->whereRaw('lower(email) = lower(?)', [$email->value])
+            ->exists();
+    }
+
+    public function phoneInUse(PhoneNumber $phone, ?string $exceptCustomerId = null): bool
+    {
+        return $this->db->table(self::TABLE)
+            ->where('phone', $phone->value)
+            ->when($exceptCustomerId !== null, fn ($query) => $query->where('id', '<>', $exceptCustomerId))
+            ->exists();
+    }
+
+    public function add(Customer $customer): void
+    {
+        $this->write(fn () => $this->db->table(self::TABLE)->insert([
+            'id' => $customer->id(),
+            ...$this->attributes($customer),
+            // Set once and never written again: a trigger refuses a change (spec §5.1).
+            'account_type' => $customer->accountType()->value,
+            'home_store_id' => $customer->homeStoreId(),
+            'terms_version' => $customer->termsVersion(),
+            'terms_policy_id' => $customer->termsPolicyId(),
+            'terms_policy_version' => $customer->termsPolicyVersion(),
+            'privacy_policy_id' => $customer->privacyPolicyId(),
+            'privacy_policy_version' => $customer->privacyPolicyVersion(),
+            'terms_accepted_at' => $customer->termsAcceptedAt(),
+            'created_at' => CarbonImmutable::now(),
+            'updated_at' => CarbonImmutable::now(),
+        ]));
+    }
+
+    public function update(Customer $customer): void
+    {
+        $this->write(fn () => $this->db->table(self::TABLE)->where('id', $customer->id())->update([
+            ...$this->attributes($customer),
+            'updated_at' => CarbonImmutable::now(),
+        ]));
+    }
+
+    /**
+     * The code checks the email and the phone first; the unique indexes catch someone who took the
+     * value in between, and each becomes the same error the code would have raised.
+     */
+    private function write(Closure $write): void
+    {
+        try {
+            $write();
+        } catch (UniqueConstraintViolationException $e) {
+            throw match (true) {
+                str_contains($e->getMessage(), 'customers_email_unique') => new EmailAlreadyRegistered,
+                str_contains($e->getMessage(), 'customers_phone_unique') => new PhoneAlreadyInUse,
+                default => $e,
+            };
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function attributes(Customer $customer): array
+    {
+        return [
+            'email' => $customer->email()->value,
+            'password' => $customer->passwordHash(),
+            'first_name' => $customer->firstName(),
+            'last_name' => $customer->lastName(),
+            'status' => $customer->status()->value,
+            'email_verified_at' => $customer->emailVerifiedAt(),
+            'phone' => $customer->phone()?->value,
+            'phone_verified_at' => $customer->phoneVerifiedAt(),
+            'locale' => $customer->language()->value,
+            'last_store_id' => $customer->lastStoreId(),
+            'deletion_scheduled_for' => $customer->deletionScheduledFor(),
+            'anonymized_at' => $customer->anonymizedAt(),
+            'session_version' => $customer->sessionVersion(),
+            'marketing_consent' => $customer->marketingConsent(),
+            'marketing_consent_changed_at' => $customer->marketingConsentChangedAt(),
+            'marketing_consent_source' => $customer->marketingConsentSource()?->value,
+        ];
+    }
+
+    private function toCustomer(stdClass $row): Customer
+    {
+        return Customer::reconstitute(
+            (string) $row->id,
+            EmailAddress::of((string) $row->email),
+            (string) $row->password,
+            (string) $row->first_name,
+            (string) $row->last_name,
+            AccountType::from((string) $row->account_type),
+            CustomerStatus::from((string) $row->status),
+            $row->email_verified_at === null ? null : CarbonImmutable::parse((string) $row->email_verified_at),
+            $row->phone === null ? null : PhoneNumber::of((string) $row->phone),
+            $row->phone_verified_at === null ? null : CarbonImmutable::parse((string) $row->phone_verified_at),
+            Language::from((string) $row->locale),
+            (string) $row->home_store_id,
+            (string) $row->last_store_id,
+            $row->terms_version === null ? null : (string) $row->terms_version,
+            CarbonImmutable::parse((string) $row->terms_accepted_at),
+            $row->deletion_scheduled_for === null ? null : CarbonImmutable::parse((string) $row->deletion_scheduled_for),
+            $row->anonymized_at === null ? null : CarbonImmutable::parse((string) $row->anonymized_at),
+            (int) $row->session_version,
+            (bool) $row->marketing_consent,
+            $row->marketing_consent_changed_at === null ? null : CarbonImmutable::parse((string) $row->marketing_consent_changed_at),
+            $row->marketing_consent_source === null ? null : MarketingConsentSource::from((string) $row->marketing_consent_source),
+            $row->terms_policy_id === null ? null : (string) $row->terms_policy_id,
+            $row->terms_policy_version === null ? null : (int) $row->terms_policy_version,
+            $row->privacy_policy_id === null ? null : (string) $row->privacy_policy_id,
+            $row->privacy_policy_version === null ? null : (int) $row->privacy_policy_version,
+        );
+    }
+}

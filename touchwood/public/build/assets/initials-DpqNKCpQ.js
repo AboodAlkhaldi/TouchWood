@@ -1,0 +1,1 @@
+function e(e){return e.split(/\s+/).filter(e=>e!==``).slice(0,2).map(e=>e.slice(0,1).toLocaleUpperCase()).join(``)}export{e as t};

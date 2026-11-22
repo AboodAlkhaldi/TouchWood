@@ -1,0 +1,51 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Access\Public\Dto;
+
+use Modules\Access\Public\Enums\PermissionAudience;
+use Modules\Access\Public\Enums\PermissionGroup;
+use Modules\Access\Public\Enums\PermissionKind;
+
+/**
+ * A permission a module checks, declared once at boot (Access spec §2.2).
+ *
+ * Its name in Arabic and English is the module's translation at labelKey(), read only when a
+ * screen shows it, so declaring permissions costs nothing on an ordinary request.
+ */
+final readonly class PermissionDefinitionDto
+{
+    /**
+     * @param  string  $name  "{module}.{resource}.{action}", e.g. "catalog.product.update"
+     * @param  bool  $reserved  Super Admins only; never offered in the role editor
+     * @param  PermissionKind  $kind  per store, or store-free (it concerns nothing that belongs to
+     *                                one store, such as media)
+     * @param  PermissionGroup|null  $group  the business area it is shown under in the role editor
+     *                                       and the menu (stage 2b, P2). Required for a permission
+     *                                       a role can hold; null for a reserved or automatic one,
+     *                                       which is never offered
+     * @param  bool  $adminOnly  only an admin role may hold it — never offered for a staff role nor
+     *                           held through one, as Access's management actions (Catalog
+     *                           amendment 6(h), owner 2026-10-05). Only for a permission a role can
+     *                           hold
+     */
+    public function __construct(
+        public string $name,
+        public PermissionAudience $audience = PermissionAudience::Role,
+        public bool $reserved = false,
+        public PermissionKind $kind = PermissionKind::PerStore,
+        public ?PermissionGroup $group = null,
+        public bool $adminOnly = false,
+    ) {}
+
+    /**
+     * "catalog.product.update" → "catalog::permissions.product.update".
+     */
+    public function labelKey(): string
+    {
+        [$module, $rest] = explode('.', $this->name, 2) + [1 => ''];
+
+        return "{$module}::permissions.{$rest}";
+    }
+}

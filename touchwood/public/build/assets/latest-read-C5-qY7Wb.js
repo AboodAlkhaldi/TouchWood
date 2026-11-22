@@ -1,0 +1,1 @@
+function e(){let e=0;return{start:()=>{let t=++e;return()=>t===e},drop:()=>{e++}}}export{e as t};

@@ -1,0 +1,10 @@
+---
+# TouchWood live deploy (cPanel Git Version Control, "Deploy HEAD Commit"). Lives at the top of the `release` branch.
+# Copies the ready-built site into ~/touchwood. cp only adds and overwrites: the server's .env, uploaded images
+# (storage/app) and the public/storage link are never touched. Then deploy.sh: migrations, the images link, the caches.
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/toucpgpy/touchwood/
+    - /bin/mkdir -p $DEPLOYPATH
+    - /bin/cp -R touchwood/. $DEPLOYPATH
+    - cd $DEPLOYPATH && /bin/bash deploy.sh

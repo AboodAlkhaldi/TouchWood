@@ -1,0 +1,435 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Access\Infrastructure;
+
+use Illuminate\Cache\RateLimiter;
+use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Contracts\Http\Kernel as HttpKernel;
+use Illuminate\Contracts\Validation\UncompromisedVerifier;
+use Illuminate\Database\Events\MigrationsEnded;
+use Illuminate\Database\Events\NoPendingMigrations;
+use Illuminate\Http\Client\Factory as HttpFactory;
+use Illuminate\Routing\Router;
+use Illuminate\Session\SessionManager;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\ServiceProvider;
+use LogicException;
+use Modules\Access\Application\AccessApiImpl;
+use Modules\Access\Application\Authorization\GrantsReader;
+use Modules\Access\Application\Authorization\RoleAuthorizer;
+use Modules\Access\Application\Command\ChangeOwnCustomerPassword\ChangeOwnCustomerPasswordHandler;
+use Modules\Access\Application\Command\RequestAccountDeletion\RequestAccountDeletionHandler;
+use Modules\Access\Application\Command\SignInCustomer\SignInCustomerHandler;
+use Modules\Access\Application\Command\SignInStaff\SignInStaffHandler;
+use Modules\Access\Application\Customer\CustomerLinks;
+use Modules\Access\Application\Customer\CustomerShopperType;
+use Modules\Access\Application\Customer\GuestVisitors;
+use Modules\Access\Application\Customer\InMemoryCustomerPageSections;
+use Modules\Access\Application\Customer\RequestCustomers;
+use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
+use Modules\Access\Application\Query\AdminShell\AdminShellForStaff;
+use Modules\Access\Application\Query\CustomerReader;
+use Modules\Access\Application\Query\RoleReader;
+use Modules\Access\Application\Query\StaffAlertRecipients;
+use Modules\Access\Application\Query\StaffReader;
+use Modules\Access\Application\Security\AuthenticatorCodes;
+use Modules\Access\Application\Security\Codes;
+use Modules\Access\Application\Security\OwnPasswordCheck;
+use Modules\Access\Application\Security\PasswordPolicy;
+use Modules\Access\Application\Security\QrCodes;
+use Modules\Access\Application\Security\SignInLimits;
+use Modules\Access\Application\Session\CustomerSessions;
+use Modules\Access\Application\Session\StaffSessionDirectory;
+use Modules\Access\Application\Session\StaffSessions;
+use Modules\Access\Application\Settings\CustomerSecuritySettings;
+use Modules\Access\Application\Settings\StaffSecuritySettings;
+use Modules\Access\Application\Staff\PlatformStaffNames;
+use Modules\Access\Application\Staff\StaffLinks;
+use Modules\Access\Application\StaffView\StaffViewOffStores;
+use Modules\Access\Application\StaffView\StaffViews;
+use Modules\Access\Application\Storefront\InMemoryCustomerAccountPages;
+use Modules\Access\Application\Storefront\InMemoryShopperLines;
+use Modules\Access\Domain\Repository\AddressRepository;
+use Modules\Access\Domain\Repository\CustomerRepository;
+use Modules\Access\Domain\Repository\CustomerTokenRepository;
+use Modules\Access\Domain\Repository\NotificationPreferenceRepository;
+use Modules\Access\Domain\Repository\RoleAssignmentRepository;
+use Modules\Access\Domain\Repository\RoleRepository;
+use Modules\Access\Domain\Repository\StaffAuthenticatorRepository;
+use Modules\Access\Domain\Repository\StaffTokenRepository;
+use Modules\Access\Domain\Repository\StaffUserRepository;
+use Modules\Access\Domain\Repository\StoreAddressFormatRepository;
+use Modules\Access\Infrastructure\Eloquent\CachedStoreAddressFormatRepository;
+use Modules\Access\Infrastructure\Eloquent\DatabaseAddressRepository;
+use Modules\Access\Infrastructure\Eloquent\DatabaseCustomerReader;
+use Modules\Access\Infrastructure\Eloquent\DatabaseCustomerRepository;
+use Modules\Access\Infrastructure\Eloquent\DatabaseCustomerTokenRepository;
+use Modules\Access\Infrastructure\Eloquent\DatabaseNotificationPreferenceRepository;
+use Modules\Access\Infrastructure\Eloquent\DatabaseRoleAssignmentRepository;
+use Modules\Access\Infrastructure\Eloquent\DatabaseRoleReader;
+use Modules\Access\Infrastructure\Eloquent\DatabaseRoleRepository;
+use Modules\Access\Infrastructure\Eloquent\DatabaseStaffAlertRecipients;
+use Modules\Access\Infrastructure\Eloquent\DatabaseStaffAuthenticatorRepository;
+use Modules\Access\Infrastructure\Eloquent\DatabaseStaffReader;
+use Modules\Access\Infrastructure\Eloquent\DatabaseStaffTokenRepository;
+use Modules\Access\Infrastructure\Eloquent\DatabaseStaffUserRepository;
+use Modules\Access\Infrastructure\Eloquent\RequestGrantsReader;
+use Modules\Access\Infrastructure\Http\CookieGuestVisitors;
+use Modules\Access\Infrastructure\Http\CustomerSessionHandler;
+use Modules\Access\Infrastructure\Http\DatabaseStaffSessionDirectory;
+use Modules\Access\Infrastructure\Http\LaravelCustomerSessions;
+use Modules\Access\Infrastructure\Http\LaravelStaffSessions;
+use Modules\Access\Infrastructure\Http\LaravelStaffViews;
+use Modules\Access\Infrastructure\Http\RequestActor;
+use Modules\Access\Infrastructure\Http\RequestActorContext;
+use Modules\Access\Infrastructure\Http\StaffSessionHandler;
+use Modules\Access\Infrastructure\Listener\WriteStartingAddressFormat;
+use Modules\Access\Infrastructure\Media\StaffAvatarUsage;
+use Modules\Access\Infrastructure\Messages\UrlCustomerLinks;
+use Modules\Access\Infrastructure\Messages\UrlStaffLinks;
+use Modules\Access\Infrastructure\Permission\PermissionSync;
+use Modules\Access\Infrastructure\Queue\AnonymizeDueAccountsJob;
+use Modules\Access\Infrastructure\Queue\CancelExpiredSuperAdminInvitationsJob;
+use Modules\Access\Infrastructure\Security\BaconQrCodes;
+use Modules\Access\Infrastructure\Security\Google2faAuthenticatorCodes;
+use Modules\Access\Infrastructure\Security\HmacCodes;
+use Modules\Access\Infrastructure\Security\LaravelPasswordPolicy;
+use Modules\Access\Infrastructure\Security\LoggedBreachList;
+use Modules\Access\Infrastructure\Security\SignInMethodsGuard;
+use Modules\Access\Presentation\Console\CancelSuperAdminInvitationCommand;
+use Modules\Access\Presentation\Console\CreateSuperAdminCommand;
+use Modules\Access\Presentation\Console\ResendSuperAdminInvitationCommand;
+use Modules\Access\Presentation\Console\ResetSuperAdminAuthenticatorCommand;
+use Modules\Access\Presentation\Console\ResetSuperAdminPhoneCommand;
+use Modules\Access\Presentation\Console\RevokeSuperAdminCommand;
+use Modules\Access\Presentation\Http\Middleware\IdentifyCustomer;
+use Modules\Access\Presentation\Http\Middleware\IdentifyRequestActor;
+use Modules\Access\Presentation\Http\Middleware\IdentifyStaff;
+use Modules\Access\Presentation\Http\Middleware\RequireCustomer;
+use Modules\Access\Presentation\Http\Middleware\RequireStaff;
+use Modules\Access\Presentation\Http\Middleware\ShareAdminPage;
+use Modules\Access\Presentation\Http\Middleware\ShareStorefrontPage;
+use Modules\Access\Presentation\Http\Middleware\UseAdminSession;
+use Modules\Access\Presentation\Http\Middleware\UseStorefrontSession;
+use Modules\Access\Public\Contracts\AccessApi;
+use Modules\Access\Public\Contracts\CustomerAccountPages;
+use Modules\Access\Public\Contracts\CustomerPageSections;
+use Modules\Access\Public\Contracts\GuestIdentity;
+use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Access\Public\Contracts\ShopperLines;
+use Modules\Access\Public\Dto\PermissionDefinitionDto;
+use Modules\Access\Public\Enums\PermissionGroup;
+use Modules\Access\Public\Enums\PermissionKind;
+use Modules\Platform\Public\Contracts\AdminMenu;
+use Modules\Platform\Public\Contracts\MediaUsages;
+use Modules\Platform\Public\Contracts\OffStoreViewers;
+use Modules\Platform\Public\Contracts\ReservedPaths;
+use Modules\Platform\Public\Contracts\SettingGuards;
+use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Contracts\ShopperType;
+use Modules\Platform\Public\Contracts\StaffNames;
+use Modules\Platform\Public\Dto\MenuEntryDto;
+use Modules\Platform\Public\Events\StoreCreated;
+use Modules\Platform\Public\PlatformPermissions;
+use Psr\Log\LoggerInterface;
+use Shared\Application\ActorContext;
+use Shared\Application\Authorizer;
+
+final class AccessServiceProvider extends ServiceProvider
+{
+    public function register(): void
+    {
+        // The shop's own theme endpoint sits at the top level, beside the country page, so the
+        // path is reserved: a store whose code spelled it would swallow it (Platform's rule, and
+        // reservations are made in register() because the {store} pattern is frozen after them).
+        // Leaving the staff view sits there too (spec §1.11).
+        $this->app->make(ReservedPaths::class)->reserve('access', 'preferences', 'staff-view');
+
+        // Bound here, not in $singletons: other modules declare their permissions in boot(), and
+        // this provider declares its own and Platform's below.
+        $this->app->singleton(InMemoryPermissionCatalog::class);
+        $this->app->alias(InMemoryPermissionCatalog::class, PermissionCatalog::class);
+
+        // What other modules add to the shop's frame (amendment 50), registered in their boot().
+        $this->app->singleton(InMemoryCustomerAccountPages::class);
+        $this->app->alias(InMemoryCustomerAccountPages::class, CustomerAccountPages::class);
+        $this->app->singleton(InMemoryShopperLines::class);
+        $this->app->alias(InMemoryShopperLines::class, ShopperLines::class);
+        // And to the staff customer page (amendment 72(a)).
+        $this->app->singleton(InMemoryCustomerPageSections::class);
+        $this->app->alias(InMemoryCustomerPageSections::class, CustomerPageSections::class);
+
+        $this->app->bind(StaffUserRepository::class, DatabaseStaffUserRepository::class);
+        // The panel's session rows, for the screen that lists them and the button that ends them.
+        $this->app->bind(StaffSessionDirectory::class, DatabaseStaffSessionDirectory::class);
+        $this->app->bind(StaffTokenRepository::class, DatabaseStaffTokenRepository::class);
+        $this->app->bind(StaffAuthenticatorRepository::class, DatabaseStaffAuthenticatorRepository::class);
+        // Authenticator apps (amendment 91): the app shows the account under APP_NAME; the QR code is
+        // drawn here, so the secret never goes to a service that draws them.
+        $this->app->bind(AuthenticatorCodes::class, fn (Application $app): AuthenticatorCodes => new Google2faAuthenticatorCodes((string) $app->make('config')->get('app.name')));
+        $this->app->bind(QrCodes::class, BaconQrCodes::class);
+        $this->app->bind(CustomerRepository::class, DatabaseCustomerRepository::class);
+        $this->app->bind(CustomerTokenRepository::class, DatabaseCustomerTokenRepository::class);
+        $this->app->bind(CustomerLinks::class, UrlCustomerLinks::class);
+        // One a request: a guest id created for it is the one the rest of it reads (amendment 74).
+        $this->app->scoped(CookieGuestVisitors::class);
+        $this->app->alias(CookieGuestVisitors::class, GuestVisitors::class);
+        $this->app->alias(CookieGuestVisitors::class, GuestIdentity::class);
+        $this->app->scoped(CustomerSessions::class, LaravelCustomerSessions::class);
+        $this->app->bind(AddressRepository::class, DatabaseAddressRepository::class);
+        $this->app->bind(StoreAddressFormatRepository::class, CachedStoreAddressFormatRepository::class);
+
+        // Staff and customers count wrong passwords the same way, to their own numbers and on their
+        // own keys: a busy shop address never locks the admin panel, or the other way round.
+        $this->app->when([SignInStaffHandler::class, OwnPasswordCheck::class])
+            ->needs(SignInLimits::class)
+            ->give(fn (Application $app): SignInLimits => new SignInLimits(
+                $app->make(RateLimiter::class),
+                $app->make(StaffSecuritySettings::class),
+                'staff',
+            ));
+        $this->app->when([SignInCustomerHandler::class, ChangeOwnCustomerPasswordHandler::class, RequestAccountDeletionHandler::class])
+            ->needs(SignInLimits::class)
+            ->give(fn (Application $app): SignInLimits => new SignInLimits(
+                $app->make(RateLimiter::class),
+                $app->make(CustomerSecuritySettings::class),
+                'customer',
+            ));
+        $this->app->bind(NotificationPreferenceRepository::class, DatabaseNotificationPreferenceRepository::class);
+        $this->app->bind(RoleRepository::class, DatabaseRoleRepository::class);
+        $this->app->bind(RoleAssignmentRepository::class, DatabaseRoleAssignmentRepository::class);
+        $this->app->bind(RoleReader::class, DatabaseRoleReader::class);
+        $this->app->bind(CustomerReader::class, DatabaseCustomerReader::class);
+        $this->app->bind(StaffReader::class, DatabaseStaffReader::class);
+        $this->app->bind(StaffAlertRecipients::class, DatabaseStaffAlertRecipients::class);
+        // Read once per web request (amendment 65). Scoped: what it remembers lasts one request,
+        // and a queued job or the console is never answered from memory.
+        $this->app->scoped(GrantsReader::class, RequestGrantsReader::class);
+        $this->app->bind(AccessApi::class, AccessApiImpl::class);
+        // How Platform's audit log names its staff actors: the same one place every module's names
+        // come from, where a Super Admin reads as "System administrator" to anyone but another
+        // (amendment 54). Scoped: the answer depends on who is reading.
+        $this->app->scoped(StaffNames::class, PlatformStaffNames::class);
+        // Who is looking at the shop, for Platform's ShopperType: the signed-in customer's account type,
+        // else a guest — a staff view included (catalog.md amendment 14(a), amendment 67 here).
+        // Scoped: who is acting is this request's.
+        $this->app->scoped(ShopperType::class, CustomerShopperType::class);
+        // The signed-in customer, read once a request for the frame and who is looking.
+        $this->app->scoped(RequestCustomers::class);
+
+        $this->app->bind(PasswordPolicy::class, LaravelPasswordPolicy::class);
+        // Laravel's verifier comes from a deferred provider, which would replace a plain binding
+        // when it loads; extend() wraps whatever it registers.
+        $this->app->extend(UncompromisedVerifier::class, fn (UncompromisedVerifier $verifier, Application $app): UncompromisedVerifier => new LoggedBreachList(
+            $app->make(HttpFactory::class),
+            $app->make(LoggerInterface::class),
+        ));
+        $this->app->bind(StaffLinks::class, UrlStaffLinks::class);
+        // SMS codes are stored as an HMAC keyed with the application key (Codes).
+        $this->app->singleton(Codes::class, fn (Application $app): Codes => new HmacCodes((string) $app->make('config')->get('app.key')));
+
+        // SecurityMessages and PhoneCountries are Ops' to bind (access.md §2.3, amendment 90): Ops sends
+        // the security messages and keeps the SMS countries, and Access never depends on Ops.
+
+        // Who is acting (spec §2.5): a web request's session names them, else a guest; outside a web
+        // request the system. Scoped, never instance(): Platform wraps this binding so a queued job
+        // acts as the system for whoever queued it.
+        $this->app->scoped(RequestActor::class);
+        $this->app->scoped(ActorContext::class, fn (Application $app): ActorContext => new RequestActorContext(
+            $app->make(RequestActor::class),
+            ! $app->runningInConsole(),
+        ));
+        $this->app->scoped(StaffSessions::class, LaravelStaffSessions::class);
+        // The staff view's passes (spec §1.11). Scoped: a request's pass is read once, for it alone.
+        $this->app->scoped(StaffViews::class, LaravelStaffViews::class);
+        // Who the panel is shown to, read once per request (amendment 65). Scoped, as it depends on
+        // who is acting.
+        $this->app->scoped(AdminShellForStaff::class);
+
+        // The real permission check (spec §2.5). Scoped: it depends on who is acting.
+        $this->app->scoped(Authorizer::class, fn (Application $app): Authorizer => new RoleAuthorizer(
+            $app->make(ActorContext::class),
+            $app->make(InMemoryPermissionCatalog::class),
+            $app->make(GrantsReader::class),
+        ));
+    }
+
+    public function boot(): void
+    {
+        $presentation = dirname(__DIR__).'/Presentation';
+
+        $this->loadMigrationsFrom(__DIR__.'/Persistence/Migrations');
+        $this->loadTranslationsFrom($presentation.'/lang', 'access');
+
+        // Every web request starts as a guest, so no route ever runs as the system.
+        $this->app->make(HttpKernel::class)->pushMiddleware(IdentifyRequestActor::class);
+
+        // A Super Admin's staff view sees the off stores too (spec §1.11; platform.md §2.7).
+        $this->app->make(OffStoreViewers::class)->register('access', StaffViewOffStores::class);
+
+        // The panel's own session driver: the same database driver, writing the staff member each
+        // row belongs to, so a person can be shown their own sessions and sign them all out
+        // (owner, 2026-09-26). Without it every admin row was written with an empty user_id.
+        $this->app->make(SessionManager::class)->extend(
+            UseAdminSession::DRIVER,
+            fn (Application $app): StaffSessionHandler => new StaffSessionHandler(
+                $app->make('db')->connection($app->make('config')->get('session.connection')),
+                (string) $app->make('config')->get('session.table', 'sessions'),
+                (int) $app->make('config')->get('session.lifetime'),
+                $app,
+            ),
+        );
+
+        // The storefront's own session driver: the same database driver, writing the customer
+        // each row belongs to, so a deleted account's sessions go with it (owner, 2026-09-21).
+        $this->app->make(SessionManager::class)->extend(
+            UseStorefrontSession::DRIVER,
+            fn (Application $app): CustomerSessionHandler => new CustomerSessionHandler(
+                $app->make('db')->connection($app->make('config')->get('session.connection')),
+                (string) $app->make('config')->get('session.table', 'sessions'),
+                (int) $app->make('config')->get('session.lifetime'),
+                $app,
+            ),
+        );
+
+        $router = $this->app->make(Router::class);
+        $router->aliasMiddleware(UseAdminSession::ALIAS, UseAdminSession::class);
+        $router->aliasMiddleware(IdentifyStaff::ALIAS, IdentifyStaff::class);
+        $router->aliasMiddleware(RequireStaff::ALIAS, RequireStaff::class);
+        $router->aliasMiddleware(ShareAdminPage::ALIAS, ShareAdminPage::class);
+        $router->aliasMiddleware(UseStorefrontSession::ALIAS, UseStorefrontSession::class);
+        $router->aliasMiddleware(IdentifyCustomer::ALIAS, IdentifyCustomer::class);
+        $router->aliasMiddleware(ShareStorefrontPage::ALIAS, ShareStorefrontPage::class);
+        $router->aliasMiddleware(RequireCustomer::ALIAS, RequireCustomer::class);
+
+        if (! $this->app->routesAreCached()) {
+            $this->loadRoutesFrom($presentation.'/routes.php');
+        }
+
+        $this->app->make(SettingsRegistry::class)->define(
+            'access',
+            ...StaffSecuritySettings::definitions(),
+            ...CustomerSecuritySettings::definitions(),
+        );
+        // At least one staff sign-in method stays ticked (amendment 91).
+        $guards = $this->app->make(SettingGuards::class);
+        $guards->register(StaffSecuritySettings::SIGN_IN_BY_SMS, SignInMethodsGuard::class);
+        $guards->register(StaffSecuritySettings::SIGN_IN_BY_AUTHENTICATOR, SignInMethodsGuard::class);
+        // Staff avatars are Platform media: deleting one leaves its staff member without it.
+        $this->app->make(MediaUsages::class)->register('access', StaffAvatarUsage::class);
+
+        // A store opened later starts with the standard address form, so its customers can save an
+        // address before staff ever open the format screen (amendment 41).
+        Event::listen(StoreCreated::class, [WriteStartingAddressFormat::class, 'handle']);
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                CreateSuperAdminCommand::class,
+                RevokeSuperAdminCommand::class,
+                ResetSuperAdminPhoneCommand::class,
+                ResetSuperAdminAuthenticatorCommand::class,
+                ResendSuperAdminInvitationCommand::class,
+                CancelSuperAdminInvitationCommand::class,
+            ]);
+        }
+
+        // A Super Admin invitation left unaccepted is cancelled and freed (amendment 30). Scheduled
+        // work is queued as a job, never command() or call() (owner's decision, 2026-09-18).
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
+            $schedule->job(CancelExpiredSuperAdminInvitationsJob::class)->everyTenMinutes()->onOneServer();
+            // The deletions whose fourteen days have passed (amendment 43): 03:00 in Riyadh, which
+            // is midnight where the application runs.
+            $schedule->job(AnonymizeDueAccountsJob::class)->dailyAt('00:00')->onOneServer();
+        });
+
+        $catalog = $this->app->make(InMemoryPermissionCatalog::class);
+        $catalog->declare('access', ...AccessPermissions::definitions());
+
+        // Platform sits below Access and cannot reach this catalog, so it publishes its list and
+        // Access declares it (Access spec §2.5).
+        $catalog->declare('platform', ...array_map(
+            fn (string $name, array $permission): PermissionDefinitionDto => new PermissionDefinitionDto(
+                $name,
+                reserved: $permission['reserved'],
+                kind: $permission['storeFree'] ? PermissionKind::Global : PermissionKind::PerStore,
+                // Platform names its business area as a string, having no sight of Access's types
+                // (stage 2b, P2); an area Access does not know throws here, at boot.
+                group: self::businessArea($name, $permission['group']),
+            ),
+            array_keys(PlatformPermissions::all()),
+            PlatformPermissions::all(),
+        ));
+
+        // Renames and removals name permissions every module declares, so they are checked once
+        // every provider has booted.
+        $this->app->booted(fn () => $catalog->verify());
+
+        /*
+        | What Access puts in the admin menu (stage 2b, P6). Registered at boot like the settings
+        | and the media usages; who is offered each entry is decided per request, by asking the
+        | authorizer about the permission named here.
+        |
+        | Offering is never allowing: the screen behind each of these checks the same permission
+        | again in its own handler (handoff §19).
+        */
+        $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('access', 'staff', PermissionGroup::StaffAndPermissions->value, 'access.staff.list', AccessPermissions::STAFF_VIEW, 10, icon: 'staff'),
+            new MenuEntryDto('access', 'roles', PermissionGroup::StaffAndPermissions->value, 'access.staff.roles', AccessPermissions::ROLE_MANAGE, 20, icon: 'roles'),
+            new MenuEntryDto('access', 'customers', PermissionGroup::Customers->value, 'access.staff.customers', AccessPermissions::CUSTOMER_VIEW, 10, icon: 'customers'),
+            new MenuEntryDto('access', 'address-formats', PermissionGroup::StoreSettings->value, 'access.staff.address-formats', AccessPermissions::ADDRESS_FORMAT_UPDATE, 40, icon: 'address'),
+        );
+
+        $this->carryPermissionChangesOnMigrate();
+    }
+
+    /**
+     * The business area Platform named, as the type Access holds (stage 2b, P2). Platform publishes
+     * a plain string because it sits below Access and cannot see its enums, so a typo there would
+     * otherwise surface at boot as a bare ValueError naming the enum rather than the mistake
+     * (review of step 0).
+     */
+    private static function businessArea(string $permission, ?string $group): ?PermissionGroup
+    {
+        if ($group === null) {
+            return null;
+        }
+
+        return PermissionGroup::tryFrom($group) ?? throw new LogicException(
+            "Platform puts \"{$permission}\" in the business area \"{$group}\", which Access does not know. The areas are: "
+            .implode(', ', array_map(static fn (PermissionGroup $area): string => $area->value, PermissionGroup::cases())).'.'
+        );
+    }
+
+    /**
+     * At the end of every `php artisan migrate`, also when there is nothing to migrate (Laravel
+     * then fires NoPendingMigrations instead of MigrationsEnded), renamed and removed permissions
+     * reach the roles (owner's decision, 2026-09-19). Not on a rollback, nor with --pretend when
+     * something was pending; NoPendingMigrations does not say whether the run is a pretend one, so
+     * `migrate --pretend` with nothing to migrate still carries them.
+     */
+    private function carryPermissionChangesOnMigrate(): void
+    {
+        Event::listen(MigrationsEnded::class, function (MigrationsEnded $event): void {
+            if ($event->options['pretend'] ?? false) {
+                return;
+            }
+
+            $sync = $this->app->make(PermissionSync::class);
+            $sync->refreshEveryone();
+
+            if ($event->method === 'up') {
+                $sync->run();
+            }
+        });
+
+        Event::listen(NoPendingMigrations::class, function (NoPendingMigrations $event): void {
+            if ($event->method === 'up') {
+                $this->app->make(PermissionSync::class)->run();
+            }
+        });
+    }
+}

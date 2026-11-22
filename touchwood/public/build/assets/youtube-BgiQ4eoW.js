@@ -1,0 +1,1 @@
+var e=e=>`https://www.youtube.com/watch?v=${e}`,t=e=>`https://i.ytimg.com/vi/${encodeURIComponent(e)}/hqdefault.jpg`,n=e=>`https://www.youtube-nocookie.com/embed/${encodeURIComponent(e)}?autoplay=1&rel=0`;export{n,t as r,e as t};

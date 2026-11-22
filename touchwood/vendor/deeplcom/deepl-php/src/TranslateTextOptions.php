@@ -1,0 +1,159 @@
+<?php
+
+// Copyright 2022 DeepL SE (https://www.deepl.com)
+// Use of this source code is governed by an MIT
+// license that can be found in the LICENSE file.
+
+namespace DeepL;
+
+/**
+ * Options that can be specified when translating text.
+ * @see Translator::translateText()
+ */
+class TranslateTextOptions
+{
+    /**
+     * Specifies how input translation text should be split into sentences. Values are defined in
+     * SentenceSplittingMode.
+     * - '1' (SentenceSplittingMode::ALL): Input translation text will be split into sentences using both
+     *   newlines and punctuation, this is the default behaviour.
+     * - '0' (SentenceSplittingMode::OFF): Input translation text will not be split into sentences. This is
+     *   advisable for applications where each input translation text is only one sentence.
+     * - 'nonewlines' (SentenceSplittingMode::NO_NEWLINES): Input translation text will be split into
+     *   sentences using only punctuation but not newlines.
+     * The aliases 'on' and 'default' (sent as '1') and 'off' (sent as '0') are deprecated.
+     * @see SentenceSplittingMode
+     */
+    public const SPLIT_SENTENCES = 'split_sentences';
+
+    /** Set to true to prevent the translation engine from correcting some formatting aspects, and
+     * instead leave the formatting unchanged, default is false. */
+    public const PRESERVE_FORMATTING = 'preserve_formatting';
+
+    /** Controls whether translations should lean toward formal or informal language. Values are
+     * defined in Formality.
+     * - 'less': use informal language.
+     * - 'more': use formal, more polite language.
+     * - 'default': use default formality.
+     * - 'prefer_less': use informal language if available, otherwise default.
+     * - 'prefer_more': use formal, more polite language if available, otherwise default.
+     * @see Formality
+     */
+    public const FORMALITY = 'formality';
+
+    /** Specifies additional context to influence translations, that is not
+     * translated itself. Characters in the context parameter are not counted toward billing.
+     * See the API documentation for more information and example usage.
+     */
+    public const CONTEXT = 'context';
+
+    /** Type of tags to parse before translation, options are 'html' and 'xml'.
+     * @see TagHandlingMode
+     */
+    public const TAG_HANDLING = 'tag_handling';
+
+    /** Version of tag handling algorithm to use, options are 'v1' and 'v2'.
+     * @see TagHandlingVersion
+     */
+    public const TAG_HANDLING_VERSION = 'tag_handling_version';
+
+    /** Set to false to disable automatic tag detection, default is true. */
+    public const OUTLINE_DETECTION = 'outline_detection';
+
+    /** List of XML tags that should be used to split text into sentences. */
+    public const SPLITTING_TAGS = 'splitting_tags';
+
+    /** List of XML tags that should not be used to split text into sentences. */
+    public const NON_SPLITTING_TAGS = 'non_splitting_tags';
+
+    /** List of XML tags containing content that should not be translated. */
+    public const IGNORE_TAGS = 'ignore_tags';
+
+    /** Set to string containing a glossary ID to use the glossary for translation.
+     *  Can also be set to a GlossaryInfo as returned by createGlossary, getGlossary or listGlossaries,
+     *  or a MultilingualGlossaryInfo as returned by createMultilingualGlossary, getMultilingualGlossary or
+     *  listMultilingualGlossaries.
+     *  @see \DeepL\Translator::createGlossary()
+     *  @see \DeepL\Translator::getGlossary()
+     *  @see \DeepL\Translator::listGlossaries()
+     *  @see \DeepL\DeepLClient::createMultilingualGlossary()
+     *  @see \DeepL\DeepLClient::getMultilingualGlossary()
+     *  @see \DeepL\DeepLClient::listMultilingualGlossaries()
+     */
+    public const GLOSSARY = 'glossary';
+
+    /** Set to an array of up to 5 glossary IDs to apply multiple glossaries for translation.
+     *  Each element can be a string containing a glossary ID, a GlossaryInfo as returned by createGlossary,
+     *  getGlossary or listGlossaries, or a MultilingualGlossaryInfo as returned by
+     *  createMultilingualGlossary, getMultilingualGlossary or listMultilingualGlossaries.
+     *  Cannot be combined with the singular GLOSSARY option.
+     *  @see \DeepL\Translator::createGlossary()
+     *  @see \DeepL\Translator::getGlossary()
+     *  @see \DeepL\Translator::listGlossaries()
+     *  @see \DeepL\DeepLClient::createMultilingualGlossary()
+     *  @see \DeepL\DeepLClient::getMultilingualGlossary()
+     *  @see \DeepL\DeepLClient::listMultilingualGlossaries()
+     */
+    public const GLOSSARY_IDS = 'glossary_ids';
+
+    /** Sets the preferred model type in a text translation request.
+     * - 'quality_optimized': Use translation models that have been optimized for translation quality
+     *                        Please note that using this option will result in an error if the selected
+     *                        or inferred language pair is not supported by the models.
+     * - 'prefer_quality_optimized': Same as above, but will fall back to `latency_optimized` if the
+     *                               language pair is not supported.
+     * - 'latency_optimized': Use translation models that have been optimized for translation speed.
+     * @see ModelType
+     */
+    public const MODEL_TYPE = 'model_type';
+
+    /** Dictionary of extra parameters to pass in the body of the HTTP request.
+     * Can be used to access beta features, override built-in parameters, or for testing purposes.
+     * Keys in this array will be added to the request body and can override existing keys.
+     * Values must be of string type.
+     */
+    public const EXTRA_BODY_PARAMETERS = 'extra_body_parameters';
+
+    /** Set to string containing a style rule ID to use the style rule for translation.
+     *  Can also be set to a StyleRuleInfo as returned by getAllStyleRules.
+     *  @see \DeepL\DeepLClient::getAllStyleRules()
+     */
+    public const STYLE_RULE = 'style_rule';
+
+    /** Set to string containing a style rule ID, or a StyleRuleInfo, to use the style rule for translation.
+     *  @deprecated Use STYLE_RULE instead; STYLE_ID will be removed in the next major version.
+     */
+    public const STYLE_ID = 'style_id';
+
+    /** Set to string containing a style profile ID to use the style profile for translation: its
+     *  glossaries, style rule lists and translation memories through one ID.
+     *  Can also be set to a StyleProfile as returned by getStyleProfile or listStyleProfiles.
+     *  @see \DeepL\DeepLClient::listStyleProfiles()
+     */
+    public const STYLE_PROFILE = 'style_profile';
+
+    /** Array of custom instructions to customize text translation behavior. Maximum 10 elements, each max
+     * 300 characters. Only supported for target languages: `de`, `en`, `es`, `fr`, `it`, `ja`, `ko`, `zh`
+     * and their variants. Note: using the `custom_instructions` parameter will use the `quality_optimized`
+     * model type as the default. Requests combining `custom_instructions` and the `latency_optimized`
+     * model type will be rejected.
+     */
+    public const CUSTOM_INSTRUCTIONS = 'custom_instructions';
+
+    /** Set to string containing a translation memory ID to use the translation memory for translation.
+     *  Can also be set to a TranslationMemoryInfo as returned by listTranslationMemories.
+     *  @see \DeepL\DeepLClient::listTranslationMemories()
+     */
+    public const TRANSLATION_MEMORY = 'translation_memory';
+
+    /** Set to string containing a translation memory ID, or a TranslationMemoryInfo, to use the translation
+     *  memory for translation.
+     *  @deprecated Use TRANSLATION_MEMORY instead; TRANSLATION_MEMORY_ID will be removed in the next major version.
+     */
+    public const TRANSLATION_MEMORY_ID = 'translation_memory_id';
+
+    /** Set to an integer between 0 and 100 to control the minimum matching percentage
+     *  for translation memory matches. Requires TRANSLATION_MEMORY. We recommend a minimum threshold of 75%.
+     */
+    public const TRANSLATION_MEMORY_THRESHOLD = 'translation_memory_threshold';
+}

@@ -1,0 +1,45 @@
+{
+ "country": "QA",
+ "regions": [
+  {
+   "ar": "بلدية الدوحة",
+   "en": "Doha Municipality",
+   "cities": []
+  },
+  {
+   "ar": "بلدية الريان",
+   "en": "Al Rayyan Municipality",
+   "cities": []
+  },
+  {
+   "ar": "بلدية الوكرة",
+   "en": "Al Wakrah Municipality",
+   "cities": []
+  },
+  {
+   "ar": "بلدية الضعاين",
+   "en": "Al Daayen Municipality",
+   "cities": []
+  },
+  {
+   "ar": "بلدية أم صلال",
+   "en": "Umm Salal Municipality",
+   "cities": []
+  },
+  {
+   "ar": "بلدية الخور",
+   "en": "Al Khor Municipality",
+   "cities": []
+  },
+  {
+   "ar": "بلدية الشمال",
+   "en": "Al Shamal Municipality",
+   "cities": []
+  },
+  {
+   "ar": "بلدية الشحانية",
+   "en": "Al Shahaniya Municipality",
+   "cities": []
+  }
+ ]
+}

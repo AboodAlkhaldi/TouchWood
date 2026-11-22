@@ -1,0 +1,451 @@
+import type { ShopPolicyLinkData, HomeMetric, HomeStorePanel, HomeAction } from '../../../../Platform/Public/Dto';
+export type AccountPage = {
+email: string,
+pendingEmail: string | null,
+firstName: string,
+lastName: string,
+jobTitle: string,
+dateOfBirth: string,
+country: string,
+address: string | null,
+communicationLocale: string,
+avatarUrl: string | null,
+phone: string | null,
+canChangeEmail: boolean,
+notifications: NotificationSetting[],
+criticalSms: boolean | null,
+countries: CountryOption[],
+passwordMinLength: number,
+codeLength: number,
+sessions: StaffSessionRow[],
+trustedBrowsers: TrustedBrowserRow[],
+tab: string,
+authenticator: AuthenticatorBlock,
+};
+export type AddressBookStore = {
+storeId: string,
+storeCode: string,
+storeName: string,
+hasFormat: boolean,
+fields: AddressFieldRow[],
+addresses: AddressRow[],
+limit: number,
+full: boolean,
+countryCode: string,
+};
+export type AddressCountryOption = {
+code: string,
+name: string,
+otherName: string,
+hasPlaces: boolean,
+servedBy: ServedByStore | null,
+};
+export type AddressFieldRow = {
+key: string,
+label: string,
+required: boolean,
+maxLength: number,
+};
+export type AddressFormData = {
+countries: AddressCountryOption[],
+regions: PlaceOption[],
+};
+export type AddressFormatField = {
+key: string,
+labelAr: string,
+labelEn: string,
+required: boolean,
+maxLength: number,
+};
+export type AddressFormatPage = {
+stores: AddressFormatStore[],
+storeId: string,
+exists: boolean,
+fields: AddressFormatField[],
+displayTemplate: string,
+maxFields: number,
+maxLength: number,
+};
+export type AddressFormatStore = {
+id: string,
+code: string,
+name: string,
+hasFormat: boolean,
+isActive: boolean,
+};
+export type AddressRow = {
+id: string,
+label: string,
+recipientName: string,
+fields: Record<string, string>,
+formatted: string,
+isDefault: boolean,
+isComplete: boolean,
+countryCode: string,
+regionId: string | null,
+cityId: string | null,
+districtId: string | null,
+retiredPlaces: string[],
+needsPlaces: boolean,
+};
+export type AuthenticatorBlock = {
+smsEnabled: boolean,
+authenticatorEnabled: boolean,
+hasApp: boolean,
+confirmedAt: string | null,
+method: string,
+recoveryCodesLeft: number,
+};
+export type AuthenticatorSetupPage = {
+hasApp: boolean,
+required: boolean,
+qrSvg: string | null,
+manualKey: string | null,
+};
+export type ComingSoonPage = {
+label: string,
+};
+export type CountryOption = {
+code: string,
+name: string,
+ours: boolean,
+};
+export type CustomerAccountPage = {
+tab: string,
+firstName: string,
+lastName: string,
+email: string,
+accountType: string,
+communicationLocale: string,
+phone: string | null,
+emailVerified: boolean,
+phoneVerified: boolean,
+phoneCountryUnlisted: boolean,
+mayOrder: boolean,
+homeStore: string,
+passwordMinimumLength: number,
+addresses: AddressBookStore[],
+deletionDays: number,
+returnTo: string | null,
+codeLength: number,
+marketingConsent: boolean,
+};
+export type CustomerAddressGroup = {
+storeId: string,
+storeName: string,
+addresses: AddressRow[],
+isActive: boolean,
+};
+export type CustomerDetailsPage = {
+customer: CustomerRow,
+communicationLocale: string,
+addresses: CustomerAddressGroup[],
+mayBlock: boolean,
+mayUnblock: boolean,
+mayStartDeletion: boolean,
+mayCancelDeletion: boolean,
+deletionDays: number,
+sections: CustomerSection[],
+};
+export type CustomerListPage = {
+customers: CustomerRow[],
+total: number,
+page: number,
+perPage: number,
+search: string | null,
+status: string | null,
+accountType: string | null,
+statuses: string[],
+accountTypes: string[],
+};
+export type CustomerRegisterPage = {
+minimumLength: number,
+terms: ShopPolicyLinkData | null,
+privacy: ShopPolicyLinkData | null,
+};
+export type CustomerRow = {
+id: string,
+name: string,
+email: string,
+phone: string | null,
+accountType: string,
+status: string,
+emailVerified: boolean,
+phoneVerified: boolean,
+deletionScheduledFor: string | null,
+anonymized: boolean,
+homeStore: string,
+registeredAt: string,
+homeStoreIsActive: boolean,
+};
+export type CustomerSection = {
+module: string,
+key: string,
+data: Record<string, any>,
+};
+export type CustomerSignInPage = {
+rememberDays: number,
+};
+export type EditorPermissionRow = {
+name: string,
+label: string,
+group: string,
+storeFree: boolean,
+grantable: boolean,
+};
+export type EmailChangePage = {
+token: string,
+newEmail: string,
+};
+export type HomeCardBlock = {
+key: string,
+title: string,
+figures: HomeFigureBlock[],
+rows: HomeRowBlock[],
+rowsLabel: string | null,
+href: string | null,
+openLabel: string | null,
+size: string,
+metrics: HomeMetric[],
+panels: HomeStorePanel[],
+action: HomeAction | null,
+};
+export type HomeFigureBlock = {
+label: string,
+value: number,
+unit: string,
+href: string | null,
+tone: string | null,
+};
+export type HomePage = {
+storeCode: string | null,
+offersAllStores: boolean,
+stores: StoreOptionBlock[],
+cards: HomeCardBlock[],
+storeTimezone: string | null,
+period: string,
+periods: HomePeriodBlock[],
+greeting: string,
+sections: HomeCardBlock[],
+actions: HomeCardBlock[],
+readAt: string | null,
+};
+export type HomePeriodBlock = {
+value: string,
+label: string,
+};
+export type HomeRowBlock = {
+label: string,
+detail: string | null,
+at: string | null,
+href: string | null,
+};
+export type InvitationPage = {
+token: string,
+name: string,
+email: string,
+phone: string,
+minimumLength: number,
+};
+export type InviteStaffPage = {
+savedRoles: RoleRow[],
+savedPermissions: Record<string, string[]>,
+permissions: EditorPermissionRow[],
+adminPermissions: EditorPermissionRow[],
+groups: PermissionGroupRow[],
+stores: StoreOption[],
+countries: CountryOption[],
+maySetAdmin: boolean,
+communicationLocale: string,
+};
+export type NotificationSetting = {
+topic: string,
+email: boolean,
+panel: boolean,
+};
+export type PermissionGroupRow = {
+key: string,
+label: string,
+};
+export type PlaceOption = {
+id: string,
+name: string,
+otherName: string,
+};
+export type RecoveryCodesPage = {
+codes: string[],
+continueTo: string,
+};
+export type ResetPasswordPage = {
+token: string,
+minimumLength: number,
+};
+export type RoleEditorPage = {
+id: string | null,
+nameAr: string,
+nameEn: string,
+level: string,
+permissions: EditorPermissionRow[],
+groups: PermissionGroupRow[],
+chosen: string[],
+holderCount: number,
+};
+export type RoleHolderRow = {
+staffId: string,
+name: string,
+storeNames: string[] | null,
+};
+export type RolePage = {
+id: string,
+name: string,
+nameAr: string,
+nameEn: string,
+level: string,
+permissions: RolePermissionRow[],
+groups: PermissionGroupRow[],
+holderCount: number,
+holders: RoleHolderRow[],
+editable: boolean,
+replacements: RoleRow[],
+};
+export type RolePermissionRow = {
+name: string,
+label: string,
+group: string,
+storeFree: boolean,
+};
+export type RoleRow = {
+id: string,
+name: string,
+level: string,
+permissionCount: number,
+holderCount: number,
+editable: boolean,
+groups: string[],
+};
+export type RolesPage = {
+roles: RoleRow[],
+groups: PermissionGroupRow[],
+permissions: RolePermissionRow[],
+permissionsByRole: Record<string, string[]>,
+mayCreate: boolean,
+};
+export type ServedByStore = {
+code: string,
+name: string,
+open: boolean,
+};
+export type SignInAppPage = {
+trustHours: number,
+};
+export type SignInCodePage = {
+maskedPhone: string | null,
+length: number,
+trustHours: number,
+resendIn: number,
+action: string,
+resendAction: string,
+};
+export type StaffActionRow = {
+name: string,
+label: string,
+group: string,
+storeFree: boolean,
+storeNames: string[] | null,
+exception: boolean,
+};
+export type StaffGroup = {
+key: string,
+label: string,
+staff: StaffRow[],
+};
+export type StaffListPage = {
+groups: StaffGroup[],
+total: number,
+search: string | null,
+status: string | null,
+statuses: string[],
+mayInvite: boolean,
+};
+export type StaffMemberPage = {
+id: string,
+name: string,
+firstName: string,
+lastName: string,
+jobTitle: string | null,
+email: string | null,
+phone: string | null,
+status: string,
+communicationLocale: string | null,
+dateOfBirth: string | null,
+country: string | null,
+address: string | null,
+avatarUrl: string | null,
+isAdmin: boolean,
+isSuperAdmin: boolean,
+roleId: string | null,
+roleName: string,
+allStores: boolean,
+storeNames: string[],
+actions: StaffActionRow[],
+groups: PermissionGroupRow[],
+mayEditProfile: boolean,
+mayChangeEmail: boolean,
+mayChangeRole: boolean,
+mayDisable: boolean,
+mayEnable: boolean,
+mayResendInvitation: boolean,
+mayCancelInvitation: boolean,
+mayResetAuthenticator: boolean,
+};
+export type StaffRolePage = {
+staffId: string,
+staffName: string,
+savedRoles: RoleRow[],
+savedPermissions: Record<string, string[]>,
+permissions: EditorPermissionRow[],
+groups: PermissionGroupRow[],
+stores: StoreOption[],
+roleId: string | null,
+personal: boolean,
+accessLevel: string,
+chosen: string[],
+storeIds: string[],
+exceptions: Record<string, string[]>,
+};
+export type StaffRow = {
+id: string,
+name: string,
+roleName: string,
+isAdmin: boolean,
+jobTitle: string | null,
+email: string | null,
+status: string | null,
+since: string | null,
+formerSuperAdmin: boolean,
+};
+export type StaffSessionRow = {
+id: string,
+ipAddress: string | null,
+userAgent: string | null,
+lastActivity: string,
+isCurrent: boolean,
+};
+export type StoreOption = {
+id: string,
+name: string,
+isActive: boolean,
+};
+export type StoreOptionBlock = {
+code: string,
+name: string,
+isActive: boolean,
+};
+export type TrustedBrowserRow = {
+id: string,
+expiresAt: string,
+};
+export type VerifyEmailPage = {
+email: string,
+linkHours: number,
+};

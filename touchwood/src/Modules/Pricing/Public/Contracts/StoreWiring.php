@@ -1,0 +1,25 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Pricing\Public\Contracts;
+
+use Shared\Domain\ValueObject\StoreId;
+
+/**
+ * Whether a store is wired to a provider (pricing.md §1.1 rule 9): its retail prices then come from the
+ * provider and are read-only in the panel. Sync answers it once it is built, after the provider's
+ * answers; until then no store is wired.
+ */
+interface StoreWiring
+{
+    public function isWired(StoreId $store): bool;
+
+    /**
+     * Every store wired now, by id, in one read - for a screen asking of many stores at once (stage 5's
+     * screens step 2: a product's prices in every store, what the screens may offer).
+     *
+     * @return list<string>
+     */
+    public function wiredStores(): array;
+}

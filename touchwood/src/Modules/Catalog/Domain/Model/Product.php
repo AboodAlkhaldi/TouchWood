@@ -1,0 +1,341 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Catalog\Domain\Model;
+
+use LogicException;
+use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
+use Modules\Catalog\Domain\Exception\InvalidStageChange;
+use Modules\Catalog\Domain\Exception\ProductArchived;
+use Modules\Catalog\Domain\ValueObject\ProductName;
+use Modules\Catalog\Domain\ValueObject\ProductSlugs;
+use Modules\Catalog\Domain\ValueObject\StructuredText;
+use Modules\Catalog\Public\Enums\ProductStage;
+use Modules\Catalog\Public\Enums\ProductUnit;
+
+/**
+ * A product (catalog.md §1.1): a family of purchasable configurations, **global** — one copy of its
+ * data for every store. It keeps what one row can know; the rules that read other rows — a lowest,
+ * active category, an active brand, a code no other product holds — are its handlers', under the
+ * products' lock.
+ *
+ * **Created as a draft** with its Arabic name at least (amendment 3(g)); everything else may wait
+ * until it is made ready. **Its variant attributes** are kept beside it (`product_attributes`, §1.7,
+ * amendment 16(b)), changed by their own commands. Its stage moves
+ * draft → ready; either is archived, and restored to the stage it left (§4.1, amendment 3(m)); never
+ * from ready back to draft.
+ */
+final class Product
+{
+    public const int DESCRIPTION_MAX = 20000;
+
+    private ChangeLog $changes;
+
+    private function __construct(
+        private readonly string $id,
+        private ProductName $name,
+        private ProductSlugs $slugs,
+        private ?StructuredText $descriptionAr,
+        private ?StructuredText $descriptionEn,
+        private string $brandId,
+        private ?string $categoryId,
+        private ?string $warrantyId,
+        private ProductStage $stage,
+        private ?ProductStage $archivedFrom,
+        private bool $hiddenByCategory,
+        private bool $hiddenByBrand,
+        // How it is sold, after its price (shop-design.md §10.1): a piece unless chosen.
+        private ProductUnit $unit = ProductUnit::Piece,
+    ) {
+        $this->changes = new ChangeLog;
+    }
+
+    public static function create(string $id, ProductName $name, ProductSlugs $slugs, string $brandId): self
+    {
+        return new self($id, $name, $slugs, null, null, $brandId, null, null, ProductStage::Draft, null, false, false);
+    }
+
+    public static function reconstitute(
+        string $id,
+        ProductName $name,
+        ProductSlugs $slugs,
+        ?StructuredText $descriptionAr,
+        ?StructuredText $descriptionEn,
+        string $brandId,
+        ?string $categoryId,
+        ?string $warrantyId,
+        ProductStage $stage,
+        ?ProductStage $archivedFrom,
+        bool $hiddenByCategory,
+        bool $hiddenByBrand,
+        ProductUnit $unit = ProductUnit::Piece,
+    ): self {
+        return new self($id, $name, $slugs, $descriptionAr, $descriptionEn, $brandId, $categoryId, $warrantyId, $stage, $archivedFrom, $hiddenByCategory, $hiddenByBrand, $unit);
+    }
+
+    /**
+     * The product's own form, sent whole.
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function editDetails(
+        ProductName $name,
+        ProductSlugs $slugs,
+        ?StructuredText $descriptionAr,
+        ?StructuredText $descriptionEn,
+        string $brandId,
+        ?string $categoryId,
+        ?string $warrantyId,
+        ?ProductUnit $unit = null,
+    ): void {
+        $before = $this->snapshot();
+
+        // Hidden with its category or brand, it comes back when it moves to another (§5.1).
+        if ($categoryId !== $this->categoryId) {
+            $this->hiddenByCategory = false;
+        }
+
+        if ($brandId !== $this->brandId) {
+            $this->hiddenByBrand = false;
+        }
+
+        $this->name = $name;
+        $this->slugs = $slugs;
+        $this->descriptionAr = $descriptionAr;
+        $this->descriptionEn = $descriptionEn;
+        $this->brandId = $brandId;
+        $this->categoryId = $categoryId;
+        $this->warrantyId = $warrantyId;
+        // None given keeps it: the forms that predate the unit send none.
+        $this->unit = $unit ?? $this->unit;
+
+        foreach ($this->snapshot() as $column => $now) {
+            $this->changes->record($column, $before[$column], $now);
+        }
+    }
+
+    /**
+     * Out of its draft (§4.1): its handler has checked every readiness rule. A ready product is left
+     * as it is; an archived one is restored first (§7, amendment 3(m)).
+     *
+     * @throws ProductArchived
+     */
+    public function markReady(): void
+    {
+        if ($this->stage === ProductStage::Archived) {
+            throw new ProductArchived;
+        }
+
+        $this->moveTo(ProductStage::Ready);
+    }
+
+    /**
+     * Retired, a draft abandoned or a ready product (§4.1, §9.3 #19), remembering which it was. One
+     * archived already stays so.
+     */
+    public function archive(): void
+    {
+        if ($this->stage === ProductStage::Archived) {
+            return;
+        }
+
+        $this->archivedFrom = $this->stage;
+        $this->moveTo(ProductStage::Archived);
+    }
+
+    /**
+     * Back to the stage it was archived from (§4.1, amendment 3(m)): a draft abandoned comes back a
+     * draft, so making it ready stays the publish job's; a ready product comes back ready, every
+     * readiness rule checked by its handler. A ready one is left as it is; a draft is made ready
+     * instead.
+     *
+     * @throws InvalidStageChange
+     */
+    public function restore(): void
+    {
+        if ($this->stage === ProductStage::Draft) {
+            throw new InvalidStageChange;
+        }
+
+        if ($this->stage === ProductStage::Ready) {
+            return;
+        }
+
+        $to = $this->archivedFrom ?? throw new LogicException('An archived product without the stage it left.');
+        $this->archivedFrom = null;
+        $this->moveTo($to);
+    }
+
+    public function id(): string
+    {
+        return $this->id;
+    }
+
+    public function name(): ProductName
+    {
+        return $this->name;
+    }
+
+    public function slugs(): ProductSlugs
+    {
+        return $this->slugs;
+    }
+
+    public function descriptionAr(): ?StructuredText
+    {
+        return $this->descriptionAr;
+    }
+
+    public function descriptionEn(): ?StructuredText
+    {
+        return $this->descriptionEn;
+    }
+
+    public function brandId(): string
+    {
+        return $this->brandId;
+    }
+
+    public function categoryId(): ?string
+    {
+        return $this->categoryId;
+    }
+
+    public function warrantyId(): ?string
+    {
+        return $this->warrantyId;
+    }
+
+    public function unit(): ProductUnit
+    {
+        return $this->unit;
+    }
+
+    public function stage(): ProductStage
+    {
+        return $this->stage;
+    }
+
+    public function isDraft(): bool
+    {
+        return $this->stage === ProductStage::Draft;
+    }
+
+    /**
+     * Hidden with its category when it was deactivated, or brought back with it (§1.5, amendment 4).
+     */
+    public function hideWithCategory(bool $hidden): void
+    {
+        $before = $this->snapshot();
+        $this->hiddenByCategory = $hidden;
+        $this->record($before);
+    }
+
+    /**
+     * Hidden with its brand when it was deactivated, or brought back with it (§1.6).
+     */
+    public function hideWithBrand(bool $hidden): void
+    {
+        $before = $this->snapshot();
+        $this->hiddenByBrand = $hidden;
+        $this->record($before);
+    }
+
+    /**
+     * Moved to another category when its own is deactivated (§1.5): no longer hidden by one. Its
+     * handler has checked the new one is active and the lowest of its branch.
+     */
+    public function moveToCategory(string $categoryId): void
+    {
+        $before = $this->snapshot();
+        $this->categoryId = $categoryId;
+        $this->hiddenByCategory = false;
+        $this->record($before);
+    }
+
+    /**
+     * Moved to another brand when its own is deactivated (§1.6), never to none: no longer hidden by one.
+     */
+    public function moveToBrand(string $brandId): void
+    {
+        $before = $this->snapshot();
+        $this->brandId = $brandId;
+        $this->hiddenByBrand = false;
+        $this->record($before);
+    }
+
+    public function hiddenByCategory(): bool
+    {
+        return $this->hiddenByCategory;
+    }
+
+    public function hiddenByBrand(): bool
+    {
+        return $this->hiddenByBrand;
+    }
+
+    /** While archived, the stage it left; null otherwise. */
+    public function archivedFrom(): ?ProductStage
+    {
+        return $this->archivedFrom;
+    }
+
+    /**
+     * Whether it has ever been ready, and so is known outside Catalog (§6.1, amendment 3(m)): a draft
+     * never was, nor a draft archived when abandoned.
+     */
+    public function hasBeenReady(): bool
+    {
+        return $this->stage === ProductStage::Ready || $this->archivedFrom === ProductStage::Ready;
+    }
+
+    /**
+     * Every column by value, the descriptions as their exact JSON so a change of formatting alone is
+     * a change.
+     *
+     * @return array<string, string|int|bool|null>
+     */
+    public function snapshot(): array
+    {
+        return [
+            'name_ar' => $this->name->ar,
+            'name_en' => $this->name->en,
+            'slug_ar' => $this->slugs->ar->value,
+            'slug_en' => $this->slugs->en?->value,
+            'description_ar' => $this->descriptionAr?->toJson(),
+            'description_en' => $this->descriptionEn?->toJson(),
+            'brand_id' => $this->brandId,
+            'category_id' => $this->categoryId,
+            'warranty_id' => $this->warrantyId,
+            'unit' => $this->unit->value,
+            'stage' => $this->stage->value,
+            'hidden_by_category' => $this->hiddenByCategory,
+            'hidden_by_brand' => $this->hiddenByBrand,
+        ];
+    }
+
+    /**
+     * @return array<string, string|int|bool|null>
+     */
+    public function pullChanges(): array
+    {
+        return $this->changes->pull();
+    }
+
+    /**
+     * @param  array<string, string|int|bool|null>  $before
+     */
+    private function record(array $before): void
+    {
+        foreach ($this->snapshot() as $column => $now) {
+            $this->changes->record($column, $before[$column], $now);
+        }
+    }
+
+    private function moveTo(ProductStage $stage): void
+    {
+        $this->changes->record('stage', $this->stage->value, $stage->value);
+        $this->stage = $stage;
+    }
+}

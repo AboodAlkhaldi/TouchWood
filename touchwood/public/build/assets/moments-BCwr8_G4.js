@@ -1,0 +1,1 @@
+function e(e){return e.none||e.date===``?``:`${e.date} ${e.time.trim()}`}export{e as t};

@@ -1,0 +1,322 @@
+import { type ReactNode, useEffect, useState } from 'react';
+import { router, useForm, usePage } from '@inertiajs/react';
+import { ActionButton } from '@/components/ActionButton';
+import { SelectField, TextField } from '@/components/Fields';
+import { FormError } from '@/components/FormError';
+import { Note } from '@/components/Note';
+import { Description } from '@/components/geist-only/Description';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { NativeSelectOption } from '@/components/ui/native-select';
+import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useLink } from '@/lib/routes';
+import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
+import type { SharedProps } from '@/types/page';
+import type { CustomerAccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
+
+/*
+| F8 - the details tab (frontend.md §3.6), one shadcn Card in Geist's Fieldset form (§1.11): the
+| fields, and in the footer the one button that saves them.
+|
+| Their name and the language we write to them in, and that is the whole of what a customer may
+| change about themselves. Three things are shown and cannot be changed, each saying so where it is
+| rather than refusing afterwards: the email address (access.md §1.1), the kind of account, and the
+| store they registered in. They are facts, not fields, so Geist's Description lists them, under a
+| rule in the same card.
+|
+| What is still missing before they can order is said here too, because this is the page they come
+| to when something will not let them through.
+*/
+
+type Props = {
+    account: CustomerAccountPage;
+};
+
+export function ProfileTab({ account }: Props) {
+    const t = useTranslator();
+    const link = useLink();
+    const { shop } = usePage<SharedProps>().props;
+
+    const form = useForm({
+        first_name: account.firstName,
+        last_name: account.lastName,
+        locale: account.communicationLocale,
+    });
+
+    // Each name as typed (frontend.md §1.7), with the server's rule: required, up to 100 characters
+    // (UpdateCustomerProfileHandler::NAME_MAX). The language is picked from a list.
+    const name = { required: true, length: { max: 100 } };
+    const checks = useChecks([
+        { id: 'first_name', label: t('access::account.first_name'), value: form.data.first_name, rules: name },
+        { id: 'last_name', label: t('access::account.last_name'), value: form.data.last_name, rules: name },
+    ]);
+
+    return (
+        <div className="grid gap-6">
+            {account.mayOrder ? null : <BeforeOrdering account={account} />}
+
+            <Card className="material-base gap-0 border-0 py-0">
+                <form
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        checks.submit(() => form.post(link('storefront.account.profile'), { preserveScroll: true }));
+                    }}
+                >
+                    <CardHeader className="px-6 pt-5 pb-4">
+                        <CardTitle className="text-heading-20 text-ink">
+                            <h2>{t('access::account.shop_tab.profile')}</h2>
+                        </CardTitle>
+                    </CardHeader>
+
+                    <CardContent className="grid gap-6 px-6 pb-5">
+                        <FieldGroup className="gap-5">
+                            <FormError />
+
+                            <div className="grid gap-5 sm:grid-cols-2">
+                                <TextField
+                                    id="first_name"
+                                    name="first_name"
+                                    label={t('access::account.first_name')}
+                                    check={checks.box('first_name', form.errors.first_name)}
+                                    autoComplete="given-name"
+                                    required
+                                    value={form.data.first_name}
+                                    onChange={(event) => form.setData('first_name', event.target.value)}
+                                />
+
+                                <TextField
+                                    id="last_name"
+                                    name="last_name"
+                                    label={t('access::account.last_name')}
+                                    check={checks.box('last_name', form.errors.last_name)}
+                                    autoComplete="family-name"
+                                    required
+                                    value={form.data.last_name}
+                                    onChange={(event) => form.setData('last_name', event.target.value)}
+                                />
+                            </div>
+
+                            {/* The languages the shop itself can be read in: they come with every
+                                page of it, and which they are is Platform's to say, not this screen's. */}
+                            <SelectField
+                                id="locale"
+                                name="locale"
+                                label={t('access::account.communication_language')}
+                                helper={t('access::account.shop_communication_language_hint')}
+                                error={form.errors.locale}
+                                value={form.data.locale}
+                                onChange={(event) => form.setData('locale', event.target.value)}
+                            >
+                                {(shop?.languages ?? [account.communicationLocale]).map((language) => (
+                                    <NativeSelectOption key={language} value={language}>
+                                        {t(`access::account.language.${language}`)}
+                                    </NativeSelectOption>
+                                ))}
+                            </SelectField>
+                        </FieldGroup>
+
+                        <Separator className="bg-line" />
+
+                        <Description
+                            columns={1}
+                            items={[
+                                {
+                                    title: t('access::account.shop_email'),
+                                    // An email address reads left to right, whatever language the page is in.
+                                    content: (
+                                        <Locked note={t('access::account.shop_email_locked')}>
+                                            <bdi dir="ltr">{account.email}</bdi>
+                                        </Locked>
+                                    ),
+                                },
+                                {
+                                    title: t('access::account.account_kind'),
+                                    content: (
+                                        <Locked note={t('access::account.account_kind_locked')}>
+                                            {t(account.accountType === 'COMPANY' ? 'access::auth.account_type_company' : 'access::auth.account_type_individual')}
+                                        </Locked>
+                                    ),
+                                },
+                                {
+                                    title: t('access::account.home_store'),
+                                    content: <Locked note={t('access::account.home_store_hint')}>{account.homeStore}</Locked>,
+                                },
+                            ]}
+                        />
+                    </CardContent>
+
+                    <CardFooter className="justify-end border-t border-line bg-surface-sunken px-6 py-4 [.border-t]:pt-4">
+                        <ActionButton type="submit" loading={form.processing} disabledReason={checks.reason} data-test="save-profile">
+                            {t('access::account.save')}
+                        </ActionButton>
+                    </CardFooter>
+                </form>
+            </Card>
+
+            <OffersCard account={account} />
+        </div>
+    );
+}
+
+/**
+ * Offers and news by email (amendment 79; ops.md §4.8, §4.15 O12): one switch that saves as it is flipped, with
+ * the "Changes saved" toast the server sends back. It shows the new place at once; a refusal puts it back and
+ * says why under it. Until the email is confirmed nothing can reach them, and it says so.
+ */
+function OffersCard({ account }: { account: CustomerAccountPage }) {
+    const t = useTranslator();
+    const link = useLink();
+    const [on, setOn] = useState(account.marketingConsent);
+    const [refusal, setRefusal] = useState<string | undefined>(undefined);
+    const [saving, setSaving] = useState(false);
+    const [tip, setTip] = useState(false);
+    const busy = saving ? t('access::account.saving_reason') : undefined;
+
+    // The server's answer is the last word: what it saved, or what it kept after a refusal.
+    useEffect(() => setOn(account.marketingConsent), [account.marketingConsent]);
+
+    function save(next: boolean) {
+        // One change at a time, as the panel's notification switches (NotificationsTab): a second flip while the
+        // first is on its way would race it.
+        if (saving) {
+            return;
+        }
+
+        setOn(next);
+        setRefusal(undefined);
+        setSaving(true);
+        router.post(
+            link('storefront.account.marketing'),
+            { marketing_consent: next },
+            {
+                preserveScroll: true,
+                preserveState: true,
+                onFinish: () => setSaving(false),
+                onError: (errors) => {
+                    setOn(account.marketingConsent);
+                    setRefusal(errors.marketing_consent ?? errors.form);
+                },
+                // No answer at all: back to what is saved, and said.
+                onNetworkError: () => {
+                    setOn(account.marketingConsent);
+                    setRefusal(t('access::account.offers.failed'));
+                    setSaving(false);
+
+                    return false;
+                },
+            },
+        );
+    }
+
+    return (
+        <Card className="material-base gap-4 border-0 py-5" data-test="offers-card">
+            <CardHeader className="px-6">
+                <CardTitle className="text-heading-20 text-ink">
+                    <h2>{t('access::account.offers.title')}</h2>
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-2 px-6">
+                <Field orientation="horizontal" data-invalid={refusal ? true : undefined}>
+                    {/* While it saves it stays reachable and does nothing, its tooltip saying why; the tooltip hangs on a
+                        span, never on the switch, whose data-state it would hide (lesson 133). */}
+                    <Tooltip open={busy !== undefined && tip} onOpenChange={setTip}>
+                        <TooltipTrigger asChild>
+                            <span className="inline-flex">
+                                <Switch
+                                    id="marketing_consent"
+                                    checked={on}
+                                    aria-disabled={busy === undefined ? undefined : true}
+                                    onCheckedChange={(next) => (busy === undefined ? save(next) : undefined)}
+                                    aria-describedby={[
+                                        'marketing_consent-hint',
+                                        account.emailVerified ? null : 'marketing_consent-unconfirmed',
+                                        refusal ? 'marketing_consent-error' : null,
+                                        busy === undefined ? null : 'marketing_consent-busy',
+                                    ]
+                                        .filter(Boolean)
+                                        .join(' ')}
+                                    className="data-[state=unchecked]:bg-ink-subtle aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                                    data-test="marketing-consent"
+                                />
+                            </span>
+                        </TooltipTrigger>
+                        {busy === undefined ? null : <TooltipContent>{busy}</TooltipContent>}
+                    </Tooltip>
+                    {busy === undefined ? null : (
+                        <span id="marketing_consent-busy" className="sr-only">
+                            {busy}
+                        </span>
+                    )}
+                    <FieldContent>
+                        <FieldLabel htmlFor="marketing_consent" className="text-label-14 text-ink">
+                            {t('access::account.offers.label')}
+                        </FieldLabel>
+                        <FieldDescription id="marketing_consent-hint" className="text-copy-13 text-ink-muted">
+                            {t('access::account.offers.hint')}
+                        </FieldDescription>
+                        {account.emailVerified ? null : (
+                            <FieldDescription id="marketing_consent-unconfirmed" className="text-copy-13 text-ink-muted" data-test="offers-unconfirmed">
+                                {t('access::account.offers.unconfirmed')}
+                            </FieldDescription>
+                        )}
+                    </FieldContent>
+                </Field>
+                {refusal ? (
+                    <FieldError id="marketing_consent-error" data-test="offers-refusal">
+                        {refusal}
+                    </FieldError>
+                ) : null}
+            </CardContent>
+        </Card>
+    );
+}
+
+/**
+ * The value of something that is shown and cannot be changed, with the reason under it.
+ *
+ * Said here rather than left for a refusal later: a field somebody can type into and then be told
+ * about is worse than one that never invited them. The reason stays on the page rather than in a
+ * tooltip, because the person who needs it is the one who did not think to hover.
+ */
+function Locked({ note, children }: { note: string; children: ReactNode }) {
+    return (
+        <span className="grid gap-0.5">
+            <span>{children}</span>
+            <span className="text-copy-13 text-ink-muted">{note}</span>
+        </span>
+    );
+}
+
+/**
+ * What is still in the way of an order (access.md §1.2): the email, the phone, or both - as Geist's
+ * warning Note, a consequence to see to, sitting where the person comes to look.
+ *
+ * A basket that refuses at the last step, with no way to see why beforehand, is the thing this
+ * exists to prevent.
+ */
+function BeforeOrdering({ account }: { account: CustomerAccountPage }) {
+    const t = useTranslator();
+    // One sentence for whichever is missing, never a list (Geist's Note: one sentence that names
+    // the impact; owner, 2026-10-04).
+    // Only what is really missing: an account may also be unable to order for another reason (its
+    // status), and that is not the email's or the phone's to say (the review of batch C).
+    if (account.emailVerified && account.phoneVerified) {
+        return null;
+    }
+
+    const missing =
+        !account.emailVerified && !account.phoneVerified
+            ? t('access::account.missing_both')
+            : account.emailVerified
+              ? t('access::account.missing_phone')
+              : t('access::account.missing_email');
+
+    return (
+        <Note variant="warning" label={t('access::account.before_ordering')} data-test="before-ordering">
+            {missing}
+        </Note>
+    );
+}

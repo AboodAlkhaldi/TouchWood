@@ -1,0 +1,178 @@
+<?php
+
+declare(strict_types=1);
+
+// Sales's error messages, by error type (sales.{key}), and the names of the fields they point at
+// (sales.md §7).
+return [
+    'may_not_order' => [
+        'title' => 'You Can\'t Order Yet',
+        'detail' => 'Your account can\'t place orders in this store now. Check your account page for what\'s missing.',
+    ],
+    'not_for_your_account' => [
+        'title' => 'Not Sold to Your Account',
+        'detail' => 'This product isn\'t sold to your type of account.',
+    ],
+    'not_orderable' => [
+        'title' => 'Can\'t Be Ordered',
+        'detail' => 'One of the products can\'t be ordered as it is. Check its quantity and try again.',
+    ],
+    'address_not_usable' => [
+        'title' => 'Address Can\'t Be Used',
+        'detail' => 'Choose a delivery address in this store, or complete the one you chose.',
+    ],
+    'address_in_other_store' => [
+        'title' => 'Served by Another Store',
+        'detail' => 'This address is served by our :storeEn store — order from there, or choose another address.',
+    ],
+    'shipping_fee_not_set' => [
+        'title' => 'Shipping Fee Not Set',
+        'detail' => 'Set this order\'s shipping fee before marking it shipped.',
+    ],
+    'way_to_pay_not_offered' => [
+        'title' => 'Way to Pay Not Offered',
+        'detail' => 'This way to pay isn\'t offered for your account. Choose another.',
+    ],
+    'sign_in_to_use_coupon' => [
+        'title' => 'Sign In to Use a Coupon',
+        'detail' => 'Sign in or create an account to use a coupon.',
+    ],
+    'payment_being_confirmed' => [
+        'title' => 'Payment Being Confirmed',
+        'detail' => 'A payment is being confirmed. Try again once it is answered.',
+    ],
+    'payment_link_ended' => [
+        'title' => 'Payment Link Ended',
+        'detail' => 'This payment link has ended.',
+    ],
+    'payment_request_not_allowed' => [
+        'title' => 'Payment Request Not Available',
+        'detail' => "A payment request needs an individual's order in a store taking online payment in the order's own mode.",
+    ],
+    'payment_in_progress' => [
+        'title' => 'Payment In Progress',
+        'detail' => 'A payment is already in progress in another window.',
+    ],
+    'terms_not_accepted' => [
+        'title' => 'Terms Not Accepted',
+        'detail' => 'Tick the box to agree to the terms.',
+    ],
+    'terms_changed' => [
+        'title' => 'Terms Updated',
+        'detail' => 'The Terms were updated. Read them and tick again.',
+    ],
+    'terms_missing' => [
+        'title' => 'No Terms Published',
+        'detail' => 'Orders can\'t be placed until this store\'s terms are published.',
+    ],
+    'checkout_try_not_found' => [
+        'title' => 'Payment Not Found',
+        'detail' => 'Couldn\'t find this payment.',
+    ],
+    'test_order_not_shippable' => [
+        'title' => 'Test Order',
+        'detail' => 'This is a test order. It can\'t be marked shipped.',
+    ],
+    'online_payment_not_voidable' => [
+        'title' => 'Online Payment',
+        'detail' => 'A real online payment can\'t be voided. Record a refund instead.',
+    ],
+    'too_many_payment_tries' => [
+        'title' => 'Too Many Tries',
+        'detail' => 'Too many tries. Try again in :minutes minutes.',
+    ],
+    'too_many_coupon_tries' => [
+        'title' => 'Too Many Wrong Codes',
+        'detail' => 'Couldn\'t try the code: too many codes that match no coupon. Try again in :minutes minutes.',
+    ],
+    'too_many_waiting_orders' => [
+        'title' => 'Too Many Orders Waiting',
+        'detail' => 'You already have :most orders waiting for approval in this store. You can order again once the store approves or rejects one of them, or you cancel one.',
+    ],
+    'quote_not_found' => [
+        'title' => 'Checkout Not Found',
+        'detail' => 'This checkout was not found. Start the checkout again.',
+    ],
+    'quote_expired' => [
+        'title' => 'Checkout Expired',
+        'detail' => 'Your checkout expired. We\'ve worked it out again — check it and place the order.',
+    ],
+    'quote_changed' => [
+        'title' => 'Your Checkout Changed',
+        'detail' => 'Something in your order changed since you started. Check the new totals and place the order again.',
+    ],
+    'not_cancellable' => [
+        'title' => 'Can\'t Be Cancelled',
+        'detail' => 'This order can no longer be cancelled.',
+    ],
+    'not_editable' => [
+        'title' => 'Can\'t Be Changed',
+        'detail' => 'This order can no longer be changed.',
+    ],
+    'not_shippable' => [
+        'title' => 'Can\'t Ship Yet',
+        'detail' => 'This order can\'t be shipped yet: it isn\'t approved, or it isn\'t paid and wasn\'t allowed to ship unpaid.',
+    ],
+    'return_not_allowed' => [
+        'title' => 'Return Not Allowed',
+        'detail' => 'You can\'t return this: the return window has passed, or there are more pieces or photos than allowed.',
+    ],
+    'too_many_files' => [
+        'title' => 'Can\'t Add More Files',
+        'detail' => 'No more documents can be added to this order.',
+    ],
+    'refund_too_large' => [
+        'title' => 'Refund Too Large',
+        'detail' => 'The refund is more than what was paid on this order and not yet refunded.',
+    ],
+    'invalid_order_change' => [
+        'title' => 'Can\'t Do That Now',
+        'detail' => 'This can\'t be done in the order\'s current state. Refresh the page and try again.',
+    ],
+    'order_not_found' => [
+        'title' => 'Order Not Found',
+        'detail' => 'No such order was found.',
+    ],
+    'return_not_found' => [
+        'title' => 'Return Not Found',
+        'detail' => 'No such return was found.',
+    ],
+    'invalid_sales_attribute' => [
+        'title' => 'Check the Details',
+        'detail' => 'The :attribute isn\'t valid. Check it and try again.',
+    ],
+
+    'fields' => [
+        'terms_policy' => 'Terms and Conditions',
+        'terms_version' => 'terms version',
+        'returns_policy' => 'Returns and Refunds policy',
+        'returns_version' => 'returns policy version',
+        'store' => 'store',
+        'quantity' => 'quantity',
+        'variant' => 'size',
+        'sale_mode' => 'retail or wholesale',
+        'coupon' => 'coupon',
+        'address' => 'address',
+        'way_to_pay' => 'way to pay',
+        'reason' => 'reason',
+        'amount' => 'amount',
+        'locale' => 'language',
+        'points' => 'points',
+        'way' => 'way',
+        'reference' => 'reference',
+        'note' => 'note',
+        'date' => 'date',
+        'request' => 'form',
+        'session' => 'payment session',
+        'file' => 'file',
+        'carrier' => 'carrier',
+        'tracking_number' => 'tracking number',
+        'tracking_link' => 'tracking link',
+        'shipping_fee' => 'shipping fee',
+        'gift' => 'gift',
+        'lines' => 'pieces asked',
+        'filter' => 'filter',
+        'status' => 'status',
+        'search' => 'search',
+    ],
+];

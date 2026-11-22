@@ -1,0 +1,1 @@
+function e(e){return`⁨`+String(e)+`⁩`}export{e as t};

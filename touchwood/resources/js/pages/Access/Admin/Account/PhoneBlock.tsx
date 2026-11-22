@@ -1,0 +1,217 @@
+import { lazy, Suspense, useState } from 'react';
+import { useForm } from '@inertiajs/react';
+import { ActionButton } from '@/components/ActionButton';
+import { TextField } from '@/components/Fields';
+import { DialogError } from '@/components/FormError';
+import { PasswordInput } from '@/components/PasswordInput';
+import { Button } from '@/components/ui/button';
+import { Card, CardAction, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { toLatinDigits } from '@/lib/digits';
+import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
+import { useReturnFocus } from '@/lib/use-return-focus';
+import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
+
+// The code's field is drawn only in the dialog's second step, never on the page's first paint, so it
+// is loaded then (frontend.md §5; lesson 180): the account page sat at 59.8 of its 60 KB, and the
+// shop's pages sharing the panel's Sheet and Breadcrumb (catalog.md §4.5) split them out of its layout.
+const CodeInput = lazy(() => import('@/components/CodeInput').then((loaded) => ({ default: loaded.CodeInput })));
+
+/*
+| B2 - changing the phone (frontend.md §3.2), on shadcn's Card and Dialog with Geist's rules (§1.11).
+|
+| Two steps in one dialog. First the current password and the new number; then the code that went to
+| that number, in shadcn's InputOTP, one box per digit, as many as the server's setting says
+| (§1.11, "SMS codes"). The password is asked for because the number is where every sign-in code
+| goes: a stolen session must not be able to move the second factor on its own (owner, 2026-09-21).
+| A wrong password here counts exactly like a wrong one at sign-in, so the lockout can arrive in this
+| dialog too - which is why the refusal is shown inside it (DialogError) rather than only as a toast
+| behind it.
+|
+| The number in use does not change until the code is right. Until then the person still has the old
+| one, and nothing about their sign-in has moved.
+|
+| The step is not on the server. Whether a code went out is exactly "the request succeeded", so the
+| dialog moves on when Inertia says it did, and a refusal leaves it where it was with the reason
+| beside the field. The last step's button repeats the dialog's title (§1.11, "Applied in the
+| rebuild"); the first step's sends the code it names.
+*/
+
+type Props = {
+    account: AccountPage;
+};
+
+export function PhoneBlock({ account }: Props) {
+    const t = useTranslator();
+    const [open, setOpen] = useState(false);
+    const [step, setStep] = useState<'phone' | 'code'>('phone');
+    const returnFocus = useReturnFocus(open);
+
+    const request = useForm({ phone: '', current_password: '' });
+    const confirm = useForm({ code: '' });
+    const busy = request.processing || confirm.processing;
+    // Each box as typed (frontend.md §1.7): the number as Access keeps one, with its country code
+    // (PhoneNumber); the current password, its spaces kept as typed (OwnPhoneChangeRequest) - whether
+    // it is the right one is the server's alone to say. Afresh each time the dialog opens; the code's
+    // boxes keep their own check, below.
+    const checks = useChecks(
+        [
+            { id: 'new_phone', label: t('access::account.new_phone'), value: request.data.phone, rules: { required: true, phone: true }, off: step !== 'phone' },
+            { id: 'phone_current_password', label: t('access::account.current_password'), value: request.data.current_password, rules: { required: true, keepSpaces: true }, off: step !== 'phone' },
+        ],
+        open,
+    );
+
+    function close() {
+        setOpen(false);
+        setStep('phone');
+        request.reset();
+        request.clearErrors();
+        confirm.reset();
+        confirm.clearErrors();
+    }
+
+    return (
+        <Card className="material-base gap-3 border-0 py-5">
+            <CardHeader className="px-6">
+                <CardTitle className="text-heading-20 text-ink">
+                    <h2>{t('access::account.phone')}</h2>
+                </CardTitle>
+                <CardDescription className="grid gap-1">
+                    {/* Shown in full: this is the person's own account, and they cannot decide
+                        whether to change a number they are not allowed to read (2026-09-23). Left
+                        to right and in Latin digits, as a dialled number is everywhere: isolated in
+                        a bdi, so on an Arabic page it still sits at the start, under the title. */}
+                    {account.phone === null ? null : (
+                        <span className="tw-figure text-copy-14 text-ink-muted">
+                            <bdi dir="ltr">{account.phone}</bdi>
+                        </span>
+                    )}
+                    <span className="text-copy-13 text-ink-muted">{t(account.phone === null ? 'access::account.no_phone' : 'access::account.phone_hint')}</span>
+                </CardDescription>
+                <CardAction>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)} data-test="open-phone-dialog">
+                        {t('access::account.change_phone')}
+                    </Button>
+                </CardAction>
+            </CardHeader>
+
+            <Dialog open={open} onOpenChange={(next) => (busy ? undefined : next ? setOpen(true) : close())}>
+                <DialogContent showCloseButton={false} onCloseAutoFocus={returnFocus} className="material-modal gap-0 overflow-hidden border-0 p-0 sm:max-w-md">
+                    {step === 'phone' ? (
+                        <form
+                            onSubmit={(event) => {
+                                event.preventDefault();
+                                checks.submit(() =>
+                                    request.post('/admin/account/phone', {
+                                        preserveScroll: true,
+                                        preserveState: true,
+                                        onSuccess: () => setStep('code'),
+                                    }),
+                                );
+                            }}
+                        >
+                            <div className="grid gap-4 p-6">
+                                <DialogHeader>
+                                    <DialogTitle className="text-heading-20 text-ink">{t('access::account.phone_dialog_title')}</DialogTitle>
+                                    <DialogDescription className="text-copy-14 text-ink-muted">{t('access::account.phone_dialog_body')}</DialogDescription>
+                                </DialogHeader>
+                                <DialogError open={open} />
+                                <TextField
+                                    id="new_phone"
+                                    name="phone"
+                                    type="tel"
+                                    label={t('access::account.new_phone')}
+                                    helper={t('access::account.new_phone_hint')}
+                                    check={checks.box('new_phone', request.errors.phone)}
+                                    required
+                                    autoFocus
+                                    dir="ltr"
+                                    autoComplete="tel"
+                                    inputClassName="tw-figure"
+                                    value={request.data.phone}
+                                    onChange={(event) => request.setData('phone', toLatinDigits(event.target.value))}
+                                />
+                                <PasswordInput
+                                    id="phone_current_password"
+                                    name="current_password"
+                                    label={t('access::account.current_password')}
+                                    check={checks.box('phone_current_password', request.errors.current_password)}
+                                    autoComplete="current-password"
+                                    required
+                                    value={request.data.current_password}
+                                    onChange={(event) => request.setData('current_password', event.target.value)}
+                                />
+                            </div>
+                            <DialogFooter className="border-t border-line bg-surface-sunken px-6 py-4">
+                                <Button type="button" variant="outline" disabled={busy} onClick={close} data-test="modal-cancel">
+                                    {t('ui.cancel')}
+                                </Button>
+                                <ActionButton type="submit" loading={request.processing} disabledReason={checks.reason} data-test="send-phone-code">
+                                    {t('access::account.send_code')}
+                                </ActionButton>
+                            </DialogFooter>
+                        </form>
+                    ) : (
+                        <form
+                            // Enter on a short code says why under it, as the button does on hover (the final review).
+                            onKeyDown={(event) =>
+                                event.key === 'Enter' && confirm.data.code.length < account.codeLength
+                                    ? confirm.setError('code', t('access::account.code_incomplete', { count: account.codeLength }))
+                                    : undefined
+                            }
+                            onSubmit={(event) => {
+                                event.preventDefault();
+
+                                // Not sent until the code is whole; the button says so (the review of batch C).
+                                if (confirm.data.code.length < account.codeLength) {
+                                    confirm.setError('code', t('access::account.code_incomplete', { count: account.codeLength }));
+
+                                    return;
+                                }
+
+                                confirm.post('/admin/account/phone/code', { preserveScroll: true, preserveState: true, onSuccess: close });
+                            }}
+                        >
+                            <div className="grid gap-4 p-6">
+                                <DialogHeader>
+                                    <DialogTitle className="text-heading-20 text-ink">{t('access::account.phone_dialog_title')}</DialogTitle>
+                                    <DialogDescription className="text-copy-14 text-ink-muted">{t('access::account.phone_dialog_body')}</DialogDescription>
+                                </DialogHeader>
+                                <DialogError open={open} />
+                                <Suspense fallback={null}>
+                                    <CodeInput
+                                        id="phone_code"
+                                        label={t('access::account.phone_code')}
+                                        length={account.codeLength}
+                                        value={confirm.data.code}
+                                        onChange={(code) => {
+                                            confirm.setData('code', code);
+                                            confirm.clearErrors('code');
+                                        }}
+                                        error={confirm.errors.code}
+                                        autoFocus
+                                    />
+                                </Suspense>
+                            </div>
+                            <DialogFooter className="border-t border-line bg-surface-sunken px-6 py-4">
+                                <Button type="button" variant="outline" disabled={busy} onClick={close} data-test="modal-cancel">
+                                    {t('ui.cancel')}
+                                </Button>
+                                <ActionButton
+                                    type="submit"
+                                    loading={confirm.processing}
+                                    disabledReason={confirm.data.code.length < account.codeLength ? t('access::account.code_incomplete', { count: account.codeLength }) : undefined}
+                                    data-test="confirm-phone"
+                                >
+                                    {t('access::account.phone_dialog_title')}
+                                </ActionButton>
+                            </DialogFooter>
+                        </form>
+                    )}
+                </DialogContent>
+            </Dialog>
+        </Card>
+    );
+}

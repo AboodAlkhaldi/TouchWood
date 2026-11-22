@@ -1,0 +1,89 @@
+<?php
+
+declare(strict_types=1);
+
+// Payments' error messages, by error type (payments.{key}), and the names of the fields they point at
+// (payments.md §7).
+return [
+    'gateway_unreachable' => [
+        'title' => 'Payment Gateway Not Answering',
+        'detail' => 'The payment gateway did not answer. Try again in a few minutes.',
+    ],
+    'key_test_failed' => [
+        'title' => 'Key Not Accepted',
+        'detail' => 'MyFatoorah did not accept this key (:reason). Nothing was saved.',
+    ],
+    'key_permission_missing' => [
+        'title' => 'Key Missing a Permission',
+        'detail' => 'This key may not use :permission. Switch that permission on for the key in MyFatoorah\'s portal, then paste it again. Nothing was saved.',
+    ],
+    'gateway_not_set_up' => [
+        'title' => 'No Payment Gateway Yet',
+        'detail' => 'This store has no payment gateway yet. Save a key to set it up.',
+    ],
+    'no_gateway_key' => [
+        'title' => 'No Key for This Mode',
+        'detail' => 'The :mode mode has no key yet. Save its key and secret first.',
+    ],
+    'gateway_not_offered' => [
+        'title' => 'Gateway Not Offered Here',
+        'detail' => 'MyFatoorah is offered for the stores in Saudi Arabia and Egypt only.',
+    ],
+    'hold_too_short' => [
+        'title' => 'Hold Limit Too Short',
+        'detail' => 'The hold limit (:hold minutes) must be longer than the bank page time and the wait together (:window + :wait minutes).',
+    ],
+    'invalid_payments_input' => [
+        'title' => 'Check the Details',
+        'detail' => 'The :field isn\'t valid. Check it and try again.',
+    ],
+    'too_many_payment_sessions' => [
+        'title' => 'Too Many Tries',
+        'detail' => 'Too many tries. Try again in :minutes minutes.',
+    ],
+    'no_online_payment' => [
+        'title' => 'Online Payment Is Off',
+        'detail' => 'This store does not take online payment right now. Our staff will contact you about paying.',
+    ],
+    'gateway_refused' => [
+        'title' => 'The Payment Gateway Said No',
+        'detail' => 'The payment gateway did not accept this. Try again, or ask our staff to help.',
+    ],
+    'gateway_key_refused' => [
+        'title' => 'The Key Was Refused',
+        'detail' => 'MyFatoorah refused the store\'s key. Save a new key to take online payment again.',
+    ],
+    'payment_in_progress' => [
+        'title' => 'A Payment Is in Progress',
+        'detail' => 'A payment is already in progress in another window.',
+    ],
+    'session_not_usable' => [
+        'title' => 'This Payment Form Has Expired',
+        'detail' => 'Open the page again to get a new payment form.',
+    ],
+    'attempt_not_found' => [
+        'title' => 'Payment Not Found',
+        'detail' => 'We could not find this payment.',
+    ],
+    'request_not_open' => [
+        'title' => 'This Payment Link Has Ended',
+        'detail' => 'This payment link has ended. Open your order to see what is still due.',
+    ],
+    'amount_changed' => [
+        'title' => 'Another Amount Is Requested',
+        'detail' => 'An open payment request asks for another amount. Withdraw it first, then send a new one.',
+    ],
+    'fields' => [
+        'store' => 'store',
+        'mode' => 'test or live',
+        'key' => 'API key',
+        'secret' => 'notice secret',
+        'expires_on' => 'key\'s expiry date',
+        'amount' => 'amount',
+        'expires_at' => 'session\'s end',
+        'domain' => 'domain',
+        'return_url' => 'return address',
+        'state' => 'state',
+        'cursor' => 'place in the list',
+    ],
+];

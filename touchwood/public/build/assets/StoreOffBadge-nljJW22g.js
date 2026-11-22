@@ -1,0 +1,1 @@
+import{n as e}from"./cn-CKFzBO3y.js";import{n as t}from"./t-DDG3F-LB.js";import{t as n}from"./badge-BSvIiFj1.js";var r=e();function i({className:e}){let i=t();return(0,r.jsx)(n,{variant:`outline`,className:e,"data-test":`store-off`,children:i(`admin.store.off`)})}export{i as t};

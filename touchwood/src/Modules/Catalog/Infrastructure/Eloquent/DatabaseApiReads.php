@@ -1,0 +1,559 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Catalog\Infrastructure\Eloquent;
+
+use DateTimeImmutable;
+use Illuminate\Database\ConnectionInterface;
+use Modules\Catalog\Application\Api\ApiReads;
+use Modules\Catalog\Domain\ValueObject\SellingLimits;
+use Modules\Catalog\Public\Dto\BrandDto;
+use Modules\Catalog\Public\Dto\LineFactsDto;
+use Modules\Catalog\Public\Dto\ProductCardDto;
+use Modules\Catalog\Public\Dto\ProductDto;
+use Modules\Catalog\Public\Dto\SitemapEntriesDto;
+use Modules\Catalog\Public\Dto\SitemapEntryDto;
+use Modules\Catalog\Public\Dto\StoreVariantDto;
+use Modules\Catalog\Public\Dto\VariantBriefDto;
+use Modules\Catalog\Public\Dto\VariantDto;
+use Modules\Catalog\Public\Dto\VariantValueDto;
+use Modules\Catalog\Public\Enums\ProductStage;
+use Modules\Catalog\Public\Enums\SaleMode;
+use Modules\Platform\Public\Dto\TranslatedTextDto;
+use Modules\Platform\Public\Enums\ShopperKind;
+use Shared\Infrastructure\Persistence\Ulids;
+use stdClass;
+
+/**
+ * `ApiReads` in SQL: a variant list in two queries (its rows, then its values with their names), a
+ * product list in one — whatever the number of ids.
+ */
+final readonly class DatabaseApiReads implements ApiReads
+{
+    public function __construct(
+        private ConnectionInterface $db,
+    ) {}
+
+    public function variantIdsOf(string $productId, bool $includeArchived): array
+    {
+        if (! Ulids::valid(trim($productId))) {
+            return [];
+        }
+
+        return array_values(array_map('strval', $this->db->table('catalog.variants')
+            ->where('product_id', strtolower(trim($productId)))
+            ->when(! $includeArchived, fn ($query) => $query->where('is_archived', false))
+            ->orderBy('position')
+            ->orderBy('id')
+            ->pluck('id')
+            ->all()));
+    }
+
+    public function variantIdsOfProducts(array $productIds, bool $includeArchived): array
+    {
+        $ids = array_values(array_unique(array_filter(
+            array_map(static fn (string $id): string => strtolower(trim($id)), $productIds),
+            static fn (string $id): bool => Ulids::valid($id),
+        )));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $found = [];
+
+        // One bound array, never a parameter an id: a thousand products cost what one does.
+        foreach ($this->db->table('catalog.variants')
+            ->whereRaw('product_id = ANY(?::text[])', ['{'.implode(',', $ids).'}'])
+            ->when(! $includeArchived, fn ($query) => $query->where('is_archived', false))
+            ->orderBy('product_id')->orderBy('position')->orderBy('id')
+            ->get(['id', 'product_id']) as $row) {
+            $found[(string) $row->product_id][] = (string) $row->id;
+        }
+
+        return $found;
+    }
+
+    public function switchedOnVariantIds(string $storeId): array
+    {
+        return array_values(array_map('strval', $this->db->table('catalog.store_variants')
+            ->where('store_id', strtolower($storeId))
+            ->where('is_active', true)
+            ->orderBy('variant_id')
+            ->pluck('variant_id')
+            ->all()));
+    }
+
+    public function variantCodes(): array
+    {
+        $codes = [];
+
+        // One query: about 700 products today, a few thousand sizes - two short columns each.
+        foreach ($this->db->table('catalog.variants as v')
+            ->join('catalog.products as p', 'p.id', '=', 'v.product_id')
+            ->where('v.is_archived', false)
+            ->where('p.stage', '<>', ProductStage::Archived->value)
+            ->orderBy('v.id')
+            ->get(['v.id', 'v.code']) as $row) {
+            $codes[(string) $row->id] = (string) $row->code;
+        }
+
+        return $codes;
+    }
+
+    public function variantIdsByCodes(array $codes): array
+    {
+        $ids = [];
+
+        // Under PostgreSQL's bind-parameter limit, however many codes a read names.
+        foreach (array_chunk(array_values(array_unique($codes)), 1000) as $chunk) {
+            foreach ($this->db->table('catalog.variants')->whereIn('code', $chunk)->get(['id', 'code']) as $row) {
+                $ids[(string) $row->code] = (string) $row->id;
+            }
+        }
+
+        return $ids;
+    }
+
+    public function variantBriefs(array $variantIds): array
+    {
+        $ids = self::ids($variantIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $found = [];
+
+        // One bound array, never a parameter an id: a whole store's sizes cost what one does.
+        foreach ($this->db->table('catalog.variants as v')
+            ->join('catalog.products as p', 'p.id', '=', 'v.product_id')
+            ->whereRaw('v.id = ANY(?::text[])', ['{'.implode(',', $ids).'}'])
+            ->get(['v.id', 'v.product_id', 'p.name_ar', 'p.name_en', 'p.stage', 'v.position', 'v.is_archived']) as $row) {
+            $found[(string) $row->id] = new VariantBriefDto(
+                (string) $row->id,
+                (string) $row->product_id,
+                (string) $row->name_ar,
+                $row->name_en === null ? null : (string) $row->name_en,
+                ProductStage::from((string) $row->stage),
+                (int) $row->position,
+                (bool) $row->is_archived,
+            );
+        }
+
+        return $found;
+    }
+
+    public function variants(array $variantIds): array
+    {
+        $ids = self::ids($variantIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $rows = $this->db->table('catalog.variants')->whereIn('id', $ids)->get()->all();
+        $values = [];
+
+        foreach ($this->db->select(
+            'SELECT vv.variant_id, vv.attribute_id, vv.value_id, a.name_ar AS attribute_ar, a.name_en AS attribute_en, av.name_ar AS value_ar, av.name_en AS value_en'
+            .' FROM catalog.variant_values vv'
+            .' JOIN catalog.variants v ON v.id = vv.variant_id'
+            .' JOIN catalog.attributes a ON a.id = vv.attribute_id'
+            .' JOIN catalog.attribute_values av ON av.id = vv.value_id'
+            .' LEFT JOIN catalog.product_attributes pa ON pa.product_id = v.product_id AND pa.attribute_id = vv.attribute_id'
+            .' WHERE vv.variant_id IN ('.implode(',', array_fill(0, count($ids), '?')).')'
+            .' ORDER BY vv.variant_id, pa.position, vv.attribute_id',
+            $ids,
+        ) as $value) {
+            $values[(string) $value->variant_id][(string) $value->value_id] = new VariantValueDto(
+                (string) $value->attribute_id,
+                new TranslatedTextDto((string) $value->attribute_ar, (string) $value->attribute_en),
+                (string) $value->value_id,
+                new TranslatedTextDto((string) $value->value_ar, (string) $value->value_en),
+            );
+        }
+
+        $found = [];
+
+        foreach ($rows as $row) {
+            $id = (string) $row->id;
+            // In the product's own order of its variant attributes (amendment 16(b)), as read.
+            $ordered = array_values($values[$id] ?? []);
+
+            $found[$id] = new VariantDto(
+                $id,
+                (string) $row->product_id,
+                (string) $row->code,
+                $ordered,
+                $row->weight_grams === null ? null : (int) $row->weight_grams,
+                $row->length_mm === null ? null : (int) $row->length_mm,
+                $row->width_mm === null ? null : (int) $row->width_mm,
+                $row->height_mm === null ? null : (int) $row->height_mm,
+                (bool) $row->is_archived,
+            );
+        }
+
+        return $found;
+    }
+
+    public function products(array $productIds): array
+    {
+        $ids = self::ids($productIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $found = [];
+
+        foreach ($this->db->table('catalog.products')->whereIn('id', $ids)->get(['id', 'name_ar', 'name_en', 'stage', 'brand_id', 'category_id', 'warranty_id', 'unit']) as $row) {
+            $found[(string) $row->id] = new ProductDto(
+                (string) $row->id,
+                (string) $row->name_ar,
+                $row->name_en === null ? null : (string) $row->name_en,
+                ProductStage::from((string) $row->stage),
+                (string) $row->brand_id,
+                $row->category_id === null ? null : (string) $row->category_id,
+                $row->warranty_id === null ? null : (string) $row->warranty_id,
+                (string) $row->unit,
+            );
+        }
+
+        return $found;
+    }
+
+    public function brands(array $brandIds): array
+    {
+        $ids = self::ids($brandIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $found = [];
+
+        foreach ($this->db->table('catalog.brands')->whereIn('id', $ids)->get(['id', 'name_ar', 'name_en', 'is_active']) as $row) {
+            $found[(string) $row->id] = new BrandDto((string) $row->id, (string) $row->name_ar, (string) $row->name_en, (bool) $row->is_active);
+        }
+
+        return $found;
+    }
+
+    public function activeBrands(): array
+    {
+        // In the brands' own order, as Catalog's brands screen shows them.
+        return array_values(array_map(
+            static fn (stdClass $row): BrandDto => new BrandDto((string) $row->id, (string) $row->name_ar, (string) $row->name_en, true),
+            $this->db->table('catalog.brands')
+                ->where('is_active', true)
+                ->orderBy('position')
+                ->orderBy('name_en')
+                ->orderBy('id')
+                ->get(['id', 'name_ar', 'name_en'])
+                ->all(),
+        ));
+    }
+
+    public function productsSoldIn(string $storeId, array $productIds): array
+    {
+        $ids = self::ids($productIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        return array_values(array_map(strval(...), $this->db->table('catalog.products as p')
+            ->join('catalog.store_products as sp', fn ($join) => $join->on('sp.product_id', '=', 'p.id')->where('sp.store_id', '=', strtolower($storeId)))
+            ->whereIn('p.id', $ids)
+            ->where('p.stage', 'READY')
+            ->where('p.hidden_by_category', false)
+            ->where('p.hidden_by_brand', false)
+            ->where('sp.not_available_now', false)
+            ->whereExists(fn ($variants) => $variants->selectRaw('1')
+                ->from('catalog.store_variants as sv')
+                ->join('catalog.variants as v', 'v.id', '=', 'sv.variant_id')
+                ->whereColumn('sv.store_id', 'sp.store_id')
+                ->whereColumn('sv.product_id', 'p.id')
+                ->where('sv.is_active', true)
+                ->where('sv.not_available_now', false)
+                ->where('v.is_archived', false))
+            ->pluck('p.id')
+            ->all()));
+    }
+
+    public function productsOrderableNow(string $storeId, ShopperKind $viewer, array $productIds): array
+    {
+        $ids = self::ids($productIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        // The listing's rows, each language alike: one language's are enough. Who sees it as the shop's reads have it (DatabaseShopReader).
+        $seen = match ($viewer) {
+            ShopperKind::Individual => 'for_individuals',
+            ShopperKind::Company => 'for_companies',
+            ShopperKind::Guest => '(for_individuals OR for_companies)',
+        };
+
+        return array_values(array_map(strval(...), $this->db->table('catalog.listing')
+            ->where('store_id', strtolower($storeId))
+            ->where('locale', 'en')
+            ->where('orderable', true)
+            ->whereRaw($seen)
+            ->whereIn('product_id', $ids)
+            ->pluck('product_id')
+            ->all()));
+    }
+
+    public function productRatings(array $productIds): array
+    {
+        $ids = self::ids($productIds);
+        $ratings = [];
+
+        if ($ids === []) {
+            return [];
+        }
+
+        foreach ($this->db->table('catalog.product_ratings')->whereIn('product_id', $ids)->where('rating_count', '>', 0)
+            ->get(['product_id', 'rating_sum', 'rating_count']) as $row) {
+            /** @var stdClass $row */
+            $ratings[strtolower((string) $row->product_id)] = ['sum' => (int) $row->rating_sum, 'count' => (int) $row->rating_count];
+        }
+
+        return $ratings;
+    }
+
+    public function productCards(string $storeId, string $locale, array $productIds): array
+    {
+        $ids = self::ids($productIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        [$locale, $other] = $locale === 'ar' ? ['ar', 'en'] : ['en', 'ar'];
+        $sold = array_flip($this->productsSoldIn($storeId, $ids));
+        $rows = $this->db->table('catalog.products as p')
+            ->leftJoin('catalog.product_slugs as s', static function ($join) use ($locale): void {
+                $join->on('s.product_id', '=', 'p.id')->where('s.locale', $locale)->where('s.is_current', true);
+            })
+            ->whereIn('p.id', $ids)
+            ->selectRaw("p.id, coalesce(p.name_{$locale}, p.name_{$other}) as name, s.slug, p.stage, p.unit")
+            // The brand's name, as the cart's lines show it (shop-design.md §7, §10.7).
+            ->selectRaw("(SELECT coalesce(b.name_{$locale}, b.name_{$other}) FROM catalog.brands b WHERE b.id = p.brand_id) as brand")
+            ->selectRaw('(SELECT ph.media_id FROM catalog.product_photos ph WHERE ph.product_id = p.id ORDER BY ph.position LIMIT 1) as photo')
+            ->get();
+        $cards = [];
+
+        foreach ($rows as $row) {
+            $id = (string) $row->id;
+            $cards[$id] = new ProductCardDto(
+                $id,
+                (string) $row->name,
+                $row->slug === null ? null : (string) $row->slug,
+                $row->photo === null ? null : (string) $row->photo,
+                ProductStage::from((string) $row->stage),
+                isset($sold[$id]),
+                $row->brand === null ? null : (string) $row->brand,
+                (string) $row->unit,
+            );
+        }
+
+        return $cards;
+    }
+
+    public function storeVariants(string $storeId, array $variantIds): array
+    {
+        $ids = self::ids($variantIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $initial = SellingLimits::initial();
+        $found = [];
+        $rows = $this->db->table('catalog.variants as v')
+            ->join('catalog.products as p', 'p.id', '=', 'v.product_id')
+            ->leftJoin('catalog.store_products as sp', static fn ($join) => $join->on('sp.product_id', '=', 'p.id')->where('sp.store_id', '=', strtolower($storeId)))
+            ->leftJoin('catalog.store_variants as sv', static fn ($join) => $join->on('sv.variant_id', '=', 'v.id')->where('sv.store_id', '=', strtolower($storeId)))
+            ->whereIn('v.id', $ids)
+            ->get([
+                'v.id', 'v.product_id', 'v.is_archived', 'p.stage', 'p.hidden_by_category', 'p.hidden_by_brand',
+                'sp.product_id as chosen', 'sp.not_available_now as product_unavailable', 'sp.retail_minimum', 'sp.retail_maximum', 'sp.wholesale_minimum', 'sp.wholesale_maximum',
+                'sv.is_active', 'sv.not_available_now as variant_unavailable', 'sv.sells_retail', 'sv.sells_wholesale',
+            ]);
+
+        // As `storeVariant` answers one (CatalogApiImpl), a store that never chose the product keeping
+        // the starting limits.
+        foreach ($rows as $row) {
+            $chosen = $row->chosen !== null;
+            $active = (bool) ($row->is_active ?? false);
+            $unavailable = (bool) ($row->product_unavailable ?? false) || (bool) ($row->variant_unavailable ?? false);
+            $modes = [];
+
+            if ((bool) ($row->sells_retail ?? false)) {
+                $modes[] = SaleMode::Retail;
+            }
+
+            if ((bool) ($row->sells_wholesale ?? false)) {
+                $modes[] = SaleMode::Wholesale;
+            }
+
+            $found[(string) $row->id] = new StoreVariantDto(
+                strtolower($storeId),
+                (string) $row->id,
+                (string) $row->product_id,
+                $active,
+                (string) $row->stage === ProductStage::Ready->value && $active && ! (bool) $row->is_archived && ! $unavailable
+                    && ! (bool) $row->hidden_by_category && ! (bool) $row->hidden_by_brand,
+                $unavailable,
+                $modes,
+                $chosen ? (int) $row->retail_minimum : $initial->retailMinimum,
+                $chosen ? ($row->retail_maximum === null ? null : (int) $row->retail_maximum) : $initial->retailMaximum,
+                $chosen ? ($row->wholesale_minimum === null ? null : (int) $row->wholesale_minimum) : $initial->wholesaleMinimum,
+                $chosen ? ($row->wholesale_maximum === null ? null : (int) $row->wholesale_maximum) : $initial->wholesaleMaximum,
+            );
+        }
+
+        return $found;
+    }
+
+    public function productsOpenTo(string $storeId, ShopperKind $viewer, array $productIds): array
+    {
+        $ids = self::ids($productIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        // A category with no switches set in the store is open to both (amendment 14).
+        $open = match ($viewer) {
+            ShopperKind::Individual => 'coalesce(a.for_individuals, true)',
+            ShopperKind::Company => 'coalesce(a.for_companies, true)',
+            ShopperKind::Guest => '(coalesce(a.for_individuals, true) OR coalesce(a.for_companies, true))',
+        };
+
+        return array_values(array_map(strval(...), $this->db->table('catalog.products as p')
+            ->leftJoin('catalog.store_category_audiences as a', static fn ($join) => $join->on('a.category_id', '=', 'p.category_id')->where('a.store_id', '=', strtolower($storeId)))
+            ->whereIn('p.id', $ids)
+            ->whereRaw($open)
+            ->pluck('p.id')
+            ->all()));
+    }
+
+    public function lineFacts(array $variantIds): array
+    {
+        $ids = self::ids($variantIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        // One query whatever the cart: each variant's product and brand, and its product's category
+        // walked up to the top. The depth bound only guards the walk; Catalog keeps the tree acyclic.
+        $rows = $this->db->select(
+            'WITH RECURSIVE lines AS ('
+            .' SELECT v.id AS variant_id, p.id AS product_id, p.brand_id, p.category_id'
+            .' FROM catalog.variants v JOIN catalog.products p ON p.id = v.product_id'
+            .' WHERE v.id IN ('.implode(',', array_fill(0, count($ids), '?')).')'
+            .'), up AS ('
+            .' SELECT variant_id, category_id, 0 AS depth FROM lines WHERE category_id IS NOT NULL'
+            .' UNION ALL'
+            .' SELECT up.variant_id, c.parent_id, up.depth + 1 FROM up JOIN catalog.categories c ON c.id = up.category_id'
+            .' WHERE c.parent_id IS NOT NULL AND up.depth < 100'
+            .') SELECT l.variant_id, l.product_id, l.brand_id, up.category_id'
+            .' FROM lines l LEFT JOIN up ON up.variant_id = l.variant_id'
+            .' ORDER BY l.variant_id, up.depth',
+            $ids,
+        );
+
+        $facts = [];
+        $categories = [];
+
+        foreach ($rows as $row) {
+            $variantId = (string) $row->variant_id;
+            $facts[$variantId] ??= [(string) $row->product_id, (string) $row->brand_id];
+            $categories[$variantId] ??= [];
+
+            if ($row->category_id !== null) {
+                $categories[$variantId][] = (string) $row->category_id;
+            }
+        }
+
+        $found = [];
+
+        foreach ($facts as $variantId => [$productId, $brandId]) {
+            $found[$variantId] = new LineFactsDto($variantId, $productId, $brandId, $categories[$variantId]);
+        }
+
+        return $found;
+    }
+
+    public function sitemapEntries(string $storeId, ?string $after, int $limit): SitemapEntriesDto
+    {
+        // A cursor is `{rank}:{id}` (1 categories, 2 brands, 3 products); anything else starts from the first.
+        [$rank, $id] = preg_match('/\A([1-3]):([0-9a-z]{26})\z/', strtolower(trim((string) $after)), $cursor) === 1 ? [(int) $cursor[1], $cursor[2]] : [0, ''];
+        $kinds = [1 => SitemapEntryDto::CATEGORY, 2 => SitemapEntryDto::BRAND, 3 => SitemapEntryDto::PRODUCT];
+
+        // Every page a guest gets with no noindex (§1.4): a row they would see were it in stock and priced -
+        // DatabaseShopReader::onlySoldOut's guest rule: its category open to companies, or to individuals with a size on
+        // sale here sold retail. That holds every row they find listed now (orderable, `for_individuals` or
+        // `for_companies`, each of which follows those switches) and, kept since the owner's choice of 2026-11-10, a row
+        // only sold out or unpriced, whose "Not available now" page answers 200 with no noindex (amendment 39(i)). Its
+        // categories as the guest's menu has them, or emptied the same way (in category pages, active: 39(j)); its
+        // brands active and shown in the default listings (amendment 5(k)).
+        $retail = 'EXISTS (SELECT 1 FROM catalog.store_variants sv JOIN catalog.variants v ON v.id = sv.variant_id'
+            .' WHERE sv.store_id = l.store_id AND sv.product_id = l.product_id AND sv.is_active AND NOT sv.not_available_now AND NOT v.is_archived AND sv.sells_retail)';
+        $rows = $this->db->select(
+            'WITH listed AS (SELECT l.locale, l.product_id, l.slug, l.category_path, l.in_category_pages, l.brand_id, l.brand_visible_by_default'
+            .' FROM catalog.listing l LEFT JOIN catalog.store_category_audiences a ON a.store_id = l.store_id AND a.category_id = l.category_id'
+            ." WHERE l.store_id = ? AND (COALESCE(a.for_companies, true) OR (COALESCE(a.for_individuals, true) AND {$retail}))),"
+            .' entries AS ('
+            .'SELECT 1 AS rank, c.id::text AS id, c.updated_at FROM catalog.categories c'
+            .' WHERE c.is_active AND c.id::text IN (SELECT unnest(category_path) FROM listed WHERE in_category_pages)'
+            .' UNION ALL SELECT 2, b.id::text, b.updated_at FROM catalog.brands b'
+            .' WHERE b.is_active AND b.id IN (SELECT brand_id FROM listed WHERE brand_visible_by_default)'
+            .' UNION ALL SELECT 3, p.id::text, p.updated_at FROM catalog.products p WHERE p.id IN (SELECT product_id FROM listed))'
+            .' SELECT e.rank, e.id, e.updated_at,'
+            .' CASE e.rank'
+            ." WHEN 1 THEN (SELECT s.slug FROM catalog.category_slugs s WHERE s.category_id = e.id AND s.locale = 'ar' AND s.is_current)"
+            ." WHEN 2 THEN (SELECT s.slug FROM catalog.brand_slugs s WHERE s.brand_id = e.id AND s.locale = 'ar' AND s.is_current)"
+            ." ELSE (SELECT l.slug FROM listed l WHERE l.product_id = e.id AND l.locale = 'ar') END AS slug_ar,"
+            .' CASE e.rank'
+            ." WHEN 1 THEN (SELECT s.slug FROM catalog.category_slugs s WHERE s.category_id = e.id AND s.locale = 'en' AND s.is_current)"
+            ." WHEN 2 THEN (SELECT s.slug FROM catalog.brand_slugs s WHERE s.brand_id = e.id AND s.locale = 'en' AND s.is_current)"
+            ." ELSE (SELECT l.slug FROM listed l WHERE l.product_id = e.id AND l.locale = 'en') END AS slug_en"
+            .' FROM entries e WHERE (e.rank, e.id) > (?, ?) ORDER BY e.rank, e.id LIMIT ?',
+            [strtolower($storeId), $rank, $id, $limit + 1],
+        );
+
+        $entries = array_map(static fn (stdClass $row): SitemapEntryDto => new SitemapEntryDto(
+            $kinds[(int) $row->rank],
+            (string) $row->id,
+            $row->slug_ar === null ? null : (string) $row->slug_ar,
+            $row->slug_en === null ? null : (string) $row->slug_en,
+            new DateTimeImmutable((string) $row->updated_at),
+        ), array_slice($rows, 0, $limit));
+        $last = $entries === [] ? null : $entries[array_key_last($entries)];
+
+        return new SitemapEntriesDto(
+            array_values($entries),
+            count($rows) > $limit && $last !== null ? array_search($last->kind, $kinds, true).':'.$last->id : null,
+        );
+    }
+
+    /**
+     * @param  list<string>  $ids
+     * @return list<string> each once, lower case, only the ids that are ids
+     */
+    private static function ids(array $ids): array
+    {
+        return array_values(array_unique(array_filter(
+            array_map(static fn (string $id): string => strtolower(trim($id)), $ids),
+            Ulids::valid(...),
+        )));
+    }
+}

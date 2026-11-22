@@ -1,0 +1,467 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Catalog\Application\Query\Shop;
+
+use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
+use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Enums\ShopperKind;
+use Shared\Domain\ValueObject\StoreId;
+
+/**
+ * **What a shopper reads** (catalog.md §1.4, §1.5, §1.10, §4.5): a store's menu, a category's and a
+ * brand's pages, a product's page and what it suggests. Anyone may read them — a guest included — so
+ * no permission is asked; what a shopper may not see is simply not in the listing (§5.4). The store
+ * is the one the storefront's request resolved, and nothing answered holds a code (amendment 5(d)).
+ *
+ * **Every read answers for one viewer** (§1.13, amendment 14): the page asks Platform's
+ * `ShopperType` who is looking and passes it in — an individual sees the categories switched on for
+ * individuals and the retail side only, a company the categories switched on for companies, a guest
+ * (a staff view too) what either sees (P25). A product this viewer does not see has the "Not
+ * available now" page (P18); a category that lists nothing for them has no page.
+ */
+final readonly class ShopCatalog
+{
+    /** Cards on a page unless the screen asks for another number. */
+    public const int PAGE = 24;
+
+    public const int PAGE_MAX = 100;
+
+    /** At most as many suggestions in each list as staff may pick (§1.1). */
+    public const int SUGGESTIONS_MAX = 20;
+
+    /** Brands a shopper may pick at once in a category's filter. */
+    public const int BRANDS_MAX = 50;
+
+    public function __construct(
+        private ShopReader $reader,
+        private PlatformApi $platform,
+    ) {}
+
+    /**
+     * The store's menu (§1.5): each category shown by itself once the store lists something in it or
+     * below it, in the store's order — or the base store's, until its admins place it (amendment
+     * 5(a)). A secondary brand is reached through its own category, which shows here as any other
+     * (5(k)).
+     *
+     * @return list<MenuCategory>
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function menu(StoreId $store, string $locale, ShopperKind $viewer): array
+    {
+        $byParent = [];
+
+        foreach ($this->reader->menu($store->value, $this->baseStore(), ShopLocale::of($locale), $viewer) as $row) {
+            $byParent[$row['parent_id'] ?? ''][] = $row;
+        }
+
+        return self::branch($byParent, '');
+    }
+
+    /** The base store, whose menu order a store follows until its admins place it (amendment 5(a)). */
+    public function baseStore(): ?string
+    {
+        foreach ($this->platform->allStores() as $candidate) {
+            if ($candidate->isBase) {
+                return $candidate->id;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * A category's page (§1.5, §4.5): everything listed in it or below it, of every brand (amendment
+     * 5(k)) — narrowed by the shopper's filters, which never take the page away (P14) — in their sort
+     * (P15), with the filters' counts. A category that is off, or lists nothing here, is not in this
+     * store: no page. Its head is one read, its cards one, its filters one (P21).
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function category(StoreId $store, string $locale, ShopperKind $viewer, string $slug, ?ShopFilters $filters = null, ?string $after = null, int $limit = self::PAGE): CategoryPage|Moved|null
+    {
+        $locale = ShopLocale::of($locale);
+        $cursor = Cursor::parse($after);
+        $filters = ($filters ?? ShopFilters::none())->forViewer($viewer);
+        $head = $this->reader->categoryHead($store->value, $locale, $viewer, self::slug($locale, $slug), $filters);
+
+        if ($head === null) {
+            // The other language's slug (amendment 38): only where its own address answers this viewer.
+            $owner = $this->ownerInOtherLanguage('category', $locale, $slug);
+            $there = $owner === null ? null : $this->reader->categoryHead($store->value, $locale, $viewer, $owner['slug'], $filters);
+
+            return $owner !== null && $there !== null && ($there['lists'] || $this->reader->onlySoldOut($store->value, $locale, $viewer, 'category', $there['id'])) ? new Moved($owner['slug'], true) : null;
+        }
+
+        // Emptied only by stock or prices, it keeps its page with a sentence, out of the menu (amendment 39).
+        if (! $head['lists'] && ! $this->reader->onlySoldOut($store->value, $locale, $viewer, 'category', $head['id'])) {
+            return null;
+        }
+
+        if ($head['slug'] !== self::slug($locale, $slug)) {
+            return new Moved($head['slug']);
+        }
+
+        // The cards by the choices the page still offers, as its counts were (P14) — the rating sort
+        // only where the store's lists show ratings, best-selling otherwise (amendment 25).
+        $chosen = $filters->narrowedTo($head['filters']);
+        $ratingSort = $head['ratings_shown'];
+
+        if (! $ratingSort && $chosen->sort === ShopFilters::RATING) {
+            $chosen = $chosen->withSort(ShopFilters::BEST_SELLING);
+        }
+
+        return new CategoryPage(
+            $head['id'],
+            $head['name'],
+            $head['slug'],
+            $this->reader->categoryCards($store->value, $locale, $viewer, $head['id'], $chosen, $cursor, self::limit($limit, self::PAGE_MAX)),
+            $head['other_slug'],
+            $head['filters'],
+            $chosen,
+            $ratingSort,
+            ! $head['lists'],
+            $head['description'],
+            $head['total'],
+        );
+    }
+
+    /**
+     * The categories above this one, from the top, for an emptied category's way up (amendment 40(d)): not in
+     * the menu, it cannot draw it from there. Asked only of such a page.
+     *
+     * @return list<ShopLink>
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function trail(string $locale, string $categoryId): array
+    {
+        return $this->reader->categoryTrail(ShopLocale::of($locale), $categoryId);
+    }
+
+    /**
+     * The way to a product's category that has left this viewer's menu (amendment 42): the categories above it and
+     * the category itself, where its own page still answers them - emptied only by stock or prices, as the category's
+     * page asks (`onlySoldOut`, amendment 39(j)). Null where it does not answer: inactive, off for this viewer, or with
+     * nothing of theirs. Two queries, asked only when such a page is filled.
+     *
+     * @return list<ShopLink>|null
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function wayToEmptied(StoreId $store, string $locale, ShopperKind $viewer, string $categoryId): ?array
+    {
+        $locale = ShopLocale::of($locale);
+
+        return $this->reader->onlySoldOut($store->value, $locale, $viewer, 'category', $categoryId)
+            ? $this->reader->categoryTrail($locale, $categoryId, true)
+            : null;
+    }
+
+    /**
+     * A brand's page (§1.4, §1.6, §4.5): everything of it a shopper can order here. An inactive brand
+     * has none; an active one always has its page, a secondary one too (amendment 5(m)).
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function brand(StoreId $store, string $locale, ShopperKind $viewer, string $slug, ?string $after = null, int $limit = self::PAGE): BrandPage|Moved|null
+    {
+        $locale = ShopLocale::of($locale);
+        $cursor = Cursor::parse($after);
+        $head = $this->reader->brandHead($locale, self::slug($locale, $slug));
+
+        if ($head === null) {
+            // The other language's slug (amendment 38): only where its own address answers.
+            $owner = $this->ownerInOtherLanguage('brand', $locale, $slug);
+            $there = $owner === null ? null : $this->reader->brandHead($locale, $owner['slug']);
+
+            return $owner !== null && $there !== null && $there['is_active'] ? new Moved($owner['slug'], true) : null;
+        }
+
+        if (! $head['is_active']) {
+            return null;
+        }
+
+        if ($head['slug'] !== self::slug($locale, $slug)) {
+            return new Moved($head['slug']);
+        }
+
+        $cards = $this->reader->brandCards($store->value, $locale, $viewer, $head['id'], $cursor, self::limit($limit, self::PAGE_MAX));
+
+        return new BrandPage(
+            $head['id'],
+            $head['name'],
+            $head['slug'],
+            $head['logo_media_id'],
+            $cards,
+            $head['other_slug'],
+            $head['description'] ?? [],
+            $cards->cards === [] && $cursor === null && $this->reader->onlySoldOut($store->value, $locale, $viewer, 'brand', $head['id']),
+        );
+    }
+
+    /**
+     * Who holds a product's slug in this language — now or before — and their slug there now: one
+     * read, before the page itself is read or taken from the cache (P21).
+     *
+     * @return array{id: string, slug: string, moved: bool}|null moved: the slug asked for is an old one
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function productOwner(string $locale, string $slug): ?array
+    {
+        $locale = ShopLocale::of($locale);
+        $owner = $this->reader->slugOwner('product', $locale, self::slug($locale, $slug));
+
+        return $owner === null ? null : [...$owner, 'moved' => $owner['slug'] !== self::slug($locale, $slug)];
+    }
+
+    /**
+     * A slug no product holds in this language, held in the other one (amendment 38): a move to its
+     * slug here whenever its own address opens - for any store and viewer, on sale or on the one "Not
+     * available now" page (§1.4). A product never shown answers as a slug that never existed.
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function productInOtherLanguage(string $locale, string $slug): ?Moved
+    {
+        $locale = ShopLocale::of($locale);
+        $owner = $this->ownerInOtherLanguage('product', $locale, $slug);
+        $product = $owner === null ? null : $this->reader->product($owner['id'], $locale);
+
+        return $owner !== null && $product !== null && ! self::neverShown($product) ? new Moved($owner['slug'], true) : null;
+    }
+
+    /**
+     * A product's page (§1.4, §4.5): available while a shopper can find it here; otherwise the one
+     * "Not available now" page, for anything that exists and was ever shown. A slug that never
+     * existed — or a product never made ready, which was never shown and is Catalog's alone (§6.1) —
+     * has none.
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function product(StoreId $store, string $locale, ShopperKind $viewer, string $slug): ProductPage|Moved|null
+    {
+        $owner = $this->productOwner($locale, $slug);
+
+        if ($owner === null) {
+            return $this->productInOtherLanguage($locale, $slug);
+        }
+
+        $page = $this->productPage($store, $locale, $viewer, $owner['id'], $owner['slug']);
+
+        return $page !== null && $owner['moved'] ? new Moved($owner['slug']) : $page;
+    }
+
+    /**
+     * The page of a product whose slug was already read — what the shop keeps in its cache (P21): its
+     * category (the shop draws the path to it from this viewer's menu), the brand, the labels, the
+     * gallery and each variant's own photos (one
+     * Platform read for all of them, §2.4), the choices, how it is sold here for this viewer (P17)
+     * and its warranty.
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function productPage(StoreId $store, string $locale, ShopperKind $viewer, string $productId, string $slug): ?ProductPage
+    {
+        $locale = ShopLocale::of($locale);
+        $product = $this->reader->product($productId, $locale);
+
+        if ($product === null || self::neverShown($product)) {
+            return null;
+        }
+
+        $listed = $this->reader->listedFacts($store->value, $locale, $viewer, $productId);
+        $available = $listed !== null;
+        $variants = $available ? $this->reader->variantsOnSale($store->value, $locale, $viewer, $productId) : [];
+        // What can be ordered now (amendment 39): a sold-out or unpriced size is drawn greyed, its value not on sale, its photos never shown.
+        $variantIds = array_values(array_map(static fn (ShopVariant $variant): string => $variant->variantId, array_filter($variants, static fn (ShopVariant $variant): bool => $variant->orderable)));
+        ['photos' => $gallery, 'videos' => $videos] = $this->reader->gallery($productId, $locale);
+        $own = $variantIds === [] ? [] : $this->reader->variantPhotos($variantIds);
+        $urls = $this->photos([...$gallery, ...array_merge(...array_values($own))]);
+        $photosOf = static fn (array $mediaIds): array => array_values(array_filter(array_map(static fn (string $id): ?array => $urls[$id] ?? null, $mediaIds)));
+        $terms = $available ? $this->reader->sellingTerms($store->value, $productId) : null;
+
+        return new ProductPage(
+            $productId,
+            (string) $product['name'],
+            $slug,
+            $available,
+            $product['description'] ?? [],
+            $photosOf($gallery),
+            $available ? $this->reader->labels($store->value, $locale, $productId) : [],
+            array_map(static fn (ShopVariant $variant): ShopVariant => new ShopVariant(
+                $variant->variantId,
+                $variant->values,
+                $variant->sellsRetail,
+                $variant->sellsWholesale,
+                $variant->lastPieces,
+                $photosOf($own[$variant->variantId] ?? []),
+                $variant->details,
+                $variant->weightGrams,
+                $variant->lengthMm,
+                $variant->widthMm,
+                $variant->heightMm,
+                $variant->priceMinor,
+                $variant->priceBeforeMinor,
+                $variant->orderable,
+            ), $variants),
+            $product['other_slug'],
+            $product['brand'],
+            $product['category_id'],
+            $available ? $this->reader->choices($store->value, $locale, $viewer, $productId, $variantIds) : [],
+            $available ? $product['warranty'] : null,
+            // An individual is told the retail side only (amendment 14(e), P17).
+            $terms !== null && $viewer === ShopperKind::Individual ? new SellingTerms($terms->retailMinimum, $terms->retailMaximum, null, null) : $terms,
+            ! $available && $this->reader->onlySoldOut($store->value, $locale, $viewer, 'product', $productId),
+            $listed['sales_rank'] ?? null,
+            $listed['listed_at'] ?? null,
+            $product['unit'],
+            // The product's videos, a size's photos or not (F22): on a page not available now too, as its photos are.
+            $videos,
+        );
+    }
+
+    /**
+     * The store's best sellers this viewer can order here, of brands shown in default listings — an empty
+     * cart's suggestions (amendment 36) — best-selling first, then newest; at most `SUGGESTIONS_MAX`.
+     *
+     * @return list<ProductCard>
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function bestSelling(StoreId $store, string $locale, ShopperKind $viewer, int $limit): array
+    {
+        return $this->reader->bestSelling($store->value, ShopLocale::of($locale), $viewer, self::limit($limit, self::SUGGESTIONS_MAX));
+    }
+
+    /**
+     * Chosen products' cards, in the order given, those this viewer can order here only (amendment 46(c)): a page
+     * another module draws - a post's or a project's products, a campaign's page. One read.
+     *
+     * @param  list<string>  $productIds
+     * @return list<ProductCard>
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function cardsOf(StoreId $store, string $locale, ShopperKind $viewer, array $productIds): array
+    {
+        return $this->reader->cardsOf($store->value, ShopLocale::of($locale), $viewer, array_map('strtolower', $productIds));
+    }
+
+    /**
+     * A page of chosen products' cards, those this viewer can order here, in id order after `after` (amendment 47): a
+     * campaign's page, whose products may be thousands across every store. One read.
+     *
+     * @param  list<string>  $productIds
+     * @return list<ProductCard>
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function cardsAmong(StoreId $store, string $locale, ShopperKind $viewer, array $productIds, ?string $after, int $limit): array
+    {
+        return $this->reader->cardsAmong($store->value, ShopLocale::of($locale), $viewer, $productIds, $after, self::limit($limit, self::PAGE_MAX + 1));
+    }
+
+    /**
+     * What a product's page suggests (§1.10), only what a shopper can order here: the hand-picked
+     * "Related" — or, when staff picked none, the same category's, then the same brand's, a secondary
+     * brand's products only on its own products' pages (amendment 5(l)) — and the hand-picked "Goes
+     * with".
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function relations(StoreId $store, string $locale, ShopperKind $viewer, string $productId, int $limit = self::SUGGESTIONS_MAX): Relations
+    {
+        $locale = ShopLocale::of($locale);
+        $limit = self::limit($limit, self::SUGGESTIONS_MAX);
+        $product = $this->reader->product(strtolower($productId), $locale);
+
+        if ($product === null) {
+            return new Relations([], []);
+        }
+
+        $id = strtolower($productId);
+        $picked = $this->reader->picked($id, 'RELATED');
+
+        if ($picked !== []) {
+            $mayAlsoLike = array_slice($this->reader->cardsOf($store->value, $locale, $viewer, $picked), 0, $limit);
+        } else {
+            $mayAlsoLike = $product['category_id'] === null ? [] : $this->reader->cardsSharing($store->value, $locale, $viewer, 'category_id', $product['category_id'], $product['brand_id'], [$id], $limit);
+
+            if (count($mayAlsoLike) < $limit) {
+                $shown = [$id, ...array_map(static fn (ProductCard $card): string => $card->productId, $mayAlsoLike)];
+                array_push($mayAlsoLike, ...$this->reader->cardsSharing($store->value, $locale, $viewer, 'brand_id', $product['brand_id'], $product['brand_id'], $shown, $limit - count($mayAlsoLike)));
+            }
+        }
+
+        return new Relations($mayAlsoLike, array_slice($this->reader->cardsOf($store->value, $locale, $viewer, $this->reader->picked($id, 'GOES_WITH')), 0, $limit));
+    }
+
+    /**
+     * The ready photos among these, in one Platform read (§2.4; owner, 2026-10-07, #10).
+     *
+     * @param  list<string>  $mediaIds
+     * @return array<string, array<string, array<string, string>>> media id => size slug => format => CDN URL
+     */
+    private function photos(array $mediaIds): array
+    {
+        $urls = [];
+
+        foreach ($mediaIds === [] ? [] : $this->platform->mediaUrlsOf(array_values(array_unique($mediaIds))) as $id => $media) {
+            if ($media->variants !== []) {
+                $urls[$id] = $media->variants;
+            }
+        }
+
+        return $urls;
+    }
+
+    /**
+     * @param  array<string, list<array{id: string, parent_id: string|null, name: string, slug: string, image_media_id: string|null, products: int}>>  $byParent
+     * @return list<MenuCategory>
+     */
+    private static function branch(array $byParent, string $parentId): array
+    {
+        return array_map(
+            static fn (array $row): MenuCategory => new MenuCategory($row['id'], $row['name'], $row['slug'], $row['image_media_id'], self::branch($byParent, $row['id']), $row['products']),
+            $byParent[$parentId] ?? [],
+        );
+    }
+
+    /**
+     * Who holds the slug in the language other than the page's, and their slug in the page's: asked
+     * only once no one holds it in the page's (amendment 38), so a page shown asks nothing more.
+     *
+     * @param  'product'|'category'|'brand'  $kind
+     * @param  'ar'|'en'  $locale
+     * @return array{id: string, slug: string}|null
+     */
+    private function ownerInOtherLanguage(string $kind, string $locale, string $slug): ?array
+    {
+        return $this->reader->slugOwnerInOtherLanguage($kind, $locale, self::slug($locale === 'ar' ? 'en' : 'ar', $slug));
+    }
+
+    /**
+     * A product never made ready, archived or not: it was never shown and has no page (§6.1).
+     *
+     * @param  array{stage: string, archived_from: string|null}  $product
+     */
+    private static function neverShown(array $product): bool
+    {
+        return $product['stage'] === 'DRAFT' || $product['archived_from'] === 'DRAFT';
+    }
+
+    /** An English slug is kept in small letters (§5.1); an Arabic one as it is. */
+    private static function slug(string $locale, string $slug): string
+    {
+        return $locale === 'en' ? strtolower(trim($slug)) : trim($slug);
+    }
+
+    private static function limit(int $limit, int $max): int
+    {
+        return min(max($limit, 1), $max);
+    }
+}

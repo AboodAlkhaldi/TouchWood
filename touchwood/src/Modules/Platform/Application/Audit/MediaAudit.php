@@ -1,0 +1,125 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Platform\Application\Audit;
+
+use DateTimeImmutable;
+use Modules\Platform\Domain\Model\Media;
+use Modules\Platform\Public\Dto\AuditChanges;
+use Modules\Platform\Public\Dto\AuditEntryDto;
+use Modules\Platform\Public\Dto\MediaUseDto;
+use Modules\Platform\Public\Enums\MediaVariantsStatus;
+
+/**
+ * Audit entries for media. Media is global, so entries have no store. The original file name
+ * is recorded only as "changed": an uploaded document's name can carry personal data.
+ *
+ * An entry about a private file is read back without its subject id or its changes by anyone who
+ * may not see private files (ListAuditHandler, b2b.md amendment 8(c)); the upload entry's
+ * "visibility" is how that is known once the file itself is gone.
+ */
+final class MediaAudit
+{
+    public const string SUBJECT = 'platform.media';
+
+    public const string UPLOADED = 'platform.media.uploaded';
+
+    /**
+     * @param  string|null  $forModule  the module that uploaded it for its own use, and the
+     *                                  permission that allowed it (stage 2b, P1). Null for an
+     *                                  ordinary upload through the media library
+     */
+    public static function uploaded(Media $media, ?string $forModule = null, ?string $underPermission = null): AuditEntryDto
+    {
+        $changes = AuditChanges::none()
+            ->changed('visibility', null, $media->visibility()->value)
+            ->changed('mime', null, $media->mime())
+            ->changed('bytes', null, $media->bytes())
+            ->changed('checksum', null, $media->checksum())
+            ->personal('original_filename');
+
+        // Who asked for it and under what: an upload allowed by a module's own permission is not
+        // the same event as one through the media library, and the log must say which it was.
+        if ($forModule !== null) {
+            $changes = $changes->changed('for_module', null, $forModule)->changed('under_permission', null, $underPermission);
+        }
+
+        return new AuditEntryDto(self::UPLOADED, self::SUBJECT, $media->id(), null, $changes);
+    }
+
+    /**
+     * @param  array{alt_ar: string|null, alt_en: string|null}  $before
+     * @param  list<string>  $changed
+     */
+    public static function altTextChanged(Media $media, array $before, array $changed): AuditEntryDto
+    {
+        $after = ['alt_ar' => $media->altAr(), 'alt_en' => $media->altEn()];
+        $changes = AuditChanges::none();
+
+        foreach ($changed as $attribute) {
+            if (array_key_exists($attribute, $after)) {
+                $changes->changed($attribute, $before[$attribute], $after[$attribute]);
+            }
+        }
+
+        return new AuditEntryDto('platform.media.alt_text_changed', self::SUBJECT, $media->id(), null, $changes);
+    }
+
+    /**
+     * A staff member asked for the variants again. The system's own sweep of stuck images is not
+     * audited: nobody acted.
+     *
+     * @param  bool  $byUpload  asked for by uploading the same failed image again (owner 2026-11-10,
+     *                          P10 (a)), not by pressing Retry: the same event, so the same action,
+     *                          marked "by_upload"
+     * @param  string|null  $forModule  that upload was a module's own, and the permission that
+     *                                  allowed it — recorded exactly as uploaded() records them
+     */
+    public static function variantsRetried(
+        Media $media,
+        ?MediaVariantsStatus $before,
+        ?DateTimeImmutable $queuedBefore,
+        bool $byUpload = false,
+        ?string $forModule = null,
+        ?string $underPermission = null,
+    ): AuditEntryDto {
+        $changes = AuditChanges::none()
+            ->changed('variants_status', $before?->value, $media->variantsStatus()?->value)
+            ->changed('variants_queued_at', $queuedBefore?->format(DATE_ATOM), $media->variantsQueuedAt()?->format(DATE_ATOM));
+
+        if ($byUpload) {
+            $changes->changed('by_upload', null, true);
+        }
+
+        if ($forModule !== null) {
+            $changes->changed('for_module', null, $forModule)->changed('under_permission', null, $underPermission);
+        }
+
+        return new AuditEntryDto('platform.media.variants_retried', self::SUBJECT, $media->id(), null, $changes);
+    }
+
+    /**
+     * @param  list<MediaUseDto>  $detachedFrom  where the media was used until this delete
+     * @param  string|null  $forModule  the module that deleted a file it held, and the permission
+     *                                  that allowed it (B2B step 3, amendment 5) — recorded exactly
+     *                                  as uploaded() records a module's upload. Null for a delete
+     *                                  through the media library
+     */
+    public static function deleted(Media $media, array $detachedFrom = [], ?string $forModule = null, ?string $underPermission = null): AuditEntryDto
+    {
+        $changes = AuditChanges::none()->changed('checksum', $media->checksum(), null);
+
+        if ($detachedFrom !== []) {
+            $changes->changed('detached_from', array_map(fn (MediaUseDto $use): string => $use->describe(), $detachedFrom), null);
+        }
+
+        // Who asked for it and under what, as for an upload: a module removing a file it held is not
+        // the same event as staff removing one through the media library.
+        if ($forModule !== null) {
+            $changes->changed('for_module', null, $forModule)->changed('under_permission', null, $underPermission);
+        }
+
+        return new AuditEntryDto('platform.media.deleted', self::SUBJECT, $media->id(), null, $changes);
+    }
+}

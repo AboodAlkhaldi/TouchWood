@@ -1,0 +1,176 @@
+# Promotions
+
+Coupons, customer segments and gifts: what a coupon takes off, who may use it and how often, which
+customers a segment holds, which gift an order earns — checked inside Sales's checkout, with every use
+and every placed order's fact recorded. **The agreed rules are `docs/modules/promotions.md`**
+(accepted 2026-10-10); this file says how the module is built.
+
+The store's discount ceiling is a Pricing setting (`pricing.ceiling.max_discount_percent`, changed
+under `pricing.ceiling.manage`): Promotions reads it and declares no setting of its own (owner,
+2026-10-17).
+
+## Built
+
+The module was built in seven steps (the execution plan, approved 2026-10-17) — **the backend is complete**:
+
+| Step | What | Where |
+|---|---|---|
+| 1 — foundation | The `promotions` schema; the six permissions of spec §3; the errors of §7 in both languages; Access's Marketing group (access.md amendment 69) and Platform's Marketing menu section (platform.md §9.4) | below |
+| 2a — coupons: the rules and the reads | The coupon tables of §5 (coupons, rules, assignments, uses, order facts) with every rule the database holds; the coupon's rules as pure code; `PromotionsApi::applyCoupon` and `customerDiscountRoom`; Catalog's `lineFacts` (catalog.md amendment 18) | below |
+| 2b — coupons: Sales's writes | `useCoupon` (every check again under the coupon's lock; `CouponRefused`, `CouponChanged`; once per order), `recordOrder` (the ceiling of the moment), `orderDiscountRoom`, `couponAfterEdit`, `updateCouponUse`; the caller's permission in the coupon's or the order's store | below |
+| 3a — what Catalog may not delete | Catalog's usage check before deletes (catalog.md amendment 19), and Promotions' answer: the products, categories and brands its coupons' lists name | below |
+| 3b — coupons for staff | Create, change, switch, delete if unused, with the include and exclude lists checked against Catalog (and its `brand()` read, catalog.md amendment 20); audited; in the staff member's own stores, an off store's for Super Admins alone | below |
+| 4a — segments | The segment tables; create, change (name and rule — type and audience fixed, answer 23), delete, pick by hand, refresh now; the nightly refresh job; Access's bulk customer reads (access.md amendment 70) | below |
+| 4b — assignments | Assigning an `ASSIGNED` coupon to a segment's members of that moment (answer 24); removing an unused assignment; a coupon assigned from a segment may not leave its audience out; `PromotionsApi::segmentMembers` | below |
+| 5 — gift levels | The gift levels table; create, change, switch; one amount one gift for the same buyers and dates (`GiftLevelClash`); `PromotionsApi::giftLevels`; Catalog refuses to delete a gift's variant | below |
+| 6a — the coupon reads | `ListCoupons`, `ViewCoupon`, `ListCouponUses`, `ListCouponAssignments` for the staff screens, under the view permission or any manage one | below |
+| 6b — the other reads | `ListSegments`, `ListSegmentMembers`, `ListGiftLevels`; the customer's `ViewMyCoupons` | below |
+| 7 — the module's pass | One whole-module review; a coupon's brands read in bulk (catalog.md amendment 27); a list entry Catalog removed while a coupon is saved answered as `rules`, never a database error; every refusable attribute named in both languages; the spec's stale lines | below |
+| Gift stock (2026-10-20) | The gift dialog's tick box (owner, Q11 (c)): `GiftLevelFields::makeStockDependent`, Create/ChangeGiftLevel calling Inventory's `makeStockDependent` last in the level's own save, under Inventory's `inventory.stock.manage` too; `GiftLevelRow::stockDependent`/`wired`; `SearchGiftSizes` (20 at most, the same facts); the edge Promotions → Inventory | below |
+| Stage 7 step 7 (2026-10-31) | A coupon reserved while the customer pays online (promotions.md §9.5, §9.6): `PromotionsApi::reserveCoupon` (every check `useCoupon` makes, in the same order, under the coupon's lock; `CouponRefused`, `CouponChanged`), `confirmCoupon` (the paid try's hold becomes the order's use, recorded with its number and never checked again) and `releaseCoupon` (the hold goes, nothing counted); table `promotions.coupon_reservations`, one hold per future order id; migration `2026_10_31_100000` | below |
+
+## What is here
+
+- **`Infrastructure/PromotionsServiceProvider`** — loads the migrations and the words, declares the
+  permissions through Access.
+- **`Application/PromotionsPermissions`** — the four jobs a role may hold, per store, under Marketing,
+  none admin-only (owner, 2026-10-08); a customer's own coupons, every customer's; the nightly refresh
+  of segments, reserved to the system.
+- **`Infrastructure/Persistence/PromotionsSchema`** and its migration — the `promotions` schema, on
+  the connection's search path so a fresh migration wipes it.
+- **`Domain/Exception`** — the errors of spec §7, each with its type (`promotions.{snake}`), its
+  status, and a title and a message in Arabic and English at `promotions::errors.{snake}`; every
+  attribute `InvalidPromotionAttribute` can name has a word in both (the test reads them from the code).
+- **`Presentation/lang/{en,ar}`** — the permissions' names and the errors' words.
+- **`Infrastructure/Persistence/Migrations/…_create_coupon_tables`** — §5's coupon tables. Every CHECK
+  of the spec, composite keys carrying the coupon's store, `UNIQUE (order_id)` on uses (one coupon per
+  order), and two triggers: a use is never deleted and its discount only lowered by an edit (with
+  `last_edit_id`); an order's fact never changes. The assignment's `segment_id` gets its foreign key
+  with the segments table (step 4).
+- **`Domain/Service/CouponRules`** — pure: `covers` (§1.2: include by product, category or any above
+  it, or brand; exclusions win; sale mode, buyer, reduced lines), `work` (§1.3: the minimum on
+  `net_subtotal`, nothing eligible, a percentage half up then the cap, a fixed amount at most the
+  eligible total, worth nothing; shares by `Money::allocate`), `refusalNow` (switch, dates, uses, the
+  assignment, in `CouponRefusal`'s order) and `quote` (those, then the ceiling's room).
+  **`DiscountRoom`** — §1.6's formula, the ceiling's part rounded down.
+- **`Application/PromotionsApiImpl`** — `applyCoupon`: the code read as typed (trim, Latin digits,
+  upper case; one that cannot be a code is `UNKNOWN_CODE`), prices of another store or currency
+  refused, the cart's lines through `CartLines` (one `CatalogApi::lineFacts` call), the ceiling
+  through `Ceiling` (Pricing's setting, read through Platform), both via `Coupon/Quotes`. A fixed
+  number of queries per quote. `customerDiscountRoom`; `orderDiscountRoom` (the ceiling recorded with
+  the order); `couponAfterEdit` (`CouponRules::work` on the edited lines, ignoring dates, switch, uses
+  and assignment; at most the recorded use's discount and the caller's figure, then the room; refused
+  — 0 — under the minimum, with nothing eligible, or with no room or nothing left).
+- **`Application/Command`** — Sales's three writes, each through `Coupon/CallerCheck` (the calling
+  module's own permission, in the coupon's or the order's store, as Loyalty's): **`UseCoupon`** (the
+  coupon's store must be the one passed; the order's use read before and again under the coupon's
+  lock — the same coupon again does nothing, another is `CouponRefused::anotherCoupon()`; every check
+  of a quote asked again, then points not allowed, then `CouponChanged` unless the discount is the one
+  quoted; the use recorded and counted), **`RecordOrder`** (once per order, the store's ceiling of the
+  moment, the first of two at once wins), **`UpdateCouponUse`** (never higher; once per edit; to 0 with
+  the use still counted).
+- **`Infrastructure/Eloquent/DatabaseCoupons`** — a coupon by code or id (locked for placing) with its
+  rules; a customer's uses and assignment in one query; a use by its order; recording and lowering a
+  use. **`DatabaseOrderFacts`** — an order's fact, written once (`ON CONFLICT DO NOTHING`).
+- **Staff's coupon commands** (`Application/Command/{Create,Change,Switch,Delete}Coupon`, all under
+  `promotions.coupon.manage`), through **`MarketingChange`** (shared with the segments' commands) as Pricing's `PricingChange`: the
+  permission in the store first; an existing coupon's store must be one the staff member covers, or it
+  is `CouponNotFound` as an unknown one is; a switched-off store is the Super Admins' alone
+  (`Unauthorized`); its own transaction with a per-store advisory lock, and the audit entries
+  (`Coupon/CouponAudit`: `promotions.coupon.created`, `…updated` with only what changed,
+  `…deactivated`, `…activated`, `…deleted`). Terms are checked by the domain's **`CouponTerms`**
+  (names, kind and amounts, dates, uses, sale modes and buyers — the public only on wholesale lines
+  never applies — the rules, deduplicated, at most 500); the lists by **`Coupon/RuleTargets`** (ready
+  products, active categories and brands, through `CatalogApi`) — on a change, only the entries it adds
+  (owner, 2026-10-17, answer 22). Dates are kept in UTC to the second and written with their offset
+  (`Infrastructure/Eloquent/Moment`). The code is read as typed and unique in
+  the store (`CodeTaken`, the unique index the backstop); never changed. A change locks the coupon's row
+  first, so an order being placed never reads it half changed; the total of uses below those made is
+  `CouponInUse`. A used coupon is never deleted (`CouponInUse`).
+- **Segments** (`Application/Command/{Create,Change,Delete}Segment`, `SetSegmentMembers` (the whole
+  list), `ChangeSegmentMembers` (a manager's adds and removals merged under the segment's lock, only the
+  added checked),
+  `RefreshSegment`, all under `promotions.segment.manage`, audited `promotions.segment.created`,
+  `…updated`, `…deleted`, `…members_set`, `…refreshed`; `RefreshSegments` the system's, nightly at
+  01:00 through `Infrastructure/Queue/RefreshSegmentsJob`, one segment's failure logged and the rest
+  refreshed). The domain's **`SegmentTerms`** checks a segment as the database does; a segment's type
+  and audience never change (answer 23). **`Segment/SegmentMembership`** works out who a segment
+  holds: `NO_ORDERS_EVER` from Access's registered customers less those with an order fact there,
+  `NO_ORDER_FOR` and `AT_LEAST_ORDERS` from the store's order facts — every placed order counts — each
+  kept to live customers of the audience through `AccessApi::customers`, in pages of a thousand; a
+  hand-picked segment keeps its picks but loses the anonymized; a pick must be of the audience, not
+  anonymized, and registered in the store or have ordered there. `DatabaseSegments::replaceMembers`
+  rewrites the members as a set — staying members keep when they were added.
+- **Assignments** (`Application/Command/AssignCoupon`, `RemoveAssignment`, under
+  `promotions.coupon.manage`, audited `promotions.coupon.assigned` — the segment and how many new —
+  and `…assignment_removed`): the coupon's row locked, then the segment's; only an `ASSIGNED` coupon
+  (answer 24), a segment of its own store, an audience it allows; the stored members of that moment
+  written through `Domain/Repository/Assignments` (`insertOrIgnore`, in chunks — those who have it keep
+  their row, a customer who leaves the segment keeps the coupon). A used assignment is never removed
+  (`CouponInUse`). Changing a coupon refuses leaving out the audience of a segment it was assigned
+  from (§1.1) — `audience` — and refuses making it public while customers have it (answer 25) —
+  `eligibility`. Taking back an assignment never given does nothing, whatever the customer did with
+  the coupon. Known limits, by the letter of §1.1 and §1.4: the audience lock rests on the segments the
+  coupon came from, so deleting a segment releases it; and assigning writes the stored members, so one
+  anonymized since the last refresh is assigned too (harmless: an anonymized account cannot order).
+  `PromotionsApi::segmentMembers` pages a segment's members by id, 1 to 1000, for the store named only —
+  another store's segment is refused as unknown (2026-10-30, for Ops' offer notices).
+  **The hand-picker's search** (`Query/SearchSegmentCandidates`, `promotions.segment.manage`): Access's
+  `customerIdsMatching` (amendment 72(b)) kept by `SegmentMembership::eligible` — the same rule a save
+  enforces — names only, at most 50, members marked.
+- **Gift levels** (`Application/Command/{Create,Change,Switch}GiftLevel`, under
+  `promotions.gift.manage`, through `MarketingChange` — `giftLevelStore` answers a level of a store
+  not covered as `GiftLevelNotFound` — audited `promotions.gift_level.created`, `…updated` with only
+  what changed, `…deactivated`, `…activated`; no deleting, a placed order names its level). The
+  domain's **`GiftLevelTerms`** checks a level as the database does (an amount above 0 in the store's
+  currency, a variant id, individuals or companies or both, the end after the start; times to the
+  second in UTC). **`Gift/GiftLevelChecks`**: the gift a variant not archived of a ready product
+  (`CatalogApi::variant`, `product`) — on a change, only a new gift, as a coupon's new list entries
+  (answer 28); and no other active level of the store with the same amount, overlapping buyers and
+  overlapping dates (`GiftLevelClash`) — a level already ended never counts (answer 26) — read under
+  the store's lock, on create, on a change of an active level, and on switching one on
+  (`GiftLevelRaceTest`: two saves at once). `PromotionsApi::giftLevels`: the levels an order's goods
+  total reaches now for the buyer — at exactly its amount too (answer 27) — highest first
+  (`GiftOfferDto`); the total must be in the store's currency.
+- **The staff screens' reads** (`Application/Query`): **`MarketingReader`** — `promotions.marketing.view`
+  in the store or any of the three manage permissions (each handler authorizes the one held), an
+  uncovered store's coupon not found, an off store for Super Admins alone; **`CouponStates`** — the
+  state now (§4), as `CouponRules::refusalNow` reads it; **`CustomerNames`** — a page's names in one
+  `AccessApi::customers` call. `ListCoupons` (filters: state now, start of the code), `ViewCoupon`,
+  `ListCouponUses`, `ListCouponAssignments`, `ListSegments`, `ListSegmentMembers` (names only),
+  `ListGiftLevels` (gifts named in two Catalog bulk reads, each size's stock facts and the store's wiring
+  from Inventory), `SearchGiftSizes` (the gift dialog's size search); the customer's `ViewMyCoupons`
+  (`promotions.coupon.view_own`: assigned to me, usable now, my uses left — one query). SQL in
+  `Infrastructure/Eloquent/DatabaseMarketingQueries`, one query per page (the gift levels through
+  `DatabaseGiftLevels::ofStore`), keyset indexes in `…_index_marketing_reads` and
+  `…_index_segments_list`.
+- **Holds for an online payment** (stage 7 step 7; `Application/Command/{ReserveCoupon,ConfirmCoupon,ReleaseCoupon}`,
+  the same `CallerCheck` as Sales's other writes; `Public/Dto/{ReserveCoupon,SettleReservation}`). A hold counts toward
+  the coupon's limits, in total and per customer (`CouponUsage::$heldTotal`, `$heldByCustomer`, read by
+  `CouponRules::refusalNow`), wherever a coupon is quoted or taken, so two buyers never both take the last use. Staff
+  may change or delete a coupon under a hold: a confirm records the use even past a limit lowered meanwhile ("100 of
+  99" - `coupons_uses` now only requires `uses_total >= 0`, and `ChangeCoupon` accepts a total limit unchanged below
+  the uses), and a coupon deleted under a hold takes the hold with it, the confirm then recording nothing. Staff see
+  uses, never holds. The same try again does nothing; a different coupon on one try is `CouponRefused::anotherCoupon()`.
+- **`Infrastructure/Eloquent/PromotionsCatalogUsage`** — registered with Catalog's `CatalogUsages`:
+  every coupon whose include or exclude list names a product, category or brand Catalog is about to
+  delete, and every gift level giving a variant it is about to delete, in one query; Catalog then
+  refuses the delete (`catalog.item_in_use`).
+
+Tests: `tests/Modules/Promotions/Unit/CouponRulesTest` (the rules and the room, every number of §8);
+`tests/Modules/Promotions/Integration` — `AssignmentsTest`, `SegmentsTest`, `SegmentTablesTest`, `CouponManageTest` (staff's commands), `GiftLevelsTest` (gift levels, their read and table), `GiftLevelRaceTest`, `CouponReadsTest`, `MarketingReadsTest`, `PromotionsCatalogUsageTest`, `ApplyCouponTest`, `CouponWritesTest`, `CouponRaceTest` (two
+orders at once on the last use; outside RefreshDatabase, skipped under --parallel), `CouponTablesTest`,
+`CouponHoldsTest` (the holds, the limits they count toward, confirm and release), `PromotionsPermissionsTest`, `PromotionsSchemaTest`, `PromotionsErrorMessagesTest`,
+`PromotionsMenuSectionTest`.
+
+## For Ops (promotions.md §2.1, §6; 2026-10-28)
+
+- `Public/Events/CouponAssigned`, recorded by `AssignCouponHandler` through the outbox once for an assignment
+  that adds anyone (`Assignments::assign` answers the new ones: `INSERT … ON CONFLICT DO NOTHING RETURNING`);
+  `PromotionsApi::assignedCustomers` pages whom it added, by the event's `assignmentId` (`MarketingQueries::assignedBy`).
+- `PromotionsApi::couponsUsed` (`CouponsUsedDto`), over `MarketingQueries::usesIn`; index
+  `coupon_uses_by_store_time` and the column `coupon_assignments.assignment_id` (migration `2026_10_28_100000`).
+- `PromotionsApi::couponCode`, the code for the `CouponAssigned` message, over `Coupons::storeOf` and `byId`.
+- `PromotionsApi::storeSegments` and `storeSegment` (`SegmentChoiceDto`), for the notice form and message composer,
+  over `MarketingQueries::segmentsById` and `segmentRow`; the store's own only, Ops checks its own permission first.
+- Tests: `tests/Modules/Promotions/Integration/PromotionsOpsTest.php`.

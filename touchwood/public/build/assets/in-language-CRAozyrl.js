@@ -1,0 +1,1 @@
+import{y as e}from"./app-DqTETjiQ.js";function t(){let{locale:t}=e().props;return(e,n)=>(t===`en`?n:e)??``}export{t};

@@ -1,0 +1,245 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Catalog\Infrastructure;
+
+use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Contracts\Filesystem\Factory;
+use Illuminate\Database\Events\MigrationsEnded;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\ServiceProvider;
+use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Access\Public\Enums\PermissionGroup;
+use Modules\Catalog\Application\Api\ApiReads;
+use Modules\Catalog\Application\Api\ApiSearches;
+use Modules\Catalog\Application\CatalogApiImpl;
+use Modules\Catalog\Application\CatalogPermissions;
+use Modules\Catalog\Application\CatalogSettings;
+use Modules\Catalog\Application\Import\ImportArchives;
+use Modules\Catalog\Application\Import\ImportQueue;
+use Modules\Catalog\Application\Import\Imports;
+use Modules\Catalog\Application\Import\InMemoryImportSections;
+use Modules\Catalog\Application\Import\StoreFillCodes;
+use Modules\Catalog\Application\Listing\ListingRows;
+use Modules\Catalog\Application\Products\InMemoryProductStoreSections;
+use Modules\Catalog\Application\Products\InMemoryShopCardFacts;
+use Modules\Catalog\Application\Products\InMemoryShopListingSlots;
+use Modules\Catalog\Application\Products\InMemoryShopProductSections;
+use Modules\Catalog\Application\Query\ListCategories\ListCategoriesHandler;
+use Modules\Catalog\Application\Query\Lists\CatalogListReads;
+use Modules\Catalog\Application\Query\Products\CatalogProductReads;
+use Modules\Catalog\Application\Query\Shop\ShopPagesCache;
+use Modules\Catalog\Application\Query\Shop\ShopReader;
+use Modules\Catalog\Application\Search\SearchLog;
+use Modules\Catalog\Application\Usage\InMemoryCatalogUsages;
+use Modules\Catalog\Domain\Repository\AttributeRepository;
+use Modules\Catalog\Domain\Repository\BrandRepository;
+use Modules\Catalog\Domain\Repository\CategoryAudienceRepository;
+use Modules\Catalog\Domain\Repository\CategoryRepository;
+use Modules\Catalog\Domain\Repository\LabelRepository;
+use Modules\Catalog\Domain\Repository\ListLocks;
+use Modules\Catalog\Domain\Repository\ListOrders;
+use Modules\Catalog\Domain\Repository\ProductRepository;
+use Modules\Catalog\Domain\Repository\StoreListingRepository;
+use Modules\Catalog\Domain\Repository\VariantRepository;
+use Modules\Catalog\Domain\Repository\WarrantyRepository;
+use Modules\Catalog\Domain\Repository\WordPairRepository;
+use Modules\Catalog\Infrastructure\Cache\VersionedShopPagesCache;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseApiReads;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseApiSearches;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseAttributeRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseBrandRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseCatalogListReads;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseCatalogProductReads;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseCategoryAudienceRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseCategoryRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseImports;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseLabelRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseListingFacts;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseListingRows;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseListLocks;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseListOrders;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseProductRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseSearchLog;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseShopReader;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseStoreFillCodes;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseStoreListingRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseVariantRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseWarrantyRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseWordPairRepository;
+use Modules\Catalog\Infrastructure\External\NoStoreWired;
+use Modules\Catalog\Infrastructure\Import\DiskImportArchives;
+use Modules\Catalog\Infrastructure\Listener\RefreshCardPhotos;
+use Modules\Catalog\Infrastructure\Media\CatalogImagesUsage;
+use Modules\Catalog\Infrastructure\Media\ProductPhotosUsage;
+use Modules\Catalog\Infrastructure\Queue\LaravelImportQueue;
+use Modules\Catalog\Infrastructure\Queue\PruneSearchLogJob;
+use Modules\Catalog\Infrastructure\Queue\PruneShopPagesJob;
+use Modules\Catalog\Presentation\Console\RebuildListingCommand;
+use Modules\Catalog\Presentation\Storefront\CatalogFramePart;
+use Modules\Catalog\Presentation\Storefront\PageBestSellers;
+use Modules\Catalog\Presentation\Storefront\PageCategoryTiles;
+use Modules\Catalog\Presentation\Storefront\PageProductCards;
+use Modules\Catalog\Presentation\Storefront\ShopVisit;
+use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Catalog\Public\Contracts\CatalogUsages;
+use Modules\Catalog\Public\Contracts\ImportSections;
+use Modules\Catalog\Public\Contracts\ListingFacts;
+use Modules\Catalog\Public\Contracts\ProductStoreSections;
+use Modules\Catalog\Public\Contracts\ShopBestSellers;
+use Modules\Catalog\Public\Contracts\ShopCardFacts;
+use Modules\Catalog\Public\Contracts\ShopCategoryTiles;
+use Modules\Catalog\Public\Contracts\ShopListingSlots;
+use Modules\Catalog\Public\Contracts\ShopProductCards;
+use Modules\Catalog\Public\Contracts\ShopProductSections;
+use Modules\Catalog\Public\Contracts\StoreWiring;
+use Modules\Platform\Public\Contracts\AdminMenu;
+use Modules\Platform\Public\Contracts\MediaUsages;
+use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Contracts\ShopFrameParts;
+use Modules\Platform\Public\Dto\MenuEntryDto;
+use Modules\Platform\Public\Events\MediaVariantsReady;
+use Modules\Platform\Public\Events\SettingChanged;
+
+/**
+ * What is sold, and where (catalog.md). Registered after Access: Catalog uses Access's public
+ * surface to declare its permissions, and for nothing else (handoff §4.4, owner 2026-10-02).
+ */
+final class CatalogServiceProvider extends ServiceProvider
+{
+    public function register(): void
+    {
+        $this->app->bind(ListLocks::class, DatabaseListLocks::class);
+        // Every ordered list's order (amendment 16(d)): the brands, labels, warranties, attributes, values.
+        $this->app->bind(ListOrders::class, DatabaseListOrders::class);
+        $this->app->bind(BrandRepository::class, DatabaseBrandRepository::class);
+        $this->app->bind(CategoryRepository::class, DatabaseCategoryRepository::class);
+        $this->app->bind(CategoryAudienceRepository::class, DatabaseCategoryAudienceRepository::class);
+        $this->app->bind(AttributeRepository::class, DatabaseAttributeRepository::class);
+        $this->app->bind(LabelRepository::class, DatabaseLabelRepository::class);
+        $this->app->bind(WarrantyRepository::class, DatabaseWarrantyRepository::class);
+        $this->app->bind(WordPairRepository::class, DatabaseWordPairRepository::class);
+        $this->app->bind(ProductRepository::class, DatabaseProductRepository::class);
+        $this->app->bind(VariantRepository::class, DatabaseVariantRepository::class);
+        $this->app->bind(StoreListingRepository::class, DatabaseStoreListingRepository::class);
+        $this->app->bind(ListingRows::class, DatabaseListingRows::class);
+        $this->app->bind(ShopReader::class, DatabaseShopReader::class);
+        // The shop's kept pages (§4.5, P21): one version, replaced by every change's lock.
+        // Scoped: the version is read once a request (VersionedShopPagesCache).
+        $this->app->scoped(ShopPagesCache::class, VersionedShopPagesCache::class);
+        // One shop request: who is looking, asked once, and its menu (§4.5).
+        $this->app->scoped(ShopVisit::class);
+        // The panel's screens read the shared lists through their own reads (§4.4).
+        $this->app->bind(CatalogListReads::class, DatabaseCatalogListReads::class);
+        $this->app->bind(CatalogProductReads::class, DatabaseCatalogProductReads::class);
+        $this->app->bind(SearchLog::class, DatabaseSearchLog::class);
+        $this->app->bind(Imports::class, DatabaseImports::class);
+        $this->app->bind(StoreFillCodes::class, DatabaseStoreFillCodes::class);
+        $this->app->bind(ImportQueue::class, LaravelImportQueue::class);
+        // A products file's zip waits on the disk config/catalog.php names (amendment 6).
+        $this->app->bind(ImportArchives::class, static fn ($app): DiskImportArchives => new DiskImportArchives($app->make(Factory::class), (string) config('catalog.imports.disk'), sys_get_temp_dir()));
+        // What the modules above Catalog may ask it (§2.1), and what they push into it and add to
+        // its store files (§2.2, §2.3): bound for stage 5, the first to call them (amendment 16(i)).
+        $this->app->bind(CatalogApi::class, CatalogApiImpl::class);
+        $this->app->bind(ApiReads::class, DatabaseApiReads::class);
+        // Stage 5's store-wide screens: sizes and products paged in Catalog's order (amendment 23).
+        $this->app->bind(ApiSearches::class, DatabaseApiSearches::class);
+        $this->app->bind(ListingFacts::class, DatabaseListingFacts::class);
+        // Whether a store is wired to Odoo, for its store file (amendment 43): none until Sync, registered
+        // after Catalog, binds its own answer.
+        $this->app->bind(StoreWiring::class, NoStoreWired::class);
+        // One registry for the whole application: the modules above register from their providers.
+        $this->app->singleton(InMemoryImportSections::class);
+        $this->app->alias(InMemoryImportSections::class, ImportSections::class);
+        // The product page's store sections (amendment 23(e)): one registry, the modules above register.
+        $this->app->singleton(InMemoryProductStoreSections::class);
+        $this->app->alias(InMemoryProductStoreSections::class, ProductStoreSections::class);
+        // The shop product page's sections (amendment 26(b)): one registry, the modules above register.
+        $this->app->singleton(InMemoryShopProductSections::class);
+        $this->app->alias(InMemoryShopProductSections::class, ShopProductSections::class);
+        // What other modules put above a product list (amendment 41(a)): Content's smart bar and listing banner.
+        $this->app->singleton(InMemoryShopListingSlots::class);
+        $this->app->alias(InMemoryShopListingSlots::class, ShopListingSlots::class);
+        // What the modules add to the shop's product cards (amendment 32): one registry, the modules register.
+        $this->app->singleton(InMemoryShopCardFacts::class);
+        $this->app->alias(InMemoryShopCardFacts::class, ShopCardFacts::class);
+        // The store's best sellers as the shop's cards, for a page another module draws (amendment 36).
+        $this->app->bind(ShopBestSellers::class, PageBestSellers::class);
+        $this->app->bind(ShopProductCards::class, PageProductCards::class);
+        $this->app->bind(ShopCategoryTiles::class, PageCategoryTiles::class);
+        // The modules that hold on to Catalog's items, asked before a delete (amendment 19).
+        $this->app->singleton(InMemoryCatalogUsages::class);
+        $this->app->alias(InMemoryCatalogUsages::class, CatalogUsages::class);
+    }
+
+    public function boot(): void
+    {
+        $this->loadMigrationsFrom(__DIR__.'/Persistence/Migrations');
+        $this->loadTranslationsFrom(dirname(__DIR__).'/Presentation/lang', 'catalog');
+
+        // Catalog sits above Access, so it declares its own permissions through Access's public
+        // catalog (Access spec §2.2); Access checks them at boot like its own.
+        $this->app->make(PermissionCatalog::class)->declare('catalog', ...CatalogPermissions::definitions());
+        // The card's two flags of its own, each store's (shop-design.md §10.4).
+        $this->app->make(SettingsRegistry::class)->define('catalog', ...CatalogSettings::definitions());
+
+        // Brand logos and category photos: deleting the media leaves them without (§2.4).
+        $this->app->make(MediaUsages::class)->register('catalog', CatalogImagesUsage::class);
+        // Product and variant photos: detached, except a ready product's last ready one (amendment 3(b)).
+        $this->app->make(MediaUsages::class)->register('catalog', ProductPhotosUsage::class);
+
+        // A photo whose sizes became ready may be a card's photo now (§6.2).
+        Event::listen(MediaVariantsReady::class, [RefreshCardPhotos::class, 'handle']);
+
+        // The card flags' and the product page lines' settings ride in the menu's kept copy (shop-design.md §10.4, §10.8):
+        // a change to any of them clears it.
+        Event::listen(SettingChanged::class, function (SettingChanged $changed): void {
+            if (in_array($changed->key, [CatalogSettings::BEST_SELLER_TOP, CatalogSettings::NEW_ARRIVAL_DAYS, ShopVisit::DELIVERY_DAYS, ShopVisit::RETURN_DAYS], true)) {
+                $this->app->make(ShopPagesCache::class)->invalidate();
+            }
+        });
+
+        // A deploy may change what a kept page holds: none outlives the migrations (as Platform's caches).
+        Event::listen(MigrationsEnded::class, function (): void {
+            $this->app->make(ShopPagesCache::class)->invalidate();
+        });
+
+        // The panel's menu: the products and the shared lists' screens (catalog.md §4.4), each offered
+        // for any of the jobs its screen serves, in any store — the screen decides the rest.
+        $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('catalog', 'products', PermissionGroup::Catalog->value, 'catalog.admin.products', CatalogPermissions::PRODUCT_VIEW, 10, icon: 'catalog'),
+            new MenuEntryDto('catalog', 'categories', PermissionGroup::Catalog->value, 'catalog.admin.categories', ListCategoriesHandler::JOBS, 20, icon: 'catalog'),
+            new MenuEntryDto('catalog', 'brands', PermissionGroup::Catalog->value, 'catalog.admin.brands', CatalogPermissions::BRAND_MANAGE, 30, icon: 'catalog'),
+            new MenuEntryDto('catalog', 'attributes', PermissionGroup::Catalog->value, 'catalog.admin.attributes', CatalogPermissions::ATTRIBUTE_MANAGE, 40, icon: 'catalog'),
+            new MenuEntryDto('catalog', 'labels', PermissionGroup::Catalog->value, 'catalog.admin.labels', CatalogPermissions::LABEL_MANAGE, 60, icon: 'catalog'),
+            new MenuEntryDto('catalog', 'warranties', PermissionGroup::Catalog->value, 'catalog.admin.warranties', CatalogPermissions::WARRANTY_MANAGE, 70, icon: 'catalog'),
+            new MenuEntryDto('catalog', 'search_words', PermissionGroup::Catalog->value, 'catalog.admin.search-words', CatalogPermissions::SEARCH_WORD_MANAGE, 80, icon: 'catalog'),
+            new MenuEntryDto('catalog', 'store_files', PermissionGroup::Catalog->value, 'catalog.admin.store-files', CatalogPermissions::LISTING_FILL, 90, icon: 'catalog'),
+            // The first entry under a reserved permission (§4.4 S11): offered to the Super Admin, whom
+            // storesWith() answers with every store; the entry names its own group.
+            new MenuEntryDto('catalog', 'imports', PermissionGroup::Catalog->value, 'catalog.admin.imports', CatalogPermissions::IMPORT_RUN, 100, icon: 'catalog'),
+        );
+
+        // The category menu and the search box in every shop page's header (§4.5, owner's #9).
+        $this->app->make(ShopFrameParts::class)->register('catalog', CatalogFramePart::class);
+
+        if (! $this->app->routesAreCached()) {
+            $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/admin-routes.php');
+            $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/shop-routes.php');
+        }
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([RebuildListingCommand::class]);
+        }
+
+        // The search log keeps twelve months (§1.11). Scheduled work is queued as a job, never
+        // command() or call() (owner's decision, 2026-09-18): 01:00 where the application runs, 04:00
+        // in Riyadh, away from Access's midnight sweep.
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
+            $schedule->job(PruneSearchLogJob::class)->dailyAt('01:00')->onOneServer();
+            // The shop's kept pages of old versions (§4.5, P21), by the hour.
+            $schedule->job(PruneShopPagesJob::class)->hourly()->onOneServer();
+        });
+    }
+}

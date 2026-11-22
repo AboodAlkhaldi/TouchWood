@@ -1,0 +1,189 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\B2B\Application\Command\SubmitApplication;
+
+use Carbon\CarbonImmutable;
+use Illuminate\Database\ConnectionInterface;
+use LogicException;
+use Modules\B2B\Application\Account\CurrentCompanyAccount;
+use Modules\B2B\Application\Audit\CompanyAccountAudit;
+use Modules\B2B\Application\B2BPermissions;
+use Modules\B2B\Application\Draft\OpenDrafts;
+use Modules\B2B\Application\Events\CompanyEvents;
+use Modules\B2B\Application\Settings\FormRules;
+use Modules\B2B\Domain\Exception\ApplicationNotEditable;
+use Modules\B2B\Domain\Exception\ApplicationNotFound;
+use Modules\B2B\Domain\Exception\CompanySuspended;
+use Modules\B2B\Domain\Exception\CompanyTermsChanged;
+use Modules\B2B\Domain\Exception\CompanyTermsNotAccepted;
+use Modules\B2B\Domain\Exception\CompanyTypeInactive;
+use Modules\B2B\Domain\Exception\DocumentNoLongerAccepted;
+use Modules\B2B\Domain\Exception\EmailNotVerified;
+use Modules\B2B\Domain\Exception\FlaggedItemNotReplaced;
+use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
+use Modules\B2B\Domain\Exception\MissingRequiredDocument;
+use Modules\B2B\Domain\Exception\NotACompanyAccount;
+use Modules\B2B\Domain\Exception\PhoneNotConfirmed;
+use Modules\B2B\Domain\Exception\RequestNotAnswered;
+use Modules\B2B\Domain\Model\Company;
+use Modules\B2B\Domain\Repository\ApplicationReferenceCounter;
+use Modules\B2B\Domain\Repository\ApplicationRepository;
+use Modules\B2B\Domain\Repository\CompanyRepository;
+use Modules\B2B\Domain\Repository\CompanyTypeRepository;
+use Modules\B2B\Domain\Repository\DocumentTypeRepository;
+use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Contracts\ShopPolicies;
+use Modules\Platform\Public\Enums\PolicyKind;
+use Shared\Application\Authorizer;
+use Shared\Application\PermissionScope;
+use Shared\Domain\ValueObject\StoreId;
+
+/**
+ * Sends the open draft (b2b.md §1.2, §3.1, §4.1). The company comes to exist here, `PENDING`, with
+ * the account's first; a later one — after a rejection, or new details from an approved company —
+ * sends the company back to `PENDING`, and it cannot order until staff decide (handoff §8.2).
+ *
+ * - **A confirmed email and a confirmed phone are required** (EmailNotVerified, PhoneNotConfirmed;
+ *   §1.2, amendment 26(a)): the account's own phone, whatever its country.
+ * - Everything the draft must hold is the application's own rule (Application::submit): every
+ *   value, the home store's types, nothing deactivated, every required paper, every flag replaced,
+ *   every request answered. It is given the home store's whole lists, inactive types included, so
+ *   it can tell "no longer accepted" from "unknown".
+ * - A suspended company sends nothing (CompanySuspended).
+ * - **The store's Company Terms ticked**, while it has them published (CompanyTermsNotAccepted; flags-2026-11.md
+ *   S3.6, Q2), and the ones the form showed (CompanyTermsChanged; owner, 2026-11-20): the policy and the version
+ *   ticked are kept on the application. None published and none shown, nothing is asked.
+ *
+ * One company per account: the company is created only when none exists, under the account's lock
+ * (ApplicationRepository::lockAccount), so two first sends cannot both create one. Audited on the
+ * application, in the same transaction (amendment 4). **The application takes its number here**, in
+ * the same transaction — the year's count as the home store's clock reads it (amendment 14(g)).
+ */
+final readonly class SubmitApplicationHandler
+{
+    public const string PERMISSION = B2BPermissions::APPLY;
+
+    public function __construct(
+        private Authorizer $authorizer,
+        private CurrentCompanyAccount $account,
+        private OpenDrafts $drafts,
+        private ApplicationRepository $applications,
+        private CompanyRepository $companies,
+        private CompanyTypeRepository $companyTypes,
+        private DocumentTypeRepository $documentTypes,
+        private CompanyEvents $events,
+        private PlatformApi $platform,
+        private ApplicationReferenceCounter $references,
+        private FormRules $rules,
+        private ConnectionInterface $db,
+        private ShopPolicies $policies,
+    ) {}
+
+    /**
+     * @throws NotACompanyAccount|EmailNotVerified|PhoneNotConfirmed|CompanyTermsChanged|CompanyTermsNotAccepted
+     * @throws ApplicationNotFound|CompanySuspended|ApplicationNotEditable
+     * @throws InvalidCompanyAttribute|CompanyTypeInactive|DocumentNoLongerAccepted|MissingRequiredDocument
+     * @throws FlaggedItemNotReplaced|RequestNotAnswered
+     */
+    public function handle(SubmitApplication $command): void
+    {
+        $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
+        $account = $this->account->get(self::PERMISSION);
+
+        if (! $account->emailVerified) {
+            throw new EmailNotVerified;
+        }
+
+        if (! $account->phoneVerified) {
+            throw new PhoneNotConfirmed;
+        }
+
+        $store = $this->account->store($account);
+        // The Company Terms the store shows now, the line above Send names (S3.6): a tick asked only while there are some.
+        $terms = $this->policies->published(StoreId::fromString($store), PolicyKind::CompanyTerms, 'ar');
+
+        // The terms the form showed must be the store's now - the same at the same version, or none and none - so the
+        // version kept is the one read (owner, 2026-11-20); only then is the tick asked.
+        $shown = $command->shownCompanyTermsId;
+        $same = $terms === null
+            ? $shown === null && $command->shownCompanyTermsVersion === null
+            : $shown !== null && strtolower($shown) === strtolower($terms->policyId) && $command->shownCompanyTermsVersion === $terms->version;
+
+        if (! $same) {
+            throw new CompanyTermsChanged;
+        }
+
+        if ($terms !== null && ! $command->companyTermsAccepted) {
+            throw new CompanyTermsNotAccepted;
+        }
+
+        $this->db->transaction(function () use ($account, $store, $terms): void {
+            $inHand = $this->drafts->forChange($account->id, $store);
+            $draft = $inHand->draft;
+            $company = $inHand->company;
+            $now = CarbonImmutable::now();
+
+            // The store the draft was made in, which is the company's once there is one: a company
+            // per store (amendment 18).
+            $homeStoreId = $draft->storeId();
+            $companyId = $company?->id() ?? $this->companies->nextId();
+
+            // Every value again, against today's minimums: one saved before a minimum was raised
+            // is not sent (amendment 16(b)). Before the number is taken, so a refusal takes none.
+            $this->rules->hold('name', $draft->name()?->value);
+            $this->rules->hold('cr_number', $draft->crNumber()?->value);
+            $this->rules->hold('tax_number', $draft->taxNumber()?->value);
+            $this->rules->hold('company_type_other', $draft->type()?->other);
+
+            foreach ($draft->answers() as $answer) {
+                $this->rules->hold('answer', $answer->text?->value);
+            }
+
+            $details = $draft->submit(
+                $companyId,
+                $this->companyTypes->all($homeStoreId),
+                $this->documentTypes->all($homeStoreId),
+                $company === null ? null : $this->applications->lastSent($company->id()),
+                $now,
+                // Its number, in this transaction: a refused send gives it back (amendment 14(g)).
+                $this->references->next($this->yearIn($homeStoreId, $now)),
+            );
+
+            $before = $company?->status();
+
+            if ($company === null) {
+                $company = Company::fromFirstApplication($companyId, $account->id, $homeStoreId, $details, $now);
+                $this->companies->add($company);
+            } else {
+                $company->applyAgain($details, $now);
+                $this->companies->update($company);
+            }
+
+            $this->applications->update($draft);
+
+            if ($terms !== null) {
+                $this->applications->keepCompanyTerms($draft->id(), $terms->policyId, $terms->version);
+            }
+
+            $this->platform->recordAudit(CompanyAccountAudit::submitted($draft, $before, $company->status(), $homeStoreId));
+            // Sending always changes the status: a PENDING company cannot send again (applyAgain).
+            $this->events->submitted($company, $draft);
+            $this->events->statusChanged($company, $before);
+        }, 3);
+    }
+
+    /**
+     * The year the application is sent in, as its home store's clock reads it (amendment 14(g)): a
+     * company whose store is three hours ahead of UTC, sending at half past midnight on the first of
+     * January, gets the new year's number, although the server, on UTC, is still in the old one.
+     */
+    private function yearIn(string $homeStoreId, CarbonImmutable $at): int
+    {
+        $store = $this->platform->store(StoreId::fromString($homeStoreId))
+            ?? throw new LogicException("The home store {$homeStoreId} does not exist.");
+
+        return (int) $at->setTimezone($store->timezone)->format('Y');
+    }
+}

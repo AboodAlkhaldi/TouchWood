@@ -1,0 +1,256 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Access\Infrastructure\Http;
+
+use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Container\Container;
+use Illuminate\Contracts\Session\Session;
+use Illuminate\Http\Request;
+use Modules\Access\Application\Authorization\GrantsReader;
+use Modules\Access\Application\Session\PendingSignIn;
+use Modules\Access\Application\Session\StaffSessions;
+use Modules\Access\Application\Settings\StaffSecuritySettings;
+use Modules\Access\Application\StaffView\StaffViews;
+use Shared\Application\Actor;
+
+/**
+ * The admin session, in Laravel's session with the admin panel's own cookie (UseAdminSession).
+ * Every request checks it against the staff member's cached permissions, which carry their status
+ * and session version: a warm request reads only the cache table (spec §5.4). A disabled account,
+ * a changed password, 30 minutes idle or 12 hours after signing in end it at once (spec §1.8).
+ */
+final readonly class LaravelStaffSessions implements StaffSessions
+{
+    /** Public because the session handler reads it out of a written row (StaffSessionHandler). */
+    public const string SIGNED_IN = 'access.staff';
+
+    private const string PENDING = 'access.staff_pending';
+
+    /** The moment the password opened an authenticator setup in this browser (amendment 91). */
+    private const string SETUP = 'access.staff_authenticator_setup';
+
+    /** How long the code step waits after the right password. */
+    private const int PENDING_MINUTES = 15;
+
+    public function __construct(
+        private Container $app,
+        private RequestActor $actor,
+        private GrantsReader $grants,
+        private StaffSecuritySettings $settings,
+        private StaffViews $views,
+    ) {}
+
+    public function signedIn(): ?string
+    {
+        $session = $this->session();
+
+        if ($session === null) {
+            return null;
+        }
+
+        $data = $session->get(self::SIGNED_IN);
+
+        if (! is_array($data) || ! is_string($data['id'] ?? null) || ! is_int($data['version'] ?? null)
+            || ! is_int($data['signed_in_at'] ?? null) || ! is_int($data['seen_at'] ?? null)) {
+            return null;
+        }
+
+        $now = CarbonImmutable::now()->getTimestamp();
+        $idle = $now - $data['seen_at'] > $this->settings->sessionIdleMinutes() * 60;
+        $expired = $now - $data['signed_in_at'] > $this->settings->sessionMaxHours() * 3600;
+        $grants = $idle || $expired ? null : $this->grants->forStaff($data['id']);
+
+        if ($grants === null || ! $grants->isActive() || $grants->sessionVersion !== $data['version']) {
+            $this->end();
+
+            return null;
+        }
+
+        $session->put(self::SIGNED_IN, [...$data, 'seen_at' => $now]);
+        $this->actor->set(Actor::staff($data['id']));
+
+        return $data['id'];
+    }
+
+    public function beginSignIn(string $staffId, int $sessionVersion, bool $needsPhone, ?string $maskedPhone = null, bool $byApp = false): void
+    {
+        $this->session()?->put(self::PENDING, [
+            'id' => $staffId,
+            'version' => $sessionVersion,
+            'needs_phone' => $needsPhone,
+            'by_app' => $byApp,
+            // Masked by Access before it reaches the session: the full number never goes to a page.
+            'masked_phone' => $maskedPhone,
+            'at' => CarbonImmutable::now()->getTimestamp(),
+        ]);
+    }
+
+    public function noteCodeSentTo(string $maskedPhone): void
+    {
+        $session = $this->session();
+        $data = $session?->get(self::PENDING);
+
+        if ($session === null || ! is_array($data)) {
+            return;
+        }
+
+        // 'at' is deliberately untouched: naming the number must not extend the window the password
+        // opened, or a new number could be entered over and over to keep it open.
+        $data['masked_phone'] = $maskedPhone;
+        $session->put(self::PENDING, $data);
+    }
+
+    public function pendingSignIn(): ?PendingSignIn
+    {
+        $session = $this->session();
+        $data = $session?->get(self::PENDING);
+
+        if ($session === null || ! is_array($data) || ! is_string($data['id'] ?? null) || ! is_int($data['version'] ?? null)
+            || ! is_int($data['at'] ?? null)) {
+            return null;
+        }
+
+        if (CarbonImmutable::now()->getTimestamp() - $data['at'] > self::PENDING_MINUTES * 60) {
+            $session->forget(self::PENDING);
+
+            return null;
+        }
+
+        $masked = $data['masked_phone'] ?? null;
+
+        return new PendingSignIn(
+            $data['id'],
+            $data['version'],
+            ($data['needs_phone'] ?? false) === true,
+            is_string($masked) ? $masked : null,
+            ($data['by_app'] ?? false) === true,
+        );
+    }
+
+    public function start(string $staffId, int $sessionVersion, bool $mustSetUpAuthenticator = false): void
+    {
+        $session = $this->session();
+        $now = CarbonImmutable::now()->getTimestamp();
+
+        if ($session === null) {
+            $this->actor->set(Actor::staff($staffId));
+
+            return;
+        }
+
+        $session->forget(self::PENDING);
+        // A new id at every sign-in, and the old one destroyed (spec §1.8).
+        $session->migrate(true);
+        $session->regenerateToken();
+        $session->put(self::SIGNED_IN, [
+            'id' => $staffId,
+            'version' => $sessionVersion,
+            'signed_in_at' => $now,
+            'seen_at' => $now,
+            'must_set_up_authenticator' => $mustSetUpAuthenticator,
+        ]);
+
+        $this->actor->set(Actor::staff($staffId));
+    }
+
+    public function mustSetUpAuthenticator(): bool
+    {
+        $data = $this->session()?->get(self::SIGNED_IN);
+
+        return is_array($data) && ($data['must_set_up_authenticator'] ?? false) === true;
+    }
+
+    public function requireAuthenticatorSetup(bool $required): void
+    {
+        $this->markSetUp($required, null);
+    }
+
+    public function holdsSignIn(): bool
+    {
+        return is_array($this->session()?->get(self::SIGNED_IN));
+    }
+
+    public function authenticatorCheckedUnder(): ?string
+    {
+        $data = $this->session()?->get(self::SIGNED_IN);
+        $methods = is_array($data) ? ($data['authenticator_checked_under'] ?? null) : null;
+
+        return is_string($methods) ? $methods : null;
+    }
+
+    public function rememberAuthenticatorCheck(string $methods, bool $mustSetUp): void
+    {
+        $this->markSetUp($mustSetUp, $methods);
+    }
+
+    /**
+     * A session let through after setting its app up is as good as one just signed in: a new id and a
+     * new CSRF token, so nothing learned about it while it waited carries over (review of amendment 91).
+     */
+    private function markSetUp(bool $required, ?string $methods): void
+    {
+        $session = $this->session();
+        $data = $session?->get(self::SIGNED_IN);
+
+        if ($session === null || ! is_array($data)) {
+            return;
+        }
+
+        $lifted = ($data['must_set_up_authenticator'] ?? false) === true && ! $required;
+        $session->put(self::SIGNED_IN, [
+            ...$data,
+            'must_set_up_authenticator' => $required,
+            'authenticator_checked_under' => $methods ?? ($data['authenticator_checked_under'] ?? null),
+        ]);
+
+        if ($lifted) {
+            $session->migrate(true);
+            $session->regenerateToken();
+        }
+    }
+
+    public function openAuthenticatorSetup(int $at): void
+    {
+        $this->session()?->put(self::SETUP, $at);
+    }
+
+    public function authenticatorSetupOpenedAt(): ?int
+    {
+        $at = $this->session()?->get(self::SETUP);
+
+        return is_int($at) ? $at : null;
+    }
+
+    public function keep(int $sessionVersion): void
+    {
+        $session = $this->session();
+        $data = $session?->get(self::SIGNED_IN);
+
+        if ($session !== null && is_array($data)) {
+            $session->put(self::SIGNED_IN, [...$data, 'version' => $sessionVersion]);
+        }
+    }
+
+    public function end(): void
+    {
+        // A staff view never outlives the admin session it came from (spec §1.11): signed out, or
+        // found idle, expired or out of date here, its passes end with it.
+        $this->views->endForThisAdminSession();
+        $this->session()?->invalidate();
+        $this->actor->set($this->actor->guest());
+    }
+
+    /**
+     * The request's own session — the admin one on /admin — and only that. Outside a request there
+     * is no browser to sign in, and the session store is one object for the whole application, so
+     * writing to it there would leak into the next request (found while building step 4b).
+     */
+    private function session(): ?Session
+    {
+        $request = $this->app->make(Request::class);
+
+        return $request->hasSession() ? $request->session() : null;
+    }
+}

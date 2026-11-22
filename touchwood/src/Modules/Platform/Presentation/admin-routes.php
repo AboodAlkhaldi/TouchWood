@@ -1,0 +1,100 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Http\AdminArea;
+use Illuminate\Support\Facades\Route;
+use Modules\Platform\Presentation\Http\Controller\AuditController;
+use Modules\Platform\Presentation\Http\Controller\CurrenciesController;
+use Modules\Platform\Presentation\Http\Controller\FailedJobsController;
+use Modules\Platform\Presentation\Http\Controller\MediaController;
+use Modules\Platform\Presentation\Http\Controller\PanelNotFoundController;
+use Modules\Platform\Presentation\Http\Controller\PlacesController;
+use Modules\Platform\Presentation\Http\Controller\SettingsController;
+use Modules\Platform\Presentation\Http\Controller\StoreCountriesController;
+use Modules\Platform\Presentation\Http\Controller\StoresController;
+
+/*
+| Platform's own screens in the admin panel (stage 2b step 3, frontend.md 3.5).
+|
+| Mounted into the area App\Http\AdminArea names: Access implements the door, and a module puts
+| its pages behind it without reaching into Access to do so.
+|
+| Who may open any of these is Platform's answer, never the routing's. The read model behind the
+| page answers for the person's own stores, and each handler asks again before it writes.
+*/
+Route::prefix(AdminArea::PREFIX)
+    ->middleware([...AdminArea::MIDDLEWARE, AdminArea::SIGNED_IN])
+    ->group(function (): void {
+        Route::get('stores', [StoresController::class, 'index'])->name('platform.admin.stores');
+        // Add Store: a Super Admin, everything at once, switched off (platform.md §9.7 #3).
+        Route::post('stores', [StoresController::class, 'store'])->name('platform.admin.stores.store');
+        Route::post('stores/{store}', [StoresController::class, 'update'])->name('platform.admin.stores.update');
+        // The on/off switch: a Super Admin only, and never the base store off (owner, 2026-10-01).
+        Route::post('stores/{store}/activate', [StoresController::class, 'activate'])->name('platform.admin.stores.activate');
+        Route::post('stores/{store}/deactivate', [StoresController::class, 'deactivate'])->name('platform.admin.stores.deactivate');
+
+        // Currencies belong to no store, and both permissions are reserved, so only a Super Admin
+        // ever sees this screen [DECIDED 2026-09-19].
+        Route::get('currencies', [CurrenciesController::class, 'index'])->name('platform.admin.currencies');
+        Route::post('currencies', [CurrenciesController::class, 'store'])->name('platform.admin.currencies.store');
+        Route::post('currencies/{currency}', [CurrenciesController::class, 'update'])->name('platform.admin.currencies.update');
+        // Only a currency no store uses (platform.md §9.7).
+        Route::post('currencies/{currency}/delete', [CurrenciesController::class, 'destroy'])->name('platform.admin.currencies.delete');
+
+        // A store's ship-to countries, from its card (platform.md §4.3): Super Admins only, reserved.
+        Route::post('stores/{store}/countries', [StoreCountriesController::class, 'add'])->name('platform.admin.stores.countries.add');
+        Route::post('stores/{store}/countries/{country}/remove', [StoreCountriesController::class, 'remove'])
+            ->where('country', '[A-Za-z]{2}')->name('platform.admin.stores.countries.remove');
+
+        // E8 - the address countries and their places (platform.md §4.3): global, both permissions
+        // reserved, so only a Super Admin reaches them. A page per level, each a step of the trail.
+        Route::get('places', [PlacesController::class, 'index'])->name('platform.admin.places');
+        Route::post('places', [PlacesController::class, 'addCountry'])->name('platform.admin.places.countries.add');
+        Route::prefix('places/{country}')->where(['country' => '[A-Za-z]{2}', 'region' => '[0-9a-z]{26}', 'city' => '[0-9a-z]{26}', 'place' => '[0-9a-z]{26}'])->group(function (): void {
+            Route::get('', [PlacesController::class, 'regions'])->name('platform.admin.places.regions');
+            Route::get('{region}', [PlacesController::class, 'cities'])->name('platform.admin.places.cities');
+            Route::get('{region}/{city}', [PlacesController::class, 'districts'])->name('platform.admin.places.districts');
+            Route::post('retire', [PlacesController::class, 'retireCountry'])->name('platform.admin.places.countries.retire');
+            Route::post('restore', [PlacesController::class, 'restoreCountry'])->name('platform.admin.places.countries.restore');
+            Route::post('places', [PlacesController::class, 'addPlace'])->name('platform.admin.places.add');
+            Route::post('places/{place}', [PlacesController::class, 'renamePlace'])->name('platform.admin.places.rename');
+            Route::post('places/{place}/retire', [PlacesController::class, 'retirePlace'])->name('platform.admin.places.retire');
+            Route::post('places/{place}/restore', [PlacesController::class, 'restorePlace'])->name('platform.admin.places.restore');
+        });
+
+        // Every declared setting this person may change, whichever module declared it. A store
+        // setting applies to the store in the header, which is where the store comes from.
+        Route::get('settings', [SettingsController::class, 'index'])->name('platform.admin.settings');
+        Route::post('settings/{setting}', [SettingsController::class, 'update'])->name('platform.admin.settings.update');
+
+        // The media library. Media belongs to no store, so every question here is global.
+        Route::get('media', [MediaController::class, 'index'])->name('platform.admin.media');
+        Route::post('media', [MediaController::class, 'upload'])->name('platform.admin.media.upload');
+        Route::post('media/{media}/alt', [MediaController::class, 'describe'])->name('platform.admin.media.alt');
+        Route::post('media/{media}/retry', [MediaController::class, 'retry'])->name('platform.admin.media.retry');
+        Route::post('media/{media}/delete', [MediaController::class, 'delete'])->name('platform.admin.media.delete');
+
+        // The audit log, which is read and never written: the table refuses anything else.
+        Route::get('audit', [AuditController::class, 'index'])->name('platform.admin.audit');
+
+        // The queue's failed work (frontend.md E7): admin-only, and global — a job belongs to no store.
+        Route::get('failed-jobs', [FailedJobsController::class, 'index'])->name('platform.admin.failed_jobs');
+        Route::get('failed-jobs/{job}', [FailedJobsController::class, 'show'])->name('platform.admin.failed_jobs.show');
+        Route::post('failed-jobs/{job}/retry', [FailedJobsController::class, 'retry'])->name('platform.admin.failed_jobs.retry');
+        Route::post('failed-jobs/{job}/delete', [FailedJobsController::class, 'delete'])->name('platform.admin.failed_jobs.delete');
+
+        // A panel address no screen answers, read behind the door: the panel's own not-found page (owner,
+        // 2026-10-20; frontend.md §2.6) - after every other route, whichever module's. Somebody signed
+        // out is sent to sign in first, as for any panel page. Never the addresses of the pages reached signed
+        // out - signing in, a password, an invitation, an email change (PanelNotFoundController).
+        Route::fallback(PanelNotFoundController::class)->where('fallbackPlaceholder', PanelNotFoundController::PATHS);
+    });
+
+// Anything but a read sent to such an address stays not found, as before - Laravel's own page, no session
+// opened. Without this, the read above would turn it into "method not allowed".
+Route::prefix(AdminArea::PREFIX)->group(function (): void {
+    Route::match(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], '{fallbackPlaceholder}', PanelNotFoundController::class)
+        ->where('fallbackPlaceholder', PanelNotFoundController::PATHS)
+        ->fallback();
+});

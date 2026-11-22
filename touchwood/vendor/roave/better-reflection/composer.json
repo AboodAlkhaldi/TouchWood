@@ -1,0 +1,68 @@
+{
+    "name": "roave/better-reflection",
+    "description": "Better Reflection - an improved code reflection API",
+    "license": "MIT",
+    "require": {
+        "php": "~8.4.1 || ~8.5.0",
+        "ext-json": "*",
+        "jetbrains/phpstorm-stubs": "2026.1",
+        "nikic/php-parser": "^5.7.0"
+    },
+    "authors": [
+        {
+            "name":     "James Titcumb",
+            "email":    "james@asgrim.com",
+            "homepage": "https://github.com/asgrim"
+        },
+        {
+            "name":     "Marco Pivetta",
+            "email":    "ocramius@gmail.com",
+            "homepage": "https://ocramius.github.io/"
+        },
+        {
+            "name":     "Gary Hockin",
+            "email":    "gary@roave.com",
+            "homepage": "https://github.com/geeh"
+        },
+        {
+            "name":     "Jaroslav Hanslík",
+            "email":    "kukulich@kukulich.cz",
+            "homepage": "https://github.com/kukulich"
+        }
+
+    ],
+    "require-dev": {
+        "phpbench/phpbench": "^1.6.1",
+        "phpunit/phpunit": "^13.1.8"
+    },
+    "autoload": {
+        "psr-4": {
+            "Roave\\BetterReflection\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Roave\\BetterReflectionTest\\": "test/unit",
+            "Roave\\BetterReflectionBenchmark\\": "test/benchmark"
+        }
+    },
+    "conflict": {
+       "thecodingmachine/safe": "<1.1.3"
+    },
+    "scripts": {
+        "cs": "tools/vendor/bin/phpcs",
+        "csfix": "tools/vendor/bin/phpcbf",
+        "psalm": "tools/vendor/bin/psalm",
+        "psalm-baseline": "tools/vendor/bin/psalm --set-baseline=psalm-baseline.xml"
+    },
+    "suggest": {
+        "composer/composer": "Required to use the ComposerSourceLocator"
+    },
+    "minimum-stability": "dev",
+    "config": {
+        "platform": {
+            "php": "8.4.99"
+        }
+    },
+    "prefer-stable": true
+}

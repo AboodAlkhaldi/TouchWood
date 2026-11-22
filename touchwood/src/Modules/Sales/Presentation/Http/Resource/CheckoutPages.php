@@ -1,0 +1,205 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Sales\Presentation\Http\Resource;
+
+use InvalidArgumentException;
+use Modules\Access\Public\Contracts\AccessApi;
+use Modules\Access\Public\Dto\AddressDto;
+use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Payments\Public\Contracts\PaymentsApi;
+use Modules\Payments\Public\Enums\PaymentAudience;
+use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Dto\MoneyData;
+use Modules\Platform\Public\Dto\ShopPolicyDto;
+use Modules\Platform\Public\Dto\ShopPolicyLinkData;
+use Modules\Platform\Public\Dto\StoreDto;
+use Modules\Sales\Application\Checkout\CheckoutTerms;
+use Modules\Sales\Application\Command\StartCheckout\StartCheckout;
+use Modules\Sales\Application\Command\StartCheckout\StartCheckoutHandler;
+use Modules\Sales\Application\Query\ViewOwnOrder\ViewOwnOrder;
+use Modules\Sales\Application\Query\ViewOwnOrder\ViewOwnOrderHandler;
+use Modules\Sales\Domain\Exception\AddressInOtherStore;
+use Modules\Sales\Domain\Exception\WayToPayNotOffered;
+use Modules\Sales\Public\Enums\OrderAudience;
+use Modules\Sales\Public\Enums\PaymentStatus;
+use Modules\Sales\Public\Enums\WayToPay;
+use Shared\Application\ActorContext;
+use Shared\Application\Unauthorized;
+use Shared\Domain\Error\DomainError;
+use Shared\Domain\ValueObject\Money;
+use Shared\Domain\ValueObject\StoreId;
+
+/**
+ * S5, S6 - checkout and the order placed (sales.md §4.1): the quote `StartCheckout` works out for what the page
+ * chose - the address (the default first), the points, the way to pay - and the order `ViewOwnOrder` reads
+ * after. Every amount written by the server in the store's own currency (Platform's `MoneyData`).
+ */
+final readonly class CheckoutPages
+{
+    public function __construct(
+        private PlatformApi $platform,
+        private AccessApi $access,
+        private PaymentsApi $payments,
+        private CatalogApi $catalog,
+        private ActorContext $actors,
+        private CheckoutTerms $terms,
+    ) {}
+
+    /**
+     * @throws Unauthorized|DomainError
+     */
+    public function checkout(string $storeId, string $locale, ?string $addressId, bool $usePoints, ?int $pointsAsked, ?string $way, StartCheckoutHandler $start, ?string $carrierId = null): CheckoutPage
+    {
+        $customerId = $this->actors->current()->id ?? throw new Unauthorized(StartCheckoutHandler::PERMISSION);
+        $addresses = $this->access->addresses($customerId, $storeId);
+        $usable = array_values(array_filter($addresses, static fn (AddressDto $address): bool => $address->isComplete));
+        $chosen = null;
+
+        foreach ($usable as $address) {
+            if ($address->id === $addressId) {
+                $chosen = $address;
+            }
+        }
+
+        // The default first, else the newest (Access lists them so).
+        $chosen ??= $usable[0] ?? null;
+        $rows = array_map(static fn (AddressDto $address): CheckoutAddressData => new CheckoutAddressData(
+            $address->id, $address->label, $address->recipientName, $address->formatted, $address->isDefault, $address->isComplete,
+        ), $addresses);
+        // The one phone delivery uses: the account's, once verified (access.md amendment 89).
+        $account = $this->access->customer($customerId);
+        $phone = $account?->phoneVerified === true ? $account->phone : null;
+
+        if ($chosen === null) {
+            return self::none($rows, null, $phone, testMode: $this->payments->inTestMode(StoreId::fromString($storeId)));
+        }
+
+        // A company chooses its way, nothing chosen first (R2-14): until it does, the quote is worked out with
+        // staff's contact, which changes no amount.
+        $asked = WayToPay::tryFrom((string) $way);
+        // An individual's first choice is Pay Online while the store takes it (payments.md §4.2, Q1). Where it isn't
+        // offered (a company, a fee to be set, a place outside) it falls back below, nothing chosen.
+        $asked ??= $this->payments->availability(StoreId::fromString($storeId), PaymentAudience::Individual)->available ? WayToPay::Online : null;
+        // A way the account is not offered (an old address, the bank account since emptied) is no choice made.
+        // An address another store serves gets no quote: the customer picks another, or orders from there (§9.5 #2).
+        try {
+            try {
+                $quote = $start->handle(new StartCheckout($storeId, $chosen->id, $usePoints, $pointsAsked, ($asked ?? WayToPay::StaffContact)->value, $carrierId));
+            } catch (WayToPayNotOffered) {
+                $asked = null;
+                $quote = $start->handle(new StartCheckout($storeId, $chosen->id, $usePoints, $pointsAsked, WayToPay::StaffContact->value, $carrierId));
+            }
+        } catch (AddressInOtherStore $other) {
+            return self::none($rows, $chosen->id, $phone, new CheckoutOtherStoreData(
+                $locale === 'en' ? $other->storeEn : $other->storeAr,
+                route('storefront.home', ['store' => strtolower($other->storeCode), 'locale' => $locale]),
+            ), $this->payments->inTestMode(StoreId::fromString($storeId)));
+        }
+        $ways = array_map(static fn (WayToPay $each): string => $each->value, $quote->waysToPay);
+        $wayChosen = count($ways) === 1 ? $ways[0] : ($asked !== null && in_array($asked->value, $ways, true) ? $asked->value : null);
+        $store = $this->platform->store(StoreId::fromString($storeId));
+        $exponent = self::exponent($quote->totals->orderTotal, $store);
+        $money = fn (Money $amount): MoneyData => self::money($amount, $store, $exponent, $locale);
+        $some = fn (Money $amount): ?MoneyData => $amount->isZero() ? null : $money($amount);
+        $bank = in_array(WayToPay::BankTransfer->value, $ways, true) ? $this->payments->bankAccount(StoreId::fromString($storeId)) : null;
+        $gift = $quote->giftVariantId === null ? null : ($this->catalog->variantBriefs([$quote->giftVariantId])[$quote->giftVariantId] ?? null);
+        $totals = $quote->totals;
+        // The terms the tick names, each opening its page (flags-2026-11.md S3.3): one read of the store's policies.
+        $policies = $this->terms->current(StoreId::fromString($storeId), $locale);
+        $policyLink = fn (?ShopPolicyDto $policy): ?ShopPolicyLinkData => $policy === null ? null : ShopPolicyLinkData::of(
+            $policy, route('storefront.content.policy', ['store' => strtolower($store->code ?? ''), 'locale' => $locale, 'slug' => $policy->slug]),
+        );
+
+        return new CheckoutPage(
+            $quote->id,
+            $rows,
+            $chosen->id,
+            $quote->audience->value,
+            $quote->couponCode,
+            $locale === 'en' ? ($quote->couponNameEn ?? $quote->couponNameAr) : ($quote->couponNameAr ?? $quote->couponNameEn),
+            $quote->couponRefusal,
+            $quote->usePoints,
+            $quote->pointsAsked,
+            $quote->pointsUsed,
+            $quote->pointsMostUsable,
+            $quote->pointsMode,
+            $quote->pointsRefusal,
+            $ways,
+            $wayChosen,
+            $bank === null ? null : new BankData($bank->iban, $bank->bank, $bank->holder),
+            $money($totals->grossSubtotal),
+            $some($totals->grossSubtotal->subtract($totals->netSubtotal)),
+            $some($totals->couponDiscount),
+            $some($totals->pointsDiscount),
+            $quote->shipping->pending() ? null : $money($totals->shipping),
+            $money($totals->vat),
+            $totals->taxRateBasisPoints,
+            $money($totals->orderTotal),
+            $gift === null ? null : ($locale === 'en' ? ($gift->productNameEn ?? $gift->productNameAr) : $gift->productNameAr),
+            $gift === null ? null : $money(Money::zero($totals->orderTotal->currencyCode)),
+            $quote->earningPreview,
+            $phone,
+            $quote->shipping->pending(),
+            array_map(static fn (array $option): CheckoutCarrierData => new CheckoutCarrierData(
+                $option['carrierId'], $locale === 'en' ? $option['nameEn'] : $option['nameAr'], $option['logoUrl'],
+                $money(Money::of($option['fee'], $totals->orderTotal->currencyCode)), $option['freeBecause'] !== null,
+            ), $quote->shipping->options),
+            $quote->shipping->carrierId,
+            $quote->shipping->carrierChanged,
+            testMode: $this->payments->inTestMode(StoreId::fromString($storeId)),
+            terms: $policyLink($policies['terms']),
+            returns: $policyLink($policies['returns']),
+        );
+    }
+
+    /**
+     * No quote: no usable address yet, or the one chosen is served by another store.
+     *
+     * @param  list<CheckoutAddressData>  $rows
+     */
+    private static function none(array $rows, ?string $addressId, ?string $phone, ?CheckoutOtherStoreData $otherStore = null, bool $testMode = false): CheckoutPage
+    {
+        return new CheckoutPage(
+            null, $rows, $addressId, OrderAudience::Public->value, null, null, null, false, null, 0, 0, null, null, [], null, null,
+            null, null, null, null, null, null, 0, null, null, null, 0, $phone, otherStore: $otherStore, testMode: $testMode,
+        );
+    }
+
+    /**
+     * @throws Unauthorized|DomainError
+     */
+    public function placed(string $number, string $locale, ViewOwnOrderHandler $view): PlacedPage
+    {
+        $order = $view->handle(new ViewOwnOrder($number));
+        $store = $this->platform->store(StoreId::fromString($order->storeId));
+        $bank = $order->wayToPay === WayToPay::BankTransfer ? $this->payments->bankAccount(StoreId::fromString($order->storeId)) : null;
+
+        return new PlacedPage(
+            $order->number,
+            self::money($order->total, $store, $order->exponent, $locale),
+            $order->wayToPay->value,
+            $bank === null ? null : new BankData($bank->iban, $bank->bank, $bank->holder),
+            $order->transferDocuments,
+            $order->mayUploadTransferDocument,
+            $order->shippingDetail->feePending ?? false,
+            $order->wayToPay === WayToPay::Online && $order->payment === PaymentStatus::Paid,
+        );
+    }
+
+    private static function exponent(Money $amount, ?StoreDto $store): int
+    {
+        return $store !== null && $store->currencyCode === $amount->currencyCode ? $store->currencyExponent : 2;
+    }
+
+    /** An amount in the store's currency: its sign while the store sells in it, else its letters. */
+    private static function money(Money $amount, ?StoreDto $store, int $exponent, string $locale): MoneyData
+    {
+        try {
+            return $store === null ? throw new InvalidArgumentException('No store.') : MoneyData::of($amount, $store, $locale === 'en' ? 'en' : 'ar');
+        } catch (InvalidArgumentException) {
+            return new MoneyData($amount->format($exponent).' '.$amount->currencyCode, $amount->minorUnits);
+        }
+    }
+}

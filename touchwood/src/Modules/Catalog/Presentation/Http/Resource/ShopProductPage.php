@@ -1,0 +1,56 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Catalog\Presentation\Http\Resource;
+
+use Spatie\LaravelData\Data;
+use Spatie\TypeScriptTransformer\Attributes\TypeScript;
+
+/**
+ * A product's page in the shop (catalog.md §4.5), or its "Not available now" page (P18): nothing to
+ * choose, kept out of search engines. No price, no stock, no Add to Cart, no code.
+ */
+#[TypeScript]
+final class ShopProductPage extends Data
+{
+    /**
+     * @param  array<string, mixed>  $description  the structured text
+     * @param  list<array<string, array<string, string>>>  $photos  the gallery
+     * @param  list<ShopLabelData>  $labels
+     * @param  list<ShopLinkData>  $path  the categories down to its own
+     * @param  list<ShopChoiceData>  $choices
+     * @param  list<ShopVariantData>  $variants
+     * @param  list<ShopCardData>  $goesWith
+     * @param  list<ShopCardData>  $mayAlsoLike
+     * @param  list<array{id: string, title: string|null}>  $videos  its YouTube videos, after the photos (flags-2026-11.md S4.4)
+     */
+    public function __construct(
+        public string $productId,
+        public string $name,
+        public string $slug,
+        public bool $available,
+        public array $description,
+        public array $photos,
+        public array $labels,
+        public array $path,
+        public ?ShopLinkData $brand,
+        public array $choices,
+        public array $variants,
+        public ?ShopWarrantyData $warranty,
+        public ?ShopSellingData $selling,
+        public array $goesWith,
+        public array $mayAlsoLike,
+        public ShopAddressData $address,
+        /** The delivery line's working days (shop-design.md §6.3, §10.2): the store's setting, filled as the page is shown. */
+        public int $deliveryDays = 0,
+        /** The returns line's days after delivery (§6.3; sales.returns.window_days), filled likewise. */
+        public int $returnDays = 0,
+        /** Its own flags beside the others (shop-design.md §6.3, §10.4): compared as it is shown, never kept. */
+        public bool $bestSeller = false,
+        public bool $newArrival = false,
+        /** Its unit of sale, beside the price (shop-design.md §10.1): PIECE, SET, PAIR, METRE, CARTON or BOX. */
+        public string $unit = 'PIECE',
+        public array $videos = [],
+    ) {}
+}

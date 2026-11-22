@@ -1,0 +1,116 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Access\Infrastructure\Eloquent;
+
+use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Query\Builder;
+use Modules\Access\Application\Query\CustomerReader;
+use Shared\Domain\Text\LatinDigits;
+use Shared\Infrastructure\Persistence\Ulids;
+use stdClass;
+
+final readonly class DatabaseCustomerReader implements CustomerReader
+{
+    private const string TABLE = 'access.customers';
+
+    public function __construct(
+        private ConnectionInterface $db,
+    ) {}
+
+    public function customers(?array $homeStoreIds, ?string $search, ?string $status, ?string $accountType, int $page, int $perPage): array
+    {
+        $query = $this->query($homeStoreIds, $search, $status, $accountType);
+        $total = (clone $query)->count();
+
+        $rows = $query
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->forPage(max($page, 1), $perPage)
+            ->get();
+
+        return ['total' => $total, 'rows' => array_values(array_map($this->toRow(...), $rows->all()))];
+    }
+
+    public function customer(string $customerId): ?array
+    {
+        if (! Ulids::valid($customerId)) {
+            return null;
+        }
+
+        $row = $this->db->table(self::TABLE)->where('id', strtolower($customerId))->first();
+
+        return $row instanceof stdClass ? $this->toRow($row) : null;
+    }
+
+    /**
+     * @param  list<string>|null  $homeStoreIds
+     */
+    private function query(?array $homeStoreIds, ?string $search, ?string $status, ?string $accountType = null): Builder
+    {
+        $query = $this->db->table(self::TABLE);
+
+        if ($homeStoreIds !== null) {
+            $query->whereIn('home_store_id', array_map(strtolower(...), $homeStoreIds));
+        }
+
+        if ($status !== null) {
+            $query->where('status', $status);
+        }
+
+        // Already one of the two the enum names by the time it reaches here.
+        if ($accountType !== null) {
+            $query->where('account_type', $accountType);
+        }
+
+        if ($search !== null && trim($search) !== '') {
+            $like = self::like($search);
+            // A phone is saved in Latin digits, so it is searched in Latin however it was typed
+            // (amendment 63); names and emails as typed.
+            $phone = self::like(LatinDigits::of($search));
+
+            $query->where(function (Builder $where) use ($like, $phone): void {
+                $where->whereRaw('lower(email) like ?', [$like])
+                    ->orWhereRaw('lower(first_name) like ?', [$like])
+                    ->orWhereRaw('lower(last_name) like ?', [$like])
+                    ->orWhere('phone', 'like', $phone);
+            });
+        }
+
+        return $query;
+    }
+
+    /**
+     * A search as a LIKE pattern. The backslash is escaped first: it is PostgreSQL's own escape
+     * inside LIKE, so escaping only % and _ would let a trailing one swallow the wildcard after it.
+     */
+    private static function like(string $search): string
+    {
+        return '%'.str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], mb_strtolower(trim($search))).'%';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function toRow(stdClass $row): array
+    {
+        return [
+            'id' => (string) $row->id,
+            'first_name' => (string) $row->first_name,
+            'last_name' => (string) $row->last_name,
+            'email' => (string) $row->email,
+            'phone' => $row->phone === null ? null : (string) $row->phone,
+            'status' => (string) $row->status,
+            'account_type' => (string) $row->account_type,
+            'locale' => (string) $row->locale,
+            'home_store_id' => (string) $row->home_store_id,
+            'last_store_id' => (string) $row->last_store_id,
+            'email_verified' => $row->email_verified_at !== null,
+            'phone_verified' => $row->phone_verified_at !== null,
+            'deletion_scheduled_for' => $row->deletion_scheduled_for === null ? null : (string) $row->deletion_scheduled_for,
+            'anonymized' => $row->anonymized_at !== null,
+            'registered_at' => (string) $row->created_at,
+        ];
+    }
+}

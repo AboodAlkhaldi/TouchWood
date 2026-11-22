@@ -1,0 +1,65 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Catalog\Public\Contracts;
+
+use Modules\Catalog\Public\Dto\ListingPrice;
+use Shared\Domain\ValueObject\StoreId;
+
+/**
+ * The facts Catalog's listing needs but does not own, **pushed in by the modules that own them**,
+ * inside their own transaction, so a list is never stale (catalog.md §2.2): whether a variant can be
+ * ordered now and whether it is ending soon (Inventory, stage 5), the price shown (Pricing, stage 5),
+ * the sales rank (Sales, stage 6). **Bound with amendment 16(i)**: each fact is kept in Catalog's own
+ * table (`store_variant_facts`), and the listing rows of the products it touched are written again at
+ * once (P22): the cards' "Last pieces" read them, and each side's card price is kept beside them.
+ * **A size told not orderable, or with no price, counts for nothing on the shop's lists** (amendment 39),
+ * and a product with none left leaves them; a size never told is orderable as §1.3 says. Sales' ranks are received
+ * from stage 6.
+ *
+ * **For stage 5:** every change rewrites a product's listing rows from Catalog's own tables
+ * (`ListingRows`), the price and the rank with them. A fact pushed here must therefore be kept where
+ * that writer reads it — its own table — never only in the listing's columns, which the next change
+ * to the product would write over.
+ */
+interface ListingFacts
+{
+    /**
+     * @param  list<string>  $variantIds
+     */
+    public function orderable(StoreId $store, array $variantIds, bool $orderable): void;
+
+    /**
+     * Inventory's "last pieces" (amendment 16(h)): a card shows them while a size its viewer can buy
+     * and order now is ending soon.
+     *
+     * @param  list<string>  $variantIds
+     */
+    public function endingSoon(StoreId $store, array $variantIds, bool $endingSoon): void;
+
+    /**
+     * @param  array<string, ListingPrice|null>  $prices  variant id => its price there, or none (not on sale there)
+     */
+    public function prices(StoreId $store, array $prices): void;
+
+    /**
+     * @param  array<string, int>  $ranks  product id => its rank there, 1 the best-selling
+     */
+    public function salesRanks(StoreId $store, array $ranks): void;
+
+    /**
+     * Feedback's ratings (amendment 25; feedback.md §1.2): each product's approved reviews — their sum
+     * and count — **one for every store**, as reviews are global. Pushed with every approval and
+     * unpublishing, inside Feedback's transaction; a product that is not Catalog's is left out.
+     *
+     * @param  array<string, array{sum: int, count: int}>  $ratings  product id => its rating
+     */
+    public function ratings(array $ratings): void;
+
+    /**
+     * Whether a store's lists show ratings — stars on cards and the rating sort — as Feedback's
+     * admin-only switch says (amendment 25). A store never told shows them, as the switch's default.
+     */
+    public function ratingsShown(StoreId $store, bool $shown): void;
+}

@@ -1,0 +1,216 @@
+/*
+| A theme is data, not code (frontend.md §1.8, owner 2026-09-22).
+|
+| Every colour, radius and shadow the interface uses is a custom property here. Light and dark are
+| simply the first two themes; the owner's campaign themes - the shop dressed for National Day,
+| Ramadan, a sale - are Content's data (below), never another block here and never a change to a
+| component.
+|
+| Rules that keep that true:
+|   - No component carries a colour, a font or a radius of its own. A test fails the build when a
+|     hex colour, rgb() or hsl() appears under resources/js (tests/Architecture/ThemeTokensTest).
+|   - Every theme defines every token. A theme that forgets one inherits light's value silently,
+|     which is how a campaign ends up with one wrong button; a test fails instead.
+|   - The theme is chosen on the server and written into <html data-theme>, so there is no flash and
+|     SSR renders the same thing the browser would.
+|
+| The values are the design handoff of 2026-09-22 (docs/design/v2), read from its own token block.
+| Its names there are the hex digits themselves (--k0B3B63); here they say what they are for, so a
+| component never needs to know a value changed. (That a campaign could change what navy means was
+| the plan of 2026-09-22; replaced 2026-11-10, below: a theme changes no colour.)
+|
+| ## A campaign and a mode are two different things (owner, 2026-09-22; partly replaced, below)
+|
+| A **mode** is light or dark. A **campaign** is a dress - National Day, Ramadan, a sale. (That each
+| campaign has its own light and its own dark is replaced: one set of artwork serves both.) What
+| is written here is the look every store wears until a theme dresses it; the owner calls it the
+| base one.
+|
+|     <html data-campaign="national-day" data-mode="dark">
+|
+| That was the plan of 2026-09-22: a campaign written as a pair of blocks of its own values. It is
+| replaced (owner, 2026-11-10): one set of artwork serves light and dark (content.md Q8 (a)), and
+| no block of campaign values is ever written here.
+|
+| A campaign's look is a theme, Content's (docs/modules/content.md §1.8; owner, 2026-11-10), and a
+| theme is 11 parts only: announcement bar, hero artwork, promises row, points band, logos band,
+| product flag and ribbon, product badge, listing banner, cart message, footer artwork, and the
+| page background at the edges only. A Super Admin makes it from artwork and words, so none of
+| them appears in this file: Content's server writes their images into the page as custom
+| properties, --tw-backdrop among them.
+|
+| A theme changes no colour, radius or shadow token here (replacing the owner's note of
+| 2026-09-22 that those three were a campaign's to change). Text and button colours, prices,
+| cards, photo backgrounds, the phone tab bar, stars, hearts and the logo stay as they are in every
+| theme; fonts and spacing stay in app.css.
+*/
+
+:root,
+[data-mode='light'] {
+    /* Surfaces, from the page backwards to what sits on top of it. */
+    --tw-page: #f7f8f9;
+    --tw-surface: #ffffff;
+    --tw-surface-sunken: #f2f4f5;
+    --tw-surface-raised: #fbfbfa;
+    --tw-overlay: rgba(255, 255, 255, 0.94);
+
+    /* Text. */
+    --tw-ink: #0b2031;
+    --tw-ink-muted: #53626b;
+    --tw-ink-subtle: #87949a;
+    --tw-ink-on-brand: #ffffff;
+
+    /* Lines. */
+    --tw-line: #dcdfe1;
+    --tw-line-strong: #c7ced2;
+
+    /* The brand: navy, and the copper it is answered with. */
+    --tw-brand: #02365e;
+    --tw-brand-strong: #002747;
+    --tw-brand-soft: #e7f0f8;
+    --tw-accent: #864720;
+    --tw-accent-soft: #f6efe8;
+
+    /* The shop's warm parts (shop-design.md §2.7, P1), from the design's own: its warm border (#E7D6C6) and the
+    | newsletter card's sand ground (#F0E2D6) with its dark warm ink (rgba(44,25,17)). */
+    --tw-line-warm: #e7d6c6;
+    --tw-sand: #f0e2d6;
+    --tw-sand-ink: #2c1911;
+
+    /* The logo's tiles (owner, 2026-10-04): navy on dark surfaces, cream on light ones, the frame
+    | in copper. The tile, not the mode, picks them, so they are the same in both modes - a
+    | campaign may change them. */
+    --tw-logo-navy: #02365e;
+    --tw-logo-cream: #f6efe8;
+    --tw-logo-copper-deep: #864720;
+    --tw-logo-copper-light: #dca071;
+
+    /* An icon on a white button over a photo (the card's heart, the product page's heart and back): the
+    | button stays white in both modes, so its ink stays dark too (shop-design.md, PR B). */
+    --tw-on-photo-ink: #2c2c2a;
+
+    /* The admin sidebar, which is dark in both themes by design. */
+    --tw-sidebar: #01233c;
+    --tw-sidebar-ink: #ffffff;
+    --tw-sidebar-ink-muted: #9bbeda;
+    --tw-sidebar-line: rgba(255, 255, 255, 0.12);
+    --tw-sidebar-active: #024f84;
+
+    /* What the interface says about an outcome. */
+    --tw-good: #1d6546;
+    --tw-good-soft: #e8f1ee;
+    --tw-bad: #982b24;
+    --tw-bad-soft: #fdebe9;
+    --tw-warn: #815d2c; /* 5.94:1 on white, 5.45:1 on warn-soft: small text reads (set B, 2026-10-02). */
+    --tw-warn-soft: #fef4e4;
+    --tw-info: #07779f;
+    --tw-info-soft: #f4f8fc;
+
+    /* Shape and depth. */
+    --tw-radius-sm: 6px;
+    --tw-radius: 10px;
+    --tw-radius-lg: 16px;
+    --tw-radius-pill: 999px;
+    --tw-shadow-card: 0 1px 2px rgba(11, 59, 99, 0.05);
+    --tw-shadow-pop: 0 18px 38px -22px rgba(7, 39, 62, 0.45);
+    --tw-ring: rgba(11, 59, 99, 0.14);
+
+    /*
+    | Geist's materials (frontend.md 1.10): its own shadow recipes, read from its stylesheet on
+    | 2026-10-02 - a one-pixel ring that draws the edge, then the lift. The material classes in
+    | app.css pair each with its corner; a campaign changes depth here and nowhere else.
+    */
+    --tw-shadow-border: 0 0 0 1px rgba(0, 0, 0, 0.08);
+    --tw-shadow-small: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 2px 2px rgba(0, 0, 0, 0.04);
+    --tw-shadow-medium: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 2px 2px rgba(0, 0, 0, 0.04), 0 8px 8px -8px rgba(0, 0, 0, 0.04);
+    --tw-shadow-large: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 2px 2px rgba(0, 0, 0, 0.04), 0 8px 16px -4px rgba(0, 0, 0, 0.04);
+    --tw-shadow-tooltip: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 1px 1px rgba(0, 0, 0, 0.02), 0 4px 8px rgba(0, 0, 0, 0.04);
+    --tw-shadow-menu: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 1px 1px rgba(0, 0, 0, 0.02), 0 4px 8px -4px rgba(0, 0, 0, 0.04), 0 16px 24px -8px rgba(0, 0, 0, 0.06);
+    --tw-shadow-modal: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 1px 1px rgba(0, 0, 0, 0.02), 0 8px 16px -4px rgba(0, 0, 0, 0.04), 0 24px 32px -8px rgba(0, 0, 0, 0.06);
+
+    /*
+    | What the shop sits on (owner, 2026-09-22).
+    |
+    | Held as a whole `background` value rather than a colour, so several images can be layered. (The
+    | plan of 2026-09-22 let a campaign put a colour or a gradient here; since 2026-11-10 a theme puts
+    | artwork only, at the page's edges: content.md §1.8 part 11, Q7 (a).) The example is that plan's:
+    |
+    |     --tw-backdrop: url('/storage/campaigns/national-day/lanterns.png') center / cover no-repeat,
+    |                    linear-gradient(#0b3b63, #07273e);
+    |
+    | Content's server sets it from a theme's artwork; nothing in a component knows or cares what it
+    | holds.
+    */
+    --tw-backdrop: var(--tw-page);
+}
+
+[data-mode='dark'] {
+    --tw-page: #101a23;
+    --tw-surface: #14202c;
+    --tw-surface-sunken: #1e2b38;
+    --tw-surface-raised: #1a2632;
+    --tw-overlay: rgba(14, 25, 34, 0.88);
+
+    --tw-ink: #eff5fa;
+    --tw-ink-muted: #a2b1bb;
+    --tw-ink-subtle: #82929d;
+    --tw-ink-on-brand: #0c1a26;
+
+    --tw-line: #303e49;
+    --tw-line-strong: #3a4955;
+
+    --tw-brand: #6aaae3;
+    --tw-brand-strong: #90c2f0;
+    --tw-brand-soft: #17293a;
+    --tw-accent: #dca071;
+    --tw-accent-soft: #131e27;
+
+    /* The same roles in the dark: a warm edge, and a deep sand card whose light ink reads on it. */
+    --tw-line-warm: #4a3a2c;
+    --tw-sand: #2e241b;
+    --tw-sand-ink: #f0e2d6;
+
+    --tw-logo-navy: #02365e;
+    --tw-logo-cream: #f6efe8;
+    --tw-logo-copper-deep: #864720;
+    --tw-logo-copper-light: #dca071;
+
+    --tw-on-photo-ink: #2c2c2a;
+
+    --tw-sidebar: #0a151e;
+    --tw-sidebar-ink: #eaf2f8;
+    --tw-sidebar-ink-muted: #8aacc8;
+    --tw-sidebar-line: rgba(255, 255, 255, 0.1);
+    /* Deeper than set B's #5a9dd9, which held the sidebar's white text at 2.56:1; this is 6.37:1
+    | (review of the Geist move, 2026-10-02). */
+    --tw-sidebar-active: #1d5a8f;
+
+    --tw-good: #5ec198;
+    --tw-good-soft: #16302a;
+    --tw-bad: #ed8c81;
+    --tw-bad-soft: #3a201d;
+    --tw-warn: #d3a970;
+    --tw-warn-soft: #33291b;
+    --tw-info: #6cbbdd;
+    --tw-info-soft: #1d2e3d;
+
+    --tw-radius-sm: 6px;
+    --tw-radius: 10px;
+    --tw-radius-lg: 16px;
+    --tw-radius-pill: 999px;
+    --tw-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35);
+    --tw-shadow-pop: 0 18px 38px -22px rgba(0, 0, 0, 0.7);
+    --tw-ring: rgba(143, 187, 228, 0.22);
+
+    /* Geist's dark recipes: a light ring, a heavier lift. Its stylesheet gives no dark "large",
+    | so large takes medium's dark weights over large's spread (2026-10-02). */
+    --tw-shadow-border: 0 0 0 1px rgba(255, 255, 255, 0.145);
+    --tw-shadow-small: 0 0 0 1px rgba(255, 255, 255, 0.145), 0 1px 2px rgba(0, 0, 0, 0.16);
+    --tw-shadow-medium: 0 0 0 1px rgba(255, 255, 255, 0.145), 0 2px 2px rgba(0, 0, 0, 0.32), 0 8px 8px -8px rgba(0, 0, 0, 0.16);
+    --tw-shadow-large: 0 0 0 1px rgba(255, 255, 255, 0.145), 0 2px 2px rgba(0, 0, 0, 0.32), 0 8px 16px -4px rgba(0, 0, 0, 0.16);
+    --tw-shadow-tooltip: 0 0 0 1px rgba(255, 255, 255, 0.145), 0 1px 1px rgba(0, 0, 0, 0.02), 0 4px 8px rgba(0, 0, 0, 0.04);
+    --tw-shadow-menu: 0 0 0 1px rgba(255, 255, 255, 0.145), 0 1px 1px rgba(0, 0, 0, 0.02), 0 4px 8px -4px rgba(0, 0, 0, 0.04), 0 16px 24px -8px rgba(0, 0, 0, 0.06);
+    --tw-shadow-modal: 0 0 0 1px rgba(255, 255, 255, 0.145), 0 1px 1px rgba(0, 0, 0, 0.02), 0 8px 16px -4px rgba(0, 0, 0, 0.04), 0 24px 32px -8px rgba(0, 0, 0, 0.06);
+
+    --tw-backdrop: var(--tw-page);
+}

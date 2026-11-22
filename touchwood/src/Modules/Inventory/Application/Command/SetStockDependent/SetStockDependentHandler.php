@@ -1,0 +1,65 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Inventory\Application\Command\SetStockDependent;
+
+use Modules\Inventory\Application\InventoryPermissions;
+use Modules\Inventory\Application\Stock\InventoryChange;
+use Modules\Inventory\Application\Stock\SizeInput;
+use Modules\Inventory\Application\Stock\StockDependentSwitch;
+use Modules\Inventory\Domain\Exception\InvalidInventoryInput;
+use Modules\Inventory\Domain\Exception\NotWired;
+use Modules\Inventory\Domain\Exception\StoreOff;
+use Modules\Inventory\Public\Contracts\StoreWiring;
+use Shared\Application\Unauthorized;
+
+/**
+ * **The stock-dependent switch** (inventory.md §1.2, §3, §4.2), under **Manage Stock** in a wired
+ * store: on or off for the sizes picked - all of a product's, some, or one (owner, 2026-10-09). **On by
+ * default**, every size, a size added later too (owner, 2026-10-28; §9.2 #24): staff switch a size off
+ * here, and back on. A store with no provider counts every product on its stock
+ * already, so the switch is refused there. Each size that changed is audited from and to.
+ */
+final readonly class SetStockDependentHandler
+{
+    public const string PERMISSION = InventoryPermissions::STOCK_MANAGE;
+
+    public function __construct(
+        private InventoryChange $change,
+        private StoreWiring $wiring,
+        private SizeInput $sizes,
+        private StockDependentSwitch $switch,
+    ) {}
+
+    /**
+     * @throws Unauthorized|InvalidInventoryInput|StoreOff|NotWired
+     */
+    public function handle(SetStockDependent $command): void
+    {
+        $store = $this->change->authorize(self::PERMISSION, $command->storeId);
+        $storeId = $store->storeId();
+
+        if (! $this->wiring->isWired($storeId)) {
+            throw new NotWired;
+        }
+
+        $products = [];
+
+        foreach ($this->sizes->check($command->variantIds) as [$variantId, $productId]) {
+            $products[$variantId] = $productId;
+        }
+
+        if ($products === []) {
+            return;
+        }
+
+        // The switch itself is shared with InventoryApi::makeStockDependent (StockDependentSwitch); it
+        // asks the wiring again under the store's lock - unwired since, refused as above, nothing written.
+        $this->change->run($storeId, function () use ($storeId, $products, $command): array {
+            $switched = $this->switch->set($storeId, $products, $command->on) ?? throw new NotWired;
+
+            return [null, $switched[1]];
+        });
+    }
+}

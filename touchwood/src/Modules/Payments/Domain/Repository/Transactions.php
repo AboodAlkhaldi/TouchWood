@@ -1,0 +1,37 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Payments\Domain\Repository;
+
+use Modules\Payments\Domain\Model\Attempt;
+use Modules\Payments\Domain\Model\TransactionFacts;
+use Modules\Payments\Public\Dto\PaymentDto;
+use Modules\Payments\Public\Enums\PaymentMode;
+
+interface Transactions
+{
+    /**
+     * Whether this gateway payment is already written: true when succeeded, false when written as declined,
+     * null when not written at all.
+     */
+    public function succeeded(PaymentMode $mode, string $gatewayPaymentId): ?bool;
+
+    /**
+     * Writes it, or turns a declined one into a success (rule 5). Answers its id. Called under the attempt's lock.
+     */
+    public function record(Attempt $attempt, TransactionFacts $facts): string;
+
+    /** The gateway's code on this attempt's latest declined transaction. */
+    public function declineCode(string $attemptId): ?string;
+
+    /** One transaction as other modules read it; null when there is no such thing. */
+    public function dto(string $id): ?PaymentDto;
+
+    /**
+     * The ids of an order's successful transactions that may enter it.
+     *
+     * @return list<string>
+     */
+    public function acceptedOfOrder(string $orderId): array;
+}

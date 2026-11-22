@@ -1,0 +1,1 @@
+import{i as e,t}from"./react-B6PPDU_E.js";var n=e(t(),1);function r(e){let[t,r]=(0,n.useState)(``),[i,a]=(0,n.useState)(!1),o=t!==``&&t!==e;return{value:t,setValue:r,differs:o,showDiffers:o&&i,left:()=>a(!0),tried:()=>a(!0),enter:e=>{e.key===`Enter`&&a(!0)},clear:()=>{r(``),a(!1)}}}export{r as t};

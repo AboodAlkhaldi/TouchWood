@@ -1,0 +1,152 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Http\AdminArea;
+use Illuminate\Support\Facades\Route;
+use Modules\Catalog\Presentation\Http\Controller\AttributesController;
+use Modules\Catalog\Presentation\Http\Controller\BrandsController;
+use Modules\Catalog\Presentation\Http\Controller\CategoriesController;
+use Modules\Catalog\Presentation\Http\Controller\ImportGuideController;
+use Modules\Catalog\Presentation\Http\Controller\ImportsController;
+use Modules\Catalog\Presentation\Http\Controller\LabelsController;
+use Modules\Catalog\Presentation\Http\Controller\ProductChangesController;
+use Modules\Catalog\Presentation\Http\Controller\ProductsController;
+use Modules\Catalog\Presentation\Http\Controller\ProductStoresController;
+use Modules\Catalog\Presentation\Http\Controller\SearchWordsController;
+use Modules\Catalog\Presentation\Http\Controller\StoreFilesController;
+use Modules\Catalog\Presentation\Http\Controller\WarrantiesController;
+
+/*
+| Catalog's screens in the admin panel (catalog.md §4.4, amendment 13): the six shared lists first
+| (step 1) — brands, categories, attributes and their values, labels, warranties, and the search words
+| with the searches that found nothing —, then the products (step 2), each store's rows and the store
+| files (step 3), and the Super Admin's products import with the files' guide (step 4).
+|
+| Mounted into the area App\Http\AdminArea names, as Platform's and B2B's screens are. Who may open
+| any of these is Catalog's answer, never the routing's: each read asks for the list's job in some
+| store, each change for it with All stores (§1.5–§1.11), and a store's menu order for its job in
+| that store.
+|
+| Named catalog.admin.*, which the panel's route list carries (config/ziggy.php).
+*/
+Route::prefix(AdminArea::PREFIX)
+    ->middleware([...AdminArea::MIDDLEWARE, AdminArea::SIGNED_IN])
+    ->group(function (): void {
+        Route::get('brands', [BrandsController::class, 'index'])->name('catalog.admin.brands');
+        Route::post('brands', [BrandsController::class, 'add'])->name('catalog.admin.brands.add');
+        // Every ordered list's order (amendment 16(d)), named before its items' routes take the word.
+        Route::post('brands/order', [BrandsController::class, 'order'])->name('catalog.admin.brands.order');
+        Route::post('brands/{brand}', [BrandsController::class, 'edit'])->name('catalog.admin.brands.edit');
+        Route::post('brands/{brand}/default', [BrandsController::class, 'makeDefault'])->name('catalog.admin.brands.default');
+        Route::post('brands/{brand}/activate', [BrandsController::class, 'activate'])->name('catalog.admin.brands.activate');
+        Route::post('brands/{brand}/deactivate', [BrandsController::class, 'deactivate'])->name('catalog.admin.brands.deactivate');
+        Route::post('brands/{brand}/delete', [BrandsController::class, 'delete'])->name('catalog.admin.brands.delete');
+
+        Route::get('categories', [CategoriesController::class, 'index'])->name('catalog.admin.categories');
+        Route::post('categories', [CategoriesController::class, 'add'])->name('catalog.admin.categories.add');
+        // A store's menu order: the store the page shows, sent with the order (catalog.md §1.5).
+        Route::post('categories/order', [CategoriesController::class, 'order'])->name('catalog.admin.categories.order');
+        Route::post('categories/{category}', [CategoriesController::class, 'edit'])->name('catalog.admin.categories.edit');
+        Route::post('categories/{category}/move', [CategoriesController::class, 'move'])->name('catalog.admin.categories.move');
+        Route::post('categories/{category}/activate', [CategoriesController::class, 'activate'])->name('catalog.admin.categories.activate');
+        Route::post('categories/{category}/deactivate', [CategoriesController::class, 'deactivate'])->name('catalog.admin.categories.deactivate');
+        Route::post('categories/{category}/delete', [CategoriesController::class, 'delete'])->name('catalog.admin.categories.delete');
+        Route::post('categories/{category}/audience', [CategoriesController::class, 'audience'])->name('catalog.admin.categories.audience');
+
+        Route::get('attributes', [AttributesController::class, 'index'])->name('catalog.admin.attributes');
+        Route::post('attributes', [AttributesController::class, 'add'])->name('catalog.admin.attributes.add');
+        Route::post('attributes/order', [AttributesController::class, 'order'])->name('catalog.admin.attributes.order');
+        Route::get('attributes/{attribute}', [AttributesController::class, 'show'])->name('catalog.admin.attributes.show');
+        Route::post('attributes/{attribute}', [AttributesController::class, 'edit'])->name('catalog.admin.attributes.edit');
+        Route::post('attributes/{attribute}/activate', [AttributesController::class, 'activate'])->name('catalog.admin.attributes.activate');
+        Route::post('attributes/{attribute}/deactivate', [AttributesController::class, 'deactivate'])->name('catalog.admin.attributes.deactivate');
+        Route::post('attributes/{attribute}/delete', [AttributesController::class, 'delete'])->name('catalog.admin.attributes.delete');
+        Route::post('attributes/{attribute}/values', [AttributesController::class, 'addValue'])->name('catalog.admin.attributes.values.add');
+        Route::post('attributes/{attribute}/values/order', [AttributesController::class, 'orderValues'])->name('catalog.admin.attributes.values.order');
+        Route::post('attribute-values/{value}', [AttributesController::class, 'editValue'])->name('catalog.admin.values.edit');
+        Route::post('attribute-values/{value}/activate', [AttributesController::class, 'activateValue'])->name('catalog.admin.values.activate');
+        Route::post('attribute-values/{value}/deactivate', [AttributesController::class, 'deactivateValue'])->name('catalog.admin.values.deactivate');
+        Route::post('attribute-values/{value}/delete', [AttributesController::class, 'deleteValue'])->name('catalog.admin.values.delete');
+
+        Route::get('labels', [LabelsController::class, 'index'])->name('catalog.admin.labels');
+        Route::post('labels', [LabelsController::class, 'add'])->name('catalog.admin.labels.add');
+        Route::post('labels/order', [LabelsController::class, 'order'])->name('catalog.admin.labels.order');
+        Route::post('labels/{label}', [LabelsController::class, 'edit'])->name('catalog.admin.labels.edit');
+        Route::post('labels/{label}/activate', [LabelsController::class, 'activate'])->name('catalog.admin.labels.activate');
+        Route::post('labels/{label}/deactivate', [LabelsController::class, 'deactivate'])->name('catalog.admin.labels.deactivate');
+        Route::post('labels/{label}/delete', [LabelsController::class, 'delete'])->name('catalog.admin.labels.delete');
+
+        Route::get('warranties', [WarrantiesController::class, 'index'])->name('catalog.admin.warranties');
+        Route::post('warranties', [WarrantiesController::class, 'add'])->name('catalog.admin.warranties.add');
+        Route::post('warranties/order', [WarrantiesController::class, 'order'])->name('catalog.admin.warranties.order');
+        Route::post('warranties/{warranty}', [WarrantiesController::class, 'edit'])->name('catalog.admin.warranties.edit');
+        Route::post('warranties/{warranty}/activate', [WarrantiesController::class, 'activate'])->name('catalog.admin.warranties.activate');
+        Route::post('warranties/{warranty}/deactivate', [WarrantiesController::class, 'deactivate'])->name('catalog.admin.warranties.deactivate');
+        Route::post('warranties/{warranty}/delete', [WarrantiesController::class, 'delete'])->name('catalog.admin.warranties.delete');
+
+        Route::get('search-words', [SearchWordsController::class, 'index'])->name('catalog.admin.search-words');
+        Route::post('search-words', [SearchWordsController::class, 'add'])->name('catalog.admin.search-words.add');
+        Route::post('search-words/{pair}/delete', [SearchWordsController::class, 'delete'])->name('catalog.admin.search-words.delete');
+
+        // The products (step 2): the list, a new draft, and one product's page with each tab's changes.
+        Route::get('products', [ProductsController::class, 'index'])->name('catalog.admin.products');
+        Route::post('products', [ProductsController::class, 'create'])->name('catalog.admin.products.create');
+        Route::get('products/{product}', [ProductsController::class, 'show'])->name('catalog.admin.products.show');
+        Route::post('products/{product}/details', [ProductChangesController::class, 'details'])->name('catalog.admin.products.details');
+        Route::post('products/{product}/gallery', [ProductChangesController::class, 'gallery'])->name('catalog.admin.products.gallery');
+        Route::post('products/{product}/videos', [ProductChangesController::class, 'videos'])->name('catalog.admin.products.videos');
+        Route::post('products/{product}/search-words', [ProductChangesController::class, 'searchWords'])->name('catalog.admin.products.search-words');
+        Route::post('products/{product}/filters', [ProductChangesController::class, 'filters'])->name('catalog.admin.products.filters');
+        Route::post('products/{product}/related/{kind}', [ProductChangesController::class, 'related'])->whereIn('kind', ['related', 'goes_with'])->name('catalog.admin.products.related');
+        Route::post('products/{product}/ready', [ProductChangesController::class, 'ready'])->name('catalog.admin.products.ready');
+        Route::post('products/{product}/archive', [ProductChangesController::class, 'archive'])->name('catalog.admin.products.archive');
+        Route::post('products/{product}/restore', [ProductChangesController::class, 'restore'])->name('catalog.admin.products.restore');
+        Route::post('products/{product}/delete', [ProductChangesController::class, 'delete'])->name('catalog.admin.products.delete');
+        Route::post('products/{product}/variants', [ProductChangesController::class, 'addVariant'])->name('catalog.admin.products.variants.add');
+        Route::post('products/{product}/variants/order', [ProductChangesController::class, 'orderVariants'])->name('catalog.admin.products.variants.order');
+        Route::post('products/{product}/attributes', [ProductChangesController::class, 'addAttribute'])->name('catalog.admin.products.attributes.add');
+        Route::post('products/{product}/attributes/order', [ProductChangesController::class, 'orderAttributes'])->name('catalog.admin.products.attributes.order');
+        Route::post('products/{product}/attributes/{attribute}/remove', [ProductChangesController::class, 'removeAttribute'])->name('catalog.admin.products.attributes.remove');
+        Route::post('products/{product}/values', [ProductChangesController::class, 'addValue'])->name('catalog.admin.products.values.add');
+        Route::post('products/{product}/variants/{variant}', [ProductChangesController::class, 'editVariant'])->name('catalog.admin.products.variants.edit');
+        Route::post('products/{product}/variants/{variant}/code', [ProductChangesController::class, 'correctCode'])->name('catalog.admin.products.variants.code');
+        Route::post('products/{product}/variants/{variant}/photos', [ProductChangesController::class, 'variantPhotos'])->name('catalog.admin.products.variants.photos');
+        Route::post('products/{product}/variants/{variant}/archive', [ProductChangesController::class, 'archiveVariant'])->name('catalog.admin.products.variants.archive');
+        Route::post('products/{product}/variants/{variant}/restore', [ProductChangesController::class, 'restoreVariant'])->name('catalog.admin.products.variants.restore');
+        Route::post('products/{product}/variants/{variant}/delete', [ProductChangesController::class, 'deleteVariant'])->name('catalog.admin.products.variants.delete');
+
+        // A product's Stores tab (step 3): what one store does with it.
+        Route::post('products/{product}/stores/{store}/choose', [ProductStoresController::class, 'choose'])->name('catalog.admin.products.stores.choose');
+        Route::post('products/{product}/stores/{store}/selling', [ProductStoresController::class, 'selling'])->name('catalog.admin.products.stores.selling');
+        Route::post('products/{product}/stores/{store}/unavailable', [ProductStoresController::class, 'unavailable'])->name('catalog.admin.products.stores.unavailable');
+        Route::post('products/{product}/stores/{store}/labels', [ProductStoresController::class, 'labels'])->name('catalog.admin.products.stores.labels');
+
+        // The admins' store files (§4.4 S10, amendment 6(g)).
+        Route::get('store-files', [StoreFilesController::class, 'index'])->name('catalog.admin.store-files');
+        Route::post('store-files', [StoreFilesController::class, 'upload'])->name('catalog.admin.store-files.upload');
+        Route::get('store-files/{file}', [StoreFilesController::class, 'show'])->name('catalog.admin.store-files.show');
+        Route::post('store-files/{file}/switch-on', [StoreFilesController::class, 'switchOn'])->name('catalog.admin.store-files.switch-on');
+        Route::post('store-files/{file}/remove', [StoreFilesController::class, 'remove'])->name('catalog.admin.store-files.remove');
+        Route::post('store-files/{file}/items/{item}/code', [StoreFilesController::class, 'correctCode'])->name('catalog.admin.store-files.code');
+
+        // The Super Admin's products import (§4.4 S11, §1.12) and the files' guide (S10, S11).
+        Route::get('imports', [ImportsController::class, 'index'])->name('catalog.admin.imports');
+        Route::post('imports', [ImportsController::class, 'upload'])->name('catalog.admin.imports.upload');
+        Route::get('imports/{import}', [ImportsController::class, 'show'])->name('catalog.admin.imports.show');
+        Route::post('imports/{import}/names', [ImportsController::class, 'names'])->name('catalog.admin.imports.names');
+        Route::post('imports/{import}/codes', [ImportsController::class, 'codes'])->name('catalog.admin.imports.codes');
+        Route::post('imports/{import}/brand', [ImportsController::class, 'brand'])->name('catalog.admin.imports.brand');
+        Route::post('imports/{import}/category', [ImportsController::class, 'category'])->name('catalog.admin.imports.category');
+        Route::post('imports/{import}/warranty', [ImportsController::class, 'warranty'])->name('catalog.admin.imports.warranty');
+        Route::post('imports/{import}/filters', [ImportsController::class, 'filters'])->name('catalog.admin.imports.filters');
+        Route::post('imports/{import}/words', [ImportsController::class, 'words'])->name('catalog.admin.imports.words');
+        Route::post('imports/{import}/products/{product}/addresses', [ImportsController::class, 'addresses'])->name('catalog.admin.imports.addresses');
+        Route::post('imports/{import}/bring-in', [ImportsController::class, 'bringIn'])->name('catalog.admin.imports.bring-in');
+        Route::post('imports/{import}/accept', [ImportsController::class, 'accept'])->name('catalog.admin.imports.accept');
+        Route::post('imports/{import}/archive', [ImportsController::class, 'archive'])->name('catalog.admin.imports.archive');
+        Route::post('imports/{import}/delete', [ImportsController::class, 'delete'])->name('catalog.admin.imports.delete');
+        Route::post('imports/{import}/discard', [ImportsController::class, 'discard'])->name('catalog.admin.imports.discard');
+        Route::get('import-guide', [ImportGuideController::class, 'show'])->name('catalog.admin.import-guide');
+        Route::get('import-guide/{file}', [ImportGuideController::class, 'example'])->whereIn('file', ['products', 'store-fill'])->name('catalog.admin.import-guide.example');
+    });

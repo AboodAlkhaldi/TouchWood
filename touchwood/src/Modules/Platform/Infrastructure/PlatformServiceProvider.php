@@ -1,0 +1,387 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Platform\Infrastructure;
+
+use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Contracts\Filesystem\Factory as Filesystems;
+use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Contracts\Http\Kernel as HttpKernel;
+use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Events\MigrationsEnded;
+use Illuminate\Queue\Events\JobAttempted;
+use Illuminate\Queue\Events\JobProcessing;
+use Illuminate\Routing\Router;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\ServiceProvider;
+use InvalidArgumentException;
+use Modules\Platform\Application\Audit\UnnamedStaff;
+use Modules\Platform\Application\AuditLog;
+use Modules\Platform\Application\FailedJobs\FailedJobs;
+use Modules\Platform\Application\FailedJobs\FailedJobsCount;
+use Modules\Platform\Application\Home\AuthorizedHomeStores;
+use Modules\Platform\Application\Home\InMemoryAdminBanners;
+use Modules\Platform\Application\Home\InMemoryHomeCards;
+use Modules\Platform\Application\Media\ImageVariantGenerator;
+use Modules\Platform\Application\Media\InMemoryMediaUsages;
+use Modules\Platform\Application\Media\MediaInspector;
+use Modules\Platform\Application\Media\MediaSettings;
+use Modules\Platform\Application\Media\MediaStorage;
+use Modules\Platform\Application\Media\MediaVariantsQueue;
+use Modules\Platform\Application\Menu\InMemoryAdminMenu;
+use Modules\Platform\Application\Places\InMemoryShipToCountryGuards;
+use Modules\Platform\Application\PlatformApiImpl;
+use Modules\Platform\Application\Policies\NoShopPolicies;
+use Modules\Platform\Application\Query\AuthorizedStoreChoices;
+use Modules\Platform\Application\Query\ListAudit\AuditReader;
+use Modules\Platform\Application\Query\MediaReader;
+use Modules\Platform\Application\Query\PlaceReader;
+use Modules\Platform\Application\Query\PlacesPanelReader;
+use Modules\Platform\Application\Query\StoreDirectory;
+use Modules\Platform\Application\Routing\GuestShoppers;
+use Modules\Platform\Application\Routing\InMemoryAdminFrameParts;
+use Modules\Platform\Application\Routing\InMemoryOffStoreViewers;
+use Modules\Platform\Application\Routing\InMemoryReservedPaths;
+use Modules\Platform\Application\Routing\InMemoryShopFrameParts;
+use Modules\Platform\Application\Settings\InMemorySettingGuards;
+use Modules\Platform\Application\Settings\InMemorySettingsRegistry;
+use Modules\Platform\Application\Settings\InMemorySettingsSectionLines;
+use Modules\Platform\Application\Settings\SettingValues;
+use Modules\Platform\Domain\Repository\AddressCountryRepository;
+use Modules\Platform\Domain\Repository\CurrencyRepository;
+use Modules\Platform\Domain\Repository\MediaRepository;
+use Modules\Platform\Domain\Repository\PlaceRepository;
+use Modules\Platform\Domain\Repository\StoreCountryRepository;
+use Modules\Platform\Domain\Repository\StoreRepository;
+use Modules\Platform\Infrastructure\Eloquent\CachedStoreDirectory;
+use Modules\Platform\Infrastructure\Eloquent\DatabaseAddressCountries;
+use Modules\Platform\Infrastructure\Eloquent\DatabaseAuditLog;
+use Modules\Platform\Infrastructure\Eloquent\DatabaseAuditReader;
+use Modules\Platform\Infrastructure\Eloquent\DatabaseMediaReader;
+use Modules\Platform\Infrastructure\Eloquent\DatabaseMediaRepository;
+use Modules\Platform\Infrastructure\Eloquent\DatabasePlaceReader;
+use Modules\Platform\Infrastructure\Eloquent\DatabasePlaces;
+use Modules\Platform\Infrastructure\Eloquent\DatabasePlacesPanelReader;
+use Modules\Platform\Infrastructure\Eloquent\DatabaseSettings;
+use Modules\Platform\Infrastructure\Eloquent\DatabaseStoreCountries;
+use Modules\Platform\Infrastructure\Eloquent\EloquentCurrencyRepository;
+use Modules\Platform\Infrastructure\Eloquent\EloquentStoreRepository;
+use Modules\Platform\Infrastructure\External\DeepLTextTranslator;
+use Modules\Platform\Infrastructure\External\FakeTextTranslator;
+use Modules\Platform\Infrastructure\External\FinfoMediaInspector;
+use Modules\Platform\Infrastructure\External\InterventionImageVariantGenerator;
+use Modules\Platform\Infrastructure\External\LaravelMediaStorage;
+use Modules\Platform\Infrastructure\Queue\DatabaseFailedJobs;
+use Modules\Platform\Infrastructure\Queue\JobActorState;
+use Modules\Platform\Infrastructure\Queue\JobAwareActorContext;
+use Modules\Platform\Infrastructure\Queue\LaravelMediaVariantsQueue;
+use Modules\Platform\Infrastructure\Queue\QueuedActor;
+use Modules\Platform\Infrastructure\Queue\RelayOutboxJob;
+use Modules\Platform\Infrastructure\Queue\RequeueStuckMediaVariantsJob;
+use Modules\Platform\Presentation\Console\CreateCurrencyCommand;
+use Modules\Platform\Presentation\Console\CreateStoreCommand;
+use Modules\Platform\Presentation\Console\RequeueStuckMediaVariantsCommand;
+use Modules\Platform\Presentation\Home\StoresAndSystemCard;
+use Modules\Platform\Presentation\Http\InMemoryUnmatchedAddresses;
+use Modules\Platform\Presentation\Http\Middleware\AnswerUnmatchedAddresses;
+use Modules\Platform\Presentation\Http\Middleware\CanonicalHost;
+use Modules\Platform\Presentation\Http\Middleware\ResolveStore;
+use Modules\Platform\Presentation\Http\Middleware\ShareStorefront;
+use Modules\Platform\Presentation\Http\Middleware\TrackHttpRequest;
+use Modules\Platform\Presentation\Http\StorefrontLanguage;
+use Modules\Platform\Public\Contracts\AdminBanners;
+use Modules\Platform\Public\Contracts\AdminFrameParts;
+use Modules\Platform\Public\Contracts\AdminMenu;
+use Modules\Platform\Public\Contracts\HomeCards;
+use Modules\Platform\Public\Contracts\HomeStores;
+use Modules\Platform\Public\Contracts\MediaUsages;
+use Modules\Platform\Public\Contracts\OffStoreViewers;
+use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Contracts\ReservedPaths;
+use Modules\Platform\Public\Contracts\SettingGuards;
+use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Contracts\SettingsSectionLines;
+use Modules\Platform\Public\Contracts\ShipToCountryGuards;
+use Modules\Platform\Public\Contracts\ShopFrameParts;
+use Modules\Platform\Public\Contracts\ShopperType;
+use Modules\Platform\Public\Contracts\ShopPolicies;
+use Modules\Platform\Public\Contracts\StaffNames;
+use Modules\Platform\Public\Contracts\StoreChoices;
+use Modules\Platform\Public\Contracts\TextTranslator;
+use Modules\Platform\Public\Contracts\UnmatchedAddresses;
+use Modules\Platform\Public\Dto\HomeCardDto;
+use Modules\Platform\Public\Dto\MenuEntryDto;
+use Modules\Platform\Public\PlatformPermissions;
+use Psr\Log\LoggerInterface;
+use Shared\Application\ActorContext;
+use Shared\Application\StoreContext;
+
+final class PlatformServiceProvider extends ServiceProvider
+{
+    /**
+     * Stateless, or holding only process-wide state.
+     *
+     * @var array<class-string, class-string>
+     */
+    public array $singletons = [
+        // Holds the definitions every module declares at boot.
+        InMemorySettingsRegistry::class => InMemorySettingsRegistry::class,
+        // Holds the guards modules register over their settings.
+        InMemorySettingGuards::class => InMemorySettingGuards::class,
+        AuditReader::class => DatabaseAuditReader::class,
+        StoreRepository::class => EloquentStoreRepository::class,
+        CurrencyRepository::class => EloquentCurrencyRepository::class,
+        AddressCountryRepository::class => DatabaseAddressCountries::class,
+        PlaceRepository::class => DatabasePlaces::class,
+        StoreCountryRepository::class => DatabaseStoreCountries::class,
+        PlaceReader::class => DatabasePlaceReader::class,
+        PlacesPanelReader::class => DatabasePlacesPanelReader::class,
+        LaravelStoreContext::class => LaravelStoreContext::class,
+        MediaRepository::class => DatabaseMediaRepository::class,
+        MediaInspector::class => FinfoMediaInspector::class,
+        ImageVariantGenerator::class => InterventionImageVariantGenerator::class,
+        MediaVariantsQueue::class => LaravelMediaVariantsQueue::class,
+        FailedJobs::class => DatabaseFailedJobs::class,
+        // Process-wide on purpose: the queue worker runs jobs one after another in one process.
+        JobActorState::class => JobActorState::class,
+    ];
+
+    public function register(): void
+    {
+        $this->app->alias(LaravelStoreContext::class, StoreContext::class);
+        $this->app->alias(InMemorySettingsRegistry::class, SettingsRegistry::class);
+        $this->app->alias(InMemorySettingGuards::class, SettingGuards::class);
+        // Modules that may refuse taking a country off a store's ship-to list register here (Shipping).
+        $this->app->singleton(InMemoryShipToCountryGuards::class);
+        $this->app->alias(InMemoryShipToCountryGuards::class, ShipToCountryGuards::class);
+        // Bound here, not in $singletons: Laravel applies that list only after register() returns, and
+        // Platform reserves its own paths just below. Other modules reserve in their register().
+        $this->app->singleton(InMemoryReservedPaths::class);
+        $this->app->alias(InMemoryReservedPaths::class, ReservedPaths::class);
+
+        // Paths the application keeps for itself until a module that owns them exists: the health
+        // check, built assets, public files and signed file links, the admin panel and the API.
+        $this->app->make(ReservedPaths::class)->reserve('platform', 'up', 'build', 'storage', 'admin', 'api');
+
+        // Modules that store media ids register here, so deleting media detaches or refuses.
+        $this->app->singleton(InMemoryMediaUsages::class);
+        $this->app->alias(InMemoryMediaUsages::class, MediaUsages::class);
+
+        // A module may put one line at the top of its settings section (platform.md §1.3).
+        $this->app->singleton(InMemorySettingsSectionLines::class);
+        $this->app->alias(InMemorySettingsSectionLines::class, SettingsSectionLines::class);
+
+        // Who may see an off store in the shop: nobody, unless a module says so (platform.md §2.7).
+        $this->app->singleton(InMemoryOffStoreViewers::class);
+        $this->app->alias(InMemoryOffStoreViewers::class, OffStoreViewers::class);
+
+        // Who may answer an address nobody answers - Content's redirects from the old site (content.md
+        // §2.3 row L2). Nobody, until a module registers.
+        $this->app->singleton(InMemoryUnmatchedAddresses::class);
+        $this->app->alias(InMemoryUnmatchedAddresses::class, UnmatchedAddresses::class);
+
+        // Machine translation of staff text (content.md §2.2, row L1), an adapter chosen by configuration:
+        // DeepL with the server's token, or the fake that sends nothing - once for the process, so a test's
+        // settings of it reach the use case. Unset, the fake off production and DeepL on it, where no key is
+        // "not set up" and never a 500; the fake named in production is refused, as Ops' "log" email driver.
+        $this->app->singleton(FakeTextTranslator::class);
+        $this->app->bind(TextTranslator::class, fn (Application $app): TextTranslator => match ($app->make('config')->get('services.deepl.driver') ?: ($app->environment('production') ? 'deepl' : 'fake')) {
+            'deepl' => new DeepLTextTranslator((string) $app->make('config')->get('services.deepl.key'), logger: $app->make(LoggerInterface::class)),
+            'fake' => $app->environment('production')
+                ? throw new InvalidArgumentException('The "fake" translator sends nothing and never runs in production: set TEXT_TRANSLATOR to "deepl".')
+                : $app->make(FakeTextTranslator::class),
+            default => throw new InvalidArgumentException('TEXT_TRANSLATOR names no translator Platform has: "deepl" or "fake".'),
+        });
+
+        // Modules register their admin menu entries here, Platform included: the menu is built from
+        // what each person may do, and grows module by module (stage 2b, P6).
+        $this->app->singleton(InMemoryAdminMenu::class);
+        $this->app->alias(InMemoryAdminMenu::class, AdminMenu::class);
+
+        // The admin home's cards, registered by every module as menu entries are (platform.md §2.6).
+        $this->app->singleton(InMemoryHomeCards::class);
+        $this->app->alias(InMemoryHomeCards::class, HomeCards::class);
+        // The stores a home card speaks for (dashboard.md §3.2): asks the Authorizer, so scoped to the person acting.
+        $this->app->scoped(HomeStores::class, AuthorizedHomeStores::class);
+        $this->app->singleton(InMemoryAdminBanners::class);
+        $this->app->alias(InMemoryAdminBanners::class, AdminBanners::class);
+
+        // The shop frame's parts - Catalog's menu and search box (catalog.md §4.5, owner's #9).
+        $this->app->singleton(InMemoryShopFrameParts::class);
+        $this->app->alias(InMemoryShopFrameParts::class, ShopFrameParts::class);
+        // And the panel's - Ops' bell (ops.md §4.15 O1).
+        $this->app->singleton(InMemoryAdminFrameParts::class);
+        $this->app->alias(InMemoryAdminFrameParts::class, AdminFrameParts::class);
+
+        // One pattern for {store} on every route, built from every module's reserved paths, so no
+        // module imports Platform's interior to register storefront routes. Built after every
+        // provider's register() and before any boot(): Laravel copies a global pattern into a route
+        // only when the route is created, so a module whose provider boots before Platform's still
+        // gets it. Frozen afterwards: a later reservation would be missing from the pattern.
+        $this->app->booting(function (Application $app): void {
+            $reservedPaths = $app->make(InMemoryReservedPaths::class);
+            Route::pattern('store', $reservedPaths->routePattern());
+            Route::pattern('locale', $app->make(StorefrontLanguage::class)->routePattern());
+            $reservedPaths->freeze();
+        });
+
+        // Process-wide: a web server process serves requests only; in the console, TrackHttpRequest
+        // marks the requests tests send.
+        $this->app->singleton(HttpRequestState::class, fn (Application $app): HttpRequestState => new HttpRequestState(! $app->runningInConsole()));
+
+        // Anything that depends on who is acting lives for one request or one job, never the
+        // whole process — a queue worker must not audit or authorize as an earlier job's actor.
+        // Access binds the ActorContext (spec §2.5). This wraps it: a queued job acts as the system
+        // on behalf of whoever queued it (owner's decision, 2026-09-18).
+        $this->app->extend(ActorContext::class, fn (ActorContext $actors, Application $app): ActorContext => $actors instanceof JobAwareActorContext
+            ? $actors
+            : new JobAwareActorContext($actors, $app->make(JobActorState::class)));
+        // The Authorizer is Access's (Access spec §2.5).
+        $this->app->scoped(AuditLog::class, DatabaseAuditLog::class);
+        // Read once per web request (§9.11, owner 2026-10-08): scoped, so what they remember lasts
+        // one request, and the system - the console, a queued job - is never answered from memory.
+        $this->app->scoped(SettingValues::class, DatabaseSettings::class);
+        $this->app->scoped(StoreDirectory::class, CachedStoreDirectory::class);
+        $this->app->scoped(PlatformApi::class, PlatformApiImpl::class);
+        // A store screen's filter (§9.10): scoped, it reads who is acting.
+        $this->app->scoped(StoreChoices::class, AuthorizedStoreChoices::class);
+        // Nobody named until the module that owns people binds its own (Access does, amendment 54).
+        // Scoped: who may be named depends on who is reading.
+        $this->app->scoped(StaffNames::class, UnnamedStaff::class);
+        // No store has policies until the module that keeps them binds its own (Content does, flags-2026-11.md S3).
+        $this->app->scoped(ShopPolicies::class, NoShopPolicies::class);
+        // Everyone a guest until the module that owns customers binds its own (Access does, catalog.md
+        // amendment 14(a)). Scoped: who is looking is this request's.
+        $this->app->scoped(ShopperType::class, GuestShoppers::class);
+
+        $this->app->singleton(MediaStorage::class, fn (Application $app): MediaStorage => new LaravelMediaStorage(
+            $app->make(Filesystems::class),
+            $app->make(LoggerInterface::class),
+            [
+                'public_disk' => (string) config('platform.media.public_disk'),
+                'private_disk' => (string) config('platform.media.private_disk'),
+            ],
+        ));
+        $this->app->singleton(StorefrontLanguage::class, fn (): StorefrontLanguage => new StorefrontLanguage(
+            array_values(array_map(strval(...), (array) config('platform.locales'))),
+            (string) config('app.locale'),
+        ));
+        $this->app->singleton(MediaReader::class, fn (Application $app): MediaReader => new DatabaseMediaReader(
+            $app->make(MediaRepository::class),
+            $app->make(MediaStorage::class),
+            (int) config('platform.media.private_link_minutes'),
+            $app->make(ConnectionInterface::class),
+        ));
+    }
+
+    public function boot(Router $router): void
+    {
+        $presentation = dirname(__DIR__).'/Presentation';
+
+        $this->loadMigrationsFrom(__DIR__.'/Persistence/Migrations');
+        $this->loadTranslationsFrom($presentation.'/lang', 'platform');
+
+        $router->aliasMiddleware(ResolveStore::ALIAS, ResolveStore::class);
+        $router->aliasMiddleware(ShareStorefront::ALIAS, ShareStorefront::class);
+
+        // First of all, on every request: the other host (www.) answers a permanent redirect to the canonical
+        // one before anything runs (content.md §1.14, §2.3 row L5).
+        // An APP_URL on the www. host would make every address the site builds a redirect: refused at boot when
+        // serving HTTP (never in the console, where it would stop config:clear from mending it).
+        CanonicalHost::assertAppUrlAtBoot($this->app->runningInConsole(), $this->app->make('config')->get('app.url'));
+        $this->app->make(HttpKernel::class)->prependMiddleware(CanonicalHost::class);
+        // On every request, so the audit log can tell a web change from a console or queued one.
+        $this->app->make(HttpKernel::class)->pushMiddleware(TrackHttpRequest::class);
+        // On every request too: a read no route matched is offered to the modules' answers before it is
+        // answered not found (content.md §2.3 row L2); every other answer passes through untouched.
+        $this->app->make(HttpKernel::class)->pushMiddleware(AnswerUnmatchedAddresses::class);
+
+        $this->app->make(SettingsRegistry::class)->define('platform', ...MediaSettings::definitions());
+
+        /*
+        | What Platform puts in the admin menu (stage 2b, P6). Registered at boot like the settings;
+        | who is offered each entry is decided per request, by asking the authorizer about the
+        | permission named here.
+        |
+        | Offering is never allowing: the screen behind each of these checks the same permission
+        | again in its own read model or handler (handoff 19).
+        */
+        $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('platform', 'stores', 'store_settings', 'platform.admin.stores', PlatformPermissions::STORE_VIEW, 10, icon: 'stores'),
+            new MenuEntryDto('platform', 'currencies', 'store_settings', 'platform.admin.currencies', PlatformPermissions::CURRENCY_UPDATE, 20, icon: 'billing'),
+            // After Currencies (platform.md §4.3; the owner, 2026-10-29, Q1): reserved, so Super Admins only.
+            new MenuEntryDto('platform', 'places', 'store_settings', 'platform.admin.places', PlatformPermissions::PLACES_MANAGE, 25, icon: 'places'),
+            new MenuEntryDto('platform', 'settings', 'store_settings', 'platform.admin.settings', PlatformPermissions::SETTINGS_VIEW, 30, icon: 'dashboard'),
+            new MenuEntryDto('platform', 'media', 'media', 'platform.admin.media', PlatformPermissions::MEDIA_UPLOAD, 10, icon: 'media'),
+            new MenuEntryDto('platform', 'audit', 'audit', 'platform.admin.audit', PlatformPermissions::AUDIT_VIEW, 10, icon: 'audit'),
+            // With the number waiting beside it, and on the admin home (owner, 2026-09-29).
+            new MenuEntryDto('platform', 'failed_jobs', 'system', 'platform.admin.failed_jobs', PlatformPermissions::JOBS_MANAGE, 10, icon: 'failed_jobs', count: FailedJobsCount::class),
+        );
+
+        // Its card on the admin home (platform.md §9.8): each figure asks for its own permission.
+        // Failed jobs and media are store-free: they show the card, but never offer All Stores.
+        $this->app->make(HomeCards::class)->register(
+            new HomeCardDto('platform', 'system', PlatformPermissions::STORE_VIEW, StoresAndSystemCard::class, 20, storeFree: [
+                PlatformPermissions::JOBS_MANAGE,
+                ...StoresAndSystemCard::MEDIA,
+            ]),
+        );
+
+        // Images whose variant job was lost are queued again (owner's decision, 2026-09-16). Scheduled
+        // work runs as a queued job, so its audit source is JOB (owner's decision, 2026-09-18).
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
+            $schedule->job(RequeueStuckMediaVariantsJob::class)->everyTenMinutes()->onOneServer();
+            // The outbox's relay, Shared's (platform.md §5.6; sales.md answer 43): every minute, from one server.
+            $schedule->job(RelayOutboxJob::class)->everyMinute()->onOneServer();
+        });
+
+        $this->carryActorIntoQueuedJobs();
+
+        // A fresh or rolled-back schema must not be served from a cache built on the old one.
+        Event::listen(MigrationsEnded::class, function (): void {
+            $this->app->make(StoreDirectory::class)->invalidate();
+            $this->app->make(SettingValues::class)->invalidate();
+        });
+
+        if (! $this->app->routesAreCached()) {
+            // Not wrapped in "web" from here: the shop's routes bring their own list, because
+            // its session cookie has to be set before "web" opens a session - the same reason the
+            // panel's file below is loaded on its own (frontend.md 2.3).
+            Route::group([], $presentation.'/routes.php');
+
+            // The panel's own file, and deliberately not inside that group: the admin session
+            // cookie has to be set *before* "web" opens a session, and a second "web" around it
+            // would open one first (frontend.md 4.1, and Access's own routes for the same reason).
+            Route::group([], $presentation.'/admin-routes.php');
+        }
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([CreateCurrencyCommand::class, CreateStoreCommand::class, RequeueStuckMediaVariantsCommand::class]);
+        }
+    }
+
+    /**
+     * The actor who queues a job is written into its payload; while the job runs it acts as the
+     * system on that actor's behalf, and afterwards the previous actor is back (with the "sync"
+     * queue a job runs inside the request that queued it).
+     */
+    private function carryActorIntoQueuedJobs(): void
+    {
+        Queue::createPayloadUsing(fn (): array => QueuedActor::payloadFor($this->app->make(ActorContext::class)->current()));
+
+        $jobs = $this->app->make(JobActorState::class);
+
+        Event::listen(JobProcessing::class, function (JobProcessing $event) use ($jobs): void {
+            $jobs->enter(spl_object_id($event->job), QueuedActor::actorFor($event->job->payload()));
+        });
+
+        // JobAttempted fires in a finally block, after a failed job's failed() method has run, on
+        // the worker and on the sync queue alike — so failed() still acts as the system.
+        Event::listen(JobAttempted::class, function (JobAttempted $event) use ($jobs): void {
+            $jobs->leave(spl_object_id($event->job));
+        });
+    }
+}

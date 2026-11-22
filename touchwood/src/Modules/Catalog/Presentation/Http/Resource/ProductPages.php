@@ -1,0 +1,345 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Catalog\Presentation\Http\Resource;
+
+use Illuminate\Contracts\Foundation\Application;
+use Modules\Catalog\Application\CatalogPermissions;
+use Modules\Catalog\Application\Import\DescriptionText;
+use Modules\Catalog\Application\Products\InMemoryProductStoreSections;
+use Modules\Catalog\Application\Query\ListProducts\ListProducts;
+use Modules\Catalog\Application\Query\ListProducts\ListProductsHandler;
+use Modules\Catalog\Application\Query\Products\AttributeChoice;
+use Modules\Catalog\Application\Query\Products\CatalogProductReads;
+use Modules\Catalog\Application\Query\Products\LabelChoice;
+use Modules\Catalog\Application\Query\Products\ProductFilter;
+use Modules\Catalog\Application\Query\Products\ProductOptions;
+use Modules\Catalog\Application\Query\Products\ProductRow;
+use Modules\Catalog\Application\Query\Products\RelatedRow;
+use Modules\Catalog\Application\Query\Products\VariantView;
+use Modules\Catalog\Application\Query\ViewProduct\ProductView;
+use Modules\Catalog\Application\Query\ViewProduct\ViewProduct;
+use Modules\Catalog\Application\Query\ViewProduct\ViewProductHandler;
+use Modules\Catalog\Domain\ValueObject\ProductVideo;
+use Modules\Platform\Public\Contracts\StoreChoices;
+use Modules\Platform\Public\Dto\MoneyData;
+use Modules\Platform\Public\Dto\StoreDto;
+use Shared\Application\Unauthorized;
+use Shared\Domain\Text\LatinDigits;
+use Shared\Domain\ValueObject\Money;
+
+/**
+ * The products screens' pages, in the shape the screens want (catalog.md §4.4 S8, S9).
+ *
+ * It decides nothing: who may read the products and what they may do to one is Catalog's answer -
+ * `ListProducts`, `ViewProduct` -, which store a page shows is Platform's `StoreChoices`, as on every
+ * store screen (frontend.md §2.2). What happens here is shaping: photos into thumbnails, a page's
+ * photos in one read (`mediaUrlsOf`), a category's path into words, a description back into the marks
+ * typed (P1), store ids into their codes.
+ */
+final readonly class ProductPages
+{
+    public function __construct(
+        private Application $app,
+        private Thumbnails $thumbnails,
+        private StoreChoices $choices,
+        private ListProductsHandler $list,
+        private ViewProductHandler $view,
+        private CatalogProductReads $reads,
+        private InMemoryProductStoreSections $sections,
+    ) {}
+
+    /**
+     * The products list: All Stores first, else the store chosen among those the reader covers.
+     *
+     * @throws Unauthorized when a store is asked for that the reader does not cover
+     */
+    public function list(?string $search, ?string $stage, ?string $categoryId, ?string $brandId, ?string $storeCode, ?string $storeState, ?string $after): ProductsPage
+    {
+        $stores = $this->choices->forJobs(CatalogPermissions::PRODUCT_VIEW);
+        $chosen = $storeCode === null ? null : self::storeIn($stores, $storeCode);
+        $list = $this->list->handle(new ListProducts(new ProductFilter($search, $stage, $categoryId, $brandId, $chosen?->id, $storeState, $after)));
+        $codes = self::codes($stores);
+        $thumbs = $this->thumbnails->of(array_map(static fn (ProductRow $row): ?string => $row->photoMediaId, $list->products));
+        $options = $this->reads->options();
+        $last = $list->products === [] ? null : $list->products[count($list->products) - 1]->id;
+        $applied = $list->filter;
+
+        // The filters as the list applied them, so the page shows what it was narrowed by.
+        return new ProductsPage(
+            array_map(fn (ProductRow $row): ProductRowData => $this->row($row, $thumbs, $codes, $chosen), $list->products),
+            $list->more,
+            $list->more ? $last : null,
+            $applied->search,
+            $applied->stage,
+            $applied->categoryId,
+            $applied->brandId,
+            $applied->storeState,
+            $chosen?->code,
+            array_map(fn (StoreDto $store): StoreOptionData => new StoreOptionData($store->id, $store->code, $store->name->in($this->locale()), $store->isActive), $stores),
+            $list->mayCreate,
+            self::brands($options),
+            self::categories($options),
+        );
+    }
+
+    /**
+     * One product's page, with its open tab's data; on the Related tab, the ready products a search
+     * for one to add found.
+     */
+    public function product(string $productId, string $tab, ?string $find): ProductPage
+    {
+        $view = $this->view->handle(new ViewProduct($productId, $tab));
+        $core = $view->product;
+        $variantPhotos = [];
+
+        foreach ($view->variants ?? [] as $variant) {
+            $variantPhotos = [...$variantPhotos, ...$variant->photos];
+        }
+
+        $thumbs = $this->thumbnails->of([...$core->gallery, ...$variantPhotos]);
+        $photo = static fn (string $mediaId): PhotoData => new PhotoData($mediaId, $thumbs[$mediaId] ?? null, $view->photoStates[$mediaId] ?? 'PENDING');
+        $found = null;
+
+        // A search for a product to relate: the ready ones, read as the list reads them - the page is
+        // already the reader's to read (ViewProduct).
+        $search = $find === null ? '' : trim(LatinDigits::of(mb_scrub($find, 'UTF-8')));
+
+        if ($view->tab === ViewProduct::RELATED && $search !== '') {
+            [$rows] = $this->reads->products(new ProductFilter(search: $search, stage: 'READY'), 20);
+            $found = array_map(fn (ProductRow $row): ProductRowData => $this->row($row, [], []), array_values(array_filter($rows, static fn (ProductRow $row): bool => $row->id !== $core->id)));
+        }
+
+        return new ProductPage(
+            new ProductHeadData(
+                $core->id, $core->nameAr, $core->nameEn, $core->slugAr, $core->slugEn, $core->stage, $core->archivedFrom,
+                $core->brandId, $core->brandNameAr, $core->brandNameEn, $core->categoryId,
+                $core->categoryPath === [] ? null : implode(' › ', array_column($core->categoryPath, 'ar')),
+                $core->categoryPath === [] ? null : implode(' › ', array_column($core->categoryPath, 'en')),
+                $core->warrantyId, $core->variantAttributeIds,
+                DescriptionText::text($core->descriptionAr), DescriptionText::text($core->descriptionEn),
+                $core->hiddenByCategory, $core->hiddenByBrand, $core->codes,
+                new ProductCountsData(...$core->counts),
+                $core->unit,
+            ),
+            $view->tab,
+            $view->missing,
+            array_map($photo, $core->gallery),
+            $view->mayUpdate,
+            $view->mayPublish,
+            $view->mayArchive,
+            $view->mayCorrectCode,
+            $view->options === null ? null : self::brands($view->options),
+            $view->options === null ? null : self::categories($view->options),
+            $view->options === null ? null : array_map(static fn (array $warranty): WarrantyOptionData => new WarrantyOptionData(...$warranty), $view->options->warranties),
+            $view->variants === null ? null : array_map(static fn (VariantView $variant): VariantData => new VariantData(
+                $variant->id, $variant->code, $variant->position, $variant->archived,
+                array_map(static fn (array $value): VariantValueData => new VariantValueData(...$value), $variant->values),
+                array_map(static fn (array $detail): VariantDetailData => new VariantDetailData(...$detail), $variant->details),
+                $variant->weightGrams, $variant->lengthMm, $variant->widthMm, $variant->heightMm,
+                array_map($photo, $variant->photos),
+            ), $view->variants),
+            $view->attributes === null ? null : self::attributes($view->attributes),
+            $view->searchWords,
+            $view->filterValueIds,
+            $view->related === null ? null : array_map(static fn (RelatedRow $row): RelatedData => new RelatedData(
+                $row->kind, $row->productId, $row->nameAr, $row->nameEn, $row->codes, $row->stage,
+            ), $view->related),
+            $found,
+            $view->stores === null ? null : $this->storeCards($view),
+            $view->labels === null ? null : array_map(static fn (LabelChoice $label): LabelChoiceData => new LabelChoiceData(
+                $label->id, $label->nameAr, $label->nameEn, $label->tone, $label->active,
+            ), $view->labels),
+            $view->videos === null ? null : array_map(static fn (ProductVideo $video): VideoData => new VideoData($video->videoId, $video->titleAr, $video->titleEn), $view->videos),
+        );
+    }
+
+    /**
+     * A card for each store the reader covers, as every store screen offers them (StoreChoices: a
+     * Super Admin's off stores too, P6) - what it does with the product, and which of its jobs the
+     * reader holds there - and in each, the parts the modules above registered (amendment 23(e)): each
+     * section read once for every card.
+     *
+     * @return list<StoreCardData>
+     */
+    private function storeCards(ProductView $view): array
+    {
+        // A job held with All stores is null: it reaches every store.
+        $jobs = $view->storeJobs ?? [];
+        $holds = static fn (string $job, string $storeId): bool => array_key_exists($job, $jobs) && ($jobs[$job] === null || in_array($storeId, $jobs[$job], true));
+        $stores = $this->choices->forJobs(CatalogPermissions::PRODUCT_VIEW);
+        $sections = $this->sections($view, $stores);
+        $cards = [];
+
+        foreach ($stores as $store) {
+            $id = strtolower($store->id);
+            $row = $view->stores[$id] ?? null;
+            $cards[] = new StoreCardData(
+                $id,
+                $store->code,
+                $store->name->in($this->locale()),
+                $store->isActive,
+                $row !== null,
+                $row !== null && $row->notAvailable,
+                $row === null ? 1 : $row->retailMinimum,
+                $row?->retailMaximum,
+                $row?->wholesaleMinimum,
+                $row?->wholesaleMaximum,
+                $row === null ? [] : $row->labelIds,
+                $row === null ? [] : array_map(
+                    static fn (string $variantId, array $variant): StoreVariantData => new StoreVariantData($variantId, $variant['on'], $variant['retail'], $variant['wholesale'], $variant['notAvailable']),
+                    array_keys($row->variants),
+                    array_values($row->variants),
+                ),
+                $holds(CatalogPermissions::LISTING_CHOOSE, $id),
+                $holds(CatalogPermissions::LISTING_SELLING, $id),
+                $holds(CatalogPermissions::LISTING_UNAVAILABLE, $id),
+                $holds(CatalogPermissions::LISTING_LABELS, $id),
+                $sections[$id] ?? [],
+            );
+        }
+
+        return $cards;
+    }
+
+    /**
+     * The registered sections' parts of the cards (amendment 23(e)), by store: each section asked once,
+     * for every store on the tab - a store it leaves out draws nothing of it.
+     *
+     * @param  list<StoreDto>  $stores
+     * @return array<string, list<StoreSectionData>> store id => its card's sections, in the order registered
+     */
+    private function sections(ProductView $view, array $stores): array
+    {
+        $registered = $this->sections->all();
+
+        if ($registered === [] || $stores === []) {
+            return [];
+        }
+
+        $variantIds = array_values(array_map(
+            static fn (VariantView $variant): string => $variant->id,
+            array_filter($view->variants ?? [], static fn (VariantView $variant): bool => ! $variant->archived),
+        ));
+        $byStore = [];
+
+        foreach ($registered as ['module' => $module, 'section' => $section]) {
+            foreach ($section->read($view->product->id, $variantIds, $stores) as $storeId => $data) {
+                $byStore[strtolower((string) $storeId)][] = new StoreSectionData($module, $section->component(), $data);
+            }
+        }
+
+        return $byStore;
+    }
+
+    /**
+     * @param  array<string, string>  $thumbs
+     * @param  array<string, string>  $codes  store id => code
+     * @param  StoreDto|null  $store  the store chosen on the list, whose Price and Can't Order it shows
+     */
+    private function row(ProductRow $row, array $thumbs, array $codes, ?StoreDto $store = null): ProductRowData
+    {
+        $locale = $this->locale();
+        // A price kept in another currency than the store's - its currency changed since - is not shown
+        // with the store's decimals and sign: Pricing writes it again.
+        $price = $store !== null && $row->lowestPrice !== null && $row->lowestPrice['currency'] === $store->currencyCode
+            ? MoneyData::of(Money::of($row->lowestPrice['minor'], $row->lowestPrice['currency']), $store, $locale)
+            : null;
+        // "2 of 5 sizes", counted by the sizes switched on there; none switched on, nothing to count.
+        $cantOrder = $store !== null && $row->storeVariantsOn > 0
+            ? trans_choice('catalog::admin_products.cant_order_count', $row->storeVariantsOn, ['count' => $row->cantOrder, 'total' => $row->storeVariantsOn], $locale)
+            : null;
+
+        return new ProductRowData(
+            $row->id, $row->nameAr, $row->nameEn, $row->codes, $row->stage, $row->brandNameAr, $row->brandNameEn,
+            $row->categoryNameAr, $row->categoryNameEn, $thumbs[$row->photoMediaId ?? ''] ?? null, $row->variants,
+            // A store the reader is not offered (off, for anyone but a Super Admin) is not named.
+            array_values(array_filter(array_map(static fn (string $id): ?string => $codes[strtolower($id)] ?? null, $row->onIn))),
+            $row->storeState, $row->storeVariantsOn,
+            $price,
+            $cantOrder,
+        );
+    }
+
+    /**
+     * @return list<BrandOptionData>
+     */
+    public static function brands(ProductOptions $options): array
+    {
+        return array_map(static fn (array $brand): BrandOptionData => new BrandOptionData(...$brand), $options->brands);
+    }
+
+    /**
+     * @param  list<AttributeChoice>  $attributes
+     * @return list<AttributeChoiceData>
+     */
+    public static function attributes(array $attributes): array
+    {
+        return array_map(static fn (AttributeChoice $attribute): AttributeChoiceData => new AttributeChoiceData(
+            $attribute->id, $attribute->nameAr, $attribute->nameEn, $attribute->kind, $attribute->unitAr, $attribute->unitEn,
+            $attribute->isColour, $attribute->active,
+            array_map(static fn (array $value): ChoiceValueData => new ChoiceValueData(...$value), $attribute->values),
+        ), $attributes);
+    }
+
+    /**
+     * @return list<WarrantyOptionData>
+     */
+    public static function warranties(ProductOptions $options): array
+    {
+        return array_map(static fn (array $warranty): WarrantyOptionData => new WarrantyOptionData(...$warranty), $options->warranties);
+    }
+
+    /**
+     * @return list<CategoryOptionData>
+     */
+    public static function categories(ProductOptions $options): array
+    {
+        return array_map(static fn (array $category): CategoryOptionData => new CategoryOptionData(
+            $category['id'],
+            implode(' › ', array_column($category['path'], 'ar')),
+            implode(' › ', array_column($category['path'], 'en')),
+            $category['active'],
+        ), $options->categories);
+    }
+
+    /**
+     * @param  list<StoreDto>  $stores
+     * @return array<string, string> store id => code
+     */
+    private static function codes(array $stores): array
+    {
+        $codes = [];
+
+        foreach ($stores as $store) {
+            $codes[strtolower($store->id)] = $store->code;
+        }
+
+        return $codes;
+    }
+
+    /**
+     * The store asked for in the page's filter, among those offered; another, or one that does not
+     * exist, is the same refusal (StoreChoices).
+     *
+     * @param  list<StoreDto>  $stores
+     *
+     * @throws Unauthorized
+     */
+    private static function storeIn(array $stores, string $code): StoreDto
+    {
+        foreach ($stores as $store) {
+            if (strtolower($store->code) === strtolower(trim($code))) {
+                return $store;
+            }
+        }
+
+        throw new Unauthorized(CatalogPermissions::PRODUCT_VIEW);
+    }
+
+    private function locale(): string
+    {
+        return $this->app->getLocale() === 'en' ? 'en' : 'ar';
+    }
+}

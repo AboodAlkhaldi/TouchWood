@@ -1,0 +1,2 @@
+import{n as e}from"./cn-CKFzBO3y.js";var t=e();function n({text:e}){return(0,t.jsx)(t.Fragment,{children:e.split(`
+`).filter(e=>e.trim()!==``).map((e,n)=>(0,t.jsx)(`span`,{className:`block`,children:(0,t.jsx)(`bdi`,{children:e})},n))})}export{n as t};

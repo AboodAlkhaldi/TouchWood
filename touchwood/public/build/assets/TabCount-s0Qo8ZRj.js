@@ -1,0 +1,1 @@
+import{n as e}from"./cn-CKFzBO3y.js";import{y as t}from"./app-DqTETjiQ.js";import{t as n}from"./digits-CSSTHw6r.js";var r=e();function i({count:e,test:i}){let{locale:a}=t().props;return e===void 0?null:(0,r.jsx)(`span`,{className:`tw-figure text-label-12 text-ink-muted`,"data-test":i,children:n(a,e)})}export{i as t};

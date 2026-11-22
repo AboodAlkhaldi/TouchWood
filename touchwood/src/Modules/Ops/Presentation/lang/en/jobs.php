@@ -1,0 +1,36 @@
+<?php
+
+declare(strict_types=1);
+
+// What Ops' queued work is called on the failed jobs screen (frontend.md E7).
+return [
+    'send_daily_report_email' => 'Making the daily report to email at the time its reader chose',
+    'deliver_daily_report' => 'Emailing a daily report',
+    'prune_daily_reports' => 'Removing daily reports older than twelve months',
+    'prune_ops_log' => 'Removing inbox entries, sent messages and handled events older than twelve months',
+    'prune_written_messages' => 'Removing staff messages and notices older than twelve months, and unconfirmed newsletter sign-ups',
+    'start_due_notices' => 'Starting the offer notices whose time has come',
+    'send_broadcast_batch' => 'Sending a notice or a staff message to a group of customers',
+    'send_broadcast_email' => 'Sending a notice or a staff message by email to one customer',
+    'sync_subscriber' => 'Updating a newsletter subscriber at the newsletter provider',
+    'remove_newsletter_contact' => 'Removing an email from a newsletter list at the newsletter provider',
+    'read_brevo_unsubscribes' => 'Starting the nightly read of who unsubscribed at the newsletter provider',
+    'read_brevo_list_unsubscribes' => 'Reading who unsubscribed from one newsletter list at the newsletter provider',
+    'withdraw_marketing_consent' => 'Switching off a customer\'s offers and news after they unsubscribed',
+    'refresh_newsletter_subscription' => 'Updating a customer\'s place on the newsletter list',
+    'forget_anonymized_customer' => 'Removing a deleted customer\'s notifications, messages and newsletter subscription',
+    'tell_customer_about_order' => 'Telling a customer what happened to their order',
+    'tell_customer_about_return' => 'Telling a customer what happened to their return',
+    'tell_customer_about_money' => 'Telling a customer a refund was sent or a payment received',
+    'tell_customer_about_payment_request' => 'Telling a customer the link to pay the rest of their order',
+    'tell_customers_about_coupon' => 'Telling customers they were given a coupon',
+    'tell_customer_about_points' => 'Telling a customer their points changed',
+    'tell_customer_about_feedback' => 'Telling a customer what happened to their question or review',
+    'alert_staff' => 'Alerting a store\'s staff',
+    'start_campaign_notice' => 'Starting the offer notice of a campaign that went live',
+    'send_event_email' => 'Emailing one person a message or an alert',
+    'send_event_sms' => 'Sending a super admin the urgent WhatsApp alert about the payment key',
+    'handle_whats_app_status' => 'Marking a WhatsApp message failed when WhatsApp says it did not arrive',
+    'handle_whats_app_message' => 'Answering a person who wrote to the WhatsApp number',
+    'remind_expiring_points' => 'Reminding the customers whose points expire in 7 days',
+];

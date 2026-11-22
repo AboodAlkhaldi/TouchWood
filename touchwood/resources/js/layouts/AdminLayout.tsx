@@ -1,0 +1,232 @@
+import { Fragment, type ReactNode } from 'react';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { ChevronRight } from 'lucide-react';
+import { AdminSearch } from '@/components/AdminSearch';
+import { AppSidebar } from '@/components/AppSidebar';
+import { Note } from '@/components/Note';
+import { Bell } from '@/components/ops/Bell';
+import { Toasts } from '@/components/Toasts';
+import { SyncDocument } from '@/components/SyncDocument';
+import { ViewStoreButton } from '@/components/ViewStoreButton';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import {
+    Breadcrumb,
+    BreadcrumbEllipsis,
+    BreadcrumbItem,
+    BreadcrumbLink,
+    BreadcrumbList,
+    BreadcrumbPage,
+    BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb';
+import { Separator } from '@/components/ui/separator';
+import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { entryHere, pathOf } from '@/lib/menu-here';
+import { useTranslator } from '@/lib/t';
+import type { SharedProps } from '@/types/page';
+
+/*
+| The admin panel's frame (frontend.md §2.2): shadcn's `sidebar-07` page, as the block writes it
+| (§1.11) - the sidebar, and a top bar with its trigger and the trail back.
+|
+| The panel has no store "worked in" (the owner, 2026-10-06; access.md amendment 64): the sidebar's
+| header is one link to Home, and a screen that shows one store's data chooses it with its own
+| filter, in its own address (`?store=sa`).
+|
+| The page's own title block - a big title, one line under it, the page's main action at the top
+| end - is ours, kept by the owner (§1.11 #1, 2026-10-02), set in Geist's type.
+|
+| Arabic mirrors the whole frame, sidebar included, because the page's dir is set on <html> by the
+| server and every offset here is written as start/end rather than left/right.
+|
+| On a phone (under shadcn's md, where the sidebar becomes a sheet) the top bar is the design's (round 3 #14,
+| owner 2026-11-10): the menu button at 44 px, the page's name in place of the trail, View Store as its icon,
+| and the page's title at 20 px.
+*/
+
+/** One step of the trail back. The last step is the page itself and is never a link. */
+export type Crumb = {
+    label: string;
+    href?: string;
+};
+
+type Props = {
+    title: string;
+    subtitle?: string;
+    /** The one main action of the page, at the top end of the frame. */
+    action?: ReactNode;
+    /**
+     * The way back, nearest last: [{ Staff, /admin/staff }, { Noura, /admin/staff/01... }].
+     *
+     * The page itself is added as the final step, so a screen never repeats its own title here.
+     * Left out, the trail is worked out from the menu: the area this page belongs to, then the
+     * page. That is right for a screen that sits directly under a menu entry and wrong for nothing,
+     * which is why it is only a default.
+     */
+    breadcrumbs?: Crumb[];
+    /**
+     * On a phone the trail shows the page only; `lastTwo` keeps the step above it too and folds the
+     * rest into shadcn's ellipsis menu - for a deep trail, the places' (platform.md §4.3).
+     */
+    phoneTrail?: 'page' | 'lastTwo';
+    children: ReactNode;
+};
+
+export function AdminLayout({ title, subtitle, action, breadcrumbs, phoneTrail = 'page', children }: Props) {
+    const page = usePage<SharedProps>();
+    const { menu, sidebarOpen, banners, panelFrame } = page.props;
+    const bell = panelFrame?.ops;
+    const here = pathOf(page.url);
+    const shownBanners = (banners ?? []).filter((banner) => banner.everywhere || here === '/admin');
+    const t = useTranslator();
+
+    const trail: Crumb[] = [...(breadcrumbs ?? defaultTrail(menu, here)), { label: title }];
+    // Shown on a phone from this step on; what is before it is in the ellipsis menu, when kept.
+    const phoneFrom = phoneTrail === 'lastTwo' ? Math.max(trail.length - 2, 0) : trail.length - 1;
+    const folded = phoneTrail === 'lastTwo' ? trail.slice(0, phoneFrom) : [];
+
+    return (
+        <>
+            <Head title={title} />
+
+            {/* Open or shut is remembered per browser in a cookie, and read back by the server, so
+                the first paint already has it right. Read here in the browser instead, the server's
+                HTML and React's first render would disagree and the page would flicker - or worse,
+                refuse to hydrate (found by running it, 2026-09-22). */}
+            <SidebarProvider defaultOpen={sidebarOpen}>
+                <AppSidebar />
+
+                <SidebarInset>
+                    <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+                        {/* It may shrink: a long page name (a store file's) is cut short, never pushing
+                            the page wider than a phone (found by the store screens' browser test). */}
+                        <div className="flex min-w-0 items-center gap-2 px-4">
+                            {/* shadcn writes its name in English; the page's language reads it. On a phone - under
+                                shadcn's own md, where the sidebar becomes a sheet - the design's 44 px button, a
+                                thumb's width (round 3 #14). */}
+                            <SidebarTrigger className="-ms-1 size-11 md:size-7" aria-label={t('admin.sidebar_toggle')} data-test="menu-button" />
+                            <Separator orientation="vertical" className="me-2 hidden data-[orientation=vertical]:h-4 md:block" />
+                            {/* Its landmark named in the page's language, not shadcn's English. */}
+                            <Breadcrumb aria-label={t('ui.breadcrumbs')} className="min-w-0">
+                                <BreadcrumbList>
+                                    {folded.length > 0 ? (
+                                        <>
+                                            <BreadcrumbItem className="md:hidden">
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger className="rounded-sm focus-visible:outline-2" aria-label={t('ui.breadcrumbs_more')} data-test="trail-more">
+                                                        <BreadcrumbEllipsis className="size-6" />
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="start">
+                                                        {folded.map((crumb, index) =>
+                                                            crumb.href === undefined ? null : (
+                                                                <DropdownMenuItem key={`${index}-${crumb.label}`} asChild>
+                                                                    <Link href={crumb.href}>{crumb.label}</Link>
+                                                                </DropdownMenuItem>
+                                                            ),
+                                                        )}
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </BreadcrumbItem>
+                                            <BreadcrumbSeparator className="md:hidden">
+                                                <ChevronRight className="rtl:rotate-180" />
+                                            </BreadcrumbSeparator>
+                                        </>
+                                    ) : null}
+                                    {trail.map((crumb, index) => {
+                                        const last = index === trail.length - 1;
+                                        const onPhone = index >= phoneFrom;
+
+                                        return (
+                                            <Fragment key={`${index}-${crumb.label}`}>
+                                                {/* On a phone only the page itself shows, as the block does - or the step
+                                                    above it too, with `lastTwo`. */}
+                                                <BreadcrumbItem className={last ? 'min-w-0' : onPhone ? 'min-w-0 shrink' : 'hidden md:block'}>
+                                                    {last || crumb.href === undefined ? (
+                                                        // On a phone the trail is the page alone, so it reads as the
+                                                        // page's title, the design's 16 px (round 3 #14).
+                                                        <BreadcrumbPage className={last && phoneTrail === 'page' ? 'block truncate max-md:text-heading-16' : 'block truncate'} data-test={last ? 'trail-page' : undefined}>
+                                                            {crumb.label}
+                                                        </BreadcrumbPage>
+                                                    ) : (
+                                                        <BreadcrumbLink asChild>
+                                                            <Link href={crumb.href} className={onPhone ? 'block truncate' : undefined}>
+                                                                {crumb.label}
+                                                            </Link>
+                                                        </BreadcrumbLink>
+                                                    )}
+                                                </BreadcrumbItem>
+                                                {/* Pointing onward in the page's own direction: in
+                                                    Arabic the trail reads right to left. */}
+                                                {last ? null : (
+                                                    <BreadcrumbSeparator className={onPhone ? undefined : 'hidden md:block'}>
+                                                        <ChevronRight className="rtl:rotate-180" />
+                                                    </BreadcrumbSeparator>
+                                                )}
+                                            </Fragment>
+                                        );
+                                    })}
+                                </BreadcrumbList>
+                            </Breadcrumb>
+                        </div>
+
+                        {/* The bell (ops.md §4.15 O1), and View Store (frontend.md §2.2; access.md §1.11, amendment 64). */}
+                        <div className="ms-auto flex items-center gap-2 px-4">
+                            <AdminSearch />
+                            {bell ? <Bell base="/admin/notifications" unread={bell.unread} words={bell.words} manyStores={bell.manyStores} recheck /> : null}
+                            <ViewStoreButton />
+                        </div>
+                    </header>
+
+                    {/* A div, not a main: SidebarInset is the main landmark already, and a page
+                        with two of them tells a screen reader there are two. */}
+                    <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="grid gap-1">
+                                {/* 20 px on a phone, the design's phone frame (round 3 #14); 24 from shadcn's md. */}
+                                <h1 className="text-heading-20 text-foreground md:text-heading-24">{title}</h1>
+                                {subtitle ? <p className="text-copy-14 text-muted-foreground">{subtitle}</p> : null}
+                            </div>
+                            {action}
+                        </div>
+
+                        {/* Over every page, or Home only (payments.md §4.2). Never on paper: the slip prints without them. */}
+                        {shownBanners.length > 0 ? (
+                            <div className="mb-4 grid gap-2 print:hidden" data-test="admin-banners">
+                                {shownBanners.map((banner) => (
+                                    <Note key={banner.text} variant={banner.error ? 'error' : 'warning'} label={banner.label} data-test="admin-banner">
+                                        {banner.text}
+                                        {banner.href === null ? null : (
+                                            <>
+                                                {' '}
+                                                <Link href={banner.href} className="underline underline-offset-4">
+                                                    {banner.linkText}
+                                                </Link>
+                                            </>
+                                        )}
+                                    </Note>
+                                ))}
+                            </div>
+                        ) : null}
+                        {children}
+                    </div>
+                </SidebarInset>
+            </SidebarProvider>
+
+            <SyncDocument />
+            <Toasts />
+        </>
+    );
+}
+
+/**
+ * The area this page belongs to, taken from the menu the person was actually offered.
+ *
+ * A screen sitting on its own menu entry needs nothing in front of its own title, so it gets
+ * nothing: a trail that reads "Staff / Staff" tells somebody less than no trail at all.
+ */
+function defaultTrail(menu: SharedProps['menu'], here: string): Crumb[] {
+    // The entry holding the path most closely, as the sidebar lights it (lib/menu-here.ts): /admin/sync/provider
+    // is the Provider's own entry, not a page under the Sync Report's.
+    const lit = entryHere(menu, here);
+
+    return lit === null || lit.entry.href === here ? [] : [{ label: lit.entry.label, href: lit.entry.href }];
+}

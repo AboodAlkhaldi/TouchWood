@@ -1,0 +1,129 @@
+import {
+    BadgePercent,
+    Boxes,
+    Building2,
+    CircleDot,
+    Coins,
+    Contact,
+    CalendarClock,
+    FileText,
+    Gift,
+    Heart,
+    Image,
+    LayoutTemplate,
+    UserRound,
+    LayoutDashboard,
+    MapPin,
+    ListChecks,
+    MessageCircleQuestion,
+    Megaphone,
+    Receipt,
+    RefreshCw,
+    ScrollText,
+    Server,
+    ShieldCheck,
+    ShoppingCart,
+    SlidersHorizontal,
+    Star,
+    Smartphone,
+    Store,
+    Tags,
+    TicketPercent,
+    TriangleAlert,
+    Truck,
+    Users,
+    CreditCard,
+} from 'lucide-react';
+
+/*
+| The icon beside a menu entry, and beside a business area (frontend.md §2.2).
+|
+| The sidebar collapses to a rail, and on that rail an area's icon is all there is left of it; open,
+| the area's row carries it too, its screens indented underneath (§1.11, sidebar-07). An entry keeps
+| its own icon for the rail's menu of an area's screens. A menu entry is a Platform contract that
+| any module registers into, and PHP has no business naming a React component, so it names one of
+| these instead; an area is named by its key.
+|
+| The list is short and ours on purpose. A module that ships later either finds its name here or
+| adds it in one line; a name nobody knows draws the fallback rather than an empty square, because
+| a menu that loses an entry is worse than one with a plain mark in it.
+*/
+
+const ICONS = {
+    // The business areas, by their keys (Platform's menu registry orders them).
+    pricing: BadgePercent,
+    points: Coins,
+    marketing: Megaphone,
+    // Content's one section (content.md §4.3): what the shop says and how it is dressed.
+    content: LayoutTemplate,
+    // Sync's area and its screens (sync.md §4.1.2, platform.md §9.4).
+    sync: RefreshCw,
+    // Shipping's area and its Carriers (shipping.md §4.1 part 1): one new icon, the one a carrier is.
+    shipping: Truck,
+    staff_and_permissions: ShieldCheck,
+    store_settings: SlidersHorizontal,
+    system: Server,
+    // The entries; catalog, orders, companies, customers, media and audit name an area too.
+    dashboard: LayoutDashboard,
+    staff: Users,
+    roles: ShieldCheck,
+    customers: UserRound,
+    address: Contact,
+    stores: Store,
+    catalog: Boxes,
+    orders: ShoppingCart,
+    media: Image,
+    audit: ScrollText,
+    billing: Receipt,
+    // The address countries and their places (platform.md §4.3).
+    places: MapPin,
+    failed_jobs: TriangleAlert,
+    companies: Building2,
+    company_types: Tags,
+    document_types: FileText,
+    redemptions: TicketPercent,
+    // Marketing's screens (promotions.md §4.1). Two icons the panel already draws, as every new icon
+    // weighs on every admin page (frontend.md §5).
+    coupons: TicketPercent,
+    segments: Users,
+    gifts: Gift,
+    // Feedback's screens (feedback.md §4.1).
+    reviews: Star,
+    questions: MessageCircleQuestion,
+    favourites: Heart,
+    reasons: ListChecks,
+    // Sales's Returns (sales.md §4.1): an icon the panel already draws.
+    returns: RefreshCw,
+    carriers: Truck,
+    // Shipping's Boxes (shipping.md §4.1 part 3): an icon the panel already draws.
+    boxes: Boxes,
+    // Payments' Gateway (payments.md §4.2).
+    gateway: CreditCard,
+    payments: CreditCard,
+    // Ops' SMS Countries (ops.md §4.15 O10), and its notices, messages and subscribers: icons the panel already draws.
+    sms: Smartphone,
+    notices: Megaphone,
+    messages: MessageCircleQuestion,
+    subscribers: Users,
+    // Ops' Reports section and its entry (ops.md §4.15, the menu): an icon the panel already draws (owner, 2026-11-05).
+    reports: FileText,
+    daily_reports: CalendarClock,
+    // Content's screens (content.md §4.3), each with its page: icons the panel already draws. Pages, Blog, Projects, SEO and
+    // Redirects name icons already here (document_types, audit, companies, stores, returns): a new name is bytes on every
+    // admin page, and those were 59.9 KB of 60 (JavaScriptBudgetTest, PR 7b).
+    home_page: LayoutTemplate,
+    bars: Megaphone,
+    banners: Image,
+    popups: MessageCircleQuestion,
+} as const;
+
+type Props = {
+    name: string | null;
+    className?: string;
+};
+
+export function MenuIcon({ name, className }: Props) {
+    const Icon = ICONS[name as keyof typeof ICONS] ?? CircleDot;
+
+    return <Icon className={className} aria-hidden />;
+}

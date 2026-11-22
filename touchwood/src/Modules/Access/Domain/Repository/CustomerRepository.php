@@ -1,0 +1,110 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Access\Domain\Repository;
+
+use DateTimeImmutable;
+use Modules\Access\Domain\Exception\EmailAlreadyRegistered;
+use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
+use Modules\Access\Domain\Model\Customer;
+use Modules\Access\Domain\ValueObject\EmailAddress;
+use Modules\Access\Domain\ValueObject\PhoneNumber;
+use Modules\Access\Public\Enums\AccountType;
+
+interface CustomerRepository
+{
+    public function nextId(): string;
+
+    /**
+     * Locks the row until the transaction ends, so two changes to one account queue up.
+     */
+    public function byId(string $id): ?Customer;
+
+    /**
+     * A read with no lock, for answers to other modules.
+     */
+    public function find(string $id): ?Customer;
+
+    /**
+     * Many customers in one read, unlocked (amendment 70); an id that is not one, or names nobody, is
+     * left out.
+     *
+     * @param  list<string>  $ids
+     * @return list<Customer> by id
+     */
+    public function findMany(array $ids): array;
+
+    /**
+     * The customers registered in the store, of that account type, not anonymized — keyset by id
+     * (amendment 70).
+     *
+     * @return list<string>
+     */
+    public function idsRegisteredIn(string $storeId, AccountType $type, ?string $after, int $limit): array;
+
+    /** How many customers are registered in the store, of either account type, not anonymized (amendment 94). */
+    public function countRegisteredIn(string $storeId): int;
+
+    /**
+     * How many accounts of each type registered in the store from `$from` (included) to `$to`
+     * (excluded), anonymized ones too — they were new then (amendment 83).
+     *
+     * @return array{individuals: int, companies: int}
+     */
+    public function countRegistered(string $storeId, DateTimeImmutable $from, DateTimeImmutable $to): array;
+
+    /**
+     * The same accounts, both types together, counted by the day they registered on in `$timezone`
+     * (`Y-m-d`); a day nobody registered on is left out.
+     *
+     * @return array<string, int>
+     */
+    public function countRegisteredByDay(string $storeId, DateTimeImmutable $from, DateTimeImmutable $to, string $timezone): array;
+
+    /**
+     * The customers, not anonymized, whose first or last name holds the text in any store, or whose
+     * email or phone holds it among those registered in `$contactStoreIds` — null for every store,
+     * an empty list for none — by id, at most `$limit` (amendment 72(b)). Matched as the staff list's
+     * search matches: case-insensitive, a phone in Latin digits.
+     *
+     * @param  list<string>|null  $contactStoreIds
+     * @return list<string>
+     */
+    public function idsMatching(string $text, ?array $contactStoreIds, int $limit): array;
+
+    /**
+     * The customer with this email, ignoring case. Locks the row.
+     */
+    public function byEmail(EmailAddress $email): ?Customer;
+
+    /**
+     * The accounts whose deletion date has passed and which are not anonymized yet (spec §1.10),
+     * oldest first: ids only, since each is then read again under its own lock.
+     *
+     * @return list<string>
+     */
+    public function dueForAnonymizing(DateTimeImmutable $now, int $limit): array;
+
+    /**
+     * Whether a customer account already has this email, ignoring case (spec §1.2).
+     */
+    public function emailInUse(EmailAddress $email): bool;
+
+    /**
+     * Whether another customer uses this phone; it is unique across customers (spec §1.1). A staff
+     * member may use the same number: each account verifies it once (amendment 13).
+     */
+    public function phoneInUse(PhoneNumber $phone, ?string $exceptCustomerId = null): bool;
+
+    /**
+     * @throws EmailAlreadyRegistered|PhoneAlreadyInUse when the database refuses the value the code
+     *                                                  checked first (someone took it in between)
+     */
+    public function add(Customer $customer): void;
+
+    /**
+     * @throws PhoneAlreadyInUse
+     */
+    public function update(Customer $customer): void;
+}

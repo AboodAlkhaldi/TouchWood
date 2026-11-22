@@ -1,0 +1,136 @@
+import { useForm } from '@inertiajs/react';
+import { ActionButton } from '@/components/ActionButton';
+import { FormError } from '@/components/FormError';
+import { PasswordInput } from '@/components/PasswordInput';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { FieldGroup } from '@/components/ui/field';
+import { useRepeatedPassword } from '@/lib/passwords';
+import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
+import { AuthenticatorBlock } from '@/pages/Access/Admin/Account/AuthenticatorBlock';
+import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
+
+/*
+| B3 - the security tab (frontend.md §3.2), on shadcn's Card with Geist's rules (§1.11).
+|
+| Changing the password, then the authenticator app (access.md amendment 91): whether one is set up,
+| the second step this person takes - an SMS code or a code from the app - and, when the Super Admins
+| have both methods on, the choice between them (AuthenticatorBlock).
+|
+| The rule is the setting's, in words, before anyone types - not a message after they have chosen
+| something we then refuse.
+|
+| The password is a Card that is itself the form, its button in the footer naming what it does -
+| Change Password, as the card's title says (Geist's Button: a label names what happens; the batch B
+| audit). While the two new boxes differ that button is out of reach and says why; the message under
+| the box waits until it is left (lib/passwords).
+*/
+
+type Props = {
+    account: AccountPage;
+};
+
+export function SecurityTab({ account }: Props) {
+    const t = useTranslator();
+    const form = useForm({ current_password: '', password: '' });
+    // Caught here rather than on the server: the second box exists to catch a typo for the person
+    // typing, and it has nothing to do with whether the password is acceptable. What makes a
+    // password acceptable is Access's, and Access answers that (see lib/passwords).
+    const repeat = useRepeatedPassword(form.data.password);
+    const differ = t('access::account.passwords_differ');
+    // Each box as typed (frontend.md §1.7): the current password, its spaces kept as typed
+    // (OwnPasswordRequest); the new one at least the setting's length (StaffSecuritySettings::
+    // PASSWORD_MIN_LENGTH, as PasswordPolicy::hashNew counts it), the number its helper names.
+    // Whether the current one is right, or the new one on a breach list, is the server's to say.
+    const checks = useChecks([
+        { id: 'current_password', label: t('access::account.current_password'), value: form.data.current_password, rules: { required: true, keepSpaces: true } },
+        { id: 'password', label: t('access::account.new_password'), value: form.data.password, rules: { required: true, keepSpaces: true, length: { min: account.passwordMinLength } } },
+    ]);
+
+    return (
+        <div className="grid gap-6">
+            <Card className="material-base gap-0 border-0 py-0">
+                <form
+                    onKeyDown={repeat.enter}
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        repeat.tried();
+
+                        // The button refuses a press while the two differ, so a form sent by
+                        // Enter stops there (the form's onKeyDown says why); this is the last word.
+                        if (repeat.differs) {
+                            return;
+                        }
+
+                        checks.submit(() =>
+                            form.post('/admin/account/password', {
+                                preserveScroll: true,
+                                onSuccess: () => {
+                                    form.reset();
+                                    repeat.clear();
+                                },
+                            }),
+                        );
+                    }}
+                >
+                    <CardHeader className="px-6 pt-5 pb-4">
+                        <CardTitle className="text-heading-20 text-ink">
+                            <h2>{t('access::account.change_password')}</h2>
+                        </CardTitle>
+                        <CardDescription className="text-copy-14 text-ink-muted">{t('access::account.password_note')}</CardDescription>
+                    </CardHeader>
+
+                    <CardContent className="px-6 pb-5">
+                        <FieldGroup className="gap-5">
+                            <FormError />
+
+                            <PasswordInput
+                                id="current_password"
+                                name="current_password"
+                                label={t('access::account.current_password')}
+                                check={checks.box('current_password', form.errors.current_password)}
+                                autoComplete="current-password"
+                                required
+                                value={form.data.current_password}
+                                onChange={(event) => form.setData('current_password', event.target.value)}
+                            />
+
+                            <PasswordInput
+                                id="password"
+                                name="password"
+                                label={t('access::account.new_password')}
+                                helper={t('access::account.password_rule', { count: account.passwordMinLength })}
+                                check={checks.box('password', form.errors.password)}
+                                autoComplete="new-password"
+                                required
+                                value={form.data.password}
+                                onChange={(event) => form.setData('password', event.target.value)}
+                            />
+
+                            <PasswordInput
+                                id="password_repeat"
+                                name="password_repeat"
+                                label={t('access::account.confirm_password')}
+                                error={repeat.showDiffers ? differ : undefined}
+                                autoComplete="new-password"
+                                required
+                                value={repeat.value}
+                                onChange={(event) => repeat.setValue(event.target.value)}
+                                onBlur={repeat.left}
+                            />
+                        </FieldGroup>
+                    </CardContent>
+
+                    <CardFooter className="justify-end border-t border-line bg-surface-sunken px-6 py-4 [.border-t]:pt-4">
+                        <ActionButton type="submit" loading={form.processing} disabledReason={(repeat.differs ? differ : undefined) ?? checks.reason} data-test="save-password">
+                            {t('access::account.change_password')}
+                        </ActionButton>
+                    </CardFooter>
+                </form>
+            </Card>
+
+            {/* The authenticator app and the sign-in method (access.md amendment 91). */}
+            <AuthenticatorBlock account={account} />
+        </div>
+    );
+}

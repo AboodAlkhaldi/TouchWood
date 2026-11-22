@@ -1,0 +1,31 @@
+<?php
+
+declare(strict_types=1);
+
+// اسم كل إجراء مسجَّل، لسجل التدقيق (frontend.md 3.5، E6). الإجراء الذي لا سطر له هنا يُعرض كما
+// سُجّل تمامًا، وهو قبيح ودقيق.
+return [
+    'store.created' => 'فُتح متجر',
+    'store.updated' => 'عُدّل متجر',
+    'store.activated' => 'شُغّل متجر',
+    'store.deactivated' => 'أُوقف متجر',
+    'currency.created' => 'أُضيفت عملة',
+    'currency.updated' => 'عُدّلت عملة',
+    'currency.deleted' => 'حُذفت عملة',
+    'setting.updated' => 'عُدّل إعداد',
+    'media.uploaded' => 'رُفع ملف',
+    'media.deleted' => 'حُذف ملف',
+    'media.alt_text_changed' => 'عُدّل وصف ملف',
+    'media.variants_retried' => 'أُعيدت معالجة صورة',
+    'failed_job.retried' => 'أُعيد تشغيل مهمة متعثّرة',
+    'failed_job.deleted' => 'حُذفت مهمة متعثّرة',
+    'address_country.added' => 'أُضيفت دولة عناوين',
+    'address_country.retired' => 'أُوقِفت دولة عناوين',
+    'address_country.restored' => 'أُعيدت دولة عناوين',
+    'place.added' => 'أُضيف مكان',
+    'place.renamed' => 'أُعيدت تسمية مكان',
+    'place.retired' => 'أُوقِف مكان',
+    'place.restored' => 'أُعيد مكان',
+    'store_country.added' => 'صار المتجر يشحن إلى دولة',
+    'store_country.removed' => 'توقّف المتجر عن الشحن إلى دولة',
+];

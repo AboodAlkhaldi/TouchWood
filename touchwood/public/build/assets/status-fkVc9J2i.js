@@ -1,0 +1,1 @@
+function e(e){switch(e){case`APPROVED`:return`green-subtle`;case`PENDING`:return`amber-subtle`;case`REJECTED`:case`SUSPENDED`:return`red-subtle`;default:return`gray-subtle`}}function t(e){switch(e){case`APPROVED`:return`green-subtle`;case`SUBMITTED`:return`amber-subtle`;case`REJECTED`:return`red-subtle`;default:return`gray-subtle`}}export{e as n,t};

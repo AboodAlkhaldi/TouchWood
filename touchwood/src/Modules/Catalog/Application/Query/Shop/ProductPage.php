@@ -1,0 +1,55 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Catalog\Application\Query\Shop;
+
+/**
+ * A product's page in a store (catalog.md §1.4, §4.5). **Available** while this viewer can find it
+ * there — listed, or left in an inactive category and so reachable; otherwise **one "Not available
+ * now" page**: its name, photos and description, nothing to order, hidden from search engines (P18) —
+ * but for **`soldOut`**, a product only out of stock or unpriced for this viewer, which stays listed there
+ * (owner, 2026-11-03, amendment 39).
+ * Never a code (amendment 5(d)), never a price or stock until their stages bring them.
+ */
+final readonly class ProductPage
+{
+    /**
+     * @param  array<string, mixed>  $description  the structured text (§1.1)
+     * @param  list<array<string, array<string, string>>>  $photos  the gallery's ready photos, in order
+     * @param  list<CardLabel>  $labels  none on a page that is not available
+     * @param  list<ShopVariant>  $variants  those on sale here for this viewer; none on a page that is not available
+     * @param  string|null  $categoryId  its own category, whose path the shop draws from the viewer's menu
+     * @param  list<ShopChoice>  $choices  none on a page that is not available
+     * @param  list<array{id: string, title: string|null}>  $videos  its YouTube videos, after the photos (flags-2026-11.md S4.4)
+     */
+    public function __construct(
+        public string $productId,
+        public string $name,
+        public string $slug,
+        public bool $available,
+        public array $description,
+        public array $photos,
+        public array $labels,
+        public array $variants,
+        public ?string $otherSlug = null,
+        public ?ShopLink $brand = null,
+        public ?string $categoryId = null,
+        public array $choices = [],
+        public ?ShopWarranty $warranty = null,
+        public ?SellingTerms $selling = null,
+        public bool $soldOut = false,
+        /** Its rank in the store's best sellers and when it was first listed here: what its own flags compare (shop-design.md §6.3). */
+        public ?int $salesRank = null,
+        public ?string $listedAt = null,
+        /** Its unit of sale, beside the price (shop-design.md §10.1). */
+        public string $unit = 'PIECE',
+        public array $videos = [],
+    ) {}
+
+    /** Kept out of search engines: a page with nothing to order, unless only stock or a price is missing (§1.4). */
+    public function noindex(): bool
+    {
+        return ! $this->available && ! $this->soldOut;
+    }
+}

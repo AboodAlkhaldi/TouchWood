@@ -1,0 +1,523 @@
+# Platform module
+
+**Build stage 1. Depends on nothing.** Every other module depends on it.
+
+Platform answers the questions every module asks before it can do anything:
+
+- **Which stores exist?** `sa`, `eg`, `ae`: their currency, tax rate and timezone, and whether each
+  is on.
+- **Which store am I in?** Store context for every request, job and command.
+- **What is this value set to?** Settings that modules declare and staff change without a deploy.
+- **Where is this file?** Uploaded images and documents, and their resized copies.
+- **Who changed what?** The append-only audit log.
+
+The full rules are in the approved specification, [docs/modules/platform.md](../../../docs/modules/platform.md).
+This file explains how the code is organised and why, so a developer can find their way around.
+The Shared kernel it builds on is described in [src/Shared/README.md](../../Shared/README.md).
+
+---
+
+## Using Platform from another module
+
+Import only `Modules\Platform\Public\**` (Deptrac refuses anything else).
+
+```php
+// Read: inject the contract. Every method returns DTOs, never Eloquent models.
+public function __construct(private PlatformApi $platform) {}
+
+$store = $this->platform->storeByCode('sa');                 // StoreDto, from cache
+$days  = $this->platform->setting('loyalty.points.expiry_days')->int();
+$urls  = $this->platform->mediaUrls($product->imageId);      // MediaUrlsDto
+
+// Audit: inside the same transaction as your change, after checking permission.
+$this->platform->recordAudit(new AuditEntryDto(
+    'b2b.company.approved', 'b2b.company', $company->id, $storeId?->value,   // ?StoreId; null for global resources
+    AuditChanges::none()->changed('status', 'PENDING', 'APPROVED')->personal('contact_phone'),
+));
+```
+
+```php
+// Declare settings once, in your module's service provider boot().
+$this->app->make(SettingsRegistry::class)->define('loyalty',
+    new SettingDefinitionDto('loyalty.points.expiry_days', SettingScope::Global,
+        SettingType::Integer, ['min:1'], 365, 'loyalty.settings.update'),
+);
+// A text setting that starts "not set yet" takes mayBeEmpty: true and the default '': its rules
+// then apply only to a value that is not empty (§1.3). Payments' bank account settings are the first.
+
+// One line at the top of your settings section, for the store in the header (§1.3): a class
+// implementing SettingsSectionLine, resolved only when the page is shown. Payments' says whether
+// online payment and bank transfer are on.
+$this->app->make(SettingsSectionLines::class)->register('payments', PaymentsSettingsLine::class);
+
+// A setting changed on its own module's screen is declared with onSettingsPage: false, so Platform's
+// Settings page does not list it (Payments' timers, Shipping's free-above amount and padding).
+
+// A banner over every admin page (payments.md §4.2): a class implementing AdminBanner, which runs on every
+// panel page and must cost next to nothing when it has nothing to say. Payments' tells staff a store is in test.
+$this->app->make(AdminBanners::class)->register(GatewayBanners::class);
+```
+
+```php
+// Storefront routes: the "store" middleware resolves /{store}/{locale}/..., sets the store context
+// and the app locale, and fills both into every link it generates.
+Route::prefix('{store}/{locale}')->middleware('store')->group(...);
+
+// A top-level URL your module owns: reserve it in register(), so no store can take it.
+$this->app->make(ReservedPaths::class)->reserve('payments', 'webhooks');
+
+// An off store is a 404 in the shop for everyone (§1.6). A module that knows an exception tells
+// Platform with an OffStoreViewer (§2.7) - Access's, for a staff member viewing the shop from the
+// panel; then the store's pages open and the shop's store switch lists it with isActive false.
+$this->app->make(OffStoreViewers::class)->register('access', StaffViewOffStores::class);
+```
+
+```php
+// If your module stores media ids: in a column with a RESTRICT foreign key to platform.media, and
+// registered so that deleting the media detaches it from your records, or is refused.
+$this->app->make(MediaUsages::class)->register('catalog', ProductImageUsage::class);
+```
+
+```php
+// A menu entry that counts what waits behind it: a MenuCount, resolved only for people offered the
+// entry. The count shows beside the entry and on the admin home while it is above nothing. An entry
+// may name several permissions (a list): it is offered to anyone holding any of them, as B2B's type
+// lists are offered to anyone with any job on the list.
+new MenuEntryDto('platform', 'failed_jobs', 'system', 'platform.admin.failed_jobs',
+    PlatformPermissions::JOBS_MANAGE, 10, icon: 'failed_jobs', count: FailedJobsCount::class);
+
+// A card on the admin home (§2.6): a HomeCard class works out its figures for the scope - one store
+// or all stores - and asks the Authorizer itself, as any read across stores does. `permission`
+// holds per-store actions; store-free ones go in `storeFree`, which show the card but never offer
+// All Stores (a test holds every registration to its actions' kinds). Words at `{module}::home.{key}`.
+$this->app->make(HomeCards::class)->register(
+    new HomeCardDto('b2b', 'approvals', B2BPermissions::COMPANY_VIEW, CompanyApprovalsCard::class, 10),
+);
+
+// A screen showing one store's data has its own store filter, `?store=<code>` (frontend.md §2.2;
+// the owner, 2026-10-06 - the panel has no store "worked in"). StoreChoices lists the stores where
+// the reader holds any of the screen's permissions - a Super Admin every store, off ones included;
+// anyone else their stores that are on - and chosen() gives the one asked for, the first that is on when none
+// is, or refuses with Unauthorized (403). A page sends the store's zone as `storeTimezone`.
+$options = $choices->forJobs(B2BPermissions::COMPANY_VIEW);
+$store = $choices->chosen($code, B2BPermissions::COMPANY_VIEW);
+
+// Queued work is named on the failed jobs screen in your module's words: one line per queued class
+// in Presentation/lang/{ar,en}/jobs.php — AnonymizeCompany at `anonymize_company`, a trailing "Job"
+// left off. And it states its tries (`public int $tries = 3;`), which the screen shows. A test fails
+// for a queued class with no name or no tries.
+```
+
+```php
+// The places (stage 7): the countries a customer may choose in an address, and each one's regions,
+// cities and districts in both languages, set by Super Admins. The lists are a picker's - nothing
+// retired, nor anything under something retired - sorted by name in the language asked for. By id,
+// retired places are read too, marked `retired`, for the addresses and prices that already name them.
+$countries = $this->platform->addressCountries('ar');          // list<AddressCountryDto>, with hasPlaces
+$cities    = $this->platform->cities($regionId, 'ar');          // list<PlaceDto>
+$all       = $this->platform->citiesOf('SA', 'en');             // every city, for "Select all"
+$every     = $this->platform->placesOf('SA');                   // list<PlaceDto>, every place of the country, in no order
+$places    = $this->platform->place([$cityId, $districtId]);    // array<id, PlaceDto>
+
+// Each store's ship-to countries: its own always among them; a country in one store at most.
+$codes = $this->platform->storeCountries($storeId);              // ['QA', 'SA']
+$store = $this->platform->countryStore('EG');                    // ?StoreDto, an off store too
+
+// A module that must keep a country on a store's list registers a guard (Shipping, while the store
+// has a carrier there), asked inside the removal's transaction; throwing a DomainError refuses it.
+$this->app->make(ShipToCountryGuards::class)->register(CarriersHoldCountry::class);
+```
+
+Listen to `Public/Events/*` (`StoreUpdated`, `SettingChanged`, `MediaVariantsReady`…). They carry
+ids only and are dispatched after the transaction commits.
+
+---
+
+## What is inside
+
+| Folder | Contents |
+|---|---|
+| `Public/` | The contract other modules use: `PlatformApi`, `SettingsRegistry`, `ReservedPaths`, `MediaUsages` and `MediaUsage`, `AdminMenu` and `MenuCount`, `HomeCards` and `HomeCard` (the admin home's cards), `StoreChoices` (the stores a panel screen's filter offers), `OffStoreViewers` and `OffStoreViewer` (who may see an off store in the shop), `SettingsSectionLines` and `SettingsSectionLine`, `AdminBanners` and `AdminBanner` (banners over the panel), `ShipToCountryGuards` and `ShipToCountryGuard`, `LongQueue` (the queue connection a job that may run past 300 s takes in its constructor; owner, 2026-11-10), DTOs, enums, events, and `PlatformPermissions` — the permissions Platform checks, which Access puts in its catalog (names in `platform::permissions`). |
+| `Domain/Model` | `Store`, `Currency`, `Media`, `AddressCountry`, `Place`: plain PHP classes holding the rules, with no Laravel inside. |
+| `Domain/ValueObject` | `StoreCode`, `CountryCode`, `CurrencyCode`, `TaxRate`, `Timezone`, `TranslatedText`. Each validates itself when created. `IsoCountries`: the ISO countries PHP knows, and their names. |
+| `Domain/Exception` | Every expected error, all extending `PlatformError` → `DomainError`. |
+| `Domain/Repository` | Interfaces for loading and saving the models. |
+| `Application/Command` | One folder per use case: a command (plain data) plus its handler. |
+| `Application/Audit` | Builds the audit entry for each kind of change (`StoreAudit`, `CurrencyAudit`, `MediaAudit`, `PlaceAudit`). |
+| `Application/Places` | `PlaceLocks` (the one lock order for the places: the country's row, then the place) and `InMemoryShipToCountryGuards`. |
+| `Application/Settings` | The settings registry, strict type checks and reading with defaults. |
+| `Application/Media` | What media needs from the outside world, as interfaces (storage, file inspection, resizing, the queue), plus `MediaSettings` (the upload-limit declarations), `InspectedFile` and `MediaVariantsRetry` (the one retry of a locked image's variants, for Retry and for uploading a failed image again). |
+| `Application/Query` | The read sides: `StoreDirectory` (stores and currencies, cached), `MediaReader`, and `AuthorizedStoreChoices` (`StoreChoices`: a screen's stores, from the Authorizer's reach). |
+| `Application/FailedJobs` | `FailedJobs`, the queue's failed work as an interface (a page of summaries, read, lock, whether it can be retried, requeue, forget), `FailedJob`, `FailedJobSummary`, and `FailedJobsCount`, the menu's count. |
+| `Application/Home` | `InMemoryHomeCards`, the admin home's cards and who may see each. |
+| `Infrastructure/` | Eloquent and query-builder repositories, caching, the audit writer, Laravel disks, Intervention Image, the queued job, migrations and the service provider. The place lists of Saudi Arabia, Egypt, the Emirates, Qatar and Bahrain are loaded once by a migration from the files in `Infrastructure/Persistence/Places` (sources and licences in its README). |
+| `Presentation/` | The `store` middleware, the country-choice page, the Places pages (`PlacesController`, `platform.admin.places*`) and a store's ship-to countries (`StoreCountriesController`), a placeholder store home page, Platform's own home card (`Home/StoresAndSystemCard`), console commands, Arabic and English translations. |
+
+---
+
+## Approaches and why
+
+### Every change goes through a command handler
+
+A handler always runs in this order:
+
+1. **Authorize** with the permission string on the handler (`platform.store.update`) and the
+   scope it applies to: `PermissionScope::store($id)` for one store's data, `allStores()` when the
+   change reaches every store (a global setting), `global()` when no store is involved (media,
+   currencies). An architecture test fails the build if a handler forgets.
+2. **Open a transaction** and load the model, locking the row (`lockById`, `byCode`). Reads
+   outside a change never lock (`byId`, the read models).
+3. **Let the model apply the change.** The model enforces the rules and records which
+   attributes really changed (`pullChanges()`).
+4. **Save, audit and invalidate the cache**, then **dispatch the event**. All of this happens
+   inside the transaction, and the event and cache invalidation only take effect after commit.
+
+A change that alters nothing writes no audit entry and sends no event. Not every handler has all
+four parts: only a person's action is audited, so the system's variants job and stuck-image sweep
+write no audit entry, and only handlers whose data is cached invalidate a cache.
+
+**Permission checks and "who is acting" are Access's** (`RoleAuthorizer` since Access step 2, its
+`ActorContext` since step 3b). A web request acts as whoever its session names, else as a guest;
+only console commands, seeders and queued jobs act as the system. Platform's own
+permissions are listed in `PlatformPermissions`, each with its reserved flag and whether it is
+store-free (media) or per store.
+
+### Stores: created complete, then switched on
+
+A store is created complete in one command (`platform:store:create` needs every attribute) and is
+never deleted. Code, country and currency can never change: an attempt to change them is refused
+with `StoreAttributeImmutable`, not silently ignored. Tax rates are basis points (`1500` = 15%), so
+no float or DECIMAL is ever involved.
+
+**On or off** (owner, 2026-10-01; spec §1.1, §1.6, §9.6). A store is created **off**; only a Super
+Admin turns it either way (`ActivateStore` / `DeactivateStore`, the reserved, store-free
+`platform.store.switch`), from the stores screen. **The base store** carries the `is_base` mark —
+KSA, set by the migration and the seed, never by code — and is always on: `Store::deactivate()`
+refuses it (`BaseStoreAlwaysActive`) before the `stores_base_always_active` CHECK would, and the
+partial unique index `stores_one_base` keeps the mark on one row. Nothing is deleted when a store
+goes off; every read that offers a store filters on the switch:
+
+- `PlatformApi::stores()` lists on stores only, and `storeByCode()` answers an off store's code as
+  an unknown one — so `/{off}/...` is a 404 like any unknown code, the country page and the shop's
+  store chooser leave it out, and a cookie naming it counts as no store. The panel's switcher is the
+  exception: it shows an off store to the staff who cover it, marked Off, and lets only a Super Admin
+  work in it, to prepare it before it opens (access.md amendment 58(a)).
+- `PlatformApi::store($id)` answers any store, with `isActive`, so history names it as it was;
+  `allStores()` lists every store for setup work that must reach a store before it opens.
+- The stores screen lists an off store only to whoever holds `platform.store.switch`, and
+  `UpdateStore` answers an off store as not found to anyone else.
+- Work already under way continues: store context, the store scope and queued jobs never look at
+  the switch.
+
+A currency's `exponent` is locked once any store uses it: changing it would silently
+reinterpret every stored amount. A price shows the currency's sign, or its letters when the sign
+is empty. Clearing a sign that a font cannot draw is a data change, not a deploy.
+
+A currency no store uses — on or off — can be deleted by a Super Admin (`DeleteCurrency`,
+`platform.currency.delete`, reserved; platform.md §9.7): its row is locked before its stores are
+counted, and any store using it refuses the delete (`CurrencyInUse`), the foreign key's `RESTRICT`
+behind it. The currencies screen names the stores using each currency instead of counting them.
+
+### Resolving a store reads only the cache
+
+`StoreDirectory` loads every store and currency in two queries and caches the snapshot.
+`ResolveStore` reads from it on every storefront request. **The cache lives in PostgreSQL** for now
+(owner's decision, 2026-09-18 — no Redis until traffic needs it), so a warm request makes two tiny
+reads of the cache table (the version, then the snapshot) and never loads the store tables again.
+A test counts the queries of a warm request against the real database cache.
+
+**Cache invalidation** uses `VersionedCache` (in the Shared kernel since 2026-09-19, so other modules
+use the same rule). The snapshot is stored under a version key, and a
+change replaces the version:
+- **Cache in PostgreSQL (now):** the new version is written **inside the transaction** of the change,
+  so it commits or rolls back with it. The cache and the data can never disagree.
+- **Cache outside the database (if Redis comes back):** writes there are not transactional, so the
+  version is replaced **after the commit**; a request that read the old rows just before the commit
+  can only cache them under a version nobody reads any more. Revisit how a version write lost during
+  a Redis outage is recovered before switching.
+
+Snapshots are also given a lifetime as a safety net: 6 hours for stores and currencies, 1 hour for
+settings. Running migrations invalidates the caches.
+
+Nothing outlives a request or a job. Queue workers run for hours, and a copy held for the process
+would go stale when another process edits a store. **Within a web request** the store directory and
+the settings are each read once (§9.11, owner 2026-10-08): both are bound scoped and keep their
+snapshot for the rest of the request - the admin panel's frame asked the settings three times and
+the stores twice, 2 queries each. The system (the console, a queued job) is never answered from
+memory, and a request that invalidates one reads it from the cache from then on; inside a
+transaction opened after the request began every read goes to the cache, as before. A change
+another process commits while the request runs is seen by the next request.
+
+### Store context travels by itself
+
+`LaravelStoreContext` stores the current store in Laravel's `Context`. Laravel copies `Context`
+into every queued job and restores it when the job runs, so a job dispatched inside the `sa`
+store runs in `sa` without passing anything by hand. Every log line is tagged with it too.
+
+### Settings are declared in code, stored in the database
+
+A module declares each key with its scope (global or per store), type, validation rules, default
+and the permission needed to change it. `UpdateSettingHandler` checks the permission against that
+store for a per-store key, and against **every** store for a global one, because a global key
+reaches all of them.
+
+- **Types are checked strictly before any rule runs.** `"5"` is not an integer and `1` is not a
+  boolean. Laravel's own rules would accept both.
+- **Reading a declared key never fails:** it returns the stored value or the default.
+- **No secrets.** API keys and passwords live in server environment variables; a key named like one
+  is refused at boot. A **sensitive** setting is audited only as "changed".
+- **Values are cached** with the same `VersionedCache`, because modules read settings on hot
+  paths such as OTP limits.
+
+### The audit log cannot be edited
+
+- Database triggers reject `UPDATE`, `DELETE` and `TRUNCATE` on `platform.audit_entries`.
+- `AuditLog::record()` throws when called outside a transaction, so a change and its entry
+  always commit or roll back together.
+- Personal fields (names, emails, phones, addresses, uploaded file names) are recorded only as
+  `"changed"`: the caller records them with `AuditChanges::personal()`, which accepts no value at
+  all, so anonymizing an account never has to rewrite history. `changed()` refuses an attribute
+  named like personal data (`email`, `contact_phone`, `billing_address`, `first_name`,
+  `national_id`, `iban`…). It goes by the name only: a person's plain `name`, or a name the list
+  does not know, must still be marked personal by its module.
+- The actor, time and correlation id are filled in automatically. The IP address is filled in
+  only for a staff member's web request, and a CHECK constraint refuses it on any entry not by staff.
+- **Every entry has a source** Platform works out itself: `WEB`, `INTEGRATION` (a request made by an
+  integration), `CONSOLE`, `JOB` or `IMPORT`. Inside a queued job — the job's own actor is used,
+  whatever `ActorContext` binding is in place — it is `JOB`. Otherwise it is a request when PHP runs
+  under a web server (which includes work after the response is sent), or, in the console, while the
+  global `TrackHttpRequest` middleware handles a request (tests send requests from the console).
+- **Checked before the database.** The audit writer refuses an unknown store, a value too long for
+  its column, a malformed action or subject type, control characters in an id, a NUL in a changed
+  value, and a requester outside a job, with a clear message.
+- **Nothing can be back-dated.** `occurred_at` and `recorded_at` come from PostgreSQL's clock and a
+  CHECK keeps them equal. Only `recordImportedAudit` — system only, past dates only — gives old history
+  its real date, and `recorded_at` still shows when it was written.
+- A queued job acts as the **system**, and its entries also record **who queued it**
+  (`requested_by_type`/`requested_by_id`). The payload of every queued job carries the requester
+  (`QueuedActor`); while the job runs, `JobAwareActorContext` — which wraps whatever `ActorContext` is
+  bound, Access's included — answers "the system, on behalf of X". With the `sync` queue a job runs
+  inside the request, so the request's own actor comes back when the job ends.
+
+### Media
+
+```
+UploadMedia ──▶ inspect headers (type, displayed size, animation, checksum)
+                        │
+        public image already stored? ──yes──▶ return that id      (private files: never shared)
+                        │ no                   its variants FAILED? lock the row, still FAILED?
+                        │                      → retry as RetryMediaVariants does, audited by_upload
+                        ▼
+   Media::upload() checks type, size, pixels, animation, file name
+                        │
+   write the original to the PRIVATE disk
+                        │
+   transaction: insert row (ON CONFLICT DO NOTHING) + audit entry
+        │ fails → delete the file again
+        │ lost a race → delete our file, return the winner's id
+        │ a caller's outer transaction rolls back later → delete the file
+        ▼
+   public image → queue GenerateMediaVariantsJob (after commit)
+                        │
+                        ▼
+   12 variants (thumb/card/detail/zoom × AVIF/WebP/JPEG) on the PUBLIC disk → READY → MediaVariantsReady
+   3 failed attempts → FAILED → staff RetryMediaVariants, or the same image uploaded again
+   job lost (still PENDING 15 min after queuing) → sweep every 10 min, or staff Retry
+```
+
+- **The type comes from the file's bytes** (`finfo`), never the name or the browser's claim.
+  Public accepts JPEG, PNG and WebP; private accepts PDF, JPEG and PNG. SVG is never accepted
+  because it can carry scripts, and an animated WebP is refused because it cannot be resized.
+- **Only headers are read at upload.** Nothing decodes the image, so the pixel limits (12,000 px
+  on a side, 50 million pixels) refuse a decompression bomb before it can exhaust memory. Width
+  and height are recorded as displayed: a sideways phone photo records its upright size.
+- **Size limits are settings** (`platform.media.max_public_bytes`, `max_private_bytes`, 10 MB by
+  default).
+- **Every original is private.** A phone photo carries metadata such as its GPS location, so
+  originals — public images included — stay on the private disk. The public disk behind the CDN
+  holds only variants, which carry no metadata. A public image has no URL until its variants are
+  ready.
+- **Identical public images are stored once; private files never are.** A partial unique index
+  on public checksums plus `ON CONFLICT DO NOTHING` handles two identical uploads arriving at
+  the same moment without aborting the transaction. Two companies uploading the same receipt get
+  two separate media.
+- **Uploading again an image whose variants failed makes them again** (owner 2026-11-10, P10
+  (a)), so "Upload this image again." works. The duplicate's status is read without a lock, so on
+  FAILED the upload locks the row, reads it again, and only if it is still FAILED retries it
+  through `MediaVariantsRetry` — the same retry `RetryMediaVariantsHandler` makes: FAILED →
+  PENDING, row written, `platform.media.variants_retried` audited (marked `by_upload`, and with
+  `for_module`/`under_permission` for a module's upload), the job queued after the commit. Two
+  uploads at once queue it once: the second finds it PENDING under the lock. If the row is gone by
+  the time the lock reaches it (deleted in between), the upload stores the file anew, so it never
+  answers a dead id. No permission beyond the upload's own is checked: an upload through the
+  library proves `platform.media.upload`, the permission Retry needs; a module's upload proves only
+  its own permission (for example `content.page.manage` in a store), and may still retry an image
+  another module uploaded — on purpose (platform.md §1.4). A PENDING (even a stuck one) or READY
+  duplicate is returned untouched: the stuck sweep and Retry handle a lost job. On a READY hit the
+  upload reads 1 query; on a FAILED hit 4 (the check, the lock, the update, the audit entry),
+  counted in `MediaTest`.
+- **Every file has its row and every row has its file.** The file is written before the row and
+  removed if the row does not commit, including when a caller's own transaction rolls back after
+  the upload (`deleteAfterRollBack`). Deleting media removes the files only after the delete
+  commits.
+- **Variants are generated once, in the background, outside any transaction**, then marked READY
+  in a short transaction that checks the media is still PENDING. Running the job twice is
+  harmless. If the media was deleted meanwhile, the job removes what it wrote. Only one full-size
+  bitmap is held: sizes are made largest first, each shrinking the previous one, and a sideways
+  photo is turned upright only after the first shrink (turning it at full size would hold three
+  full-size copies: 780 MB for a 50-megapixel photo). Each size keeps
+  the whole image, limits only its longest side (200 / 600 / 1200 / 2400 px) and never enlarges.
+  Photos are turned upright, metadata is stripped, and transparency becomes white in JPEG.
+- **Lost jobs are recovered.** `variants_queued_at` records when generation was last queued. An
+  image still PENDING 15 minutes later is queued again by the sweep, which the scheduler queues as
+  a job every 10 minutes (`RequeueStuckMediaVariantsJob`, so its audit source is JOB), or by staff
+  pressing Retry. `platform:media:requeue-stuck` runs the same sweep by hand.
+- **Reads never lock.** `PlatformApi::media()` and `mediaUrls()` read without `FOR UPDATE`, so a
+  storefront page never waits on, or blocks, a change.
+- **Media another module uses is detached or blocked.** A module that stores media ids registers a
+  `MediaUsage` with `MediaUsages`. Before deleting, `DeleteMediaHandler` locks the media row and asks
+  every module where it uses it: a blocking use (a legal document) refuses the delete with
+  `MediaInUse` naming it; otherwise each module detaches its references — checking the person's
+  permission for its own change and auditing it — and the media is deleted, all in one transaction.
+  The deletion's audit entry lists where the media was used. Other modules' `ON DELETE RESTRICT`
+  foreign keys stay as the backstop: a reference nobody reported still becomes `MediaInUse`.
+- **A module uploads and deletes its own files under its own permission.**
+  `PlatformApi::uploadMediaFor(ModuleUploadDto)` (stage 2b, P1) and its mirror
+  `PlatformApi::deleteMediaFor(ModuleDeleteDto)` (B2B step 3, amendments 4 and 5) check the
+  permission the module names, in the scope it names, instead of `platform.media.upload` or
+  `platform.media.delete`: a staff member setting their own picture, or a customer replacing a
+  company paper, holds no media permission. The permission must start with the module's own name,
+  and both are checked before the file is read or the id looked up. `deleteMediaFor` deletes
+  **only a private file**, and **refuses while any use of it remains**, the caller's own included —
+  it never detaches another module's use. Otherwise it is the staff delete: the row in a savepoint
+  of the caller's transaction, the files and `MediaDeleted` after the outermost commit. Both are
+  audited like any other upload or delete, with `for_module` and `under_permission` added.
+- **Private files in the media library** (B2B step 3, amendments 5, 6 and 8) are listed only to
+  holders of the admin-only `platform.media.private.view` — a Super Admin always, an admin when a
+  Super Admin gives it to their role — and the rule is in the query, so pages stay full. It adds
+  them to a library the person may already open, and opens it to nobody. A private file shows its
+  name, its upload date and where it is used: no picture, no link, no type or size. **To anyone
+  without the permission it does not exist**: describing, retrying or deleting it answers exactly
+  as for an id that never existed (`PrivateMedia::reach`, before anything else is said about the
+  file). **A holder describes or deletes one with the usual permission on top**
+  (`platform.media.update`, `platform.media.delete`). A private file never has sizes made, so it is
+  never retried and never written to the public disk. **In the audit log**, a reader without the
+  permission sees an entry about a private file without its id or its changes (`withheld`).
+  Choosing "private" when uploading in the library needs the permission too.
+- **Private files** are served only through signed links that expire after 30 minutes. On
+  S3-compatible storage they download under their original name; Laravel's local disk ignores that
+  and serves them under their object key. They never get variants and never go through the CDN.
+  Platform does not know who may see a private file: the module that owns it checks its viewer
+  before asking for the link.
+- **No media package.** `spatie/laravel-medialibrary` ties files to another module's Eloquent
+  models, which the module boundaries forbid. A test fails if it is ever installed.
+
+### Failed jobs (owner, 2026-09-29)
+
+A job that fails its last try waits in Laravel's `failed_jobs` until an admin retries or deletes it
+on `/admin/failed-jobs` — nothing removes one on its own, so a failure is never lost by waiting.
+
+- **One admin-only, global permission**, `platform.jobs.manage`, for seeing, retrying and deleting:
+  a job's error can quote the values it was writing, and a job belongs to no store.
+- **A retry puts the job back as `queue:retry` would on the database queue**, inside one
+  transaction: the row locked, the payload pushed back raw on its own connection and queue with its
+  attempts counted afresh, the row deleted, the audit entry written. The queue lives in the same
+  database, so a job is never both queued and listed; a second retry or delete of the same job
+  answers `FailedJobNotFound`. Unlike `queue:retry` it fires no `JobRetryRequested`, as nothing here
+  listens for it, and it does not refresh `retryUntil` (a time limit in place of tries), because no
+  job here sets one.
+- **Only a job that failed on the database queue is retried** (`FailedJobNotRetryable` otherwise):
+  any other queue is outside the transaction, so the job could be pushed and still listed. Such a
+  job is offered no Retry; Delete still works.
+- **The screen shows the tries a job was allowed**, not the tries it made: Laravel's database queue
+  keeps the second only while the job is on the queue. So every queued class states its own tries
+  (`$tries` or `tries()`) — without it the worker's number applies, which the screen cannot know. A
+  test fails for a queued class that does not.
+- **Fifty at a time, oldest first**, with Show More adding the next fifty under the rows already
+  shown (after the last job's failure time and id; the owner, 2026-10-04 - the media library and
+  the audit log do the same), so a flood of failures never loads at once. The list reads the
+  error's first 2,000 characters, never a payload.
+- **Audited without the error or the payload** — both may hold personal data, and the log is
+  forever. The name and when it failed are enough to say what was handled.
+- **Noticed without opening the screen**: a menu entry may carry a count (`MenuCount`), resolved only
+  for people the entry is offered to; the admin home lists every entry with something waiting, and
+  the collapsed sidebar shows a dot on its business area's icon where the number has no room.
+
+---
+
+## Configuration
+
+The storage provider and CDN are not chosen yet. The code only names Laravel disks, so choosing a
+provider later is configuration, not code:
+
+| Setting | Where | Default |
+|---|---|---|
+| Disk for variants of public images (behind the CDN) | `MEDIA_PUBLIC_DISK` (`config/platform.php`) | `public` |
+| Disk for every original and private file | `MEDIA_PRIVATE_DISK` | `local` |
+| Private link lifetime | `platform.media.private_link_minutes` in `config/platform.php` | 30 |
+| Upload size limits | Platform settings, changed at runtime | 10 MB each |
+
+When the provider is chosen, define its disks in `config/filesystems.php` (an S3-compatible disk
+with the CDN as its `url`, and a private disk that supports temporary URLs), then point the two
+variables at them. They must be different disks: the storage refuses to start otherwise. File
+visibility (public or private) comes from each disk's own configuration; the code never sets it,
+ because many S3 buckets refuse per-object ACLs.
+
+The server needs:
+- **PHP extensions** `gd` (built with AVIF and WebP), `exif` and `fileinfo`. `composer.json`
+  requires them, and a test fails if GD cannot write AVIF or WebP.
+- **A queue worker** for variant generation (the normal one; HANDOFF's deploy notes run two). The job
+  stops after 80 seconds, below the queue's 330-second `retry_after`.
+- **The scheduler** (`php artisan schedule:work`, or cron running `schedule:run`) for the
+  stuck-image sweep, which it queues as a job — so the queue worker runs the sweep too.
+
+---
+
+## How it was built
+
+Specification first, approved by the owner before any code. It was then built in small pull
+requests, each passing `composer check` (Pint, PHPStan level 8, Deptrac, Pest) in CI before
+merging:
+
+| PR | What it added |
+|---|---|
+| #1 | Project skeleton: Laravel 13, PostgreSQL, the module layout, quality tooling and CI |
+| #3 | `Money` in the Shared kernel |
+| #2 | This module's specification |
+| #4 | Shared foundation: error standard, store context, store scope, correlation id |
+| #5 | Stores and currencies: models, handlers, cache, store resolution, console commands, seeder |
+| #6 | The audit log |
+| #7 | Settings |
+| #8 | Fixes from the first independent review, which covered #4–#7 after they had merged |
+| this | Media, plus these READMEs |
+
+Since the first review, the rule is that separate review agents, which did not write the code,
+read each finished stage and its tests before its pull request merges. Their confirmed findings
+are fixed in the same pull request.
+
+## Tests
+
+| Folder | What it covers |
+|---|---|
+| `tests/Modules/Platform/Unit` | Domain rules with no framework and no database: stores, currencies, media, settings values, audit changes, error types. |
+| `tests/Modules/Platform/Integration` | Against the real PostgreSQL test database: schema and constraints, handlers, permissions, audit triggers, cache consistency, store context in jobs, settings, media with real image processing. |
+| `tests/Modules/Platform/Feature` | HTTP and console: store resolution (including the check that a warm request reads only the cache), the country page, commands, seeding. |
+| `tests/Architecture` | Layering, the error standard, every handler authorizes, no store codes in domain code, where the store-scope opt-out may appear, and the forbidden packages. |
+
+Run everything with `composer check`. The test database is `touchwood_test`.
+
+---
+
+## Known gaps
+
+- **Listing pages ask for media URLs one image at a time.** `PlatformApi::mediaUrls()` takes one
+  id. A batch version belongs with Catalog's product listings, where the query-count budget will
+  demand it.
+- **The event tables in spec §5.6** (`processed_events`, `outbox_messages`) are not created.
+  The owner decided they are built with the first module that consumes an event or publishes a
+  critical one.
+- **Real permissions arrive with Access.** Until then only the system can run handlers, and
+  never from a web request.
+- **The admin view use cases in spec §3** (`ListStores` / `ViewStore`, `ViewSettings`,
+  `ViewAuditLog`) and all admin screens come after Access, because a screen with no login cannot
+  be protected (spec §3, "Delivery").

@@ -1,0 +1,757 @@
+import { lazy, Suspense, useState } from 'react';
+import { Link, router } from '@inertiajs/react';
+import { AdminLayout } from '@/layouts/AdminLayout';
+import { ActionButton } from '@/components/ActionButton';
+import { AddressLines } from '@/components/AddressLines';
+import { FormError } from '@/components/FormError';
+import { Money } from '@/components/Money';
+import { Note } from '@/components/Note';
+import { Time } from '@/components/Time';
+import { CopyButton } from '@/components/geist-only/CopyButton';
+import { CameBackDialog, MoneyDialog, ReasonDialog, StateBadges, VoidDialog, W } from '@/components/sales/admin';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { isolate } from '@/lib/bidi';
+import { figure, intlLocale } from '@/lib/digits';
+import { useTranslator } from '@/lib/t';
+import { tone } from '@/lib/tones';
+import type { MoneyRecordData, OrderPage, OrderTermsData } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
+import { MoreHorizontal } from 'lucide-react';
+import { usePage } from '@inertiajs/react';
+import type { SharedProps } from '@/types/page';
+import { CustomerName } from './Index';
+
+// Loaded on first open: the page keeps within its budget.
+const ShipmentDialog = lazy(() => import('./ShipmentDialogs').then((module) => ({ default: module.ShipmentDialog })));
+const FeeDialog = lazy(() => import('./ShipmentDialogs').then((module) => ({ default: module.FeeDialog })));
+
+/*
+| P2 - an order in the panel (sales.md §4.1): one page - the header with its four states and the next step as
+| the main button (the owner's R2-26), the rest in a ⋯ menu; the short-of-stock banner (R2-32); the customer
+| and the contact - the phone as text with Copy and WhatsApp (R1-40), the email only to staff who may view the
+| customer (answer 47) - the lines, the totals, the money, the shipment, the receipts, the returns, the edits
+| and the history in plain sentences (R2-28). A button out of reach says why; a job not held shows none.
+*/
+
+type Dialog = 'reject' | 'cancel' | 'ship' | 'correct' | 'fee' | 'came_back' | 'payment' | 'refund' | { void: MoneyRecordData } | null;
+
+const CLOSED = ['REJECTED', 'CANCELLED', 'COMPLETED', 'UNDELIVERED'];
+
+export default function Show(order: OrderPage) {
+    const t = useTranslator();
+    const { locale } = usePage<SharedProps>().props;
+    const [dialog, setDialog] = useState<Dialog>(null);
+    const [busy, setBusy] = useState(false);
+    const base = `/admin/orders/${order.id}`;
+    const close = (open: boolean) => (open ? undefined : setDialog(null));
+    const post = (action: string, data: Record<string, unknown> = {}) => router.post(`${base}/${action}`, data as never, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) });
+
+    const waiting = order.status === 'PENDING_APPROVAL';
+    const approved = order.status === 'APPROVED';
+    const notShipped = order.shipment === 'NOT_SHIPPED';
+    const shipped = order.shipment === 'SHIPPED';
+    const a = order.actions;
+    // Covered as the server has it: nothing still owed (sales.md §1.4).
+    const unpaidToShip = order.owed.minor > 0 && !order.mayShipUnpaid;
+    const feePending = order.shippingFeePending;
+    // Until it ships, for an order with no carrier's fee: one to be set, or one staff set (gap 6.2; §9.6 #4).
+    const mayFee = a.mayEdit && (waiting || approved) && notShipped && order.orderedCarrierId === null;
+    const feeIsNext = approved && notShipped && feePending && mayFee;
+
+    // The next step, by the order's state (R2-26): what staff most often do here.
+    const main =
+        waiting && a.mayApprove ? (
+            <ActionButton loading={busy} onClick={() => post('approve')} data-test="approve">
+                {t(`${W}.action.approve`)}
+            </ActionButton>
+        ) : feeIsNext ? (
+            <ActionButton onClick={() => setDialog('fee')} data-test="set-fee">
+                {t(`${W}.action.set_fee`)}
+            </ActionButton>
+        ) : approved && notShipped && a.mayFulfil ? (
+            <ActionButton disabledReason={feePending ? t(`${W}.why.fee_first`) : unpaidToShip ? t(`${W}.why.unpaid`) : undefined} onClick={() => setDialog('ship')} data-test="ship">
+                {t(`${W}.action.ship`)}
+            </ActionButton>
+        ) : shipped && a.mayFulfil ? (
+            <ActionButton loading={busy} onClick={() => post('deliver')} data-test="deliver">
+                {t(`${W}.action.deliver`)}
+            </ActionButton>
+        ) : null;
+
+    const more = (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline" size="icon" aria-label={t(`${W}.show.actions`)} data-test="order-actions">
+                    <MoreHorizontal aria-hidden="true" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-60">
+                {a.mayEdit ? (
+                    <MenuAction
+                        label={t(`${W}.action.edit`)}
+                        reason={CLOSED.includes(order.status) ? t(`${W}.why.closed`) : !notShipped ? t(`${W}.why.shipped`) : order.paymentInProgress ? t(`${W}.why.confirming`) : null}
+                        onSelect={() => router.visit(`${base}/edit`)}
+                        test="edit"
+                    />
+                ) : null}
+                {a.mayEdit && order.orderedCarrierId === null && !feeIsNext ? (
+                    <MenuAction label={feePending ? t(`${W}.action.set_fee`) : t(`${W}.action.change_fee`)} reason={mayFee ? null : CLOSED.includes(order.status) ? t(`${W}.why.closed`) : t(`${W}.why.shipped`)} onSelect={() => setDialog('fee')} test="set-fee" />
+                ) : null}
+                {feeIsNext && a.mayFulfil ? <MenuAction label={t(`${W}.action.ship`)} reason={t(`${W}.why.fee_first`)} onSelect={() => undefined} test="ship" /> : null}
+                {a.mayFulfil ? <MenuAction label={t(`${W}.action.correct_shipment`)} reason={shipped ? null : notShipped ? t(`${W}.why.not_shipped`) : t(`${W}.why.correct_only`)} onSelect={() => setDialog('correct')} test="correct-shipment" /> : null}
+                {a.mayApprove ?<MenuAction label={t(`${W}.action.reject`)} reason={waiting ? null : t(`${W}.why.not_waiting`)} onSelect={() => setDialog('reject')} test="reject" /> : null}
+                {a.mayCancel ? (
+                    <MenuAction
+                        destructive
+                        label={t(`${W}.action.cancel`)}
+                        reason={CLOSED.includes(order.status) ? t(`${W}.why.closed`) : notShipped ? null : t(`${W}.why.shipped`)}
+                        onSelect={() => setDialog('cancel')}
+                        test="cancel"
+                    />
+                ) : null}
+                {approved && notShipped && a.mayFulfil && (order.owed.minor > 0 || order.mayShipUnpaid) ? (
+                    <DropdownMenuItem onSelect={() => post('ship-unpaid', { allow: !order.mayShipUnpaid })} data-test="ship-unpaid">
+                        {order.mayShipUnpaid ? t(`${W}.action.ship_unpaid_off`) : t(`${W}.action.ship_unpaid_on`)}
+                    </DropdownMenuItem>
+                ) : null}
+                {a.mayFulfil ? <MenuAction destructive label={t(`${W}.action.came_back`)} reason={shipped ? null : t(`${W}.why.not_shipped`)} onSelect={() => setDialog('came_back')} test="came-back" /> : null}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                    <Link href={`${base}/print`} data-test="print">
+                        {t(`${W}.action.print`)}
+                    </Link>
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+
+    return (
+        <AdminLayout
+            title={order.number}
+            subtitle={t(`${W}.show.placed`, { when: new Intl.DateTimeFormat(intlLocale(locale), { dateStyle: 'medium', timeStyle: 'short', timeZone: order.storeTimezone }).format(new Date(order.placedAt)) })}
+            breadcrumbs={[{ label: t(`${W}.orders.title`), href: '/admin/orders' }]}
+            action={
+                <span className="flex items-center gap-2">
+                    {main}
+                    {more}
+                </span>
+            }
+        >
+            <div className="grid gap-4">
+                <FormError />
+                <div className="flex flex-wrap items-center gap-2">
+                    <StateBadges status={order.status} payment={order.payment} shipment={order.shipment} fee={feePending ? t(`${W}.show.fee_pending`) : null} />
+                    {order.store.isActive ? null : <Badge className={tone('gray')}>{t(`${W}.off`)}</Badge>}
+                    <span className="text-copy-13 text-ink-muted">{order.store.name}</span>
+                </div>
+
+                {order.shortOfStockAt !== null ? (
+                    <Note variant="warning" label={t(`${W}.orders.short`)} data-test="short-banner">
+                        <span className="flex flex-wrap items-center justify-between gap-3">
+                            <span>
+                                {t(`${W}.show.short_banner`, { date: new Intl.DateTimeFormat(intlLocale(locale), { dateStyle: 'medium', timeZone: order.storeTimezone }).format(new Date(order.shortOfStockAt)) })}
+                            </span>
+                            {a.mayEdit ? (
+                                <ActionButton size="sm" variant="outline" loading={busy} onClick={() => post('clear-short')} data-test="clear-short">
+                                    {t(`${W}.action.clear_short`)}
+                                </ActionButton>
+                            ) : null}
+                        </span>
+                    </Note>
+                ) : null}
+
+                <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+                    <div className="grid min-w-0 content-start gap-4">
+                        <Lines order={order} />
+                        <Totals order={order} />
+                        <MoneyCard order={order} busy={busy} post={post} onRecord={() => setDialog('payment')} onRefund={() => setDialog('refund')} onVoid={(record) => setDialog({ void: record })} />
+                        {order.attempts !== null && order.attempts.length > 0 ? <OnlinePayments order={order} /> : null}
+                        <History order={order} />
+                    </div>
+                    <div className="grid min-w-0 content-start gap-4">
+                        <Contact order={order} />
+                        <Shipment order={order} />
+                        {order.wired ? <Ticks order={order} /> : null}
+                        {order.transferDocuments.length > 0 ? <Files order={order} /> : null}
+                        {order.returns.length > 0 ? <Returns order={order} /> : null}
+                        {order.edits.length > 0 ? <Edits order={order} /> : null}
+                    </div>
+                </div>
+            </div>
+
+            {dialog === 'reject' || dialog === 'cancel' ? <ReasonDialog open onOpenChange={close} url={`${base}/${dialog}`} kind={dialog} /> : null}
+            <Suspense fallback={null}>
+                {dialog === 'ship' || dialog === 'correct' ? <ShipmentDialog open onOpenChange={close} order={order} correcting={dialog === 'correct'} /> : null}
+                {dialog === 'fee' ? <FeeDialog open onOpenChange={close} order={order} /> : null}
+            </Suspense>
+            {dialog === 'came_back' ? <CameBackDialog open onOpenChange={close} url={`${base}/came-back`} lines={order.lines} /> : null}
+            {dialog === 'payment' ? <MoneyDialog open onOpenChange={close} url={`${base}/payment`} kind="payment" amount={order.owed} zone={order.storeTimezone} exponent={order.exponent} initial={order.owedDecimal} feePending={feePending} /> : null}
+            {dialog === 'refund' ? <MoneyDialog open onOpenChange={close} url={`${base}/refund`} kind="refund" amount={order.held} zone={order.storeTimezone} exponent={order.exponent} /> : null}
+            {dialog !== null && typeof dialog === 'object' ? <VoidDialog open onOpenChange={close} url={`${base}/void`} kind={dialog.void.kind} record={dialog.void.id} /> : null}
+        </AdminLayout>
+    );
+}
+
+/** An item of the ⋯ menu: out of reach where the order's state stops it, with that reason written under it. */
+function MenuAction({ label, reason, onSelect, test, destructive = false }: { label: string; reason: string | null; onSelect: () => void; test: string; destructive?: boolean }) {
+    return (
+        <DropdownMenuItem
+            variant={destructive ? 'destructive' : 'default'}
+            aria-disabled={reason !== null || undefined}
+            className={reason !== null ? 'cursor-not-allowed' : undefined}
+            onSelect={(event) => {
+                if (reason !== null) {
+                    event.preventDefault();
+
+                    return;
+                }
+
+                onSelect();
+            }}
+            data-test={test}
+        >
+            <span className="grid gap-0.5">
+                <span className={reason !== null ? 'opacity-60' : undefined}>{label}</span>
+                {reason !== null ? <span className="text-copy-13 text-ink-muted">{reason}</span> : null}
+            </span>
+        </DropdownMenuItem>
+    );
+}
+
+function Section({ title, test, children, action }: { title: string; test: string; children: React.ReactNode; action?: React.ReactNode }) {
+    return (
+        <Card className="min-w-0 gap-3 py-4" data-test={test}>
+            <CardHeader className="flex flex-row items-center justify-between gap-2 px-5">
+                <CardTitle className="text-heading-16 text-ink">{title}</CardTitle>
+                {action}
+            </CardHeader>
+            <CardContent className="px-5">{children}</CardContent>
+        </Card>
+    );
+}
+
+function Lines({ order }: { order: OrderPage }) {
+    const t = useTranslator();
+
+    return (
+        <Section title={t(`${W}.show.lines`)} test="lines">
+            <div className="overflow-x-auto">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>{t(`${W}.show.lines`)}</TableHead>
+                            <TableHead>{t(`${W}.show.code`)}</TableHead>
+                            <TableHead className="text-end">{t(`${W}.show.pieces`)}</TableHead>
+                            <TableHead className="text-end">{t(`${W}.show.unit`)}</TableHead>
+                            <TableHead className="text-end">{t(`${W}.show.line_total`)}</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {order.lines.map((line) => (
+                            <TableRow key={line.id} data-test="line">
+                                <TableCell className="grid gap-0.5">
+                                    <span className="text-label-14 text-ink">
+                                        {line.gift ? (
+                                            <Badge className={`${tone('green-subtle')} me-2`} data-test="gift">
+                                                {t(`${W}.show.gift`)}
+                                            </Badge>
+                                        ) : null}
+                                        {line.name}
+                                    </span>
+                                    <span className="text-copy-13 text-ink-muted">
+                                        {line.values}
+                                        {line.values === '' ? '' : ' · '}
+                                        {t(`${W}.mode.${line.mode}`)}
+                                    </span>
+                                </TableCell>
+                                <TableCell className="text-copy-13">
+                                    <bdi dir="ltr">{line.code}</bdi>
+                                </TableCell>
+                                <TableCell className="tw-figure text-end">{figure('en', line.quantity)}</TableCell>
+                                <TableCell className="text-end">
+                                    {line.listUnit.minor > line.unit.minor ? <Money value={line.listUnit} className="me-2 text-ink-muted line-through" /> : null}
+                                    <Money value={line.unit} />
+                                    <span className="ms-1 text-copy-13 text-ink-muted" data-test="line-sale-unit">
+                                        · {t(`${W}.unit.${line.saleUnit}`)}
+                                    </span>
+                                </TableCell>
+                                <TableCell className="text-end">
+                                    <Money value={line.total} />
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
+        </Section>
+    );
+}
+
+/** A row of a summary: nothing when its amount is 0 (the owner's R2-15), unless it must show. */
+function Row({ label, value, strong = false, always = false, minus = false }: { label: string; value: { text: string; minor: number }; strong?: boolean; always?: boolean; minus?: boolean }) {
+    if (!always && value.minor === 0) {
+        return null;
+    }
+
+    return (
+        <div className={`flex items-baseline justify-between gap-3 ${strong ? 'text-label-16 text-ink' : 'text-copy-14 text-ink'}`}>
+            <dt className={strong ? undefined : 'text-ink-muted'}>{label}</dt>
+            <dd>
+                {minus ? <span aria-hidden="true">− </span> : null}
+                <Money value={value} />
+            </dd>
+        </div>
+    );
+}
+
+function Totals({ order }: { order: OrderPage }) {
+    const t = useTranslator();
+    return (
+        <Section title={t(`${W}.show.totals`)} test="totals">
+            <dl className="grid gap-1.5">
+                <Row label={t(`${W}.show.subtotal`)} value={order.grossSubtotal} always />
+                <Row label={t(`${W}.show.savings`)} value={order.savings} minus />
+                <Row label={t(`${W}.show.coupon`, { code: order.couponCode ?? '' })} value={order.couponDiscount} minus />
+                <Row label={t(`${W}.show.points`, { points: figure('en', order.pointsUsed) })} value={order.pointsDiscount} minus />
+                {order.shippingFeePending ? (
+                    <div className="flex items-baseline justify-between gap-3 text-copy-14 text-ink" data-test="shipping-pending">
+                        <dt className="text-ink-muted">{t(`${W}.show.shipping`)}</dt>
+                        <dd>{t(`${W}.show.shipping_pending`)}</dd>
+                    </div>
+                ) : (
+                    <Row label={t(`${W}.show.shipping`)} value={order.shipping} always />
+                )}
+                <Row label={t(`${W}.show.vat`)} value={order.vat} always />
+                <Row label={order.shippingFeePending ? t(`${W}.show.total_before`) : t(`${W}.show.total`)} value={order.total} strong always />
+            </dl>
+            <p className="mt-3 text-copy-13 text-ink-muted">
+                {t(`${W}.show.way_to_pay`)}: {t(`${W}.way.${order.wayToPay}`)}
+            </p>
+            {order.terms === null ? null : <AcceptedTerms order={order} terms={order.terms} />}
+        </Section>
+    );
+}
+
+/** The terms the customer ticked (flags-2026-11.md S3.3, F16), each opening that version's text in the shop. */
+function AcceptedTerms({ order, terms }: { order: OrderPage; terms: OrderTermsData }) {
+    const t = useTranslator();
+    const { locale } = usePage<SharedProps>().props;
+    const when = new Intl.DateTimeFormat(intlLocale(locale), { dateStyle: 'medium', timeStyle: 'short', timeZone: order.storeTimezone }).format(new Date(terms.acceptedAt));
+    const lines: [string, string | null, string][] = [[t(`${W}.show.terms_accepted`, { version: figure('en', terms.version), when }), terms.url, 'order-terms']];
+
+    if (terms.returnsVersion !== null) {
+        lines.push([t(`${W}.show.returns_accepted`, { version: figure('en', terms.returnsVersion) }), terms.returnsUrl, 'order-returns']);
+    }
+
+    return (
+        <div className="mt-1 grid gap-0.5 text-copy-13 text-ink-muted">
+            {lines.map(([words, url, test]) =>
+                url === null ? (
+                    <p key={test} data-test={test}>
+                        {words}
+                    </p>
+                ) : (
+                    <a key={test} href={url} target="_blank" rel="noopener noreferrer" className="w-fit underline underline-offset-4" data-test={test}>
+                        {words}
+                    </a>
+                ),
+            )}
+        </div>
+    );
+}
+
+function MoneyCard({ order, busy, post, onRecord, onRefund, onVoid }: { order: OrderPage; busy: boolean; post: (action: string) => void; onRecord: () => void; onRefund: () => void; onVoid: (record: MoneyRecordData) => void }) {
+    const t = useTranslator();
+    const { locale } = usePage<SharedProps>().props;
+    const may = order.actions.mayRecordMoney;
+    const edit = order.actions.mayEdit;
+    const clock = (iso: string) => new Intl.DateTimeFormat(intlLocale(locale), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: order.storeTimezone }).format(new Date(iso));
+
+    return (
+        <Section
+            title={t(`${W}.show.money`)}
+            test="money"
+            action={
+                may ? (
+                    <span className="flex flex-wrap gap-2">
+                        <ActionButton size="sm" variant="outline" disabledReason={order.paymentInProgress ? t(`${W}.why.confirming`) : order.owed.minor === 0 ? t(`${W}.why.nothing_owed`) : undefined} onClick={onRecord} data-test="record-payment">
+                            {t(`${W}.action.payment`)}
+                        </ActionButton>
+                        <ActionButton size="sm" variant="outline" disabledReason={order.held.minor === 0 ? t(`${W}.why.nothing_held`) : undefined} onClick={onRefund} data-test="record-refund">
+                            {t(`${W}.action.refund`)}
+                        </ActionButton>
+                    </span>
+                ) : undefined
+            }
+        >
+            {/* Online payment (payments.md §4.2, Q22): Record Payment is "by hand", beside Request Payment. */}
+            {order.paymentInProgress ? (
+                <Note className="mb-3" data-test="payment-confirming">
+                    {t(`${W}.show.confirming`)}
+                </Note>
+            ) : order.paymentRequest !== null ? (
+                <Note className="mb-3" data-test="payment-request">
+                    <span className="flex flex-wrap items-center justify-between gap-2">
+                        {t(`${W}.show.requested`, { amount: isolate(order.paymentRequest.amount.text), time: isolate(clock(order.paymentRequest.expiresAt)) })}
+                        {edit ? (
+                            <ActionButton size="sm" variant="outline" loading={busy} onClick={() => post('withdraw-request')} data-test="withdraw-request">
+                                {t(`${W}.action.withdraw_request`)}
+                            </ActionButton>
+                        ) : null}
+                    </span>
+                </Note>
+            ) : order.mayRequestPayment && order.owed.minor > 0 ? (
+                <Note className="mb-3" data-test="payment-owed">
+                    <span className="flex flex-wrap items-center justify-between gap-2">
+                        {t(`${W}.show.owes`, { amount: isolate(order.owed.text) })}
+                        {edit ? (
+                            <ActionButton size="sm" loading={busy} onClick={() => post('request-payment')} data-test="request-payment">
+                                {t(`${W}.action.request_payment`)}
+                            </ActionButton>
+                        ) : null}
+                    </span>
+                </Note>
+            ) : null}
+            <dl className="grid gap-1.5">
+                <Row label={t(`${W}.show.due`)} value={order.due} always />
+                <Row label={t(`${W}.show.paid`)} value={order.paid} always />
+                <Row label={t(`${W}.show.refunded`)} value={order.refunded} />
+                <Row label={t(`${W}.show.owed`)} value={order.owed} strong />
+                <Row label={t(`${W}.show.refund_due`)} value={order.refundDue} strong />
+            </dl>
+            {order.money.length === 0 ? (
+                <p className="mt-3 text-copy-13 text-ink-muted">{t(`${W}.show.no_records`)}</p>
+            ) : (
+                <ul className="mt-3 grid gap-2" aria-label={t(`${W}.show.records`)} data-test="money-records">
+                    {order.money.map((record) => (
+                        <li key={`${record.kind}-${record.id}`} className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2 text-copy-14" data-test="money-record">
+                            <span className={record.voidedAt === null ? 'grid gap-0.5' : 'grid gap-0.5 text-ink-muted line-through'}>
+                                <span>
+                                    {t(`${W}.show.${record.kind === 'REFUND' ? 'refund_record' : 'payment_record'}`)} · <Money value={record.amount} /> · {t(`${W}.money_way.${record.way}`)}
+                                    {record.reference === null ? null : (
+                                        <>
+                                            {' · '}
+                                            <bdi>{record.reference}</bdi>
+                                        </>
+                                    )}
+                                </span>
+                                <span className="text-copy-13 text-ink-muted">
+                                    <bdi dir="ltr">{record.happenedOn}</bdi> · <bdi>{record.recordedBy ?? t(`${W}.system`)}</bdi>
+                                    {record.note === null ? null : (
+                                        <>
+                                            {' · '}
+                                            <bdi>{record.note}</bdi>
+                                        </>
+                                    )}
+                                </span>
+                                {record.voidedAt === null ? null : <span className="text-copy-13 no-underline">{t(`${W}.show.voided`, { name: record.voidedBy ?? t(`${W}.system`), reason: record.voidReason ?? '' })}</span>}
+                            </span>
+                            {may && record.voidedAt === null ? (
+                                <ActionButton
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    disabledReason={record.kind === 'PAYMENT' && order.paid.minor - record.amount.minor < order.refunded.minor ? t(`${W}.why.void_uncovers`) : undefined}
+                                    onClick={() => onVoid(record)}
+                                    data-test="void"
+                                >
+                                    {t(`${W}.action.void`)}
+                                </ActionButton>
+                            ) : null}
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </Section>
+    );
+}
+
+/** Each online attempt on the order, oldest first, opening its own page (payments.md §4.2). */
+function OnlinePayments({ order }: { order: OrderPage }) {
+    const t = useTranslator();
+
+    return (
+        <Section title={t(`${W}.show.online_payments`)} test="online-payments">
+            <ul className="grid gap-2">
+                {(order.attempts ?? []).map((attempt) => (
+                    <li key={attempt.id} className="border-t border-line pt-2 first:border-t-0 first:pt-0">
+                        <Link href={`/admin/payments/${attempt.id}`} className="flex flex-wrap items-center justify-between gap-2 text-copy-14 text-ink hover:underline" data-test="online-payment">
+                            <span className="flex flex-wrap items-center gap-2">
+                                <Badge className={tone(attempt.state === 'SUCCEEDED' ? 'green-subtle' : attempt.state === 'FAILED' || attempt.state === 'REFUSED' ? 'red-subtle' : 'gray-subtle')}>{t(`${W}.show.attempt_state.${attempt.state}`)}</Badge>
+                                {attempt.needsAttention ? <Badge className={tone('amber-subtle')}>{t(`${W}.show.needs_attention`)}</Badge> : null}
+                                {attempt.method === null ? null : <span className="text-copy-13 text-ink-muted">{attempt.method}</span>}
+                            </span>
+                            <span className="flex items-center gap-2">
+                                <Money value={attempt.amount} />
+                                <Time value={attempt.createdAt} focusable={false} />
+                            </span>
+                        </Link>
+                    </li>
+                ))}
+            </ul>
+        </Section>
+    );
+}
+
+function Contact({ order }: { order: OrderPage }) {
+    const t = useTranslator();
+    const digits = order.contactPhone.replace(/\D/gu, '');
+
+    return (
+        <Section title={t(`${W}.show.customer`)} test="contact">
+            <div className="grid gap-3 text-copy-14">
+                <p className="grid gap-0.5">
+                    <span className="text-label-14 text-ink">
+                        <CustomerName customer={order.customer} />
+                    </span>
+                    <span className="text-copy-13 text-ink-muted">
+                        {t(`${W}.show.audience`)}: {t(`${W}.audience.${order.audience}`)}
+                    </span>
+                </p>
+                <div className="grid gap-1">
+                    <span className="text-copy-13 text-ink-muted">{t(`${W}.show.contact`)}</span>
+                    <span>{order.contactName}</span>
+                    <span className="flex flex-wrap items-center gap-2">
+                        <bdi dir="ltr" className="tw-figure" data-test="phone">
+                            {order.contactPhone}
+                        </bdi>
+                        <CopyButton text={order.contactPhone} label={t(`${W}.show.copy`)} />
+                        <Button asChild size="sm" variant="outline">
+                            <a href={`https://wa.me/${digits}`} target="_blank" rel="noreferrer" data-test="whatsapp">
+                                {t(`${W}.show.whatsapp`)}
+                            </a>
+                        </Button>
+                    </span>
+                    {order.contactEmail === null ? null : (
+                        <bdi dir="ltr" className="text-copy-13" data-test="email">
+                            {order.contactEmail}
+                        </bdi>
+                    )}
+                </div>
+                <div className="grid gap-1">
+                    <span className="text-copy-13 text-ink-muted">{t(`${W}.show.address`)}</span>
+                    <span>{order.recipientName}</span>
+                    <AddressLines text={order.address} />
+                </div>
+            </div>
+        </Section>
+    );
+}
+
+function Shipment({ order }: { order: OrderPage }) {
+    const t = useTranslator();
+    const rows: [string, React.ReactNode][] = [];
+
+    if (order.orderedCarrier !== null && order.orderedCarrier !== order.carrier) rows.push([t(`${W}.show.ordered_with`), <bdi key="ordered">{order.orderedCarrier}</bdi>]);
+    if (order.carrier !== null) rows.push([t(`${W}.show.carrier`), <bdi key="carrier">{order.carrier}</bdi>]);
+    if (order.trackingNumber !== null) rows.push([t(`${W}.show.tracking`), <bdi key="tracking" dir="ltr">{order.trackingNumber}</bdi>]);
+    // A live suggestion: once shipped it could name a box the order never went in (E13).
+    if (order.box !== null && order.shipment === 'NOT_SHIPPED' && !CLOSED.includes(order.status)) {
+        rows.push([
+            t(`${W}.show.box`),
+            order.box.byHand ? (
+                <span key="box" className="grid justify-items-end gap-0.5 text-end" data-test="box">
+                    {t(`${W}.show.by_hand`)}
+                    {order.box.reason === null ? null : <span className="text-copy-13 text-ink-muted">{t(`${W}.show.box_reason.${order.box.reason}`)}</span>}
+                </span>
+            ) : (
+                <bdi key="box" data-test="box">
+                    {order.box.name}
+                </bdi>
+            ),
+        ]);
+    }
+    if (order.shippedAt !== null) rows.push([t(`${W}.show.shipped_at`), <Time key="shipped" value={order.shippedAt} />]);
+    if (order.deliveredAt !== null) rows.push([t(`${W}.show.delivered_at`), <Time key="delivered" value={order.deliveredAt} />]);
+    if (order.returnDeadline !== null) rows.push([t(`${W}.show.return_deadline`), <Time key="deadline" value={order.returnDeadline} mode="absolute" />]);
+    if (order.cameBackAt !== null) rows.push([t(`${W}.show.came_back_at`), <Time key="back" value={order.cameBackAt} />]);
+
+    return (
+        <Section title={t(`${W}.show.shipment`)} test="shipment">
+            {order.shipment === 'NOT_SHIPPED' || rows.length === 0 ? <p className="mb-2 text-copy-14 text-ink-muted">{t(`${W}.shipment.NOT_SHIPPED`)}</p> : null}
+            <dl className="grid gap-1.5 text-copy-14">
+                {rows.map(([label, value]) => (
+                    <div key={label} className="flex items-baseline justify-between gap-3">
+                        <dt className="shrink-0 text-ink-muted">{label}</dt>
+                        <dd className="min-w-0 text-end [overflow-wrap:anywhere]">{value}</dd>
+                    </div>
+                ))}
+            </dl>
+            {order.trackingLink === null ? null : (
+                <a href={order.trackingLink} target="_blank" rel="noopener noreferrer" className="mt-2 block w-fit text-copy-14 text-ink underline underline-offset-4" data-test="open-tracking">
+                    {t(`${W}.show.open_tracking`)}
+                </a>
+            )}
+            {order.mayShipUnpaid ? <p className="mt-2 text-copy-13 text-ink-muted">{t(`${W}.show.unpaid_ship`)}</p> : null}
+        </Section>
+    );
+}
+
+/**
+ * "Reduced in the provider" (§1.5; R1-46) - a store wired to a provider when the order was placed: a tick on each
+ * size whose stock counted, and the gift; a ticked one says who and when, and stays ticked. Ticking is open while
+ * the order is approved or completed, to staff who ship.
+ */
+function Ticks({ order }: { order: OrderPage }) {
+    const t = useTranslator();
+    const [chosen, setChosen] = useState<string[]>([]);
+    const [busy, setBusy] = useState(false);
+    const ticked = new Map(order.ticks.map((tick) => [tick.variantId, tick]));
+    const open = order.actions.mayFulfil && (order.status === 'APPROVED' || order.status === 'COMPLETED');
+    const lines = order.tickable.map((variantId) => ({ variantId, line: order.lines.find((each) => each.variantId === variantId) }));
+
+    return (
+        <Section title={t(`${W}.show.ticks`)} test="ticks">
+            {open && chosen.length === 0 && ticked.size < lines.length ? <p className="mb-2 text-copy-13 text-ink-muted">{t(`${W}.show.ticks_hint`)}</p> : null}
+            <ul className="grid gap-2 text-copy-14">
+                {lines.map(({ variantId, line }) => {
+                    const tick = ticked.get(variantId);
+                    const id = `tick-${variantId}`;
+
+                    return (
+                        <li key={variantId} className="flex min-w-0 items-start gap-2">
+                            <Checkbox
+                                id={id}
+                                className="mt-0.5"
+                                checked={tick !== undefined || chosen.includes(variantId)}
+                                disabled={tick !== undefined || !open}
+                                onCheckedChange={(on) => setChosen((now) => (on === true ? [...now, variantId] : now.filter((each) => each !== variantId)))}
+                                data-test={id}
+                            />
+                            <label htmlFor={id} className="grid min-w-0 gap-0.5">
+                                <span className="text-ink">
+                                    {line?.name ?? variantId}
+                                    {line?.gift ? ` · ${t(`${W}.show.gift`)}` : ''}
+                                </span>
+                                <span className="text-copy-13 text-ink-muted">
+                                    <bdi dir="ltr">{line?.code ?? ''}</bdi>
+                                    {tick === undefined ? null : (
+                                        <>
+                                            {' · '}
+                                            {t(`${W}.show.ticked`, { name: tick.by ?? t(`${W}.system`) })} · <Time value={tick.at} />
+                                        </>
+                                    )}
+                                </span>
+                            </label>
+                        </li>
+                    );
+                })}
+            </ul>
+            {open && chosen.length > 0 ? (
+                <ActionButton
+                    className="mt-3"
+                    size="sm"
+                    loading={busy}
+                    onClick={() =>
+                        router.post(`/admin/orders/${order.id}/tick`, { variants: chosen } as never, {
+                            preserveScroll: true,
+                            onStart: () => setBusy(true),
+                            onFinish: () => setBusy(false),
+                            onSuccess: () => setChosen([]),
+                        })
+                    }
+                    data-test="save-ticks"
+                >
+                    {t(`${W}.action.tick`)}
+                </ActionButton>
+            ) : null}
+        </Section>
+    );
+}
+
+function Files({ order }: { order: OrderPage }) {
+    const t = useTranslator();
+
+    return (
+        <Section title={t(`${W}.show.files`)} test="files">
+            <ul className="grid gap-1 text-copy-14">
+                {order.transferDocuments.map((file) => (
+                    <li key={file.mediaId} className="flex items-center justify-between gap-2">
+                        <a href={`/admin/orders/files/${file.mediaId}`} target="_blank" rel="noreferrer" className="text-ink underline underline-offset-4" data-test="file">
+                            {t(`${W}.show.file`, { position: figure('en', file.position) })}
+                        </a>
+                        <span className="text-copy-13 text-ink-muted">
+                            <Time value={file.uploadedAt} />
+                        </span>
+                    </li>
+                ))}
+            </ul>
+        </Section>
+    );
+}
+
+function Returns({ order }: { order: OrderPage }) {
+    const t = useTranslator();
+
+    return (
+        <Section title={t(`${W}.show.returns`)} test="returns">
+            <ul className="grid gap-1 text-copy-14">
+                {order.returns.map((each) => (
+                    <li key={each.id} className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="flex items-center gap-2">
+                            <Badge className={tone('gray-subtle')}>{t(`${W}.return_status.${each.status}`)}</Badge>
+                            <Time value={each.requestedAt} />
+                        </span>
+                        {each.refundDue === null ? null : <Money value={each.refundDue} />}
+                        {each.staffReason === null ? null : (
+                            <span className="basis-full text-copy-13 text-ink-muted" data-test="return-staff-reason">
+                                {t(`${W}.return_refused_because`)} <bdi className="text-ink">{each.staffReason}</bdi>
+                            </span>
+                        )}
+                    </li>
+                ))}
+            </ul>
+        </Section>
+    );
+}
+
+function Edits({ order }: { order: OrderPage }) {
+    const t = useTranslator();
+
+    return (
+        <Section title={t(`${W}.show.edits`)} test="edits">
+            <ul className="grid gap-2 text-copy-14">
+                {order.edits.map((edit) => (
+                    <li key={edit.id} className="grid gap-0.5">
+                        <span dir="auto">{edit.reason}</span>
+                        <span className="text-copy-13 text-ink-muted">
+                            {edit.by ?? t(`${W}.system`)} · <Time value={edit.at} />
+                        </span>
+                    </li>
+                ))}
+            </ul>
+        </Section>
+    );
+}
+
+function History({ order }: { order: OrderPage }) {
+    const t = useTranslator();
+    const rows = [...order.history].reverse();
+
+    return (
+        <Section title={t(`${W}.show.history`)} test="history">
+            <ol className="grid gap-2 text-copy-14">
+                {rows.map((row, index) => (
+                    <li key={index} className="flex flex-wrap items-baseline justify-between gap-2" data-test="history-row">
+                        <span>
+                            {row.amount === null ? t(`${W}.history.${row.kind}`) : t(`${W}.history.money`, { what: t(`${W}.history.${row.kind}`), amount: row.amount.text, way: row.way === null ? '' : t(`${W}.money_way.${row.way}`) })}
+                            {row.by === null ? null : (
+                                <>
+                                    {' · '}
+                                    <bdi>{row.by}</bdi>
+                                </>
+                            )}
+                        </span>
+                        <span className="text-copy-13 text-ink-muted">
+                            <Time value={row.at} />
+                        </span>
+                    </li>
+                ))}
+            </ol>
+        </Section>
+    );
+}

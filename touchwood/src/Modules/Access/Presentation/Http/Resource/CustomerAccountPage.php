@@ -1,0 +1,71 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Access\Presentation\Http\Resource;
+
+use Spatie\LaravelData\Data;
+use Spatie\TypeScriptTransformer\Attributes\TypeScript;
+
+/**
+ * F7 and F8 - a customer's own account (frontend.md §3.6).
+ *
+ * One page with tabs, as the panel's is, because it is one person's account: it only ever shows
+ * the person looking at it, and no route behind it carries an id.
+ */
+#[TypeScript]
+final class CustomerAccountPage extends Data
+{
+    /**
+     * @param  string  $tab  which tab the server wants open - so a form that saved comes back to
+     *                       the tab the person was on rather than to the top of the first one
+     * @param  string  $email  never editable, and the screen says so (§3.6)
+     * @param  string  $accountType  INDIVIDUAL or COMPANY, chosen at registration and immutable
+     * @param  string  $communicationLocale  the language we write to them in, which is not the
+     *                                       language the shop is being read in. Never named
+     *                                       `locale`: that is the shop's displayed language, and
+     *                                       a page's own field of that name replaces it (owner,
+     *                                       2026-09-27)
+     * @param  string|null  $phone  in full: this is their own page, and they cannot decide whether
+     *                              to change a number they are not allowed to read
+     * @param  string  $homeStore  the store they registered in, named in the page's language. It
+     *                             never changes, and they may shop in any store regardless
+     *
+     * The languages to choose between are not here: the shop already carries them on every page,
+     * and they are Platform's to say, not Access's.
+     * @param  list<AddressBookStore>  $addresses  every country, with what they have in each (F9)
+     * @param  int  $deletionDays  how long a closed account waits before it is anonymized, which
+     *                             the screen says in words before anybody confirms (F10)
+     * @param  string|null  $returnTo  the page that sent them to their addresses, `{module}.{key}`,
+     *                                 which saving an address goes back to (amendment 51); only
+     *                                 ever one registered for their account type
+     * @param  int  $codeLength  how many digits the code sent to a new number has - a setting, 4 to
+     *                           8 - so the phone tab draws one box per digit (frontend.md §1.11)
+     */
+    public function __construct(
+        public string $tab,
+        public string $firstName,
+        public string $lastName,
+        public string $email,
+        public string $accountType,
+        public string $communicationLocale,
+        public ?string $phone,
+        public bool $emailVerified,
+        public bool $phoneVerified,
+        /**
+         * Their saved phone's country is not on the SMS countries list (amendment 90): the screen asks
+         * them to change it - no code reaches it, and ordering waits. $phoneVerified keeps its meaning.
+         */
+        public bool $phoneCountryUnlisted,
+        /** Both done: until then they may look around and fill a basket, but not order. */
+        public bool $mayOrder,
+        public string $homeStore,
+        public int $passwordMinimumLength,
+        public array $addresses,
+        public int $deletionDays,
+        public ?string $returnTo,
+        public int $codeLength,
+        /** The "offers and news" switch (amendment 79). */
+        public bool $marketingConsent = false,
+    ) {}
+}

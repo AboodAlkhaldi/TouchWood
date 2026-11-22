@@ -1,0 +1,89 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Catalog\Domain\Repository;
+
+use Modules\Catalog\Domain\Model\Variant;
+
+/**
+ * Variants with their values and details (catalog.md §1.2, §5.1), changed under
+ * `ListLocks::PRODUCTS`.
+ */
+interface VariantRepository
+{
+    public function nextId(): string;
+
+    public function find(string $variantId): ?Variant;
+
+    /** Read again, its row locked, inside a change. */
+    public function byId(string $variantId): ?Variant;
+
+    /**
+     * @return list<Variant> by position, then id
+     */
+    public function ofProduct(string $productId): array;
+
+    public function hasAny(string $productId): bool;
+
+    /** Inserts the variant with its values and details. */
+    public function add(Variant $variant): void;
+
+    /** Writes the variant, its values and details as they now are. */
+    public function update(Variant $variant): void;
+
+    /** Writes the variant's own row alone — archived or restored, its values and details unchanged. */
+    public function updateRow(Variant $variant): void;
+
+    public function delete(string $variantId): void;
+
+    /**
+     * Many products' variants at once, each product's in its order - an import's page and confirm
+     * read every product the file changes together (P13).
+     *
+     * @param  list<string>  $productIds
+     * @return array<string, list<Variant>> by product id
+     */
+    public function ofProducts(array $productIds): array;
+
+    /**
+     * Writes the product's variants' places again, 1, 2, 3 … in this order (P29).
+     *
+     * @param  list<string>  $variantIds  every variant of the product
+     */
+    public function renumber(string $productId, array $variantIds): void;
+
+    /** The place after the product's last variant: a variant added goes last (amendment 16(d)). */
+    public function nextPosition(string $productId): int;
+
+    /** Whether another variant of the product has this combination, archived ones included (§1.2). */
+    public function combinationTaken(string $productId, string $combination, ?string $exceptVariantId = null): bool;
+
+    /** Whether a variant of the product carries the code now. */
+    public function codeInUse(string $productId, string $code): bool;
+
+    /** The one variant carrying the code now, archived or not (amendment 16(a)) — or none. */
+    public function carrying(string $code): ?Variant;
+
+    public function anyWithValue(string $valueId): bool;
+
+    /** Whether any variant takes a value of the attribute, or a detail of it. */
+    public function anyWithAttribute(string $attributeId): bool;
+
+    /**
+     * @return list<string> the variant's own photos, in order
+     */
+    public function photos(string $variantId): array;
+
+    /**
+     * @param  list<string>  $mediaIds  in order
+     */
+    public function replacePhotos(string $variantId, array $mediaIds): void;
+
+    /**
+     * @return list<string> the variants whose photos hold the media
+     */
+    public function withPhoto(string $mediaId): array;
+
+    public function removePhoto(string $variantId, string $mediaId): void;
+}

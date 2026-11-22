@@ -1,0 +1,1 @@
+function e(e){let t={};for(let[n,r]of Object.entries(e))n.startsWith(`rows.`)&&n.length>5&&typeof r==`string`&&r!==``&&(t[n.slice(5)]=r);return t}function t(e,t,n){return e.find(e=>n[t(e)]!==void 0)}export{e as n,t};

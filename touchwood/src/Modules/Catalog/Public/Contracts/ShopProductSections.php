@@ -1,0 +1,31 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Catalog\Public\Contracts;
+
+/**
+ * The parts other modules add to a product's page in the shop (catalog.md amendment 26(b)), registered
+ * in their service providers. The page carries them as `sections`, keyed `{module}.{key}`; Catalog
+ * never knows what is in them.
+ */
+interface ShopProductSections
+{
+    /**
+     * @param  string  $key  `{module}.{key}` — "feedback.reviews"
+     * @param  class-string  $section  a class implementing ShopProductSection, resolved from the
+     *                                 container on each request
+     * @param  list<string>  $words  the translation files its drawing reads, shipped with the page
+     *                               (amendment 33) - "feedback::shop"
+     * @param  bool  $evenUnavailable  read on a "Not available now" page too (amendment 34) - the Save
+     *                                 heart, so a saved product can be kept or removed there; every
+     *                                 other section is left off that page, but for those below
+     * @param  bool  $evenSoldOut  read on such a page too when the product is only sold out or unpriced for
+     *                             this viewer (amendment 40(a)) - reviews, the rating and questions; never
+     *                             on one marked by staff, archived or the like
+     *
+     * @throws \LogicException for a class that is not a ShopProductSection, a key not of that form, or
+     *                         a key registered twice
+     */
+    public function register(string $key, string $section, array $words = [], bool $evenUnavailable = false, bool $evenSoldOut = false): void;
+}

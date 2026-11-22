@@ -1,0 +1,14 @@
+export type AuditSource = 'WEB' | 'INTEGRATION' | 'CONSOLE' | 'JOB' | 'IMPORT';
+export type HomeBand = 'greeting' | 'overview' | 'attention';
+export type HomePeriod = 'today' | '7days' | 'month' | '3months' | 'year';
+export type HomeSize = 'full' | 'two_thirds' | 'half' | 'third' | 'quarter';
+export type ImageFormat = 'AVIF' | 'WEBP' | 'JPEG';
+export type MediaSize = 'THUMB' | 'CARD' | 'DETAIL' | 'ZOOM';
+export type MediaVariantsStatus = 'PENDING' | 'READY' | 'FAILED';
+export type MediaVisibility = 'PUBLIC' | 'PRIVATE';
+export type PlaceKind = 'REGION' | 'CITY' | 'DISTRICT';
+export type PolicyKind = 'TERMS' | 'PRIVACY' | 'RETURNS' | 'SHIPPING' | 'WARRANTY' | 'PAYMENT_METHODS' | 'COMPLAINTS' | 'COMPANY_TERMS' | 'OTHER';
+export type SettingScope = 'GLOBAL' | 'STORE';
+export type SettingType = 'INTEGER' | 'BOOLEAN' | 'TEXT' | 'LIST';
+export type ShopperKind = 'GUEST' | 'INDIVIDUAL' | 'COMPANY';
+export type TranslationFailure = 'QUOTA' | 'BUSY' | 'REFUSED' | 'UNREACHABLE';

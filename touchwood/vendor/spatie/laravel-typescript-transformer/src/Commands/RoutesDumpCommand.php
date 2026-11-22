@@ -1,0 +1,34 @@
+<?php
+
+namespace Spatie\LaravelTypeScriptTransformer\Commands;
+
+use Illuminate\Console\Command;
+use Spatie\LaravelTypeScriptTransformer\Actions\ResolveRouteCollectionAction;
+
+class RoutesDumpCommand extends Command
+{
+    public $signature = 'typescript:dump-routes {filters} {--include-route-closures}';
+
+    public $description = 'Transforms Laravel route definitions to TypeScript Transformer usable format.';
+
+    protected $hidden = true;
+
+    public function handle(
+        ResolveRouteCollectionAction $resolveRouteCollectionAction
+    ): int {
+        $filters = $this->argument('filters');
+
+        if ($filters === 'null') {
+            $filters = null;
+        }
+
+        $routeCollection = $resolveRouteCollectionAction->execute(
+            includeRouteClosures: $this->option('include-route-closures'),
+            filters: $filters === null ? [] : unserialize(base64_decode($filters))
+        );
+
+        $this->output->write(serialize($routeCollection));
+
+        return self::SUCCESS;
+    }
+}

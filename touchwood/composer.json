@@ -1,0 +1,123 @@
+{
+    "$schema": "https://getcomposer.org/schema.json",
+    "name": "touchwood/platform",
+    "type": "project",
+    "description": "TouchWood multi-store retail and wholesale commerce platform",
+    "license": "proprietary",
+    "require": {
+        "php": "^8.4",
+        "ext-exif": "*",
+        "ext-fileinfo": "*",
+        "ext-gd": "*",
+        "ext-intl": "*",
+        "ext-zip": "*",
+        "bacon/bacon-qr-code": "^3.1",
+        "brick/math": "^0.19.1",
+        "deeplcom/deepl-php": "^1.21",
+        "inertiajs/inertia-laravel": "^3.3",
+        "intervention/image": "^4.3",
+        "laravel/framework": "^13.17",
+        "laravel/tinker": "^3.0",
+        "mpdf/mpdf": "8.3.1",
+        "openspout/openspout": "^5.13",
+        "pragmarx/google2fa": "^9.1",
+        "spatie/laravel-data": "^4.23",
+        "spatie/laravel-typescript-transformer": "^3.3",
+        "tightenco/ziggy": "^2.6"
+    },
+    "require-dev": {
+        "deptrac/deptrac": "^4.7",
+        "fakerphp/faker": "^1.23",
+        "larastan/larastan": "^3.12",
+        "laravel/pail": "^1.2.5",
+        "laravel/pao": "^1.0.6",
+        "laravel/pint": "^1.27",
+        "mockery/mockery": "^1.6",
+        "nunomaduro/collision": "^8.6",
+        "pestphp/pest": "^5.2",
+        "pestphp/pest-plugin-browser": "^5.0",
+        "pestphp/pest-plugin-laravel": "^5.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/",
+            "Modules\\": "src/Modules/",
+            "Shared\\": "src/Shared/",
+            "Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "setup": [
+            "composer install",
+            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
+            "@php artisan key:generate",
+            "@php artisan migrate --force",
+            "@php artisan storage:link",
+            "npm install --ignore-scripts",
+            "npm run build"
+        ],
+        "dev": [
+            "Composer\\Config::disableProcessTimeout",
+            "@php artisan dev"
+        ],
+        "test": [
+            "@php artisan config:clear --ansi @no_additional_args",
+            "@php artisan test"
+        ],
+        "check": [
+            "@php artisan config:clear --ansi",
+            "@php vendor/bin/pint --test",
+            "@php vendor/bin/phpstan analyse --memory-limit=2G --no-progress",
+            "@php vendor/bin/deptrac analyse --fail-on-uncovered --report-uncovered --no-progress",
+            "npm run types",
+            "@php vendor/bin/pest --ci --exclude-testsuite=Browser"
+        ],
+        "post-autoload-dump": [
+            "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
+            "@php artisan package:discover --ansi"
+        ],
+        "post-update-cmd": [
+            "@php artisan vendor:publish --tag=laravel-assets --ansi --force"
+        ],
+        "post-root-package-install": [
+            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
+        ],
+        "pre-package-uninstall": [
+            "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
+        ],
+        "check:browser": [
+            "@php vendor/bin/pest --testsuite=Browser"
+        ],
+        "check:mutation": [
+            "@php -d pcov.enabled=1 vendor/bin/pest tests/Modules/Platform/Integration/ListStoresTest.php --mutate --covered-only --path=src/Modules/Platform/Application/Query",
+            "@php -d pcov.enabled=1 vendor/bin/pest tests/Modules/Access/Integration/AuthorizerTest.php --mutate --covered-only --path=src/Modules/Access/Application/Authorization",
+            "@php -d pcov.enabled=1 vendor/bin/pest tests/Modules/Access/Integration/ChangeStaffRoleTest.php --mutate --covered-only --path=src/Modules/Access/Application/Command/ChangeStaffRole",
+            "@php -d pcov.enabled=1 vendor/bin/pest tests/Modules/Access/Integration/StaffPagesTest.php --mutate --covered-only --path=src/Modules/Access/Presentation/Http/Resource"
+        ]
+    },
+    "extra": {
+        "laravel": {
+            "dont-discover": []
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "preferred-install": "dist",
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true,
+            "php-http/discovery": true
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "scripts-descriptions": {
+        "check": "Everything that must pass before a commit: formatting, static analysis, module boundaries, the TypeScript check and the tests.",
+        "check:browser": "The browser tests, driven through a real Chromium. Their own command: they need a browser installed (npx playwright install chromium) and they are slow."
+    }
+}

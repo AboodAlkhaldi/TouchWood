@@ -1,0 +1,25 @@
+{
+ "country": "BH",
+ "regions": [
+  {
+   "ar": "محافظة العاصمة",
+   "en": "Capital Governorate",
+   "cities": []
+  },
+  {
+   "ar": "محافظة المحرق",
+   "en": "Muharraq Governorate",
+   "cities": []
+  },
+  {
+   "ar": "المحافظة الشمالية",
+   "en": "Northern Governorate",
+   "cities": []
+  },
+  {
+   "ar": "المحافظة الجنوبية",
+   "en": "Southern Governorate",
+   "cities": []
+  }
+ ]
+}

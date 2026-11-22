@@ -1,0 +1,1 @@
+import{y as e}from"./app-DqTETjiQ.js";function t(){let{locale:t}=e().props,n=t===`ar`?`، `:`, `;return e=>e.join(n)}export{t};

@@ -1,0 +1,1 @@
+import{n as e,t}from"./cn-CKFzBO3y.js";var n=e();function r({value:e,className:r}){return(0,n.jsx)(`bdi`,{dir:`ltr`,className:t(`tw-figure`,r),"data-minor":e.minor,children:e.text})}export{r as t};

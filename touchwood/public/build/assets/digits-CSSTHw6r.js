@@ -1,0 +1,1 @@
+var e=1632,t=1776;function n(n){let r=``;for(let i of n){let n=i.codePointAt(0)??0;r+=n>=e&&n<=1641?String(n-e):n>=t&&n<=1785?String(n-t):i}return r}function r(e){return e===`ar`?`ar-u-nu-latn`:`en`}function i(e,t){return new Intl.NumberFormat(r(e)).format(t)}export{r as n,n as r,i as t};

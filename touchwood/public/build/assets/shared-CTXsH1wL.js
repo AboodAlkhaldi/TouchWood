@@ -1,0 +1,1 @@
+import{y as e}from"./app-DqTETjiQ.js";import{t}from"./digits-CSSTHw6r.js";function n(){return e().props.locale}function r(e,t,n){return(e===`ar`?t:n)??``}export{t as figure,r as nameIn,n as useLocale};

@@ -1,0 +1,52 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Access\Application\Session;
+
+use Modules\Access\Application\Security\ServedPhones;
+use Modules\Access\Domain\Model\StaffUser;
+use Modules\Access\Public\Enums\StaffStatus;
+
+/**
+ * Someone who gave the right password in this browser and has not entered the code yet.
+ * $needsPhone: a Super Admin whose phone was reset, or whose phone SMS no longer reaches, first enters a
+ * new number (amendments 14, 90).
+ */
+final readonly class PendingSignIn
+{
+    public function __construct(
+        public string $staffId,
+        public int $sessionVersion,
+        public bool $needsPhone,
+        /**
+         * The number the code went to, masked to its last three digits (stage 2b, P4), so the code
+         * screen can name it. Null when there is no number yet: a Super Admin whose phone was reset
+         * enters a new one first.
+         */
+        public ?string $maskedPhone = null,
+        /**
+         * The second step is a code from their authenticator app, not an SMS code (amendment 91): no
+         * phone is involved, so whether SMS reaches theirs does not matter here.
+         */
+        public bool $byApp = false,
+    ) {}
+
+    /**
+     * Whether the account is still as it was when the password was given: active, the same password
+     * (a reset or change raises the session version) and, for a new number, still a Super Admin with
+     * no phone SMS reaches (review of step 3b; amendment 90) - otherwise a phone SMS still reaches: a
+     * country taken off the list since the password restarts the sign-in, rather than refusing the
+     * number on the code screen.
+     */
+    public function stillFor(?StaffUser $staff, ServedPhones $phones): bool
+    {
+        return $staff !== null
+            && $staff->id() === $this->staffId
+            && $staff->status() === StaffStatus::Active
+            && $staff->sessionVersion() === $this->sessionVersion
+            && ($this->byApp || ($this->needsPhone
+                ? $staff->isSuperAdmin() && ! $phones->reaches($staff->phone())
+                : $phones->reaches($staff->phone())));
+    }
+}

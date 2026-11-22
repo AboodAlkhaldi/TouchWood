@@ -1,0 +1,1 @@
+import{i as e,t}from"./react-B6PPDU_E.js";var n=e(t(),1);function r(e,t,r){let i=(0,n.useRef)(e);(0,n.useEffect)(()=>{let n=document.activeElement,a=n===null||n===document.body||(r?.current?.contains(n)??!1);i.current&&!e&&a&&t.current?.focus(),i.current=e},[e,t,r])}export{r as t};

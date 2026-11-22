@@ -1,0 +1,209 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Access\Application\Command\RegisterCustomer;
+
+use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Events\Dispatcher;
+use Illuminate\Database\Connection;
+use Illuminate\Support\Str;
+use Modules\Access\Application\Audit\CustomerAudit;
+use Modules\Access\Application\Customer\CustomerLinks;
+use Modules\Access\Application\Customer\CustomerMapper;
+use Modules\Access\Application\Customer\GuestVisitors;
+use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Security\AddressLimits;
+use Modules\Access\Application\Security\PasswordPolicy;
+use Modules\Access\Application\Session\CustomerSessions;
+use Modules\Access\Application\Settings\CustomerSecuritySettings;
+use Modules\Access\Domain\Exception\EmailAlreadyRegistered;
+use Modules\Access\Domain\Exception\InvalidAccessAttribute;
+use Modules\Access\Domain\Exception\TermsChanged;
+use Modules\Access\Domain\Model\Customer;
+use Modules\Access\Domain\Repository\CustomerRepository;
+use Modules\Access\Domain\Repository\StaffUserRepository;
+use Modules\Access\Domain\ValueObject\EmailAddress;
+use Modules\Access\Domain\ValueObject\Language;
+use Modules\Access\Public\Contracts\SecurityMessages;
+use Modules\Access\Public\Enums\AccountType;
+use Modules\Access\Public\Events\CustomerRegistered;
+use Modules\Access\Public\Events\GuestBecameCustomer;
+use Modules\Access\Public\Events\MarketingConsentChanged;
+use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Contracts\ShopPolicies;
+use Modules\Platform\Public\Dto\ShopPolicyDto;
+use Modules\Platform\Public\Enums\PolicyKind;
+use Shared\Application\Authorizer;
+use Shared\Application\PermissionScope;
+use Shared\Application\StoreContext;
+use Shared\Domain\ValueObject\StoreId;
+
+/**
+ * A new customer account (spec §1.2): active at once, with the email unverified and no phone yet,
+ * so they can browse and fill a cart; ordering waits for both verifications. The store they
+ * registered in becomes their home store, fixed, and that store's published Terms and Conditions and
+ * Privacy Policy - each policy and the version of its text, through Platform's `ShopPolicies` - are
+ * recorded as what they accepted (amendment 37; flags-2026-11.md S3.4, F18; owner, 2026-11-20), and
+ * must be the ones the form showed, else `TermsChanged`. A store with none published still takes
+ * sign-ups, recording none (owner, 2026-11-20): it takes no orders. An email that already belongs to an account — a customer's or a staff member's,
+ * since an email belongs to one of them and never both (amendment 13) — is answered plainly and in
+ * the same words, so the form never says who works here.
+ */
+final readonly class RegisterCustomerHandler
+{
+    public const string PERMISSION = AccessPermissions::ACCOUNT_REGISTER;
+
+    private const int NAME_MAX = 100;
+
+    public function __construct(
+        private Authorizer $authorizer,
+        private CustomerRepository $customers,
+        private StaffUserRepository $staff,
+        private PasswordPolicy $passwords,
+        private AddressLimits $addresses,
+        private CustomerSecuritySettings $settings,
+        private CustomerLinks $links,
+        private CustomerMapper $mapper,
+        private SecurityMessages $messages,
+        private CustomerSessions $sessions,
+        private GuestVisitors $guests,
+        private StoreContext $stores,
+        private PlatformApi $platform,
+        private Dispatcher $events,
+        private Connection $db,
+        private ShopPolicies $policies,
+    ) {}
+
+    /**
+     * @return string the new customer's id
+     *
+     * @throws EmailAlreadyRegistered|InvalidAccessAttribute|TermsChanged
+     */
+    public function handle(RegisterCustomer $command): string
+    {
+        $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
+        $this->addresses->count($command->ip);
+
+        $email = EmailAddress::of($command->email);
+        $language = Language::of($command->locale);
+        $accountType = AccountType::tryFrom(strtoupper(trim($command->accountType)))
+            ?? throw new InvalidAccessAttribute('account_type', 'individual or company');
+        $firstName = $this->name('first_name', $command->firstName);
+        $lastName = $this->name('last_name', $command->lastName);
+
+        if (! $command->termsAccepted) {
+            throw new InvalidAccessAttribute('terms', 'the terms and privacy policy must be accepted');
+        }
+
+        // The terms the sentence named, as the store shows them now (S3.4) - one read of its policies - and they must
+        // be the ones the form showed: the version recorded is the one the customer read (owner, 2026-11-20).
+        $store = $this->stores->current();
+        [$terms, $privacy] = $this->accepted($store, $language->value, $command);
+
+        // The slow parts — the breach service and the hasher — only once the rest is in order.
+        $passwordHash = $this->passwords->hashNew($command->password, $this->settings->passwordMinLength());
+        $storeId = $store->value;
+        $storeCode = ($this->platform->store($store) ?? throw new InvalidAccessAttribute('store', 'unknown'))->code;
+        $verificationHours = $this->settings->emailVerificationHours();
+
+        $marketingConsent = $command->marketingConsent;
+
+        $customer = $this->db->transaction(function () use ($email, $language, $accountType, $firstName, $lastName, $passwordHash, $storeId, $storeCode, $terms, $privacy, $verificationHours, $marketingConsent): Customer {
+            // One email, one account (amendment 13) — and a staff address is answered exactly like a
+            // customer's, so this public form never tells a stranger who works here (owner,
+            // 2026-09-20, after the step 4a review).
+            if ($this->customers->emailInUse($email) || $this->staff->emailInUse($email)) {
+                throw new EmailAlreadyRegistered;
+            }
+
+            $now = CarbonImmutable::now();
+            $customer = Customer::register(
+                $this->customers->nextId(), $email, $passwordHash, $firstName, $lastName,
+                $accountType, $language, $storeId, $terms?->policyId, $terms?->version, $now, $marketingConsent,
+                $privacy?->policyId, $privacy?->version,
+            );
+
+            $this->customers->add($customer);
+            $this->platform->recordAudit(CustomerAudit::registered($customer));
+            $this->events->dispatch(new CustomerRegistered((string) Str::uuid(), $customer->id(), $accountType, $storeId, $now));
+
+            if ($marketingConsent) {
+                $this->events->dispatch(new MarketingConsentChanged((string) Str::uuid(), $customer->id(), $now));
+            }
+
+            $guestId = $this->guests->current();
+
+            if ($guestId !== null) {
+                $this->events->dispatch(new GuestBecameCustomer(
+                    (string) Str::uuid(), $guestId, $customer->id(), GuestBecameCustomer::REGISTERED, $now,
+                ));
+            }
+
+            $link = $this->links->emailVerification($customer->id(), $storeCode, $language->value, $now->addHours($verificationHours));
+            $dto = $this->mapper->toDto($customer);
+
+            // Sent once the transaction commits, never queued: a job would keep the link in the
+            // jobs table (spec §2.3). A provider's failure goes to the log and never to the customer:
+            // the account is theirs, they land signed in, and they can ask for the link again
+            // (amendment 93).
+            $this->db->afterCommit(fn () => rescue(fn () => $this->messages->emailVerification($dto, $link)));
+
+            return $customer;
+        }, 3);
+
+        // Signed in at once, as the owner decided (2026-09-20): they just chose this password. Only
+        // once the account is committed, so a rolled-back registration leaves no session behind.
+        $this->sessions->start($customer->id(), $customer->sessionVersion(), remember: false);
+
+        return $customer->id();
+    }
+
+    /**
+     * The store's Terms and Conditions and Privacy Policy now, each the one the form showed - the same policy at the
+     * same version, or none and none - else `TermsChanged`.
+     *
+     * @return array{0: ?ShopPolicyDto, 1: ?ShopPolicyDto}
+     *
+     * @throws TermsChanged
+     */
+    private function accepted(StoreId $store, string $locale, RegisterCustomer $command): array
+    {
+        $live = [PolicyKind::Terms->value => null, PolicyKind::Privacy->value => null];
+
+        foreach ($this->policies->allPublished($store, $locale) as $policy) {
+            if (array_key_exists($policy->kind->value, $live)) {
+                $live[$policy->kind->value] ??= $policy;
+            }
+        }
+
+        [$terms, $privacy] = [$live[PolicyKind::Terms->value], $live[PolicyKind::Privacy->value]];
+
+        if (! self::shown($terms, $command->shownTermsId, $command->shownTermsVersion) || ! self::shown($privacy, $command->shownPrivacyId, $command->shownPrivacyVersion)) {
+            throw new TermsChanged;
+        }
+
+        return [$terms, $privacy];
+    }
+
+    private static function shown(?ShopPolicyDto $live, ?string $id, ?int $version): bool
+    {
+        return $live === null
+            ? $id === null && $version === null
+            : $id !== null && strtolower($id) === strtolower($live->policyId) && $version === $live->version;
+    }
+
+    /**
+     * @throws InvalidAccessAttribute
+     */
+    private function name(string $attribute, string $value): string
+    {
+        $name = trim($value);
+
+        return match (true) {
+            $name === '' => throw new InvalidAccessAttribute($attribute, 'required'),
+            mb_strlen($name) > self::NAME_MAX => throw new InvalidAccessAttribute($attribute, 'at most '.self::NAME_MAX.' characters'),
+            default => $name,
+        };
+    }
+}

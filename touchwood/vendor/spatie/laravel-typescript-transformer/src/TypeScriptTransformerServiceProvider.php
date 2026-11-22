@@ -1,0 +1,30 @@
+<?php
+
+namespace Spatie\LaravelTypeScriptTransformer;
+
+use Spatie\LaravelPackageTools\Package;
+use Spatie\LaravelPackageTools\PackageServiceProvider;
+use Spatie\LaravelTypeScriptTransformer\Commands\InstallTypeScriptTransformerCommand;
+use Spatie\LaravelTypeScriptTransformer\Commands\RoutesDumpCommand;
+use Spatie\LaravelTypeScriptTransformer\Commands\TransformTypeScriptCommand;
+
+class TypeScriptTransformerServiceProvider extends PackageServiceProvider
+{
+    public function configurePackage(Package $package): void
+    {
+        $package
+            ->name('typescript-transformer')
+            ->hasCommand(TransformTypeScriptCommand::class)
+            ->hasCommand(RoutesDumpCommand::class)
+            ->hasCommand(InstallTypeScriptTransformerCommand::class);
+    }
+
+    public function bootingPackage(): void
+    {
+        if ($this->app->runningInConsole()) {
+            $this->publishes([
+                __DIR__.'/../stubs/TypeScriptTransformerServiceProvider.stub' => app_path('Providers/TypeScriptTransformerServiceProvider.php'),
+            ], 'typescript-transformer-provider');
+        }
+    }
+}

@@ -1,0 +1,42 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Platform\Application\Query;
+
+use Modules\Platform\Public\Dto\CurrencyDto;
+use Modules\Platform\Public\Dto\StoreDto;
+
+/**
+ * The read side for stores and currencies. Every storefront request resolves its store here,
+ * so the implementation must answer from the cache and never load stores and currencies again.
+ *
+ * It answers about **every** store, on and off (platform.md §1.6): Platform's own screens decide
+ * who sees an off store, and PlatformApi decides what other modules are told.
+ */
+interface StoreDirectory
+{
+    /**
+     * @return list<StoreDto> every store, on and off, ordered by position, then code
+     */
+    public function stores(): array;
+
+    public function storeById(string $id): ?StoreDto;
+
+    public function storeByCode(string $code): ?StoreDto;
+
+    public function currency(string $code): ?CurrencyDto;
+
+    /**
+     * Every currency, for the screen that manages them (frontend.md 3.5, E3).
+     *
+     * @return list<CurrencyDto> ordered by code
+     */
+    public function currencies(): array;
+
+    /**
+     * Call inside the transaction that changes a store or currency. Readers see the new data
+     * once it commits, before any event dispatched after commit reaches its listeners.
+     */
+    public function invalidate(): void;
+}

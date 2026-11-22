@@ -1,0 +1,56 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Sync\Domain\Provider;
+
+use Modules\Sync\Domain\Exception\ConnectionFailed;
+use Modules\Sync\Domain\Exception\InvalidSyncInput;
+use Modules\Sync\Domain\Model\Connection;
+use Modules\Sync\Domain\ValueObject\ProviderValue;
+
+/**
+ * One provider's way of being read (sync.md §2.1) - Odoo the first. Only Sync's queued reads call
+ * `read`; `test` is the one call made in a web request, the Super Admin's save, and gives up after 10
+ * seconds (sync.md §9.3 #21).
+ */
+interface ProviderAdapter
+{
+    /**
+     * @return list<string> the fields this provider asks for beside the address, the key and the secret
+     */
+    public function fields(): array;
+
+    /**
+     * Whether this provider's connection is built - false until it can read: the Provider page says so
+     * above its form, and its test refuses with its reason (sync.md §4.1 Y3, Q38).
+     */
+    public function ready(): bool;
+
+    /**
+     * The address as this provider takes it - its own shape checked, and written as it is kept - once the
+     * address is HTTPS with a host (sync.md §1.2, §2.4). Checked before any call.
+     *
+     * @throws InvalidSyncInput naming the address and the rule it broke
+     */
+    public function address(string $address): string;
+
+    /**
+     * One small read, to know the connection works.
+     *
+     * @throws ConnectionFailed naming the reason - never the key or the secret
+     */
+    public function test(Connection $connection): void;
+
+    /**
+     * The provider's values for these codes of ours - a notice's, one code's, or every code of ours for the
+     * hour's, the night's and Sync now's reads (sync.md §2.4: Odoo's API cannot say what changed, nor list
+     * what it has for us). A code the provider does not have is left out; one it cannot have is not asked.
+     *
+     * @param  list<string>  $codes
+     * @return iterable<ProviderValue>
+     *
+     * @throws ConnectionFailed
+     */
+    public function read(Connection $connection, array $codes): iterable;
+}

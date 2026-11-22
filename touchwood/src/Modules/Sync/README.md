@@ -1,0 +1,180 @@
+# Sync
+
+Reading a store's provider - Odoo the first - one way: each size's base price and its stock, by product
+code. The spec is [docs/modules/sync.md](../../../docs/modules/sync.md); the handoff's §12.2 is its
+source.
+
+## Status
+
+Built in six steps, one PR each (stage 5's plan), then the screens and the Odoo adapter. Everything on our
+side is tested against a pretend provider; the Odoo adapter is tested against a faked HTTP API built to
+sync.md §2.4 - never the live account, which it meets first before the store opens (§9.1 #1). The
+notifications' sending is Ops'.
+
+| Step | What | State |
+|---|---|---|
+| 1 | Foundation: the `sync` schema, the permissions and the role editor's Sync group, the errors | built (#142) |
+| 2 | The contracts Pricing and Inventory give (§2.3): `StoreWiring`, `ProviderPrices`, `ProviderStock` | built (#144, #147) |
+| 3 | Wiring: the provider adapter, a pretend provider for the tests, Wire / Change / Unwire, the Provider page's read | built (#151) |
+| 4a | The read engine: `ReadStoreJob` and `RunRead`; Catalog's amendment 21 (`variantsByCodes`) | built (#153) |
+| 4b | The triggers: the provider's signed notice, the hourly and nightly reads, a corrected code read again | built (#154) |
+| 5a | What staff read and do: the report and its count, the page of reads, Sync now, Retry, Dismiss, the log kept 90 days | built (#155) |
+| 5b | What staff are told of: Access's `SYNC_PROBLEMS` topic (amendment 71) and `SyncNeedsAttention` | built (#157) |
+| 6 | The module's own pass: three independent reviews of the whole module (completeness, security, architecture and cost) and their fixes (6a); a skipped discount's entry closed the moment the discount reaches its size again, told by Pricing (6b) | built (#158, #159) |
+| Screens 6 | Stage 5's screens step 6, the server side of Sync's screens (§4.1.3): `SyncStatus` (the status line, Not Wired), `ViewSyncReport` (Problems 50 at a time after a cursor, the kind filter with each kind's count, each size's values, a stopped offer and a skipped discount named by Pricing, Q37), `ListSyncReads` (50 at a time, who asked by name, Q36; a failed read counted from what it wrote, Q30), `ViewSyncRead` (each section paged 100 on its own, Q32), `ViewConnection` (the last reads, the notice address, Until the Odoo connection is built, Q38), `SyncActionsForReader`, `SyncReportCount` (the menu's count, one query); Sync's failure reasons kept as codes and written in both languages (Q31); each provider setting refused by its own name (Q34); a code twice in one read skipped and reported (§2.4); the review's points - an off store refused (`StoreOff`), Retry refused where a read never closes the entry (`EntryNotRetryable`), each page within 15 queries in its worst case (the page's sizes read once, the stores' wiring and waiting reads in one query); the `sync.admin.*` routes and controllers, the menu's two entries, the words. The pages are placeholders until step 7 | built (#189) |
+| Screens 7 | Stage 5's screens step 7, Sync's pages (`resources/js/pages/Sync/Admin/`): the Sync Report (Y1) - the status line (Working, Failing in a red Note, Not Wired with Wire Store for a Super Admin), Sync Now (disabled while a Now read waits, Q26), Problems (the kind filter, each kind's badge, What and Detail per kind, Retry Read / Open Offer / Open Product and Dismiss Entry…, Q27, Q28) and Reads (each row opening its read), Show More keeping its depth through a change; a read's page (Y2) - its header and its sections as tabs, each paged with Show More; the Provider page (Y3) - the being-built Note (Q38), Wire Store and Change Connection checked as typed, a refusal under its own box (Q34) or under the form, the wired store's Description with the notice address, Unwire Store… confirmed by the store's code. `ListSyncReads` also counts the open entries, for the Problems tab's trigger while Reads is shown | built (#191) |
+| Odoo | The `OdooAdapter` to sync.md §2.4 (its choices in §2.4 As built): the address checked before any call - HTTPS, one the HTTP client can call (its port, its host), no query or fragment, a path ending in `/touchwood/v1`, each refused by its own words under the Address box, a closing slash dropped; HTTPS `GET`s at the store's address with its token as a bearer header; the test (`limit=1`, 10 seconds), every item paged by `after`, what changed since the last read's start less 5 minutes (UTC), named codes 500 a call (only the codes asked yielded); 30 seconds a call; one call at a time, a second apart per store; a `429` waited out once (60 seconds at most); every failure a short sentence with its status code, never the body, the address or the key; a malformed answer refused; 200 pages a read at most; a price or a stock that is not one (`false`, a list, an object) a bad value for that code alone, the read going on; `ready()` true, so the "being built" note is gone | built (#205); its custom API was never built by Odoo's team, replaced below |
+| Odoo's own API | sync.md §2.4 rewritten (owner, 2026-11-09) and amendment 4 (2026-11-10), **the read part**: `POST {account}/json/2/product.product/read`, `{"ids": [...], "fields": ["list_price", "free_qty"]}`, a bearer token, a bare JSON list back; the address the account's alone (`https://<account>.odoo.com`, no path, query or fragment; **replaced by amendment 6: the API's full address, called as saved**); our codes as Odoo's ids, 500 a call, one not written as an id (`0123`) never sent; an id Odoo lacks left out; every whole read (hourly, nightly, Sync now) asks every size not archived (Catalog's `variantCodes`, amendment 44); a `403` its own reason, an answer not a list or an item with no whole-number id failing the read; `connections.last_read_at` dropped with the hourly "changed since". **The webhook waits** for Odoo's side: the notice receiver is unchanged | **this step** |
+| The read's review | sync.md amendment 5: one id Odoo refuses (`403`, `400`, another `4xx`) found by asking halves and reported as a Bad Value naming the status, the read going on - past 10 ids, or every id of a read of more than one, the read fails; codes past 2,147,483,647 never sent; an answer past 5 MB stopped by its length, then its progress (`ODOO_ANSWER_TOO_LARGE`); no host inside our network (`address_internal`; `HostAddresses`, DNS bound, a fake in every test, `tests/TestCase.php`); one log line a read (ids, calls, seconds); a stored reason whose code is gone said as one plain sentence; the secret's 32-128 rule marked as waiting with the webhook | **this step** |
+| The full address and an optional secret | sync.md amendment 6 (flags-2026-11.md S6, owner 2026-11-18): the Provider page's address is the API's full address, called exactly as saved, an address with no path refused (`address_no_path`); the secret optional ("Webhook Secret (optional)"), a new address asking the key again but never the secret (`secret_again` gone); the Notice Address shown only with a secret; a migration giving Odoo's path to addresses saved as the account's alone | **this step** |
+| Ops' read | sync.md amendment 1, for Ops' daily report (ops.md §1.11 item 6, §2.3): `SyncApi::readsAndProblemsPerDay(stores, fromDay, toDay, until)` - per store and per day, each store's own day in its own time zone (midnight to midnight, a 23- or 25-hour day where the clocks change), the day `until` falls in cut there and a day not begun left out; the reads that finished that day, per kind, as done, failed, or stopped by Sync itself (`UNWIRED`, `STOPPED_REWIRED`, `SUPERSEDED`); what they changed and skipped (a done read's own counts, any other's from what it wrote, as the Reads tab, Q30); the report entries opened that day, per kind; zeros for an empty day, a store never wired or off; `complete: false` for a day begun more than 90 days ago. No permission inside (Ops checks `ops.report.daily`). Two queries whatever the stores and days (`Application/Report/SyncDays`, `Infrastructure/Eloquent/DatabaseSyncDays`: the day windows passed as one jsonb list), the stores' time zones from Platform's cache | built |
+
+## What is inside
+
+| Folder | Holds |
+|---|---|
+| `Application/Command` | Wiring: `WireStore`, `ChangeConnection`, `UnwireStore` (Super Admins). Reading: `RunRead` (the system's), `QueueScheduledReads`. Staff: `SyncNow`, `RetryEntry`, `DismissEntry`. Housekeeping: `PruneSyncLog` |
+| `Application/Query` | `ViewConnection` (the Provider page: never the key or the secret), `SyncStatus` (the status line), `ViewSyncReport`, `CountSyncReport`, `ListSyncReads`, `ViewSyncRead`, `SyncActions/SyncActionsForReader` (what the screens may offer) |
+| `Application/Notifications` | `NotificationReceiver`: the provider's notice checked and turned into a read |
+| `Application/Report` | `ReportAccess` (the permission per store; another store's entry or read not found), `SyncLog` (the report's and the reads' rows), `ReportLines` and `ReadViews` (rows named for the screens), `FailureView` (a reason: Sync's code written, or the provider's words), `Cursor` (Show More), `SyncReportCount` (the menu's count), `SyncWords`, the views |
+| `Application/Connections` | `ConnectionInput`: the fields checked, each refusal naming its field |
+| `Application` | `SyncPermissions`: View the Sync Report and Run Sync Reads, per store, any role (access.md amendment 68); wiring, the system's reads and the pruning, reserved |
+| `Domain` | `Model/Connection` (key and secret plain in memory only), `Model/Read`, `Provider/ProviderAdapter(s)`, the repositories (`Connections`, `Reads`, `ReportEntries`, `ReadLines`, `ReadReports`), the value objects |
+| `Domain/Exception` | `SyncError` and the ten errors of §7 thrown, each a `sync.*` type with a category |
+| `Infrastructure` | `SyncServiceProvider` (after Pricing and Inventory in `bootstrap/providers.php`, so its `StoreWiring` binding wins; schedules, listeners, the notice's route, the reserved path `sync`); `Persistence/` the schema and migrations; `Eloquent/` the repositories; `Provider/` the adapters (`OdooAdapter`: Odoo's own JSON-2 read of sync.md §2.4 over Laravel's HTTP client, one per worker so each store keeps its pace; its waits through Laravel's `Sleep`, which tests fake); `Queue/` the jobs; `Listener/` what follows other modules; `External/ConnectionWiring` |
+| `Presentation` | The notice's controller and route; the screens' routes (`admin-routes.php`, `sync.admin.*`), controllers and page data (`Http/Resource/SyncPages`); `lang/{ar,en}` - permissions, audit names, jobs, errors, `admin_report`, `admin_provider`, `menu` |
+| `Public/Contracts`, `Public/Dto` | `SyncApi` (bound to `Application/SyncApiImpl`): `readsAndProblemsPerDay` and its `SyncDayDto`, for Ops' daily report (sync.md amendment 1) |
+| `Public/Events` | `SyncNeedsAttention` (for Ops) |
+
+## How it is built
+
+### Boundaries
+
+- Sync's Public may use Shared and Platform's, Catalog's, Pricing's and Inventory's Public; its inside
+  also Access's Public, to declare its permissions and for nothing else (owner, 2026-10-07) - deptrac
+  cannot say "these classes only", so `tests/Architecture/SyncAccessUseTest.php` does.
+- Prices and stock are written only through Pricing's and Inventory's contracts, in their own
+  transactions and locks; Sync holds no transaction of its own across them.
+- The one call to the provider in a web request is the Super Admin's test when saving a connection, 10
+  seconds at most (§9.3 #21); every read is a queued job.
+
+### Wiring (§1.2, §1.8)
+
+- Tested before any lock; a change is rebuilt from the row as locked, so two changes at once never undo
+  each other, and writes only what the form holds. Wiring queues a full `NOW` read asked by the Super
+  Admin and tells Inventory after its commit; unwiring tells it inside (it moves stock), closes the
+  report (`UNWIRED`), fails waiting and running reads, and keeps every price and stock number the
+  provider wrote - the panel's prices are staff's again at once.
+- The key and the secret are encrypted with the app's key, never returned, logged, audited or put in a
+  job; a change audits only that they were replaced. The address is HTTPS, no name or password in it,
+  audited as `url` (the audit log refuses an `address` field as personal data).
+- A store that is not one is refused (`InvalidSyncInput`); one with a connection, reads or entries
+  cannot be deleted.
+
+### What starts a read (§1.3)
+
+- **The provider's notice**, `POST /sync/notify/{storeId}`: its signature (an HMAC-SHA256 of
+  "timestamp.body" with the store's secret, 64 hexadecimal characters, any case or spaces read as one,
+  compared in constant time) is its only authority. Refused with `401` and no body when not its own,
+  more than 5 minutes off, or the store not wired - worked out the same way either way; `413` over
+  300 KB; `422` for a body that is not 1-1,000 codes or holds a control character - checked before the
+  notice counts as seen, so the same signed notice again is answered `202` without queuing twice.
+  Limited before any work: 600 calls a minute from one address, then 60 for the store (`429`,
+  `Retry-After`). The route is unnamed, has no session, and its parameter is a ULID (Platform
+  constrains `{store}` to a store's code); `/sync` is never a store's code.
+- **One read of each kind waits** per store: a notice's or a corrected code's codes join the one
+  waiting, up to 5,000; past them, one full read of the store instead (owner, 2026-10-18, §9.3 #27).
+- **The hour's and the night's reads** (02:00 Riyadh) for every wired store, off ones too - a job class
+  each, since a scheduled event and its one-server lock are named after its job's class. The hourly
+  read asks for every code of ours, as the night's does (Odoo's API cannot say what changed, §2.4); only the
+  night's reports ours the provider lacks.
+- **A corrected code** is read again in every wired store, after Catalog's change commits.
+- **Sync now and Retry** queue a read asked by the person.
+
+### A read (§1.3-§1.7)
+
+- One per store at a time (`reads_one_running`); the one that ends starts the store's next - whatever
+  happens to it, and never itself before its own retry's wait.
+- Batches of 500 values: codes matched in one Catalog read (`variantsByCodes`; a control character in a
+  code written "?"), prices then stock written through the contracts, each module's changes written as
+  the read's lines as soon as it has written. Before each batch, and for a batch Pricing and Inventory
+  never see, the read checks it still runs for the store's present wiring (`connections.created_at`):
+  unwired, or wired again, it stops.
+- The report's entries are opened per batch in one statement per kind and copied into the read's own
+  record (`sync.read_reports`, exact per read; owner, 2026-10-18); the provider's text is kept to 100
+  characters, its code to 255. What is right again closes (`READ`).
+- **A failed attempt** goes back to the queue (or fails as superseded when the same kind already
+  waits), tried after 1, 5 and 15 minutes; the last fails the read, marks the store failing and opens
+  `READ_FAILED` - only if the read had not failed already. Staff see the provider's reason (a short
+  sentence; the adapter never puts a response or a key in it), never another error's text.
+- **A read is given 20 minutes; one running past 30 is taken as dead.** A copy of its job picked up
+  while it runs - a second worker, or its worker gone - waits until then and takes it back; another
+  read of the store fails a dead one and reports it. A retry reports everything again (its record
+  cleared first) and its counts are taken from what it wrote over every attempt.
+- **Deploy**: the read and the log prune run on the long queue connection (`LongQueue`, `retry_after`
+  3700 s), so its worker must run (HANDOFF's deploy notes).
+
+### The report and the page of reads (§1.6, §3, §9.3 #19)
+
+- A report entry is about one thing: a code we do not have (`UNKNOWN_CODE`), the whole store
+  (`READ_FAILED`), or a size of ours (every other kind; its code read from Catalog). Only a stopped
+  sale names its sale; no key on a size or a sale, as the audit log names its subjects. One open entry
+  per store, kind, code and size.
+- Who closed an entry: `READ`, `UNWIRED`, `CATALOG` (an off or draft size switched on and its product
+  ready), `PRICING` (a skipped discount reaching its size again - the ceiling raised, the discount
+  changed or ended, the provider's price lowered; Pricing's `DiscountReachChecked`, owner, 2026-10-18)
+  or `STAFF:{id}` (Dismiss / Leave it, audited - never a failed read's).
+- Views by `sync.report.view`, actions by `sync.read.run`, per store (`ReportAccess`). An entry or a
+  read is looked up first, to know its store; one of a store the person holds nothing of Sync's in is
+  not found (owner, 2026-10-18). The report pages 50 entries, the latest seen first, from a partial
+  index; its count is one query; a read's sections page 100 each.
+- The log - reads with their lines and records, and closed entries - is deleted after 90 days each
+  night at 03:00 Riyadh time, in batches on indexes.
+
+### What staff are told of (§9.3 #18)
+
+When a read ends - done, or failed after its retries - the store's open `SALE_STOPPED`,
+`DISCOUNT_SKIPPED` and `READ_FAILED` entries not yet told of are marked (`announced_at`) and one
+`SyncNeedsAttention` carries their counts by kind, after the change commits. Each entry is told once;
+another sale stopped, or discount skipped, on the same size is told again (§9.3 #25). Marked before it
+is sent: Ops's listener must be queued, so a send that fails is retried, not lost. Ops sends it to the
+store's holders of `sync.report.view` who chose Access's `SYNC_PROBLEMS` topic (amendment 71).
+
+### Known limits
+
+- Every lookup decrypts the key and the secret; if the app's key were lost without
+  `APP_PREVIOUS_KEYS`, the Provider page, a change and unwiring would fail until it is restored.
+- A "discount skipped" entry a read opens just after staff raised the ceiling or ended the discount -
+  between Pricing's write of that batch and Sync's report of it, a fraction of a second - stays open
+  until staff dismiss it: Pricing works out a skip only for a price that changes, so a later read with
+  the same price cannot tell it is reached. An entry names the discount that skipped first; another
+  discount still skipping the size keeps it open under that name.
+- Pricing's `apply` reads the store and its switched-on sizes on every batch of 500 (about 200 times
+  for a night's read of 100,000 sizes); cheap per call, measured with stage 5's costs.
+
+## Tests
+
+| File | Proves |
+|---|---|
+| `tests/Modules/Sync/Integration/SyncSchemaTest.php` | The schema exists, is on the search path, and is created and dropped from nothing; each table's CHECKs, the one open entry per store, kind, code and size, the lines' kinds, and the foreign keys' delete rules |
+| `tests/Modules/Sync/Integration/SyncPermissionsTest.php` | The two jobs and the three reserved, by name, kind, group and reservation; a staff role may hold both jobs; the group's and the jobs' names |
+| `tests/Modules/Sync/Unit/SyncErrorsTest.php` | Exactly §7's ten thrown errors, each with §7's type and category; a non-empty title and detail in both languages with the same placeholders; the fields an invalid input names |
+| `tests/Modules/Sync/Integration/SyncWiringTest.php` | Wiring tested first and refused when the test fails; the key and secret encrypted and never audited or shown; the store wired for Pricing and Inventory at once, a NOW read queued by the Super Admin, Catalog told; each field refused by name; Odoo's adapter refusing a wrong token; changing (key kept, secret replaced, tested first); unwiring (the count first, the connection, report and waiting reads); Super Admins only |
+| `tests/Modules/Sync/Integration/SyncReadsTest.php` | A read: prices and stock written, counts, the connection marked read, audited once; the whole reads asking every code of ours not archived, a notice's its codes only; each report kind opened and closed when right again; one read at a time, one full read of a kind waiting; dead reads taken back or failed and reported; a failed attempt requeued or superseded, the last failing and reporting the store; stopping when unwired or wired again mid-read; staff shown the provider's reason only; the system's and Super Admins' alone |
+| `tests/Modules/Catalog/Integration/CatalogVariantsByCodesTest.php` | Amendment 21: by each code as given (spaces, Arabic-Indic digits), archived ones too, a few queries for many |
+| `tests/Modules/Sync/Integration/SyncTriggersTest.php` | The notice: 202 and one NOTIFIED read of the trimmed codes, nothing called; 401 with no body for a wrong secret, no signature, another body, a time 6 minutes off, a store not wired or not one; 422 for each body that is not 1-1,000 codes; 429 past 60 a minute. The hour's and night's reads for every wired store, never piled up, scheduled on one server. A corrected code read again |
+| `tests/Modules/Sync/Integration/SyncReportTest.php` | The page of reads and a read's sections; the report, a kind or all, and its count; each for the store's holders only, another store's not found; Sync now, Retry, Dismiss (closed by its person, audited; never a failed read's; two at once audited once); an off or draft size's entry closed by Catalog; the prune at 90 days |
+| `tests/Modules/Sync/Integration/SyncAttentionTest.php` | One `SyncNeedsAttention` a read, counting its stopped sales, skipped discounts and failed read by kind, nothing else; each told once, another sale or discount on a size told again; a read failed already not reported; the `SYNC_PROBLEMS` topic |
+| `tests/Modules/Sync/Integration/SyncPassTest.php` | Step 6's reviews, each proven: the notice's signature written one way, 64 hex characters, control characters, a bad body refused every time, 600 calls a minute an address; 5,000 waiting codes, then one full read; a read that crashes keeps its first batch, starts the store's next read (never itself), and on its retry reports once and counts what it wrote; a copy of a running read waits until it is dead; the jobs' tries, waits and times; provider text kept short; another wired store untouched by a failure; unwiring keeping prices and stock; a store that is not one refused |
+| `tests/Modules/Sync/Integration/SyncDiscountReachTest.php` | A skipped discount's entry closed at once by Pricing: the ceiling raised (and not when raised too little), the discount ended - the store's last - and at its end time, the provider's price lowered for one size and not the other; Pricing telling a wired store only; another store's entries untouched |
+| `tests/Modules/Sync/Integration/SyncScreenReadsTest.php` | Screens step 6's reads: the status line (Working, Failing with Sync's code written or the provider's words, Not Wired), the codes and the sentences turned into them; Problems paged with each kind's count and named; Reads paged, by name, a failed read's counts; a read's sections; the Provider page's connection; what the screens may offer, an off store; the menu's count; each read's queries counted warm |
+| `tests/Modules/Sync/Integration/SyncScreensReviewTest.php` | Screens step 6's review: an off store refused in every read and action to whoever may not switch stores (`StoreOff`), the Provider page's store too; Retry refused on an Offer Stopped or Off or Draft entry (`EntryNotRetryable`); "size exists" null for an entry about no size; a failed read's audit entry keeping its code and the English sentence |
+| `tests/Modules/Sync/Integration/SyncCodeTwiceTest.php` | A code twice in one read, in one batch or two: both values skipped, the size reported as a bad value with what came; an unknown code twice unknown once |
+| `tests/Modules/Sync/Feature/SyncScreensTest.php` | The screens over HTTP: the report's props, a store not wired showing Reads, Sync Now, Retry and Dismiss with their toasts and refusals, a read's page and its not-found, the Provider page (Super Admins), wiring with a setting refused under its box, the menu's entries and count, each page's own queries |
+| `tests/Browser/SyncScreensTest.php` | Screens step 7 in a real browser, in the store `ae` (unwired before and after): the status line and Problems, an entry dismissed, Sync Now; the Reads tab opening a read, its sections as tabs, a read not there; the Provider form refusing as typed, the provider's failed test under the form, a setting under its own box (Q34), then wired; with Odoo's own adapter, no "being built" note (Q38); Arabic right to left with Latin digits |
+| `tests/Modules/Sync/Integration/SyncOdooAdapterTest.php` | Odoo's own API against a faked HTTP API (§2.4): each call's address, JSON body and bearer header; 30 seconds a read's call, 10 the test's, no redirect followed; 500 ids a call (501 codes two calls); an id Odoo lacks left out, one not asked ignored; a code that cannot be an id never sent; the address's rules (a path required, no query or fragment; amendment 6); a second between a store's calls, each store its own; a 429 waited out once (60 seconds at most), twice failing, the test failing at once; 401, 403, 400, 5xx, 404, a redirect, a timeout and a refused connection each a short reason without the body, the address or the token; malformed answers; wiring through it (a refused token saves nothing; a new address takes the key again); whole reads through it - every size not archived asked, off and draft sizes priced, a fraction of stock or an empty field a bad value, an id twice a bad value, two calls past 500 codes, Sync Now, the hour's and the night's reads alike, the night's reporting ours Odoo lacks; the token never in a log, an exception or the audit |
+| `tests/Frontend/sync-checks.test.ts` | The Provider form's address checked as the server checks it, never stricter; what a Bad Value's entry says was refused (price, stock or both); a sent value's minus |
+| `tests/Modules/Sync/Integration/SyncReadAuditTransactionTest.php` | A read's end and its failure each audited in a transaction of its own; the connection locked before the read, in Unwire Store's order; a failure (the last attempt's, a worker gone) committed whole or not at all; a read Unwire Store stopped failed and audited once |
+| `tests/Modules/Sync/Integration/SyncBadValueTest.php` | A bad value's entry names the value refused: the price, the stock (not whole, or past what a size can hold) or both |
+| `tests/Modules/Sync/Integration/SyncAuditNamesTest.php` | Every audited action named in both languages, nothing named that is not recorded |
+| `tests/Architecture/SyncAccessUseTest.php` | Sync takes from Access only what declaring its permissions needs |

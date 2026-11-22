@@ -1,0 +1,82 @@
+<?php
+
+declare(strict_types=1);
+
+// كلمات نظام التصميم نفسه (frontend.md 1.10): ما تقوله مكوّنات Geist في أي شاشة.
+return [
+    'cancel' => 'إلغاء',
+    'previous' => 'السابق',
+    'next' => 'التالي',
+    'pages' => 'الصفحات',
+    'range' => ':from–:to من :total',
+    // A phone's compact top bar (shop-design.md §5.4).
+    'back' => 'رجوع',
+    'load_more' => 'عرض المزيد',
+    // A busy button's spinner, which shadcn names in English; given as a prop, not edited.
+    'loading' => 'جارٍ التحميل',
+    // Geist's Copy Button, said to a screen reader once the text is on the clipboard.
+    'copied' => 'تم النسخ',
+    'copy_failed' => 'تعذّر النسخ. حدّد النص وانسخه يدويًا.',
+    // The search field's clear button (Geist's Search Input), named for a screen reader.
+    'clear_search' => 'مسح البحث',
+    // The ⋯ button that holds a page's or a row's other actions (Geist's Dots Menu), named for a
+    // screen reader.
+    'more_actions' => 'إجراءات أخرى',
+    'breadcrumbs' => 'مسار التنقل',
+    'breadcrumbs_more' => 'الخطوات السابقة',
+    // The phone's sidebar, which shadcn names in English (frontend.md §1.11, edit 5).
+    'sidebar' => 'الشريط الجانبي',
+    'sidebar_description' => 'يعرض الشريط الجانبي على الهاتف.',
+    'show_password' => 'إظهار كلمة المرور',
+    'to_confirm' => 'للتأكيد، اكتب «:phrase»',
+    'to_confirm_named' => 'للتأكيد، اكتب :label «:phrase»',
+    'close' => 'إغلاق',
+    'changed' => 'مُعدَّل',
+    'leave' => [
+        'title' => 'المغادرة دون حفظ',
+        'confirm' => 'مغادرة الصفحة',
+        'stay' => 'البقاء',
+        // عدة مجموعات من الخانات فيها تغييرات - بطاقات متاجر المنتج (الخطوة 10 من المرحلة 5): كم موضعًا.
+        'places' => [
+            'zero' => 'لديك تغييرات غير محفوظة في :count موضع.',
+            'one' => 'لديك تغييرات غير محفوظة في موضع واحد.',
+            'two' => 'لديك تغييرات غير محفوظة في موضعين.',
+            'few' => 'لديك تغييرات غير محفوظة في :count مواضع.',
+            'many' => 'لديك تغييرات غير محفوظة في :count موضعًا.',
+            'other' => 'لديك تغييرات غير محفوظة في :count موضع.',
+        ],
+    ],
+    'moment' => [
+        'now' => 'الآن',
+        'no_end' => 'بلا نهاية',
+        'date' => 'التاريخ',
+        'time' => 'الوقت',
+        'pick_date' => 'اختيار تاريخ',
+        'passed' => 'يبدأ عند الحفظ إذا كان هذا الوقت قد مضى.',
+    ],
+    // What a box says is wrong as it is typed (frontend.md §1.7; resources/js/lib/checks.ts), in
+    // Geist's "Validation" form: the box, then its rule, a period. :field is the box's label.
+    'check' => [
+        'required' => 'الحقل «:field» مطلوب.',
+        'number' => 'لا يقبل الحقل «:field» إلا الأرقام.',
+        'whole' => 'لا يقبل الحقل «:field» إلا الأعداد الصحيحة.',
+        'decimals_one' => 'يقبل الحقل «:field» منزلة عشرية واحدة على الأكثر.',
+        'decimals' => 'يقبل الحقل «:field» :count من المنازل العشرية على الأكثر.',
+        'range' => 'يقبل الحقل «:field» قيمة من :min إلى :max.',
+        'at_least' => 'يقبل الحقل «:field» قيمة لا تقل عن :min.',
+        'at_most' => 'يقبل الحقل «:field» قيمة لا تزيد على :max.',
+        'digits' => 'لا يقبل الحقل «:field» إلا الأرقام من 0 إلى 9.',
+        'min_digits' => 'يحتاج الحقل «:field» إلى :min من الأرقام على الأقل.',
+        'max_digits' => 'يقبل الحقل «:field» :max من الأرقام على الأكثر.',
+        'letters' => 'لا يقبل الحقل «:field» إلا الحروف اللاتينية من A إلى Z.',
+        'min_length' => 'يحتاج الحقل «:field» إلى :min من الأحرف على الأقل.',
+        'max_length' => 'يقبل الحقل «:field» :max من الأحرف على الأكثر.',
+        'max_length_one' => 'يقبل الحقل «:field» حرفًا واحدًا على الأكثر.',
+        'email' => 'يُكتب الحقل «:field» عنوانًا مثل name@example.com.',
+        'phone' => 'يُكتب الحقل «:field» رقمًا برمز بلده، يبدأ بعلامة + أو 00.',
+        'date' => 'يحتاج الحقل «:field» إلى تاريخ.',
+        'time' => 'يُكتب الحقل «:field» وقتًا مثل 14:30.',
+        'not_past' => 'يجب أن يكون الحقل «:field» الآن أو بعده.',
+        'after_start' => 'يجب أن يكون الحقل «:field» بعد البداية.',
+    ],
+];

@@ -1,0 +1,1 @@
+import{n as e}from"./cn-CKFzBO3y.js";import{SectionForm as t}from"./section-form-XLbWz2Da.js";var n=e();function r(e){return(0,n.jsx)(t,{...e})}export{r as default};

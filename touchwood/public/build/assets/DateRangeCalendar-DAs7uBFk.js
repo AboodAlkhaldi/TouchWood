@@ -1,0 +1,1 @@
+import{n as e}from"./cn-CKFzBO3y.js";import{n as t,t as n}from"./calendar-DOQxHX-e.js";var r=e();function i({selected:e,defaultMonth:i,today:a,onSelect:o,arabic:s}){return(0,r.jsx)(n,{mode:`range`,selected:e,defaultMonth:i,endMonth:a,onSelect:o,disabled:{after:a},today:a,numberOfMonths:2,locale:s?t:void 0,dir:s?`rtl`:`ltr`,numerals:`latn`})}export{i as default};

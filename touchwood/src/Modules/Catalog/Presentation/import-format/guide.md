@@ -1,0 +1,243 @@
+# TouchWood product files — how to fill them
+
+> **What this folder is.** The agreed format of the two files that bring products into TouchWood's
+> catalog: this guide, and a complete example of each file. It lives **inside the app**, in the Catalog
+> module (`src/Modules/Catalog/Presentation/import-format/`), and the panel shows it ("How to fill the
+> files", linked from both upload pages) with both examples to download (owner, 2026-11-10 and
+> 2026-11-11, catalog.md amendment 43). The owner fills real files from it, often with another AI
+> agent's help. The Catalog import reads **exactly** this format. **Change it only with the owner's
+> agreement**, and change the guide, both examples and `catalog.md` §1.12 together.
+
+Two kinds of file go into the catalog (catalog.md §1.12 and §1.3, amendment 6, agreed with the owner
+on 2026-10-05; amendment 43, 2026-11-10 and 2026-11-11). This guide is written so a person, or another
+AI agent, can fill them exactly.
+
+| File | Who uploads it | What it does |
+|---|---|---|
+| **Products file** — [`products.example.json`](products.example.json) | A Super Admin | Brings new products into the catalog, or updates existing ones — **never on sale by itself**: it names no store, price or stock. Uploaded **alone** (no photos) or **inside a zip with its photos** |
+| **Store file** — [`store-fill.example.json`](store-fill.example.json) | An admin of one store | Switches existing, ready products on in that store (publishes them) — with their prices and stock where the store is **not** connected to Odoo; **codes only** where it is, Odoo giving them |
+
+Both files are **UTF-8 JSON**. Write Arabic as Arabic letters, not escapes. Every text is one line
+unless this guide says otherwise.
+
+> **Codes — the rule both files share.** A code is **1 to 10 digits, written as text in quotes**:
+> `"1304"`, never `1304` — a file with a code written as a number is refused. It is the product's id in
+> Odoo (its `product.product` id): **every variant has its own**. Arabic digits (`"١٣٠٤"`) are read as
+> `1304`, as every number in the system is saved in 0-9.
+
+---
+
+## 1 · The products file
+
+```json
+{
+  "format": "touchwood-products/1",
+  "products": [ { … one product … }, { … } ]
+}
+```
+
+- `format` must be exactly `"touchwood-products/1"`.
+- `products` holds **1 to 2,000 products**. The JSON is at most **20 MB**.
+- **One entry is one product.** Its sizes, finishes or colours are its **variants**, inside it.
+
+### 1.1 A product
+
+| Field | Required | Type | Rules |
+|---|---|---|---|
+| `name` | **Yes** | `{"ar": text, "en": text}` | `ar` is **required**; `en` is optional but **needed for the product to be ready**. Each at most 200 characters. |
+| `slug` | No | `{"ar": text, "en": text}` | The web address. Left out, it is made from the name. `ar`: Arabic letters, digits and single hyphens; `en`: `a-z`, digits and single hyphens (`soft-close-runner`). Each at most 200 characters. |
+| `description` | No | `{"ar": text, "en": text}` | Both are **needed for the product to be ready**. At most 20,000 characters each. May span lines — see §1.4. |
+| `brand` | No | number or text | The brand's **number** as the panel shows it (`2`) — best, no typo possible — or its name in Arabic or English. Left out, the default brand (TouchWood). The brand must already be in the catalog. |
+| `category` | No | text | The path from the top, names separated by ` / ` (space, slash, space): `"Kitchens / Drawers / Runners"`. It must end at a category with **no sub-categories**. **Needed for the product to be ready.** |
+| `warranty` | No | text | A warranty's name. It must already be in the catalog. |
+| `unit` | No | text | How it is sold, shown after its price in the shop: one of `PIECE`, `SET`, `PAIR`, `METRE`, `CARTON`, `BOX`. Left out, a new product is sold by the piece and an updated one keeps its own. (Added 2026-11-16, shop-design.md §10.1.) |
+| `variants` | **Yes** | list | **At least one.** See §1.2. |
+| `photos` | No | list of text | The gallery, in order: **paths inside the zip**, at most 20, each once. **At least one is needed for the product to be ready.** Leave out when uploading the JSON alone. |
+| `search_words` | No | list of text | Extra words shoppers might type, either language. At most 30, each at most 50 characters. |
+| `filters` | No | `{attribute: [values]}` | Filter attributes and their values (`"Use": ["Kitchen", "Wardrobe"]`). At most 100 values. |
+| `related` | No | list of codes | "You may also like": codes of other products, in this file or already in the catalog. At most 20. |
+| `goes_with` | No | list of codes | "Goes with" (accessories), the same way. At most 20. |
+
+### 1.2 A variant
+
+Every product has **at least one** variant. A product with no sizes or finishes has **exactly one**,
+with no `values`. **Every variant has its own code** ("Codes" below).
+
+| Field | Required | Type | Rules |
+|---|---|---|---|
+| `code` | **Yes** | text of digits | **1 to 10 digits, written as text in quotes**: `"1304"`, never `1304` ("Codes" at the top) — its id in Odoo. Arabic digits (`"١٣٠٤"`) are read as `1304`. **Its own**: no other variant in the file has it. |
+| `values` | When the product has more than one variant | `{attribute: value}` | Its value of each attribute that makes the product's variants, by name: `{"Length": "45 cm", "Finish": "Zinc"}`. **At most 10 attributes** make a product's variants. **Every variant of a product names the same attributes**; the first variant's order is the order shoppers choose in. Two variants of one product never have the same values. A product with one variant may have none (no sizes or finishes). |
+| `details` | No | `{attribute: …}` | Information-only attributes. Each is **either** text in both languages `{"ar": "فولاذ", "en": "Steel"}` (each at most 200 characters) **or** a number (`35`, at most 9 digits before the point and 3 after, a minus allowed, read with the attribute's unit). At most 100. |
+| `weight_g` | No | whole number | Grams, 1 to 1,000,000. |
+| `length_mm`, `width_mm`, `height_mm` | No | whole numbers | Millimetres, 1 to 1,000,000. |
+| `photos` | No | list of text | This variant's own photos, paths inside the zip, at most 10, each once. |
+
+**Codes.** **Every variant has its own code** — the runner in 45 cm and in 50 cm has two codes, as
+each size and each colour is its own product in Odoo, with its own id (owner, 2026-10-09; 2026-11-09).
+**Two variants never share a code**, in one product or in two: a file where they do is refused, both
+listed.
+(In a spreadsheet, the rows of one item's sizes and colours are **one product** with several variants,
+each row with its own code; the same code on two rows is a mistake to fix in the source.)
+
+### 1.3 Names in the file
+
+Brands, categories, attributes, values and warranties are written **by name**, as they
+appear in the panel, in **Arabic or English** — a brand also **by its number**, written as a number:
+`2`, not `"2"` (in quotes it is read as a name). **Each name is at most 100 characters** — a brand, a
+warranty, an attribute, a value, and each level of a category's path. A category's name never holds a
+`/`: it separates the levels of a path. Names are matched ignoring upper/lower case, extra spaces,
+Arabic marks (tashkeel) and letter forms (أ/إ/آ = ا, ة = ه, ى = ي).
+
+**Brands, warranties and attributes must already be in the catalog** — add them in the panel before
+uploading. **Values and categories may be new.**
+
+**A name the catalog does not have yet is not an error.** The import's page lists it, and the Super
+Admin decides there: it is a typo for an existing one (pick it), or — for a value or a category
+only — create it (fixing the wording and giving its name in the other language), or refuse it. A
+refused brand becomes the default brand (TouchWood). A name **several** catalog items answer to — two
+warranties both called "Two years" — is asked about the same way, to pick which.
+
+Two products of a file with the same name, or a product named like one already in the catalog, would
+get the same web address: the page lists them and asks for an address for each (`slug` in the file
+avoids it).
+
+In the example file, the runner names its brand as `"TouchWood"` and the hinge as `2` — the brand the
+panel shows as number 2 (Tallsen, in that panel).
+
+### 1.4 Writing a description
+
+Plain text. In JSON, a new line is written `\n`.
+
+| Write | You get |
+|---|---|
+| A blank line (`\n\n`) | A new paragraph |
+| A line starting `- ` | A list item |
+| A line starting `# ` | A heading |
+| `**words**` | **Bold** words |
+
+Nothing else is special. No HTML.
+
+### 1.5 What makes a product "ready"
+
+A product comes in as a **draft** and is accepted on the import's page. It can be accepted (made
+ready) once it has **all** of these — the page shows what each one still misses:
+
+- the Arabic **and** English name;
+- the Arabic **and** English description;
+- a brand and a category with no sub-categories;
+- at least one variant, each with a code;
+- at least one gallery photo.
+
+Anything missing can also be completed later in the product page.
+
+### 1.6 Uploading
+
+- **The JSON alone**: products arrive without photos (drafts until each gets one in the panel).
+  Leave `photos` out.
+- **A zip** with the JSON **at its top, named `products.json`**, and the photos anywhere inside it.
+  Paths in the JSON are relative to the zip's top, with forward slashes: `photos/1304-front.jpg`.
+  Photos are **JPEG, PNG or WebP**, each at most **10 MB** (an admin setting). The zip is at most
+  **500 MB**, and holds at most **100,000 entries** (files and folders).
+
+### 1.7 What refuses the whole file
+
+The file is refused, **every problem listed** (the first 500), if: it is not valid JSON or not this
+format; a field has the wrong type or is not a field of the format; a product has no Arabic name or no
+variant; a code is not 1–10 digits, or is written as a number rather than in quotes; two variants share
+a code (in one product or in two); two variants of one product have the same values; the variants of
+one product name different attributes, or more than 10; a product with more than one variant has a
+variant with no values; a name is over 100 characters; a photo named in the JSON is not in the zip
+(or photos are named in a JSON uploaded alone); a number is out of range; a list is too long; the file
+is over its limits. Nothing is kept from a refused file.
+
+A product that still has a `stores` field is refused too: each store's admins switch products on with
+their store file (§2) - with their prices and stock where the store is not connected to Odoo. So is one
+with an `attribute_set`: there are no attribute sets — each variant's `values` name the attributes
+that make the product's variants (owner, 2026-10-09).
+
+Once the file is in its format, it is read against the catalog, and also refused — every problem of
+this second reading listed — if:
+
+- an attribute is used for two jobs in the file (in `values`, `filters` or `details`), or for a job
+  the catalog's attribute of that name does not have;
+- a `category` path ends at a category that has sub-categories;
+- a photo is not JPEG, PNG or WebP, or is over the media library's limit (10 MB by default).
+
+**Left out, the rest of the file coming in** — shown on the import's page as refused, with the reason:
+
+- a product whose codes belong to two different products already in the catalog;
+- two or more products whose codes belong to one product already in the catalog — give that product
+  **once, with all its variants**.
+
+A name the catalog does not have, or that several catalog items share, is **not** an error: the
+import's page asks about it (§1.3). A name of something switched off in the catalog is found, but
+bringing in stops at the product using it, naming it, until it is switched on again or another is
+picked.
+
+**A product already in the catalog is matched variant by variant, by code**: a code it carries
+updates that variant, a new code adds one. **A product that is not a draft keeps its codes**: updating
+or replacing it with a variant of the same values but another code is listed on the import's page:
+skip that product, or upload the file corrected. **Its variants' attributes**: updating it needs the
+file to name the product's own attributes; a file naming others is listed — replace the product whole
+(it then takes the file's attributes, and the file must name every variant the product has, archived
+ones too) or skip it.
+
+A file that passes changes **nothing** until the Super Admin decides on its page: new names, codes the
+catalog already has (update that product, replace it whole, skip, or give another code). There, all
+the products or the selected ones can also be changed at once — brand, warranty, category, search
+words, filter values — replacing what they have or only filling the ones that have none. A product the
+file updates or replaces that is on sale needs **keep on sale** or **take off sale**, chosen each time.
+Then **bring the products in** (the confirm: until then all of it is a draft), then accept (made
+ready, on sale nowhere — each store's admins publish them with their store file), archive or delete
+them.
+
+---
+
+## 2 · The store file
+
+```json
+{
+  "format": "touchwood-store-fill/1",
+  "note": "price and stock are only for a store NOT connected to Odoo; a connected store's file lists codes only - its prices and stock come from Odoo.",
+  "items": [
+    { "code": "1304", "price": 120.5, "stock": 40 },
+    { "code": "1305", "price": 125 }
+  ]
+}
+```
+
+**What an item holds depends on the store** (owner, 2026-11-11):
+
+- **A store not connected to Odoo** gives each code **its price, and its stock if known** — as above.
+- **A store connected to Odoo** gives **codes only** — `{ "code": "1304" }` — its prices and stock come
+  from Odoo. A file that gives a `price` or a `stock` there is refused, the field named.
+
+Which one applies is decided **when the file is uploaded**, by whether the store is connected then;
+**switching an item on asks again**:
+
+- a store connected to Odoo after its file was uploaded keeps Odoo's prices and stock — the file's are
+  ignored, and its page says so;
+- a store disconnected from Odoo after its file (codes only) was uploaded cannot switch those items on,
+  as they have no price — its page marks them **No Price**: upload a new file with prices.
+
+- `format` must be exactly `"touchwood-store-fill/1"`.
+- `note` — optional, **text** (in quotes; anything else refuses the file): read by people,
+  **ignored by the import** (the example uses it to say the rule above). No other field may sit beside
+  `format`, `note` and `items`.
+- `items` holds **1 to 1,000** items, **each code once**. The file is at most **2 MB**. The store is
+  the one whose page it is uploaded from — the file does not name it.
+- `code` — **required**: 1 to 10 digits **as text, in quotes** ("Codes" at the top); Arabic digits are
+  read as 0-9.
+- `price` — a store not connected to Odoo only, and **required** there: a number above 0 with no more
+  decimal places than the store's currency has (at most 6), in the store's currency. The file is read
+  with at least 0 and at most 6 decimal places; its page then says, for each item, the price that
+  will be set or why not (0, or too many decimals for the currency).
+- `stock` — a store not connected to Odoo only, optional: a whole number from 0 to 2,147,483,647.
+- Switching an item on in a store not connected to Odoo sets the size's retail price and, if given, its
+  stock.
+
+**It never creates or changes a product.** Every code must belong to a product already in the
+catalog. Its page shows each item: ready (switching it on chooses the variant carrying that code),
+not ready (what the product lacks — completed in the product page), archived, already on, or an
+**unknown code** — corrected or removed there. The admin then switches on the items chosen, or every
+ready one.

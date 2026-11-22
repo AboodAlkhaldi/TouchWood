@@ -1,0 +1,1 @@
+var e=`gap-0.5 rounded-[var(--tw-radius)] bg-surface-sunken p-0.5 shadow-[inset_0_0_0_1px_var(--tw-line)]`,t=`h-8 rounded-[calc(var(--tw-radius)-2px)] px-3 text-label-13 text-ink-muted hover:bg-transparent hover:text-ink data-[state=on]:bg-surface data-[state=on]:text-ink data-[state=on]:shadow-[var(--tw-shadow-small)]`;export{e as n,t};

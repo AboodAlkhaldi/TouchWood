@@ -1,0 +1,120 @@
+import { useRef, useState } from 'react';
+import { Link, router } from '@inertiajs/react';
+import { CircleCheck } from 'lucide-react';
+import { ActionButton } from '@/components/ActionButton';
+import { FormError } from '@/components/FormError';
+import { Money } from '@/components/Money';
+import { plural, useLocale } from '@/components/sales/shop';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { StorefrontLayout } from '@/layouts/StorefrontLayout';
+import { useLink } from '@/lib/routes';
+import { useTranslator } from '@/lib/t';
+import type { PlacedPage } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
+import { Bank } from './Checkout';
+
+/*
+| S6 - the order placed (sales.md §4.1; R1-26, R2-18): its number and total, what happens next, and for a bank
+| transfer the store's details again with an Upload Transfer Receipt box - up to three files, a PDF or a photo
+| (§1.9); and the link to the order.
+*/
+
+const W = 'sales::shop_checkout';
+
+export default function Placed(page: PlacedPage) {
+    const t = useTranslator();
+    const locale = useLocale();
+    const link = useLink();
+    const input = useRef<HTMLInputElement>(null);
+    const [file, setFile] = useState<File | null>(null);
+    const [busy, setBusy] = useState(false);
+
+    return (
+        <StorefrontLayout title={t(`${W}.placed.title`)}>
+            <div className="mx-auto grid w-full max-w-3xl grid-cols-[minmax(0,1fr)] gap-4">
+                <FormError />
+                {/* The design's green band (shop-design.md §15.1): the tick, the title and the review line, the number at 20 px. */}
+                <section className="grid gap-4 rounded-xl border border-good/30 bg-good-soft p-5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:p-6" data-test="order-placed">
+                    <span className="grid size-12 place-items-center rounded-full bg-good text-ink-on-brand" aria-hidden="true">
+                        <CircleCheck className="size-7" />
+                    </span>
+                    <div className="grid gap-1">
+                        <h1 className="text-heading-24 text-ink">{t(`${W}.placed.title`)}</h1>
+                        <p className="text-copy-14 text-ink">{page.paid ? t(`${W}.placed.paid_next`) : t(`${W}.placed.next`)}</p>
+                    </div>
+                    <div className="grid gap-0.5 sm:justify-items-end sm:text-end">
+                        <span className="text-label-12 text-ink-muted">{t(`${W}.placed.number`, { number: '' }).trim()}</span>
+                        <bdi dir="ltr" className="tw-figure text-[20px] leading-tight font-semibold text-brand" data-test="placed-number">
+                            {page.number}
+                        </bdi>
+                    </div>
+                </section>
+                <Card className="material-base gap-3 border-0 py-5">
+                    <CardContent className="grid justify-items-center gap-3 px-6 text-center">
+                        <p className="text-label-16 text-ink">
+                            <Money value={page.total} />
+                            {page.shippingPending ? <span className="text-copy-14 text-ink-muted"> {t(`${W}.placed.before_shipping`)}</span> : null}
+                        </p>
+                        {page.paid ? (
+                            <Badge variant="outline" data-test="placed-paid">
+                                {t(`${W}.placed.paid`)}
+                            </Badge>
+                        ) : null}
+                        {page.shippingPending ? (
+                            <p className="text-copy-14 text-ink-muted" data-test="placed-fee-note">
+                                {t(`${W}.placed.fee_note`)}
+                            </p>
+                        ) : null}
+                        <Link href={link('storefront.sales.order', { number: page.number })} className="text-copy-14 text-ink underline underline-offset-4" data-test="view-order">
+                            {t(`${W}.placed.view`)}
+                        </Link>
+                    </CardContent>
+                </Card>
+
+                {page.wayToPay === 'BANK_TRANSFER' ? (
+                    <Card className="material-base gap-3 border-0 py-4" data-test="transfer-receipt">
+                        <CardContent className="grid gap-3 px-4">
+                            {page.bank === null ? null : <Bank bank={page.bank} />}
+                            <p className="text-copy-14 text-ink">{t(`${W}.placed.upload`)}</p>
+                            <p className="text-copy-13 text-ink-muted">{plural(t, locale, `${W}.placed.receipts`, page.receipts)}</p>
+                            {page.mayUpload ? (
+                                <form
+                                    className="grid gap-2"
+                                    onSubmit={(event) => {
+                                        event.preventDefault();
+
+                                        if (file === null) {
+                                            input.current?.focus();
+
+                                            return;
+                                        }
+
+                                        router.post(link('storefront.sales.receipt', { number: page.number }), { file } as never, {
+                                            forceFormData: true,
+                                            preserveScroll: true,
+                                            onStart: () => setBusy(true),
+                                            onFinish: () => setBusy(false),
+                                            onSuccess: () => {
+                                                setFile(null);
+
+                                                if (input.current) input.current.value = '';
+                                            },
+                                        });
+                                    }}
+                                >
+                                    <Label htmlFor="receipt-file">{t(`${W}.placed.file`)}</Label>
+                                    <Input id="receipt-file" ref={input} type="file" accept="application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0] ?? null)} data-test="receipt-file" />
+                                    <ActionButton type="submit" className="w-fit" loading={busy} disabledReason={file === null ? t(`${W}.placed.no_file`) : undefined} data-test="upload-receipt">
+                                        {t(`${W}.placed.send`)}
+                                    </ActionButton>
+                                </form>
+                            ) : null}
+                        </CardContent>
+                    </Card>
+                ) : null}
+            </div>
+        </StorefrontLayout>
+    );
+}

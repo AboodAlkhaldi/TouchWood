@@ -1,0 +1,129 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Catalog\Application\Api;
+
+use Modules\Catalog\Public\Dto\BrandDto;
+use Modules\Catalog\Public\Dto\LineFactsDto;
+use Modules\Catalog\Public\Dto\ProductCardDto;
+use Modules\Catalog\Public\Dto\ProductDto;
+use Modules\Catalog\Public\Dto\SitemapEntriesDto;
+use Modules\Catalog\Public\Dto\StoreVariantDto;
+use Modules\Catalog\Public\Dto\VariantBriefDto;
+use Modules\Catalog\Public\Dto\VariantDto;
+use Modules\Platform\Public\Enums\ShopperKind;
+
+/**
+ * The reads behind `CatalogApi` that answer many rows at once (catalog.md §2.1, amendment 16(e),
+ * (i)): each a fixed number of queries however many ids it is given, so Pricing's and Inventory's
+ * screens keep the 15-query budget (frontend.md §5). An id that is not one, or names nothing, is
+ * left out.
+ */
+interface ApiReads
+{
+    /**
+     * @return list<string> the product's variants in its own order, archived ones when asked
+     */
+    public function variantIdsOf(string $productId, bool $includeArchived): array;
+
+    /**
+     * @param  list<string>  $productIds
+     * @return array<string, list<string>> product id => its variants in its own order, archived ones when asked
+     */
+    public function variantIdsOfProducts(array $productIds, bool $includeArchived): array;
+
+    /**
+     * @return list<string> the variants switched on in the store (§1.3)
+     */
+    public function switchedOnVariantIds(string $storeId): array;
+
+    /**
+     * @return array<string, string> variant id => code, every variant not archived of a product not archived (amendment 44)
+     */
+    public function variantCodes(): array;
+
+    /**
+     * @param  list<string>  $variantIds
+     * @return array<string, VariantDto> keyed by id
+     */
+    public function variants(array $variantIds): array;
+
+    /**
+     * @param  list<string>  $variantIds
+     * @return array<string, VariantBriefDto> keyed by id, in one query
+     */
+    public function variantBriefs(array $variantIds): array;
+
+    /**
+     * @param  list<string>  $codes  valid codes
+     * @return array<string, string> code => the id of the variant carrying it
+     */
+    public function variantIdsByCodes(array $codes): array;
+
+    /**
+     * @param  list<string>  $productIds
+     * @return array<string, ProductDto> keyed by id
+     */
+    public function products(array $productIds): array;
+
+    /**
+     * @param  list<string>  $brandIds
+     * @return array<string, BrandDto> keyed by id
+     */
+    public function brands(array $brandIds): array;
+
+    /**
+     * @return list<BrandDto> switched on, in the brands' own order
+     */
+    public function activeBrands(): array;
+
+    /**
+     * @param  list<string>  $productIds
+     * @return list<string> those the store sells now (amendment 24)
+     */
+    public function productsSoldIn(string $storeId, array $productIds): array;
+
+    /**
+     * @param  list<string>  $productIds
+     * @return list<string> those this viewer can order there now (amendment 39)
+     */
+    public function productsOrderableNow(string $storeId, ShopperKind $viewer, array $productIds): array;
+
+    /**
+     * @param  'ar'|'en'  $locale
+     * @param  list<string>  $productIds
+     * @return array<string, ProductCardDto> keyed by id (amendment 26(a))
+     */
+    public function productCards(string $storeId, string $locale, array $productIds): array;
+
+    /**
+     * @param  list<string>  $productIds
+     * @return array<string, array{sum: int, count: int}> keyed by lower-case id; a product never reviewed left out
+     */
+    public function productRatings(array $productIds): array;
+
+    /**
+     * @param  list<string>  $variantIds
+     * @return array<string, StoreVariantDto> keyed by id (amendment 29(a))
+     */
+    public function storeVariants(string $storeId, array $variantIds): array;
+
+    /**
+     * @param  list<string>  $productIds
+     * @return list<string> those open to the viewer in the store (amendment 29(b))
+     */
+    public function productsOpenTo(string $storeId, ShopperKind $viewer, array $productIds): array;
+
+    /**
+     * @param  list<string>  $variantIds
+     * @return array<string, LineFactsDto> keyed by variant id (amendment 18)
+     */
+    public function lineFacts(array $variantIds): array;
+
+    /**
+     * A page of the store's sitemap entries (amendment 41(b)), in one query: categories, brands, then products,
+     * each by id, after `after` (`{rank}:{id}`, as `next` gives it; anything else starts from the first).
+     */
+    public function sitemapEntries(string $storeId, ?string $after, int $limit): SitemapEntriesDto;
+}

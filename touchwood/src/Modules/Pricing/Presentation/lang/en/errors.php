@@ -1,0 +1,120 @@
+<?php
+
+declare(strict_types=1);
+
+// Pricing's error messages, by error type (pricing.{key}), and the names of the fields they point at.
+return [
+    'invalid_pricing_input' => [
+        'title' => 'Check the details',
+        'detail' => 'The :attribute is not valid.',
+    ],
+    'price_not_positive' => [
+        'title' => 'Check the price',
+        'detail' => 'A price must be above 0. To give a piece away, make it a gift.',
+    ],
+    'price_too_precise' => [
+        'title' => 'Too many decimals',
+        'detail' => "The store's currency takes at most :decimals decimals. Prices are never rounded for you.",
+    ],
+    'percent_out_of_range' => [
+        'title' => 'Check the percentage',
+        'detail' => 'A percentage off must be above 0 and below 100.',
+    ],
+    'sale_not_below_retail' => [
+        'title' => 'Not an offer',
+        'detail' => 'An offer price must be below the retail price.',
+    ],
+    'window_invalid' => [
+        'title' => 'Check the dates',
+        'detail' => "The end must be after the start, and a running offer's or discount's end cannot be set before now.",
+    ],
+    'sale_not_found' => [
+        'title' => 'Offer not found',
+        'detail' => 'That offer does not exist.',
+    ],
+    'category_discount_not_found' => [
+        'title' => 'Discount not found',
+        'detail' => 'That category discount does not exist.',
+    ],
+    'not_changeable' => [
+        'title' => 'Cannot be changed',
+        'detail' => 'A running one can only have its end changed or be ended now, and an ended one is kept as it is.',
+    ],
+    'always_wins_overlap' => [
+        'title' => 'Two would always win',
+        'detail' => 'Another offer or discount that always wins already covers some of these sizes in these dates. Change the dates, or switch off "Always Wins".',
+    ],
+    'bands_invalid' => [
+        'title' => 'Check the quantity prices',
+        'detail' => 'The first band starts at the wholesale minimum and costs less than the retail price; each next band starts at a higher quantity and costs less.',
+        // The rule a refusal names (owner Q12): the dialog says which.
+        'rules' => [
+            'first_band' => 'The first band must start at :minimum, the wholesale minimum.',
+            'minimum' => "A band can't start below :minimum, the wholesale minimum.",
+            'maximum' => "A band can't start above :maximum, the wholesale maximum.",
+            'order' => 'Each band must cost less than the band before.',
+            'below_retail' => 'The first band must cost less than :retail, the retail price.',
+            'too_many' => 'A size can have at most :most bands.',
+        ],
+    ],
+    'not_sold_wholesale' => [
+        'title' => 'Not sold wholesale',
+        'detail' => 'The store does not sell this size wholesale. Switch wholesale on for it first.',
+    ],
+    'category_not_usable' => [
+        'title' => 'Category not available',
+        'detail' => 'That category does not exist or is off.',
+    ],
+    'no_retail_price' => [
+        'title' => 'No retail price',
+        'detail' => 'This size has no retail price in the store. Give it a price before putting it on any offer or giving it wholesale prices.',
+    ],
+    'provider_owns_price' => [
+        'title' => 'Set by the provider',
+        'detail' => "This store's retail prices come from its provider and cannot be changed here.",
+    ],
+    'store_off' => [
+        'title' => 'This store is off',
+        'detail' => 'Only someone who may switch stores on and off changes the prices of a store that is off.',
+    ],
+    'duplicate_lines' => [
+        'title' => 'Repeated lines',
+        'detail' => 'Each size and way of buying may appear once.',
+    ],
+    'lines_without_price' => [
+        'title' => 'No price',
+        'detail' => 'Some items have no price in this store.',
+    ],
+    'amounts_invalid' => [
+        'title' => 'Check the amounts',
+        'detail' => 'The amounts do not fit these prices.',
+    ],
+
+    'over_ceiling' => [
+        'title' => 'Deeper than the ceiling',
+        'detail' => "That goes deeper than the store's discount ceiling of :ceiling% on :products. Change the price, the offer or the discount so it stays within it.",
+    ],
+    'ceiling_below_sales' => [
+        'title' => 'Offers and discounts go deeper',
+        'detail' => ':count running or scheduled offers and discounts go deeper than this ceiling, on :products. Change or end them first.',
+    ],
+
+    'fields' => [
+        'amount' => 'price',
+        'campaign' => 'campaign',
+        'ends_at' => 'end',
+        'filter' => 'filter',
+        'left_out' => 'left-out product',
+        'lines' => 'lines',
+        'order' => 'order',
+        'percent' => 'percentage',
+        'price' => 'offer price',
+        'product' => 'product',
+        'quantity' => 'quantity',
+        'starts_at' => 'start',
+        'state' => 'state',
+        'store' => 'store',
+        'target' => 'campaign item',
+        'variant' => 'size',
+    ],
+];

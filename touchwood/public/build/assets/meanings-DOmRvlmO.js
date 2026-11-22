@@ -1,0 +1,1 @@
+var e=[[`neutral`,`gray`],[`information`,`blue`],[`healthy`,`green`],[`warning`,`amber`],[`error`,`red`]];function t(t,n){let r=e.find(([e])=>e===t)?.[1]??`gray`;return n?`${r}-subtle`:r}function n(t){let n=t.endsWith(`-subtle`),r=t.replace(`-subtle`,``);return{meaning:e.find(([,e])=>e===r)?.[0]??`neutral`,subtle:n}}export{n,t as r,e as t};

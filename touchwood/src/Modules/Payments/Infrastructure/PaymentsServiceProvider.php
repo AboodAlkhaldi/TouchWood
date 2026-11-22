@@ -1,0 +1,136 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Payments\Infrastructure;
+
+use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\ServiceProvider;
+use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Access\Public\Events\CustomerAnonymized;
+use Modules\Payments\Application\Attempt\PaymentJobs;
+use Modules\Payments\Application\Gateway\GatewayAddresses;
+use Modules\Payments\Application\Gateway\GatewayBanners;
+use Modules\Payments\Application\Gateway\GatewayClient;
+use Modules\Payments\Application\Gateway\KeyTester;
+use Modules\Payments\Application\Gateway\NoticeReader;
+use Modules\Payments\Application\Gateway\OwnAddresses;
+use Modules\Payments\Application\PaymentsApiImpl;
+use Modules\Payments\Application\PaymentsPermissions;
+use Modules\Payments\Application\PaymentsSettings;
+use Modules\Payments\Application\Query\PaymentReads;
+use Modules\Payments\Application\Settings\BankAccountSettings;
+use Modules\Payments\Domain\Repository\Attempts;
+use Modules\Payments\Domain\Repository\GatewayCalls;
+use Modules\Payments\Domain\Repository\Gateways;
+use Modules\Payments\Domain\Repository\Notices;
+use Modules\Payments\Domain\Repository\PaymentRequests;
+use Modules\Payments\Domain\Repository\Sessions;
+use Modules\Payments\Domain\Repository\Transactions;
+use Modules\Payments\Infrastructure\Eloquent\DatabaseAttempts;
+use Modules\Payments\Infrastructure\Eloquent\DatabaseGatewayCalls;
+use Modules\Payments\Infrastructure\Eloquent\DatabaseGateways;
+use Modules\Payments\Infrastructure\Eloquent\DatabaseNotices;
+use Modules\Payments\Infrastructure\Eloquent\DatabasePaymentReads;
+use Modules\Payments\Infrastructure\Eloquent\DatabasePaymentRequests;
+use Modules\Payments\Infrastructure\Eloquent\DatabaseSessions;
+use Modules\Payments\Infrastructure\Eloquent\DatabaseTransactions;
+use Modules\Payments\Infrastructure\External\AppOwnAddresses;
+use Modules\Payments\Infrastructure\External\MyFatoorahAddresses;
+use Modules\Payments\Infrastructure\External\MyFatoorahClient;
+use Modules\Payments\Infrastructure\External\MyFatoorahKeyTester;
+use Modules\Payments\Infrastructure\External\MyFatoorahNoticeReader;
+use Modules\Payments\Infrastructure\Listener\ClearCustomerFromAttempts;
+use Modules\Payments\Infrastructure\Queue\PaymentQueue;
+use Modules\Payments\Infrastructure\Queue\PrunePaymentLogJob;
+use Modules\Payments\Infrastructure\Queue\SweepAttemptsJob;
+use Modules\Payments\Infrastructure\Queue\WarnExpiringKeysJob;
+use Modules\Payments\Infrastructure\Settings\PaymentsSettingsLine;
+use Modules\Payments\Public\Contracts\PaymentsApi;
+use Modules\Platform\Public\Contracts\AdminBanners;
+use Modules\Platform\Public\Contracts\AdminMenu;
+use Modules\Platform\Public\Contracts\ReservedPaths;
+use Modules\Platform\Public\Contracts\SettingGuards;
+use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Contracts\SettingsSectionLines;
+use Modules\Platform\Public\Dto\MenuEntryDto;
+
+/**
+ * Payments (payments.md): each store's gateway - MyFatoorah - and its keys, and the timers of a payment;
+ * the session and the notices; from steps 10-12, the charge and the requests. The screens are the screens
+ * session's (§4.1, §4.2).
+ */
+final class PaymentsServiceProvider extends ServiceProvider
+{
+    public function register(): void
+    {
+        // The gateway's notice lives at /payments/notice/... (notice-routes.php), and "payments" is a valid
+        // 8-letter store code: reserved here, before Platform builds the {store} pattern at boot. The panel's
+        // screens sit under /admin, already Platform's.
+        $this->app->make(ReservedPaths::class)->reserve('payments', 'payments');
+
+        $this->app->bind(Gateways::class, DatabaseGateways::class);
+        $this->app->bind(KeyTester::class, MyFatoorahKeyTester::class);
+        $this->app->bind(GatewayAddresses::class, MyFatoorahAddresses::class);
+        $this->app->bind(GatewayClient::class, MyFatoorahClient::class);
+        $this->app->bind(NoticeReader::class, MyFatoorahNoticeReader::class);
+        $this->app->bind(OwnAddresses::class, AppOwnAddresses::class);
+        $this->app->bind(Sessions::class, DatabaseSessions::class);
+        $this->app->bind(Attempts::class, DatabaseAttempts::class);
+        $this->app->bind(Transactions::class, DatabaseTransactions::class);
+        $this->app->bind(PaymentRequests::class, DatabasePaymentRequests::class);
+        $this->app->bind(PaymentReads::class, DatabasePaymentReads::class);
+        $this->app->bind(PaymentJobs::class, PaymentQueue::class);
+        $this->app->bind(GatewayCalls::class, DatabaseGatewayCalls::class);
+        $this->app->bind(Notices::class, DatabaseNotices::class);
+        $this->app->bind(PaymentsApi::class, PaymentsApiImpl::class);
+    }
+
+    public function boot(): void
+    {
+        $this->loadMigrationsFrom(__DIR__.'/Persistence/Migrations');
+        $this->loadTranslationsFrom(dirname(__DIR__).'/Presentation/lang', 'payments');
+
+        $catalog = $this->app->make(PermissionCatalog::class);
+        $catalog->declare('payments', ...PaymentsPermissions::definitions());
+        // Given once, then each its own box (gap 8.4; b2b.md amendment 33): whoever can view orders sees
+        // the payments, and whoever could change the bank account under B2B's job still can.
+        $catalog->copied('payments', 'sales.order.view', PaymentsPermissions::VIEW);
+        $catalog->copied('payments', 'b2b.settings.update', PaymentsPermissions::BANK_ACCOUNT_UPDATE);
+
+        $this->app->make(SettingsRegistry::class)->define('payments', ...PaymentsSettings::definitions());
+        $this->app->make(SettingsRegistry::class)->define('payments', ...BankAccountSettings::definitions());
+        // Whether the store takes online payment and bank transfers, in one line (§1.2, gap 8.8).
+        $this->app->make(SettingsSectionLines::class)->register('payments', PaymentsSettingsLine::class);
+
+        // The hold limit stays longer than the window and the wait together (§1.7, gap 8.3).
+        foreach ([PaymentsSettings::WINDOW_MINUTES, PaymentsSettings::WAIT_MINUTES, PaymentsSettings::HOLD_MINUTES] as $timer) {
+            $this->app->make(SettingGuards::class)->register($timer, TimersGuard::class);
+        }
+
+        // An anonymized account's contact details leave its attempts (rule 13).
+        Event::listen(CustomerAnonymized::class, [ClearCustomerFromAttempts::class, 'handle']);
+
+        if (! $this->app->routesAreCached()) {
+            $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/notice-routes.php');
+            // The panel's own file: the admin session cookie must be set before "web" opens a session.
+            $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/admin-routes.php');
+        }
+
+        // The Payments group in the panel (§9.12 Q14): Gateway now, the Payments list with its step.
+        $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('payments', 'payments', 'payments', 'payments.admin.payments', [PaymentsPermissions::VIEW], 10, icon: 'payments'),
+            new MenuEntryDto('payments', 'gateway', 'payments', 'payments.admin.gateway', [PaymentsPermissions::GATEWAY_MANAGE], 20, icon: 'gateway'),
+        );
+        $this->app->make(AdminBanners::class)->register(GatewayBanners::class);
+
+        // The keys' expiry warnings (§1.2): hourly, as each store's day starts at its own midnight.
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
+            $schedule->job(new WarnExpiringKeysJob)->hourly()->onOneServer();
+            // The one backstop for a lost check or notice (rule 9): with none, it ends at once.
+            $schedule->job(new SweepAttemptsJob)->hourly()->onOneServer();
+            $schedule->job(new PrunePaymentLogJob)->dailyAt('03:45')->onOneServer();
+        });
+    }
+}

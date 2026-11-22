@@ -1,0 +1,16 @@
+<?php
+
+declare(strict_types=1);
+
+// Catalog's entries in the panel's menu (catalog.md §4.4), in the Catalog area.
+return [
+    'products' => 'Products',
+    'categories' => 'Categories',
+    'brands' => 'Brands',
+    'attributes' => 'Attributes',
+    'labels' => 'Labels',
+    'warranties' => 'Warranties',
+    'search_words' => 'Search Words',
+    'store_files' => 'Store Files',
+    'imports' => 'Products Import',
+];
