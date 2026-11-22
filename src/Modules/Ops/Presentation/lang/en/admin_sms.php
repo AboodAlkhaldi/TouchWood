@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-// The SMS Countries page (ops.md §4.15 O10). Wording approved for now; the owner checks the whole site's wording later.
+// The Code Countries page (ops.md §4.15 O10; renamed from SMS Countries, §9.8 W2). Wording approved for now; the owner checks the whole site's wording later.
 return [
-    'title' => 'SMS Countries',
-    'subtitle' => 'Which countries\' phones can get SMS codes, and who sends them.',
+    'title' => 'Code Countries',
+    'subtitle' => 'Which countries\' phones can get verification codes, and who sends them.',
     'log_note' => 'Log writes codes to the server\'s log and sends nothing. A live system refuses it.',
     'log' => 'Log',
+    'whatsapp' => 'WhatsApp',
     'add' => 'Add Country',
     'columns' => [
         'country' => 'Country',
@@ -22,9 +23,9 @@ return [
         'calling_code' => 'Change Calling Code',
         'remove' => 'Remove',
     ],
-    'add_body' => 'Phones from this country can then get SMS codes.',
+    'add_body' => 'Phones from this country can then get verification codes.',
     'provider_title' => 'Change Provider of :country',
-    'provider_body' => 'SMS codes to this country go through this provider.',
+    'provider_body' => 'Codes to this country go through this provider.',
     'calling_code_title' => 'Change Calling Code of :country',
     'calling_code_body' => 'Phones are matched to this country by this code.',
     'save' => 'Save',

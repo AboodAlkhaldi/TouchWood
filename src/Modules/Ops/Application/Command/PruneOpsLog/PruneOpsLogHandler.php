@@ -6,6 +6,7 @@ namespace Modules\Ops\Application\Command\PruneOpsLog;
 
 use Carbon\CarbonImmutable;
 use Modules\Ops\Application\OpsPermissions;
+use Modules\Ops\Domain\Repository\AutoReplies;
 use Modules\Ops\Domain\Repository\OpsLog;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
@@ -27,17 +28,20 @@ final readonly class PruneOpsLogHandler
     public function __construct(
         private Authorizer $authorizer,
         private OpsLog $log,
+        private AutoReplies $replies,
     ) {}
 
     /**
-     * @return array{inbox_entries: int, sent_messages: int, handled_events: int} how many went from each
+     * @return array{inbox_entries: int, sent_messages: int, handled_events: int, whatsapp_auto_replies: int} how many went from each
      *
      * @throws Unauthorized
      */
     public function handle(PruneOpsLog $command): array
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
+        $now = CarbonImmutable::now();
 
-        return $this->log->prune(CarbonImmutable::now()->subMonthsNoOverflow(self::MONTHS)->toDateTimeImmutable());
+        // The WhatsApp auto-reply's claims keep 24 hours, not twelve months (ops.md §9.8 point 5).
+        return [...$this->log->prune($now->subMonthsNoOverflow(self::MONTHS)->toDateTimeImmutable()), 'whatsapp_auto_replies' => $this->replies->prune($now->toDateTimeImmutable())];
     }
 }

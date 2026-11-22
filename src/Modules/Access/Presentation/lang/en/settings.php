@@ -30,7 +30,7 @@ return [
     'staff.password_reset_hourly_limit' => 'Reset Emails an Hour',
 
     // How staff sign in: Super Admins only, at least one on (amendment 91).
-    'staff.sign_in_by_sms' => 'Staff Sign In by SMS Code',
+    'staff.sign_in_by_sms' => 'Staff Sign In by WhatsApp Code',
     'staff.sign_in_by_authenticator' => 'Staff Sign In by Authenticator App',
 
     // Customers: one store's own.

@@ -16,11 +16,13 @@ use LogicException;
 use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Access\Public\Dto\CustomerDto;
 use Modules\Access\Public\Dto\StaffDto;
+use Modules\Ops\Application\Messages\CodePurpose;
 use Modules\Ops\Application\Messages\EmailSender;
 use Modules\Ops\Application\Messages\ListedPhoneCountries;
 use Modules\Ops\Application\Messages\OutgoingEmail;
 use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Application\Messages\SmsSenders;
+use Modules\Ops\Domain\Exception\CodesUnavailable;
 use Modules\Ops\Domain\Model\SendStatus;
 use Modules\Ops\Domain\Model\SentMessage;
 use Modules\Ops\Domain\Repository\SentMessages;
@@ -34,8 +36,8 @@ use Throwable;
 
 /**
  * C18, the security messages (ops.md §1.5 C18; access.md §2.3), in place of Access's temporary sender
- * (round 1 #26): codes by SMS, through the provider of the phone's country on the SMS countries list
- * (access.md amendment 90); links, and B2B's decisions about a company, by email through EmailSender.
+ * (round 1 #26): codes by WhatsApp, through the provider of the phone's country on the Code Countries list
+ * (access.md amendments 90, 98; ops.md §9.8); links, and B2B's decisions about a company, by email through EmailSender.
  * The wording is the one Access had, unchanged, at `ops::security`.
  *
  * **Sent at once, never queued**: a code or a link never reaches a job payload, an event or a record.
@@ -43,7 +45,7 @@ use Throwable;
  * names one, the store, the channel, the provider's id, sent or failed - and never the code, the link,
  * the text or the address. A provider's failure is recorded, then thrown to the caller, which sends
  * after its commit and offers "send again". It also tells the Super Admins (S10, S10b:
- * SecurityFailureAlert), naming nothing of the message.
+ * SecurityFailureAlert), naming nothing of the message; one number's lack of WhatsApp is no alert.
  *
  * Branded with the store the message is about, or the store of the request, when there is one;
  * otherwise TouchWood's own sender (owner, 2026-10-28).
@@ -114,12 +116,12 @@ final readonly class OpsSecurityMessages implements SecurityMessages
 
     public function phoneCode(#[\SensitiveParameter] string $phone, string $locale, #[\SensitiveParameter] string $code): void
     {
-        $this->sms($phone, (string) $this->translator->get('ops::security.phone_code', ['code' => $code], $locale));
+        $this->code($phone, $locale, CodePurpose::PhoneCheck, $code);
     }
 
     public function staffSignInCode(#[\SensitiveParameter] string $phone, string $locale, #[\SensitiveParameter] string $code): void
     {
-        $this->sms($phone, (string) $this->translator->get('ops::security.sign_in_code', ['code' => $code], $locale));
+        $this->code($phone, $locale, CodePurpose::SignIn, $code);
     }
 
     public function companyApproved(CustomerDto $customer, ?string $note, ?string $storeId = null): void
@@ -221,23 +223,25 @@ final readonly class OpsSecurityMessages implements SecurityMessages
     }
 
     /**
-     * One SMS, through the provider of the number's country. Access refuses a number of a country not
-     * on the list before it calls (amendment 90); one that reaches here anyway fails, and is recorded.
+     * One code, through the provider of the number's country (ops.md §9.8 point 1). Access refuses a number of a
+     * country not on the list before it calls (amendment 90); one that reaches here anyway fails, and is recorded.
+     * With WhatsApp not set up, or Meta refusing the setup, it is CodesUnavailable (W3).
      *
      * @throws ProviderFailed
+     * @throws CodesUnavailable
      */
-    private function sms(#[\SensitiveParameter] string $phone, #[\SensitiveParameter] string $text): void
+    private function code(#[\SensitiveParameter] string $phone, string $locale, CodePurpose $purpose, #[\SensitiveParameter] string $code): void
     {
-        $this->record(MessageChannel::Sms, null, null, $this->requestStore(), function () use ($phone, $text): ?string {
-            $country = $this->countries->countryOf($phone) ?? throw new ProviderFailed('No country on the SMS countries list serves this number.');
+        $this->record(MessageChannel::Whatsapp, null, null, $this->requestStore(), function () use ($phone, $locale, $purpose, $code): ?string {
+            $country = $this->countries->countryOf($phone) ?? throw new ProviderFailed('No country on the Code Countries list serves this number.');
 
-            return $this->sms->named($country->provider())->send($phone, $text);
+            return $this->sms->named($country->provider())->sendCode($phone, $locale, $purpose, $code);
         });
     }
 
     /**
      * The one row a send leaves (ops.md §5): sent with the provider's id, or failed - whatever the
-     * failure was - and then the failure goes on to the caller.
+     * failure was - and then the failure goes on to the caller. Never the code, the link or the address.
      *
      * @param  Closure(): ?string  $send
      *
@@ -245,25 +249,42 @@ final readonly class OpsSecurityMessages implements SecurityMessages
      */
     private function record(MessageChannel $channel, ?string $customerId, ?string $staffId, ?StoreDto $store, Closure $send): void
     {
+        $id = strtolower((string) Str::ulid());
+        // A code by WhatsApp is written QUEUED before the send (ops.md §9.8 point 3), then turns SENT with Meta's id
+        // or FAILED: Meta's status can follow within a moment, and must find its row there.
+        $before = $channel === MessageChannel::Whatsapp;
+
+        if ($before) {
+            $this->sent->record($this->row($id, $channel, $customerId, $staffId, $store, null, SendStatus::Queued));
+        }
+
         try {
             $providerId = $send();
         } catch (Throwable $failed) {
             // Any failure, not only a provider's refusal: a send that broke on the way - a template, a
             // connection - is never lost silently either.
-            $this->sent->record($this->row($channel, $customerId, $staffId, $store, null, SendStatus::Failed));
+            if ($before) {
+                $this->sent->markFailed($id);
+            } else {
+                $this->sent->record($this->row($id, $channel, $customerId, $staffId, $store, null, SendStatus::Failed));
+            }
 
-            $this->alert->failed($channel, $store);
+            $this->alert->failed($channel, $store, $failed);
 
             throw $failed;
         }
 
-        $this->sent->record($this->row($channel, $customerId, $staffId, $store, $providerId, SendStatus::Sent));
+        if ($before) {
+            $this->sent->markSent($id, $providerId);
+        } else {
+            $this->sent->record($this->row($id, $channel, $customerId, $staffId, $store, $providerId, SendStatus::Sent));
+        }
     }
 
-    private function row(MessageChannel $channel, ?string $customerId, ?string $staffId, ?StoreDto $store, ?string $providerId, SendStatus $status): SentMessage
+    private function row(string $id, MessageChannel $channel, ?string $customerId, ?string $staffId, ?StoreDto $store, ?string $providerId, SendStatus $status): SentMessage
     {
         return new SentMessage(
-            strtolower((string) Str::ulid()),
+            $id,
             MessageKind::Security,
             $customerId,
             $staffId,

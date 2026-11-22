@@ -22,7 +22,7 @@ import { useChecks } from '@/lib/use-checks';
 import type { SmsCountriesPageData, SmsCountryData } from '@/types/generated/Modules/Ops/Presentation/Http/Resource';
 
 /*
-| O10 · Store Settings › SMS Countries (ops.md §4.15; Q24), Super Admins only: which countries' phones get SMS
+| O10 · Store Settings › Code Countries (ops.md §4.15; Q24), Super Admins only: which countries' phones get verification
 | codes, each one's calling code and provider. A ⋯ menu per row opens a dialog for the provider or the calling
 | code; Remove says who it affects. Every answer comes back as the whole list.
 */
@@ -43,7 +43,7 @@ export default function SmsCountries({ countries, providers, options }: SmsCount
             {`${t('ops::admin_sms.add')}…`}
         </Button>
     );
-    const providerName = (provider: string) => (provider === 'log' ? t('ops::admin_sms.log') : provider);
+    const providerName = (provider: string) => (provider === 'log' ? t('ops::admin_sms.log') : provider === 'whatsapp' ? t('ops::admin_sms.whatsapp') : provider);
 
     return (
         <AdminLayout title={t('ops::admin_sms.title')} subtitle={t('ops::admin_sms.subtitle')} action={addButton('add-country')}>

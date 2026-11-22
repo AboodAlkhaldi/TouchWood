@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
+use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Translation\Translator;
+use Illuminate\Contracts\View\Factory as Views;
 use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
@@ -13,6 +15,7 @@ use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\ParallelTesting;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Contracts\SecurityMessages;
+use Modules\Ops\Application\Messages\EmailSender;
 use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Domain\Repository\Inbox;
 use Modules\Ops\Infrastructure\Eloquent\HandledEvents;
@@ -44,7 +47,7 @@ function securityAlertRaceInParallel(): bool
 
 function securityAlertRaceOn(Connection $db): SecurityFailureAlert
 {
-    return new SecurityFailureAlert($db, new HandledEvents($db), app(AccessApi::class), app(PlatformApi::class), app(Inbox::class), app(Translator::class));
+    return new SecurityFailureAlert($db, new HandledEvents($db), app(AccessApi::class), app(PlatformApi::class), app(Inbox::class), app(Translator::class), app(EmailSender::class), app(Views::class), app(Config::class));
 }
 
 /** This hour's claim of the email alert, as the alert would take it. */

@@ -63,7 +63,7 @@ it('removes what is older than twelve months from the three tables, keeps the re
     expect(fn () => app(PruneOpsLogHandler::class)->handle(new PruneOpsLog))->toThrow(Unauthorized::class);
 
     expect(Fx::asSystem(fn (): array => app(PruneOpsLogHandler::class)->handle(new PruneOpsLog)))
-        ->toBe(['inbox_entries' => 1, 'sent_messages' => 1, 'handled_events' => 1])
+        ->toBe(['inbox_entries' => 1, 'sent_messages' => 1, 'handled_events' => 1, 'whatsapp_auto_replies' => 0])
         ->and(DB::table('ops.inbox_entries')->pluck('id')->all())->toBe([$keptEntry])
         ->and(DB::table('ops.sent_messages')->pluck('id')->all())->toBe([$keptSent])
         // Registering the customers above is itself an event Ops handles (step 7): its row is new and stays.

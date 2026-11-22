@@ -20,5 +20,5 @@ interface SmsSenders
      * @throws ProviderFailed when there is no such provider, or it may not run here - `log` on a live
      *                        system
      */
-    public function named(string $provider): SmsSender;
+    public function named(string $provider): CodeSender;
 }

@@ -13,9 +13,9 @@ use Modules\Ops\Application\Alerts\EventMessage;
 use Modules\Ops\Application\Alerts\EventSender;
 
 /**
- * The critical SMS to one super admin (ops.md §1.6: the gateway key at 1 day, or refused), its
+ * The critical WhatsApp alert to one super admin (ops.md §1.6: the gateway key at 1 day, or refused), its
  * `ops.sent_messages` row already written QUEUED. It carries no phone and no text: both are read when
- * it runs, with the person's critical-SMS switch, through the alert's topic and permission. Sent, then
+ * it runs, with the person's critical switch, through the alert's topic and permission. Sent, then
  * marked, as the email is (SendEventEmailJob): at least once; FAILED after the last attempt (§7).
  */
 final class SendEventSmsJob implements ShouldQueue

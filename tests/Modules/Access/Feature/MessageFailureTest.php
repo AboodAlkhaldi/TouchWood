@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Testing\PendingCommand;
 use Illuminate\Testing\TestResponse;
@@ -33,7 +35,9 @@ use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Access\Public\Enums\AccessLevel;
 use Modules\Access\Public\Enums\StaffStatus;
+use Modules\Ops\Application\Messages\EmailSender;
 use Modules\Ops\Application\Messages\ProviderFailed;
+use Modules\Ops\Infrastructure\External\NotSetUpEmailSender;
 use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Actor;
 use Symfony\Component\HttpFoundation\Response;
@@ -699,4 +703,64 @@ it('names the badge a customer must press, in both languages', function () {
     foreach (['en', 'ar'] as $locale) {
         expect(__('access::auth.registered', [], $locale))->toContain(__('access::auth.verify_pending', [], $locale));
     }
+});
+
+/*
+| Production with email not set up (owner, 2026-11-22; ops.md §7): not sent, Super Admins warned - and nobody an error.
+| The sender production binds in that case, through Ops' real SecurityMessages.
+*/
+describe('email not set up on a production server', function () {
+    // After any sign-in, which needs the recorder's code: from here on the real Ops messages, over the sender production binds.
+    function messageFailureNotSetUp(): void
+    {
+        app()->forgetInstance(SecurityMessages::class);
+        app()->instance(EmailSender::class, new NotSetUpEmailSender(['OPS_EMAIL_DRIVER', 'BREVO_API_KEY']));
+    }
+
+    it('registers a customer normally: the account stays, the row is FAILED with no address, the failure is in the log', function () {
+        messageFailureNotSetUp();
+        $logged = [];
+        Event::listen(MessageLogged::class, static function (MessageLogged $event) use (&$logged): void {
+            $logged[] = $event->message.' '.json_encode($event->context);
+        });
+
+        messageFailureRegister(new AdminBrowser)->assertRedirect('/sa/en');
+
+        Exceptions::assertReported(ProviderFailed::class);
+        $rows = DB::table('ops.sent_messages')->get(['status', 'provider_id', 'channel'])->all();
+
+        expect(DB::table('access.customers')->where('email', 'new@example.test')->exists())->toBeTrue()
+            ->and(array_map(static fn (object $row): array => (array) $row, $rows))->toBe([['status' => 'FAILED', 'provider_id' => null, 'channel' => 'EMAIL']])
+            ->and(implode("\n", $logged))->not->toContain('new@example.test');
+    });
+
+    it('invites a member normally: the row stays, the admin is told in amber, nothing answers an error', function () {
+        $browser = messageFailureAdmin();
+        messageFailureNotSetUp();
+
+        $answer = messageFailureInvite($browser);
+        $staffId = messageFailureStaffId('noura@example.test');
+        $answer->assertRedirect("/admin/staff/{$staffId}");
+
+        expect(AdminBrowser::flashed($answer, 'warning'))->toBe(__('access::staff.invitation_not_sent'))
+            ->and(DB::table('access.staff_users')->where('id', $staffId)->value('status'))->toBe(StaffStatus::Invited->value)
+            ->and(DB::table('ops.sent_messages')->where('status', 'FAILED')->count())->toBe(1)
+            ->and((string) json_encode(DB::table('ops.sent_messages')->get()))->not->toContain('noura@example.test');
+    });
+
+    it('answers a password reset as it always does, the email FAILED, for a customer and for staff', function () {
+        messageFailureNotSetUp();
+        Fx::customer('known@example.test');
+        $staff = (string) DB::table('access.staff_users')->where('id', Fx::staff())->value('email');
+
+        $customer = (new AdminBrowser)->post('/sa/en/account/password/forgot', ['email' => 'known@example.test']);
+        $member = (new AdminBrowser)->post('/admin/password/forgot', ['email' => $staff]);
+
+        expect($customer->getStatusCode())->toBeLessThan(500)
+            ->and($member->getStatusCode())->toBeLessThan(500)
+            ->and(DB::table('ops.sent_messages')->distinct()->pluck('status')->all())->toBe(['FAILED'])
+            ->and(DB::table('ops.sent_messages')->count())->toBeGreaterThanOrEqual(2)
+            ->and((string) json_encode(DB::table('ops.sent_messages')->get()))->not->toContain('known@example.test')
+            ->and((string) json_encode(DB::table('ops.sent_messages')->get()))->not->toContain($staff);
+    });
 });

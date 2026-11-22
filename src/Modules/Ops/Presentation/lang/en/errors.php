@@ -55,13 +55,19 @@ return [
         'title' => 'Link Not Valid',
         'detail' => 'This confirmation link isn\'t valid any more. Sign up again to get a new one.',
     ],
+    // WhatsApp is not set up, or Meta refused the setup: the words of whoever asked for a code (ops.md §9.8 W3). The spec's
+    // "Please try again later" loses its "Please": WritingRulesTest bans it on every screen (frontend.md 1.10).
+    'codes_unavailable' => [
+        'title' => 'Codes Can\'t Be Sent',
+        'detail' => 'Codes can\'t be sent right now. Try again later.',
+    ],
     'sms_country_not_found' => [
         'title' => 'Country Not on the List',
-        'detail' => 'Couldn\'t find ":country" on the SMS countries. Reload the list and try again.',
+        'detail' => 'Couldn\'t find ":country" on the Code Countries. Reload the list and try again.',
     ],
     'sms_country_taken' => [
         'title' => 'Country Already Listed',
-        'detail' => 'Couldn\'t add ":country": it is already on the SMS countries. Change its provider or calling code there.',
+        'detail' => 'Couldn\'t add ":country": it is already on the Code Countries. Change its provider or calling code there.',
     ],
     'calling_code_overlaps' => [
         'title' => 'Calling Code Overlaps',

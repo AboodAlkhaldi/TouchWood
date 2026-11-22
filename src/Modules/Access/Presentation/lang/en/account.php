@@ -209,7 +209,7 @@ return [
     'sign_out_everywhere_hint' => 'Use it when somebody else has had your account.',
 
     'trusted_browsers' => 'Browsers That Skip Your Code',
-    'trusted_browsers_hint' => 'These sign in with your password alone, without an SMS code, until they expire.',
+    'trusted_browsers_hint' => 'These sign in with your password alone, without a WhatsApp code, until they expire.',
     'no_trusted_browsers' => 'Every browser asks for a code.',
     'trusted_until' => 'Until :date',
     'forget_browser' => 'Forget Browser',
@@ -240,10 +240,10 @@ return [
     'authenticator_on' => 'Set up',
     'authenticator_off' => 'Not set up.',
     'authenticator_uses_app' => 'You sign in with a code from your authenticator app.',
-    'authenticator_uses_sms' => 'You sign in with a code sent to your phone by SMS.',
+    'authenticator_uses_sms' => 'You sign in with a code sent to your phone on WhatsApp.',
     'sign_in_method' => 'Sign-In Method',
     'sign_in_method_hint' => 'Both methods are on, so you choose yours.',
-    'method_sms' => 'SMS Code',
+    'method_sms' => 'WhatsApp Code',
     'method_authenticator' => 'Authenticator App',
     'method_unchanged_reason' => 'Choose the other method to save it.',
     'save_method' => 'Save Method',
@@ -278,7 +278,7 @@ return [
     'download_codes' => 'Download Codes',
     'codes_file_heading' => 'Recovery codes - each works once',
     'continue' => 'Continue',
-    'method_sms_password' => 'Enter your password to sign in by SMS instead of the app.',
+    'method_sms_password' => 'Enter your password to sign in with a WhatsApp code instead of the app.',
     // The offers and news switch on a customer's Profile tab (amendment 79; ops.md §4.15 O12), new 2026-11-05, not yet approved.
     'offers' => [
         'title' => 'Offers and News',

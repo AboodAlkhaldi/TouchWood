@@ -188,7 +188,7 @@ export type SharedProps = {
     viewer: Viewer | null;
     menu: MenuGroup[];
     /** Admin pages only: over every page, or Home only (payments.md §4.2). */
-    banners?: { label: string; text: string; everywhere: boolean; linkText: string | null; href: string | null }[];
+    banners?: { label: string; text: string; everywhere: boolean; linkText: string | null; href: string | null; error: boolean }[];
     /** Shop pages only. */
     shop?: Shop | null;
     shopper?: Shopper | null;

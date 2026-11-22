@@ -33,12 +33,12 @@ use Modules\Ops\Application\Command\SendDailyReportEmail\SendDailyReportEmail;
 use Modules\Ops\Application\Command\SendDailyReportEmail\SendDailyReportEmailHandler;
 use Modules\Ops\Application\Command\SetDailyReportEmail\SetDailyReportEmail;
 use Modules\Ops\Application\Command\SetDailyReportEmail\SetDailyReportEmailHandler;
+use Modules\Ops\Application\Messages\CodeSender;
 use Modules\Ops\Application\Messages\EmailAttachment;
 use Modules\Ops\Application\Messages\EmailSender;
 use Modules\Ops\Application\Messages\NewsletterList;
 use Modules\Ops\Application\Messages\OutgoingEmail;
 use Modules\Ops\Application\Messages\ProviderFailed;
-use Modules\Ops\Application\Messages\SmsSender;
 use Modules\Ops\Application\Newsletter\NewsletterQueue;
 use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Domain\Model\SendStatus;
@@ -504,6 +504,16 @@ describe('an event\'s email', function () {
             public function markFailed(string $id): void
             {
                 $this->real->markFailed($id);
+            }
+
+            public function markFailedByProviderId(string $providerId): bool
+            {
+                return $this->real->markFailedByProviderId($providerId);
+            }
+
+            public function hasProviderId(string $providerId): bool
+            {
+                return $this->real->hasProviderId($providerId);
             }
 
             public function forget(string $id): void
@@ -1258,19 +1268,22 @@ describe('what stays secret', function () {
     ]);
 });
 
-describe('every SMS adapter', function () {
-    it('marks the phone and the message itself: PHP does not pass the attribute down from the interface', function () {
+describe('every code adapter', function () {
+    it('marks the phone, the code and the alert\'s text itself: PHP does not pass the attribute down from the interface', function () {
         $checked = 0;
 
         foreach (glob(base_path('src/Modules/Ops/Infrastructure/External/*.php')) ?: [] as $file) {
             $class = 'Modules\\Ops\\Infrastructure\\External\\'.basename($file, '.php');
 
-            if (! is_subclass_of($class, SmsSender::class)) {
+            if (! is_subclass_of($class, CodeSender::class)) {
                 continue;
             }
 
-            foreach ((new ReflectionMethod($class, 'send'))->getParameters() as $parameter) {
-                expect($parameter->getAttributes(SensitiveParameter::class))->toHaveCount(1);
+            // The locale, the purpose and the alert's kind say nothing of whom or what: only these three are secret.
+            foreach (['sendCode' => ['phone', 'code'], 'sendAlert' => ['phone', 'text']] as $method => $secret) {
+                foreach ((new ReflectionMethod($class, $method))->getParameters() as $parameter) {
+                    expect($parameter->getAttributes(SensitiveParameter::class))->toHaveCount(in_array($parameter->getName(), $secret, true) ? 1 : 0, "{$class}::{$method}(\${$parameter->getName()})");
+                }
             }
 
             $checked++;

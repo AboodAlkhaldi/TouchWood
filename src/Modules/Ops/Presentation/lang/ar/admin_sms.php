@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-// The SMS Countries page (ops.md §4.15 O10). Wording approved for now; the owner checks the whole site's wording later.
+// The Code Countries page (ops.md §4.15 O10; renamed from SMS Countries, §9.8 W2). Wording approved for now; the owner checks the whole site's wording later.
 return [
-    'title' => 'دول الرسائل النصية',
-    'subtitle' => 'الدول التي تصل رموز الرسائل النصية إلى هواتفها، ومن يرسلها.',
+    'title' => 'دول رموز التحقق',
+    'subtitle' => 'الدول التي تصل رموز التحقق إلى هواتفها، ومن يرسلها.',
     'log_note' => 'يكتب مزوّد السجل الرموز في سجل الخادم ولا يرسل شيئًا. يرفضه النظام المباشر.',
     'log' => 'السجل',
+    'whatsapp' => 'واتساب',
     'add' => 'إضافة دولة',
     'columns' => [
         'country' => 'الدولة',
@@ -22,9 +23,9 @@ return [
         'calling_code' => 'تغيير رمز الاتصال',
         'remove' => 'إزالة',
     ],
-    'add_body' => 'بعدها تستطيع هواتف هذه الدولة استلام رموز الرسائل النصية.',
+    'add_body' => 'بعدها تستطيع هواتف هذه الدولة استلام رموز التحقق.',
     'provider_title' => 'تغيير مزوّد :country',
-    'provider_body' => 'تصل رموز الرسائل النصية إلى هذه الدولة عبر هذا المزوّد.',
+    'provider_body' => 'تصل رموز التحقق إلى هذه الدولة عبر هذا المزوّد.',
     'calling_code_title' => 'تغيير رمز اتصال :country',
     'calling_code_body' => 'تُطابق الهواتف مع هذه الدولة بهذا الرمز.',
     'save' => 'حفظ',

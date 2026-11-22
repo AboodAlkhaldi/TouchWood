@@ -39,7 +39,7 @@ return [
     'code_title' => 'Enter the Code',
     'code_sent_to' => 'The code went to :phone.',
     // The code field's one label: shadcn's InputOTP is one input, not a box per digit.
-    'code_label' => 'SMS Code',
+    'code_label' => 'WhatsApp Code',
     'code_incomplete' => 'Enter all :count digits of the code.',
     'trust_browser' => 'Trust This Browser for :hours Hours',
     'confirm' => 'Verify Code',

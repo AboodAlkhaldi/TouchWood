@@ -68,7 +68,7 @@ it('starts with Saudi Arabia and Egypt on the log provider, named in both langua
     $list = app(ListSmsCountriesHandler::class)->handle(new ListSmsCountries('en'));
 
     expect(smsCountriesListed())->toBe(['EG 20 log', 'SA 966 log'])
-        ->and($list->providers)->toBe(['log'])
+        ->and($list->providers)->toBe(['whatsapp', 'log'])
         ->and($list->countries[1]->name->en)->toBe('Saudi Arabia')
         ->and($list->countries[1]->name->ar)->toBe('المملكة العربية السعودية');
 });

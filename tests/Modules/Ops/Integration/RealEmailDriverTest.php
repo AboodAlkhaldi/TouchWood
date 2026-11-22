@@ -9,10 +9,10 @@ use Illuminate\Support\Facades\Process;
 use Modules\Ops\Infrastructure\OpsServiceProvider;
 
 /*
-| A production server that cannot deliver does not start: on a `log` driver it would write every invitation and
-| password reset link to the log (access.md amendment 36(d), moved from Laravel's mailer to Ops' driver with
-| amendment 90: Laravel mail sends nothing any more); with no usable key or sender every email would fail. Only what
-| serves people is stopped, web requests and queue workers: no other console command, or an operator could not mend it.
+| A production server whose email is not set up still starts and runs (owner, 2026-11-22; ops.md §7; it replaced "does
+| not start"): on a `log` driver or with no usable key or sender, the boot guard says so in the log, loudly and at most once
+| an hour, naming only the settings - and refuses nothing. What happens to an email then is EmailNotSetUpTest's.
+| Only what serves people says it, web requests and queue workers: no other console command.
 */
 
 /** @return array<string, string> What a production server sets for Brevo. */
@@ -36,16 +36,22 @@ function realDriverProduction(array $settings = []): void
     ]);
 }
 
-/** What the guard refuses with, or null. */
-function realDriverRefusal(): ?string
+/**
+ * What the guard logs when called, one entry per line logged: [level, message]. It never throws.
+ *
+ * @return list<array{0: string, 1: string}>
+ */
+function realDriverSays(): array
 {
-    try {
-        OpsServiceProvider::requireRealDelivery(app());
-    } catch (InvalidArgumentException $refused) {
-        return $refused->getMessage();
-    }
+    cache()->forget('ops:delivery-problems-told');
+    $lines = [];
+    Event::listen(MessageLogged::class, function (MessageLogged $log) use (&$lines): void {
+        $lines[] = [$log->level, $log->message];
+    });
 
-    return null;
+    OpsServiceProvider::requireRealDelivery(app());
+
+    return $lines;
 }
 
 /**
@@ -61,13 +67,15 @@ function realDriverBoot(array $env, array $command): ProcessResult
         ->run([PHP_BINARY, 'artisan', ...$command]);
 }
 
-it('refuses production on a log driver or one it does not know, and leaves a developer\'s machine alone', function (string $setting, string $driver, bool $refused, string $says) {
+it('never refuses production: a log driver, an unknown one or none is a line in the log, and a developer\'s machine hears nothing', function (string $setting, string $driver, bool $says, string $named) {
     realDriverProduction([$setting => $driver]);
 
-    $refused ? expect(realDriverRefusal())->toContain($says) : expect(realDriverRefusal())->toBeNull();
+    $lines = realDriverSays();
+
+    $says ? expect($lines)->toHaveCount(1)->and($lines[0][0])->toBe('critical')->and($lines[0][1])->toContain($named) : expect($lines)->toBe([]);
 
     app()->detectEnvironment(fn (): string => 'local');
-    expect(realDriverRefusal())->toBeNull();
+    expect(realDriverSays())->toBe([]);
 })->with([
     'email, log' => ['ops.email.driver', 'log', true, 'OPS_EMAIL_DRIVER is "log"'],
     'email, none' => ['ops.email.driver', '', true, 'OPS_EMAIL_DRIVER is ""'],
@@ -78,18 +86,20 @@ it('refuses production on a log driver or one it does not know, and leaves a dev
     'lists, brevo' => ['ops.newsletter.driver', 'brevo', false, ''],
 ]);
 
-it('lets a checkout with no .env yet run: composer install discovers packages before one exists', function () {
+it('says nothing on a checkout with no .env yet: composer install discovers packages before one exists', function () {
     realDriverProduction(['ops.email.driver' => 'log', 'app.key' => '']);
 
-    expect(realDriverRefusal())->toBeNull();
+    expect(realDriverSays())->toBe([]);
 });
 
-it('refuses a key or a sender that cannot work, naming the setting and never the value', function (array $settings, string $says) {
+it('names a key or a sender that cannot work, the setting and never the value', function (array $settings, string $says) {
     realDriverProduction($settings);
 
-    $said = (string) realDriverRefusal();
+    $lines = realDriverSays();
+    $said = $lines[0][1] ?? '';
 
-    expect($said)->toContain($says)
+    expect($lines)->toHaveCount(1)
+        ->and($said)->toContain($says)
         ->and($said)->not->toContain('xkeysib');
 })->with([
     'no key' => [['services.brevo.key' => ''], 'BREVO_API_KEY'],
@@ -102,16 +112,19 @@ it('refuses a key or a sender that cannot work, naming the setting and never the
 it('takes a key that a paste left whitespace round', function () {
     realDriverProduction(['services.brevo.key' => " a-key\n"]);
 
-    expect(realDriverRefusal())->toBeNull();
+    expect(realDriverSays())->toBe([]);
 });
 
-it('names every problem at once', function () {
+it('names every problem at once, in one line', function () {
     realDriverProduction(['ops.email.driver' => 'log', 'ops.newsletter.driver' => 'log', 'services.brevo.key' => '', 'mail.from.address' => '']);
 
-    expect(realDriverRefusal())->toContain('OPS_EMAIL_DRIVER')->toContain('OPS_NEWSLETTER_DRIVER')->toContain('BREVO_API_KEY')->toContain('MAIL_FROM_ADDRESS');
+    $lines = realDriverSays();
+
+    expect($lines)->toHaveCount(1)
+        ->and($lines[0][1])->toContain('OPS_EMAIL_DRIVER')->toContain('OPS_NEWSLETTER_DRIVER')->toContain('BREVO_API_KEY')->toContain('MAIL_FROM_ADDRESS');
 });
 
-it('only logs, loudly and once an hour, a missing folder or webhook secret: the owner has not said they should stop the shop', function () {
+it('logs a missing folder or webhook secret, loudly and once an hour, as it does every other problem', function () {
     realDriverProduction(['services.brevo.newsletter_folder' => '', 'services.brevo.webhook_secret' => ' ']);
     cache()->forget('ops:delivery-problems-told');
     $lines = [];
@@ -119,9 +132,10 @@ it('only logs, loudly and once an hour, a missing folder or webhook secret: the 
         $lines[] = [$log->level, $log->message];
     });
 
-    expect(realDriverRefusal())->toBeNull()
-        ->and(realDriverRefusal())->toBeNull()
-        ->and($lines)->toHaveCount(1)
+    OpsServiceProvider::requireRealDelivery(app());
+    OpsServiceProvider::requireRealDelivery(app());
+
+    expect($lines)->toHaveCount(1)
         ->and($lines[0][0])->toBe('critical')
         ->and($lines[0][1])->toContain('BREVO_NEWSLETTER_FOLDER_ID')->toContain('BREVO_WEBHOOK_SECRET');
 });
@@ -136,20 +150,20 @@ it('guards web requests and queue workers, and no other console command', functi
         ->and(OpsServiceProvider::servesPeople(app(), ['artisan', 'ops:brevo:check']))->toBeFalse();
 });
 
-it('stops a real worker and a real web boot, and leaves an operator\'s commands running', function (array $env, string $says) {
+it('boots a real worker and a real web request in production with email not set up, and every operator\'s command too', function (array $env) {
     // `--help` never touches a job; the guard runs at boot, before it.
     $worker = realDriverBoot($env, ['queue:work', '--help']);
     $web = realDriverBoot([...$env, 'APP_RUNNING_IN_CONSOLE' => 'false'], ['list', '--raw']);
 
-    expect($worker->failed())->toBeTrue()
-        ->and($worker->output().$worker->errorOutput())->toContain($says)
-        ->and($web->failed())->toBeTrue()
+    expect($worker->successful())->toBeTrue($worker->output().$worker->errorOutput())
+        ->and($web->successful())->toBeTrue($web->output().$web->errorOutput())
         ->and(realDriverBoot($env, ['list', '--raw'])->successful())->toBeTrue()
         ->and(realDriverBoot($env, ['config:clear', '--help'])->successful())->toBeTrue();
 })->with([
-    'the email driver' => [['OPS_EMAIL_DRIVER' => 'log'], 'OPS_EMAIL_DRIVER is "log"'],
-    'the lists\' driver' => [['OPS_NEWSLETTER_DRIVER' => 'log'], 'OPS_NEWSLETTER_DRIVER is "log"'],
-    'no key' => [['BREVO_API_KEY' => ''], 'BREVO_API_KEY'],
+    'the email driver' => [['OPS_EMAIL_DRIVER' => 'log']],
+    'the lists\' driver' => [['OPS_NEWSLETTER_DRIVER' => 'log']],
+    'no key' => [['BREVO_API_KEY' => '']],
+    'no Brevo setting at all' => [['OPS_EMAIL_DRIVER' => 'log', 'OPS_NEWSLETTER_DRIVER' => 'log', 'BREVO_API_KEY' => '', 'MAIL_FROM_ADDRESS' => '', 'BREVO_NEWSLETTER_FOLDER_ID' => '', 'BREVO_WEBHOOK_SECRET' => '']],
 ]);
 
 it('starts a worker with everything set', function () {

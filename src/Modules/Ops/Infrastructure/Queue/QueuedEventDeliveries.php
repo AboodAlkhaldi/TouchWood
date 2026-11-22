@@ -42,7 +42,7 @@ final readonly class QueuedEventDeliveries implements EventDeliveries
 
     public function smsStaff(EventMessage $message, string $staffId, StaffNotificationTopic $topic, string $permission): void
     {
-        $this->jobs->dispatch((new SendEventSmsJob($message, strtolower($staffId), $topic, $permission, $this->queued($message, MessageChannel::Sms, null, $staffId)))->beforeCommit());
+        $this->jobs->dispatch((new SendEventSmsJob($message, strtolower($staffId), $topic, $permission, $this->queued($message, MessageChannel::Whatsapp, null, $staffId)))->beforeCommit());
     }
 
     /** The message's row, QUEUED; its id. */

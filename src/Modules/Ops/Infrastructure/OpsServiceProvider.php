@@ -46,17 +46,17 @@ use Modules\Ops\Application\DailyReport\DailyReportRenderer;
 use Modules\Ops\Application\DailyReport\ReportFiles;
 use Modules\Ops\Application\Delivery\BroadcastQueue;
 use Modules\Ops\Application\Inbox\InboxQueries;
+use Modules\Ops\Application\Messages\CodeSender;
 use Modules\Ops\Application\Messages\EmailSender;
 use Modules\Ops\Application\Messages\ListedPhoneCountries;
 use Modules\Ops\Application\Messages\NewsletterList;
-use Modules\Ops\Application\Messages\ProviderFailed;
-use Modules\Ops\Application\Messages\SmsSender;
 use Modules\Ops\Application\Messages\SmsSenders;
 use Modules\Ops\Application\Newsletter\CustomerSubscriptions;
 use Modules\Ops\Application\Newsletter\NewsletterQueue;
 use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Application\Query\ListStaffMessages\StaffMessageQueries;
 use Modules\Ops\Application\Reports\ReportWriter;
+use Modules\Ops\Domain\Repository\AutoReplies;
 use Modules\Ops\Domain\Repository\DailyReports;
 use Modules\Ops\Domain\Repository\Inbox;
 use Modules\Ops\Domain\Repository\Notices;
@@ -66,6 +66,7 @@ use Modules\Ops\Domain\Repository\SmsCountries;
 use Modules\Ops\Domain\Repository\StaffMessages;
 use Modules\Ops\Domain\Repository\Subscribers;
 use Modules\Ops\Infrastructure\Delivery\QueuedBroadcasts;
+use Modules\Ops\Infrastructure\Eloquent\DatabaseAutoReplies;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseDailyReports;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseInbox;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseInboxQueries;
@@ -77,15 +78,18 @@ use Modules\Ops\Infrastructure\Eloquent\DatabaseStaffMessageQueries;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseStaffMessages;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseSubscribers;
 use Modules\Ops\Infrastructure\Excel\OpenSpoutReportWriter;
-use Modules\Ops\Infrastructure\External\BrevoAnswers;
 use Modules\Ops\Infrastructure\External\BrevoEmailSender;
 use Modules\Ops\Infrastructure\External\BrevoNewsletterList;
 use Modules\Ops\Infrastructure\External\BrevoUnsubscribeRead;
 use Modules\Ops\Infrastructure\External\BuiltSmsSenders;
 use Modules\Ops\Infrastructure\External\DailyReportEmailMailer;
+use Modules\Ops\Infrastructure\External\EmailSetup;
 use Modules\Ops\Infrastructure\External\LogEmailSender;
 use Modules\Ops\Infrastructure\External\LogNewsletterList;
 use Modules\Ops\Infrastructure\External\LogSmsSender;
+use Modules\Ops\Infrastructure\External\NoNewsletterList;
+use Modules\Ops\Infrastructure\External\NotSetUpEmailSender;
+use Modules\Ops\Infrastructure\External\WhatsAppCodeSender;
 use Modules\Ops\Infrastructure\Files\LocalReportFiles;
 use Modules\Ops\Infrastructure\Listener\AlertStaff;
 use Modules\Ops\Infrastructure\Listener\ForgetAnonymizedCustomer;
@@ -98,8 +102,10 @@ use Modules\Ops\Infrastructure\Listener\TellCustomerAboutPaymentRequest;
 use Modules\Ops\Infrastructure\Listener\TellCustomerAboutPoints;
 use Modules\Ops\Infrastructure\Listener\TellCustomerAboutReturn;
 use Modules\Ops\Infrastructure\Listener\TellCustomersAboutCoupon;
+use Modules\Ops\Infrastructure\Messages\EmailBanner;
 use Modules\Ops\Infrastructure\Messages\OpsCampaignNotices;
 use Modules\Ops\Infrastructure\Messages\OpsSecurityMessages;
+use Modules\Ops\Infrastructure\Messages\WhatsAppBanner;
 use Modules\Ops\Infrastructure\Newsletter\QueuedNewsletter;
 use Modules\Ops\Infrastructure\Pdf\MpdfDailyReportRenderer;
 use Modules\Ops\Infrastructure\Queue\PruneDailyReportsJob;
@@ -118,6 +124,7 @@ use Modules\Payments\Public\Events\GatewayKeyExpiring;
 use Modules\Payments\Public\Events\GatewayKeyRejected;
 use Modules\Payments\Public\Events\PaymentNotAccepted;
 use Modules\Payments\Public\Events\PaymentRequested;
+use Modules\Platform\Public\Contracts\AdminBanners;
 use Modules\Platform\Public\Contracts\AdminFrameParts;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\HomeCards;
@@ -164,21 +171,18 @@ use Throwable;
  */
 final class OpsServiceProvider extends ServiceProvider
 {
-    /**
-     * What only logs loudly, rather than stopping the shop: the owner has not said whether a missing folder or webhook
-     * secret should (ops.md §9.6). Empty this to refuse them too.
-     */
-    private const array ONLY_LOGGED = ['BREVO_NEWSLETTER_FOLDER_ID', 'BREVO_WEBHOOK_SECRET'];
-
     public function register(): void
     {
         // Brevo's webhook lives at /newsletter/brevo: Platform builds the {store} pattern at boot.
         $this->app->make(ReservedPaths::class)->reserve('ops', 'newsletter');
+        // Meta's WhatsApp webhook lives at /whatsapp/webhook (ops.md §9.8 point 4), the same way.
+        $this->app->make(ReservedPaths::class)->reserve('ops', 'whatsapp');
 
         $this->app->bind(Inbox::class, DatabaseInbox::class);
         $this->app->bind(InboxQueries::class, DatabaseInboxQueries::class);
         $this->app->bind(ReportWriter::class, OpenSpoutReportWriter::class);
         $this->app->bind(SentMessages::class, DatabaseSentMessages::class);
+        $this->app->bind(AutoReplies::class, DatabaseAutoReplies::class);
         $this->app->bind(OpsLog::class, DatabaseOpsLog::class);
         $this->app->bind(Notices::class, DatabaseNotices::class);
         $this->app->bind(StaffMessages::class, DatabaseStaffMessages::class);
@@ -195,17 +199,15 @@ final class OpsServiceProvider extends ServiceProvider
 
         // The providers are adapters chosen by configuration (§2.2): a new one is a new class and a
         // line here. "log" writes what would be sent to the log, never on a live system.
-        $this->app->bind(EmailSender::class, fn (Application $app): EmailSender => match ($app->make('config')->get('ops.email.driver')) {
-            'brevo' => new BrevoEmailSender($app->make(Factory::class), (string) $app->make('config')->get('services.brevo.key')),
-            'log' => $app->environment('production')
-                ? throw new InvalidArgumentException('The "log" email driver writes emails to the log and never runs in production: set OPS_EMAIL_DRIVER to "brevo".')
-                : $app->make(LogEmailSender::class),
-            default => throw new InvalidArgumentException('OPS_EMAIL_DRIVER names no email driver Ops has: "brevo" or "log".'),
-        });
-        // SMS go through the provider of the phone's country on the SMS countries list (access.md
-        // amendment 90): a new provider is a new adapter and a line here, its keys in .env.
+        // Production with email not set up never stops the site (owner, 2026-11-22; ops.md §7): the sender that
+        // would be real is one that sends nothing and refuses, naming the settings - not sent, Super Admins warned.
+        $this->app->bind(EmailSender::class, fn (Application $app): EmailSender => $this->emailSender($app));
+        // Codes go through the provider of the phone's country on the Code Countries list (access.md
+        // amendments 90, 98): `whatsapp` (Meta's Cloud API, its keys in .env, a missing one never stops the
+        // site) or `log`. A new provider is a new adapter and a line here.
         $this->app->bind(SmsSenders::class, fn (Application $app): SmsSenders => new BuiltSmsSenders([
-            'log' => fn (): SmsSender => $app->make(LogSmsSender::class),
+            'whatsapp' => fn (): CodeSender => $app->make(WhatsAppCodeSender::class),
+            'log' => fn (): CodeSender => $app->make(LogSmsSender::class),
         ], $app->environment('production')));
         $this->app->bind(SmsCountries::class, DatabaseSmsCountries::class);
 
@@ -216,19 +218,7 @@ final class OpsServiceProvider extends ServiceProvider
         // Content's port, the same way (ops.md §9.7 #1): the draft notices a campaign's page offers.
         $this->app->bind(CampaignNotices::class, OpsCampaignNotices::class);
 
-        $this->app->bind(NewsletterList::class, fn (Application $app): NewsletterList => match ($app->make('config')->get('ops.newsletter.driver')) {
-            'brevo' => new BrevoNewsletterList(
-                $app->make(Factory::class),
-                $app->make(ConnectionInterface::class),
-                $app->make(PlatformApi::class),
-                (string) $app->make('config')->get('services.brevo.key'),
-                self::folderId($app->make('config')->get('services.brevo.newsletter_folder')),
-            ),
-            'log' => $app->environment('production')
-                ? throw new InvalidArgumentException('The "log" newsletter driver writes the lists to the log and never runs in production: set OPS_NEWSLETTER_DRIVER to "brevo".')
-                : $app->make(LogNewsletterList::class),
-            default => throw new InvalidArgumentException('OPS_NEWSLETTER_DRIVER names no newsletter driver Ops has: "brevo" or "log".'),
-        });
+        $this->app->bind(NewsletterList::class, fn (Application $app): NewsletterList => $this->newsletterList($app));
         // The nightly read of Brevo's unsubscribes (§9.6 #1), with the same key: called only while BREVO_NIGHTLY_READ is on.
         $this->app->bind(BrevoUnsubscribeRead::class, fn (Application $app): BrevoUnsubscribeRead => new BrevoUnsubscribeRead(
             $app->make(Factory::class),
@@ -279,6 +269,11 @@ final class OpsServiceProvider extends ServiceProvider
         // Brevo throws away a webhook answered 503 (docs/retry-mechanism), and an unsubscribe with it, so it is
         // still taken in maintenance; if the work cannot be done, its answer asks Brevo to try again.
         PreventRequestsDuringMaintenance::except(['newsletter/brevo']);
+        // Meta retries a notice for 7 days when it is not answered 200, and a failed status with it (ops.md §9.8 point 4).
+        PreventRequestsDuringMaintenance::except(['whatsapp/webhook']);
+
+        // The red notice while WhatsApp is not set up (§9.8 W3).
+        $this->app->make(AdminBanners::class)->register(WhatsAppBanner::class, EmailBanner::class);
 
         if ($this->app->runningInConsole()) {
             $this->commands([BrevoCheckCommand::class]);
@@ -345,7 +340,7 @@ final class OpsServiceProvider extends ServiceProvider
             $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/shop-routes.php');
             // The panel's own file: the admin session cookie must be set before "web" opens a session.
             $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/admin-routes.php');
-            // Brevo's webhook: machine to machine, no session.
+            // Brevo's and Meta's webhooks: machine to machine, no session.
             $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/webhook-routes.php');
         }
     }
@@ -376,38 +371,28 @@ final class OpsServiceProvider extends ServiceProvider
     }
 
     /**
-     * A production server that cannot deliver does not start (ops.md §7), every problem named at once. On a `log`
-     * driver it would write invitation and password reset links to the log file and send nothing (access.md amendment
-     * 36(d), moved to Ops' driver with amendment 90), and tell Brevo nothing of the lists (§1.9). The bindings refuse
-     * `log` too, but only when a job runs, which fails quietly on the queue. With no usable key or sender, every email
-     * would fail, each finding it alone. Whether Brevo takes the key only Brevo can say: `ops:brevo:check`.
+     * **A production server whose email is not set up still starts and runs** (owner, 2026-11-22; ops.md §7, it
+     * replaced "refuses to start"): the problems are a loud log line at most once an hour, naming only each setting, never a
+     * value - and the email is not sent (NotSetUpEmailSender), the lists are not kept (NoNewsletterList), and the Super
+     * Admins see a red notice (EmailBanner). Called by a web request or a queue worker; any other console command is left
+     * alone. `OPS_NEWSLETTER_DRIVER` not `brevo`, a missing list folder and a missing webhook secret are logged the same way.
      *
-     * What ONLY_LOGGED names is a loud line in the log instead, at most once an hour.
-     *
-     * @throws InvalidArgumentException
+     * An application with no key is not configured at all (a fresh checkout, where Laravel reports "production" only
+     * because there is no .env yet): nothing is said.
      */
     public static function requireRealDelivery(Application $app): void
     {
         $config = $app->make('config');
         $key = $config->get('app.key');
 
-        // An application with no key is not configured at all: a fresh checkout, where Laravel
-        // reports "production" only because there is no .env yet. Nothing can be sent from it, so there is
-        // nothing to protect; a real production server always has a key.
         if (! is_string($key) || $key === '' || ! $app->environment('production')) {
             return;
         }
 
         $problems = self::deliveryProblems($config);
-        $logged = array_intersect_key($problems, array_flip(self::ONLY_LOGGED));
-        $refused = array_diff_key($problems, $logged);
 
-        if ($logged !== []) {
-            self::warnLoudly($app, $logged);
-        }
-
-        if ($refused !== []) {
-            throw new InvalidArgumentException('Production never starts like this. '.implode(' ', $refused));
+        if ($problems !== []) {
+            self::warnLoudly($app, $problems);
         }
     }
 
@@ -418,30 +403,12 @@ final class OpsServiceProvider extends ServiceProvider
      */
     private static function deliveryProblems(Repository $config): array
     {
-        $problems = [];
-        $email = $config->get('ops.email.driver');
+        $problems = EmailSetup::problems($config);
         $lists = $config->get('ops.newsletter.driver');
-        $from = $config->get('mail.from.address');
         $secret = $config->get('services.brevo.webhook_secret');
 
-        if ($email !== 'brevo') {
-            $problems['OPS_EMAIL_DRIVER'] = 'OPS_EMAIL_DRIVER is "'.(is_string($email) ? $email : '').'": invitation and password reset links would be written to the log, not sent.';
-        }
-
         if ($lists !== 'brevo') {
-            $problems['OPS_NEWSLETTER_DRIVER'] = 'OPS_NEWSLETTER_DRIVER is "'.(is_string($lists) ? $lists : '').'": the newsletter\'s lists would be written to the log, never to Brevo.';
-        }
-
-        try {
-            $brevoKey = $config->get('services.brevo.key');
-            BrevoAnswers::key(is_string($brevoKey) ? $brevoKey : '');
-        } catch (ProviderFailed $failed) {
-            $problems['BREVO_API_KEY'] = $failed->getMessage();
-        }
-
-        // Laravel's own default stands for "never set": Brevo would refuse every email from it.
-        if (! is_string($from) || filter_var($from, FILTER_VALIDATE_EMAIL) === false || $from === 'hello@example.com') {
-            $problems['MAIL_FROM_ADDRESS'] = 'MAIL_FROM_ADDRESS is not set to a sender of ours: every email would be refused.';
+            $problems['OPS_NEWSLETTER_DRIVER'] = 'OPS_NEWSLETTER_DRIVER is "'.(is_string($lists) ? $lists : '').'": the newsletter\'s lists are not kept.';
         }
 
         if (self::folderId($config->get('services.brevo.newsletter_folder')) === null) {
@@ -453,6 +420,54 @@ final class OpsServiceProvider extends ServiceProvider
         }
 
         return $problems;
+    }
+
+    /**
+     * The email sender: on a development machine and in tests `log` or Brevo as configured; in production Brevo when
+     * email is set up, and otherwise the sender that sends nothing (never the log, which would write every link and
+     * address to a file).
+     */
+    private function emailSender(Application $app): EmailSender
+    {
+        $config = $app->make('config');
+
+        if ($app->environment('production')) {
+            $problems = EmailSetup::problems($config);
+
+            return $problems === []
+                ? new BrevoEmailSender($app->make(Factory::class), (string) $config->get('services.brevo.key'))
+                : new NotSetUpEmailSender(array_keys($problems));
+        }
+
+        return match ($config->get('ops.email.driver')) {
+            'brevo' => new BrevoEmailSender($app->make(Factory::class), (string) $config->get('services.brevo.key')),
+            'log' => $app->make(LogEmailSender::class),
+            default => throw new InvalidArgumentException('OPS_EMAIL_DRIVER names no email driver Ops has: "brevo" or "log".'),
+        };
+    }
+
+    /** The newsletter's lists: as the sender, `log` only outside production; in production Brevo, or none and nothing written. */
+    private function newsletterList(Application $app): NewsletterList
+    {
+        $config = $app->make('config');
+        $production = $app->environment('production');
+        $brevo = fn (): NewsletterList => new BrevoNewsletterList(
+            $app->make(Factory::class),
+            $app->make(ConnectionInterface::class),
+            $app->make(PlatformApi::class),
+            (string) $config->get('services.brevo.key'),
+            self::folderId($config->get('services.brevo.newsletter_folder')),
+        );
+
+        if ($production) {
+            return $config->get('ops.newsletter.driver') === 'brevo' && ! array_key_exists('BREVO_API_KEY', EmailSetup::problems($config)) ? $brevo() : new NoNewsletterList;
+        }
+
+        return match ($config->get('ops.newsletter.driver')) {
+            'brevo' => $brevo(),
+            'log' => $app->make(LogNewsletterList::class),
+            default => throw new InvalidArgumentException('OPS_NEWSLETTER_DRIVER names no newsletter driver Ops has: "brevo" or "log".'),
+        };
     }
 
     /**

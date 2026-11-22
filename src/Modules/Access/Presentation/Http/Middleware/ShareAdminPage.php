@@ -64,7 +64,7 @@ final readonly class ShareAdminPage
             'menu' => fn (): array => $this->menuFor($locale),
             // Only for staff: a sign-in page draws none, and asks for none.
             'banners' => fn (): array => $this->actors->current()->type === ActorType::Staff ? array_map(static fn (AdminBannerDto $banner): array => [
-                'label' => $banner->label, 'text' => $banner->text, 'everywhere' => $banner->everywhere, 'linkText' => $banner->linkText, 'href' => $banner->href,
+                'label' => $banner->label, 'text' => $banner->text, 'everywhere' => $banner->everywhere, 'linkText' => $banner->linkText, 'href' => $banner->href, 'error' => $banner->error,
             ], $this->banners->forCurrentActor($locale, fn (): array => $this->stores->forCurrentStaff())) : [],
             // What modules put in the frame (ops.md §4.15 O1), by module: only for staff, as the banners.
             // "panelFrame", not "frame": the shop's has another shape.

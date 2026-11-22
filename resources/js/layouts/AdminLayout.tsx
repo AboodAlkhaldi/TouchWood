@@ -192,7 +192,7 @@ export function AdminLayout({ title, subtitle, action, breadcrumbs, phoneTrail =
                         {shownBanners.length > 0 ? (
                             <div className="mb-4 grid gap-2 print:hidden" data-test="admin-banners">
                                 {shownBanners.map((banner) => (
-                                    <Note key={banner.text} variant="warning" label={banner.label} data-test="admin-banner">
+                                    <Note key={banner.text} variant={banner.error ? 'error' : 'warning'} label={banner.label} data-test="admin-banner">
                                         {banner.text}
                                         {banner.href === null ? null : (
                                             <>

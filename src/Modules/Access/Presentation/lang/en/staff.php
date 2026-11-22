@@ -163,7 +163,7 @@ return [
 
     // The authenticator app, reset by a Super Admin (amendment 91).
     'reset_authenticator' => 'Reset Authenticator App',
-    'reset_authenticator_body' => 'Their authenticator app and recovery codes stop working. Next time they sign in with an SMS code, then set up a new app if the app is their method.',
+    'reset_authenticator_body' => 'Their authenticator app and recovery codes stop working. Next time they sign in with a WhatsApp code, then set up a new app if the app is their method.',
     'keep_authenticator' => 'Keep App',
     'authenticator_reset' => 'Authenticator app reset.',
 ];

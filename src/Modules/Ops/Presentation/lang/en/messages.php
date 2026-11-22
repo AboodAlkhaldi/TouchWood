@@ -368,8 +368,8 @@ return [
         'line' => 'If this repeats, check the email settings and the log.',
     ],
     'security_sms_failed' => [
-        'title' => 'A security SMS could not be sent',
-        'line' => 'If this repeats, check the SMS settings and the log.',
+        'title' => 'A security code could not be sent by WhatsApp',
+        'line' => 'If this repeats, check the WhatsApp settings and the log.',
     ],
     // S10c, the bell alone (ops.md §1.6; owner, Content round 3 #20): Brevo refused a queued email for everybody, a key, the
     // credit, the sender or any other refusal in its JSON, so the log gives the reason. It names no one and nothing of the

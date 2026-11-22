@@ -64,6 +64,10 @@ enum MessageKind: string
     case StaffMessage = 'staff_message';
     case NewsletterConfirmation = 'newsletter_confirmation';
 
+    // The WhatsApp number's reply to a person who writes to it (§9.8 point 5): a free-form text, no bell, no wording
+    // under ops::messages - its words are ops::security.auto_reply's.
+    case AutoReply = 'auto_reply';
+
     /** The row of the spec it is (ops.md §1.5, §1.6). */
     public function code(): string
     {
@@ -107,6 +111,7 @@ enum MessageKind: string
             self::OfferNotice => '§1.7',
             self::StaffMessage => '§1.8',
             self::NewsletterConfirmation => '§1.9',
+            self::AutoReply => '§9.8',
         };
     }
 
@@ -119,10 +124,11 @@ enum MessageKind: string
     /**
      * The channels the spec fixes for it.
      *
-     * - C18: codes by SMS, links by email, **no bell entry** (§1.5).
-     * - S5: the critical SMS goes **only at 1 day** before the key expires, to super admins who left
+     * - C18: codes by WhatsApp, links by email, **no bell entry** (§1.5; §9.8). `Sms` stays in the list for rows
+     *   written before WhatsApp replaced it; new ones are `Whatsapp`.
+     * - S5: the critical WhatsApp goes **only at 1 day** before the key expires, to super admins who left
      *   their switch on (§1.6; access.md amendment 81) - the 30- and 7-day alerts are bell and email.
-     * - S5b: the critical SMS to super admins (§9.3 #12).
+     * - S5b: the critical WhatsApp to super admins (§9.3 #12; §9.8 point 9).
      * - The newsletter's confirmation: an email to a guest, who has no bell (§1.9).
      * - S10, S10b: the bell alone. A failure of one channel never sends a message about itself, and the
      *   critical SMS is the gateway key's (owner, 2026-11-01).
@@ -133,10 +139,11 @@ enum MessageKind: string
     public function channels(): array
     {
         return match ($this) {
-            self::Security => [MessageChannel::Email, MessageChannel::Sms],
+            self::Security => [MessageChannel::Email, MessageChannel::Sms, MessageChannel::Whatsapp],
             self::NewsletterConfirmation => [MessageChannel::Email],
+            self::AutoReply => [MessageChannel::Whatsapp],
             self::SecurityEmailFailed, self::SecuritySmsFailed, self::QueuedEmailRefused => [MessageChannel::Bell],
-            self::GatewayKeyExpiring, self::GatewayKeyRejected => [MessageChannel::Bell, MessageChannel::Email, MessageChannel::Sms],
+            self::GatewayKeyExpiring, self::GatewayKeyRejected => [MessageChannel::Bell, MessageChannel::Email, MessageChannel::Sms, MessageChannel::Whatsapp],
             default => [MessageChannel::Bell, MessageChannel::Email],
         };
     }

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-// C18, the security messages (ops.md §1.5 C18; access.md §2.3): codes by SMS, links by email, in the
+// C18, the security messages (ops.md §1.5 C18; access.md §2.3): codes by WhatsApp, links by email, in the
 // person's language - the wording Access approved, moved here unchanged when Ops bound its own sender.
 // Not a bell's words: these are never shown on a screen.
 return [
@@ -42,7 +42,7 @@ return [
         'action' => 'Confirm this email',
     ],
     // Written 2026-10-30 (amendment 90), approved for now (owner, 2026-10-31; full review at the end): sent when a Super Admin with no
-    // phone SMS reaches sets a new number at sign-in. It names no number.
+    // phone a code reaches sets a new number at sign-in. It names no number.
     'staff_phone_changed' => [
         'subject' => 'Your phone number was changed',
         'lines' => [
@@ -105,4 +105,13 @@ return [
     'company_store' => 'This is about your company in our :store store.',
     'phone_code' => 'Your verification code is :code. Do not share it with anyone.',
     'sign_in_code' => 'Your admin panel sign-in code is :code. If you did not try to sign in, change your password now.',
+    // The WhatsApp number's reply to a person who writes to it (ops.md §9.8 point 5, W5; approved by the owner 2026-11-15).
+    // :link is the main number's wa.me link.
+    'auto_reply' => 'This number only sends verification codes and can\'t read replies. To reach us, message our main number: :link',
+    // The red notice over the panel while WhatsApp is not set up (ops.md §9.8 W3). Written with the build; the owner's wording review is owed.
+    'not_set_up_label' => 'WhatsApp Setup',
+    'not_set_up' => 'WhatsApp is not set up: no codes can be sent.',
+    // The same notice for email on a production server whose email is not set up (owner, 2026-11-22; ops.md §7). Super Admins only.
+    'email_not_set_up_label' => 'Email Setup',
+    'email_not_set_up' => 'Email is not set up: no emails can be sent.',
 ];

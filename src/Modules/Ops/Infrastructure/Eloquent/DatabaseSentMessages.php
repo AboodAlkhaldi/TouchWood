@@ -51,6 +51,17 @@ final readonly class DatabaseSentMessages implements SentMessages
             ->update(['status' => SendStatus::Failed->value]);
     }
 
+    public function markFailedByProviderId(string $providerId): bool
+    {
+        return $this->db->table('ops.sent_messages')->where('provider_id', $providerId)->where('status', SendStatus::Sent->value)
+            ->update(['status' => SendStatus::Failed->value]) > 0;
+    }
+
+    public function hasProviderId(string $providerId): bool
+    {
+        return $this->db->table('ops.sent_messages')->where('provider_id', $providerId)->exists();
+    }
+
     public function forget(string $id): void
     {
         // FAILED too: a job retried from the failed jobs screen that finds nothing left to send.

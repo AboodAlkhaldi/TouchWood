@@ -21,6 +21,18 @@ interface SentMessages
     /** A QUEUED message the queue gave up on: FAILED (§7). A SENT one stays as it is. */
     public function markFailed(string $id): void;
 
+    /**
+     * A message Meta took and later reported **failed** (ops.md §9.8 point 3), found by the id Meta gave: SENT to
+     * FAILED, and only from SENT - a status that comes twice, or for a row already failed, changes nothing. A
+     * delivered or read status never reaches here: it changes nothing.
+     *
+     * @return bool whether a row turned
+     */
+    public function markFailedByProviderId(string $providerId): bool;
+
+    /** Whether any row holds Meta's id: a status that matches none may have beaten the row's own SENT (review L5). */
+    public function hasProviderId(string $providerId): bool;
+
     /** A QUEUED message there was nothing left to send for: its row goes - only sends are recorded. */
     public function forget(string $id): void;
 }

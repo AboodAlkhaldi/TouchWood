@@ -5,12 +5,18 @@ declare(strict_types=1);
 namespace Modules\Ops\Infrastructure\Messages;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Translation\Translator;
+use Illuminate\Contracts\View\Factory as Views;
 use Illuminate\Database\Connection;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Str;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Enums\StaffNotificationTopic;
+use Modules\Ops\Application\Messages\EmailSender;
+use Modules\Ops\Application\Messages\FailureKind;
+use Modules\Ops\Application\Messages\OutgoingEmail;
+use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Domain\Model\InboxEntry;
 use Modules\Ops\Domain\Repository\Inbox;
@@ -22,10 +28,10 @@ use Modules\Platform\Public\Dto\StoreDto;
 use Throwable;
 
 /**
- * S10 and S10b (ops.md §1.6; owner, 2026-11-01): a security email or SMS could not be sent, so every active
- * Super Admin gets a bell entry. A broken setup would otherwise show only in the log and in a FAILED row. The
- * bell alone: a failure never sends a message about itself. The words announce no outage: one failure may be
- * one bad address.
+ * S10 and S10b (ops.md §1.6; owner, 2026-11-01): a security email or a code by WhatsApp could not be sent, so every
+ * active Super Admin gets a bell entry. A broken setup would otherwise show only in the log and in a FAILED row. The
+ * bell alone for an email: a failure never sends a message about itself. For WhatsApp, **and email too** (§9.8 W3):
+ * WhatsApp is what is down, not email. The words announce no outage: one failure may be one bad address.
  *
  * **At most once an hour, per channel.** One claim per clock hour and kind in `ops.handled_events`, taken in
  * the same transaction as the entries: one failure of a burst writes them, and the others find the hour taken,
@@ -56,11 +62,25 @@ final readonly class SecurityFailureAlert
         private PlatformApi $platform,
         private Inbox $inbox,
         private Translator $translator,
+        private EmailSender $emails,
+        private Views $views,
+        private Config $config,
     ) {}
 
-    public function failed(MessageChannel $channel, ?StoreDto $store): void
+    /**
+     * A security message could not be sent. **One number's lack of WhatsApp is no alert** (ops.md §9.8 point 3):
+     * Meta refused that person alone, `$why` says so, and the person waiting uses Resend. A setup failure - a missing
+     * setting, a token, a template - tells the Super Admins, and so does anything else that broke on the way.
+     */
+    public function failed(MessageChannel $channel, ?StoreDto $store, ?Throwable $why = null): void
     {
-        $this->raise($channel === MessageChannel::Sms ? MessageKind::SecuritySmsFailed : MessageKind::SecurityEmailFailed, $store);
+        $byPhone = in_array($channel, [MessageChannel::Sms, MessageChannel::Whatsapp], true);
+
+        if ($byPhone && $why instanceof ProviderFailed && $why->kind === FailureKind::OneAddress) {
+            return;
+        }
+
+        $this->raise($byPhone ? MessageKind::SecuritySmsFailed : MessageKind::SecurityEmailFailed, $store);
     }
 
     /**
@@ -90,10 +110,14 @@ final readonly class SecurityFailureAlert
     {
         $now = CarbonImmutable::now();
 
+        $told = [];
+
         try {
-            $this->db->transaction(function () use ($kind, $store, $now): void {
+            $this->db->transaction(function () use ($kind, $store, $now, &$told): void {
                 $this->db->statement("SET LOCAL lock_timeout = '".self::WAIT."'");
-                $this->handled->once(self::onceId($kind, $now), self::class, fn () => $this->tell($kind, $store, $now));
+                $this->handled->once(self::onceId($kind, $now), self::class, function () use ($kind, $store, $now, &$told): void {
+                    $told = $this->tell($kind, $store, $now);
+                });
             });
         } catch (QueryException $failed) {
             // 55P03: another request holds the hour's claim and is telling them. Any other wait is a failure.
@@ -101,19 +125,32 @@ final readonly class SecurityFailureAlert
                 throw $failed;
             }
         }
+
+        // W3: WhatsApp is what is down, so the email is not (the bell alone for every other failure). Sent after the
+        // claim has committed, never inside it: a mail provider's wait must not hold the hour's lock.
+        if ($kind === MessageKind::SecuritySmsFailed) {
+            $this->email($told);
+        }
     }
 
-    private function tell(MessageKind $kind, ?StoreDto $store, CarbonImmutable $now): void
+    /**
+     * The Super Admins told, by their bell.
+     *
+     * @return list<string> their staff ids, for the email
+     */
+    private function tell(MessageKind $kind, ?StoreDto $store, CarbonImmutable $now): array
     {
         $store ??= $this->platform->allStores()[0] ?? null;
 
         if ($store === null) {
-            return;
+            return [];
         }
 
+        $told = [];
         $word = fn (string $key, string $locale): string => (string) $this->translator->get("ops::messages.{$kind->value}.{$key}", [], $locale);
 
         foreach ($this->access->staffToAlert($store->storeId(), StaffNotificationTopic::NewOrders, OpsPermissions::SMS_COUNTRIES_MANAGE) as $staff) {
+            $told[] = $staff->staffId;
             $this->inbox->add(InboxEntry::forStaff(
                 strtolower((string) Str::ulid()),
                 $staff->staffId,
@@ -126,6 +163,53 @@ final readonly class SecurityFailureAlert
                 null,
                 $now->toDateTimeImmutable(),
             ));
+        }
+
+        return $told;
+    }
+
+    /**
+     * The same words by email to each Super Admin told, in their own language (§9.8 W3). One that cannot be sent
+     * is reported and the others still go; it never reaches the person whose request failed.
+     *
+     * @param  list<string>  $staffIds
+     */
+    private function email(array $staffIds): void
+    {
+        $root = $this->config->get('app.url');
+
+        foreach ($staffIds as $id) {
+            try {
+                $staff = $this->access->staff($id);
+
+                if ($staff === null) {
+                    continue;
+                }
+
+                $word = fn (string $key): string => (string) $this->translator->get("ops::messages.security_sms_failed.{$key}", [], $staff->locale);
+                $lines = [$word('line')];
+                $brand = (string) $this->config->get('mail.from.name');
+
+                $this->emails->send(new OutgoingEmail(
+                    (string) $this->config->get('mail.from.address'),
+                    $brand,
+                    $staff->email,
+                    trim($staff->firstName.' '.$staff->lastName),
+                    $word('title'),
+                    $this->views->make('ops::mail.security', [
+                        'lines' => $lines,
+                        'action' => null,
+                        'link' => null,
+                        'locale' => $staff->locale,
+                        'brand' => $brand,
+                        'logo' => (is_string($root) ? rtrim($root, '/') : '').'/'.OpsSecurityMessages::LOGO,
+                        'direction' => $staff->locale === 'ar' ? 'rtl' : 'ltr',
+                    ])->render(),
+                    implode("\n\n", $lines),
+                ));
+            } catch (Throwable $failed) {
+                report($failed);
+            }
         }
     }
 

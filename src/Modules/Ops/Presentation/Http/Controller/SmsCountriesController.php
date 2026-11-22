@@ -26,6 +26,7 @@ use Modules\Ops\Domain\Exception\CallingCodeOverlaps;
 use Modules\Ops\Domain\Exception\CallingCodeTaken;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
 use Modules\Ops\Domain\Exception\SmsCountryTaken;
+use Modules\Ops\Infrastructure\Messages\WhatsAppBanner;
 use Modules\Ops\Presentation\Http\Resource\SmsCountriesData;
 use Modules\Ops\Presentation\Http\Resource\SmsCountriesPageData;
 use Modules\Ops\Presentation\Http\Resource\SmsCountryData;
@@ -91,12 +92,14 @@ final readonly class SmsCountriesController
     {
         if (! Answers::fromPage($request)) {
             $change();
+            self::forgetBanner();
 
             return self::countries($list, $status);
         }
 
         try {
             $change();
+            self::forgetBanner();
         } catch (DomainError $error) {
             $field = match (true) {
                 $error instanceof InvalidOpsInput => $error->attribute,
@@ -111,6 +114,12 @@ final readonly class SmsCountriesController
         }
 
         return back()->with('status', __("ops::admin_sms.toast.{$toast}"));
+    }
+
+    /** The red WhatsApp notice remembers the list for a minute; a change on it shows at once (ops.md §9.8 W3). */
+    private static function forgetBanner(): void
+    {
+        app(WhatsAppBanner::class)->forget();
     }
 
     private static function countries(ListSmsCountriesHandler $list, int $status = 200): JsonResponse

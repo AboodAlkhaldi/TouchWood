@@ -11,7 +11,7 @@ use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use function Pest\Laravel\seed;
 
 /*
-| O10, SMS Countries in a real browser (ops.md §4.15): a Super Admin adds a country through the dialog, changes its
+| O10, Code Countries in a real browser (ops.md §4.15): a Super Admin adds a country through the dialog, changes its
 | calling code, removes it after reading who it affects, and the page fits a phone. The suite's database is not
 | reset between runs: the country is gone at the end.
 */
@@ -41,7 +41,7 @@ it('adds a country, changes its calling code, removes it, and fits a phone', fun
 
         expect(signedInToPanel($page))->toBeTrue();
         $page->navigate('/admin/sms-countries');
-        $page->assertVisible('[data-test="log-note"]')->assertVisible('[data-test="country-SA"]')->assertSee('SMS Countries')->assertNoJavaScriptErrors();
+        $page->assertVisible('[data-test="log-note"]')->assertVisible('[data-test="country-SA"]')->assertSee('Code Countries')->assertNoJavaScriptErrors();
         $page->assertSeeIn('[data-test="log-note"]', 'Log writes codes to the server');
 
         // Add Country: a listed country is out of reach; a calling code that isn't one holds the button back, and
@@ -114,7 +114,7 @@ it('adds a country, changes its calling code, removes it, and fits a phone', fun
             ->and(DB::table('ops.sms_countries')->where('country_code', 'AE')->exists())->toBeFalse();
 
         // And in Arabic: right to left, its calling codes still left to right in Latin digits, and it fits a phone.
-        $page->click('[data-test="language"]')->assertSee('دول الرسائل النصية');
+        $page->click('[data-test="language"]')->assertSee('دول رموز التحقق');
         expect($page->script('document.documentElement.dir'))->toBe('rtl')
             ->and($page->script("document.querySelector('[data-test=\"country-SA\"] [data-test=\"calling-code\"]').textContent"))->toBe('+966');
         $page->resize(375, 812);

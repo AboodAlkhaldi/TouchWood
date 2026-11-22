@@ -94,7 +94,7 @@ final class ProviderFailureRules
                 return null;
             }
 
-            if (in_array($failed->kind, [FailureKind::OneAddress, FailureKind::WaitsForPerson, FailureKind::RateLimited], true)) {
+            if (in_array($failed->kind, [FailureKind::OneAddress, FailureKind::NotSetUp, FailureKind::WaitsForPerson, FailureKind::RateLimited], true)) {
                 $job->fail($failed);
             }
 

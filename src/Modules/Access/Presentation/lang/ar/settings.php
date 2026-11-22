@@ -30,7 +30,7 @@ return [
     'staff.password_reset_hourly_limit' => 'رسائل إعادة التعيين في الساعة',
 
     // How staff sign in: Super Admins only, at least one on (amendment 91).
-    'staff.sign_in_by_sms' => 'دخول الموظفين برمز SMS',
+    'staff.sign_in_by_sms' => 'دخول الموظفين برمز واتساب',
     'staff.sign_in_by_authenticator' => 'دخول الموظفين بتطبيق المصادقة',
 
     // العملاء: خاصة بكل متجر.

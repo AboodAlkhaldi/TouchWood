@@ -21,7 +21,7 @@ use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use function Pest\Laravel\seed;
 
 /*
-| O10, the SMS Countries page (ops.md §4.15): a plain visit gets the page and JSON stays for whoever asks; a form
+| O10, the Code Countries page (SMS Countries until ops.md §9.8) (ops.md §4.15): a plain visit gets the page and JSON stays for whoever asks; a form
 | the page sends goes back with its words, each refusal on its box. SmsCountryRoutesTest keeps the JSON answers.
 |
 | Every helper here is named after this file's subject: a Pest file's functions are global.
@@ -77,7 +77,7 @@ it('gives a plain visit the page, with the list, the providers and every country
     $browser->get('/admin/sms-countries')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         ->component('Ops/Admin/SmsCountries')
         ->has('countries', 2)
-        ->where('providers', ['log'])
+        ->where('providers', ['whatsapp', 'log'])
         ->where('options', fn (Collection $options): bool => $options->count() === count(IsoCountries::codes()))
         ->where('translations', fn (Collection $words): bool => $words->has('ops::admin_sms.title') && $words->has('ops::errors.calling_code_taken.detail') && $words->has('admin.sidebar_toggle')));
 
@@ -117,7 +117,7 @@ it('puts each refusal on its box, in words, and changes nothing', function () {
     $browser = smsScreenStaff(Fx::staff(superAdmin: true));
     $add = static fn (array $fields): array => smsScreenErrors($browser->post('/admin/sms-countries', $fields, smsScreenInertia())->assertRedirect('/admin/sms-countries'));
 
-    expect($add(['country_code' => 'SA', 'calling_code' => '977', 'provider' => 'log'])['country_code'][0] ?? '')->toContain('already on the SMS countries')
+    expect($add(['country_code' => 'SA', 'calling_code' => '977', 'provider' => 'log'])['country_code'][0] ?? '')->toContain('already on the Code Countries')
         ->and($add(['country_code' => 'AE', 'calling_code' => '966', 'provider' => 'log'])['calling_code'][0] ?? '')->toContain('already the code of')
         ->and($add(['country_code' => 'AE', 'calling_code' => '96', 'provider' => 'log'])['calling_code'][0] ?? '')->toContain('overlaps')
         ->and($add(['country_code' => 'AE', 'calling_code' => '971', 'provider' => 'none'])['provider'][0] ?? '')->toContain('provider');

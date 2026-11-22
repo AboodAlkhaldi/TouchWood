@@ -8,6 +8,6 @@ return [
     'notices' => 'Offer Notices',
     'messages' => 'Customer Messages',
     'subscribers' => 'Subscribers',
-    'sms_countries' => 'SMS Countries',
+    'sms_countries' => 'Code Countries',
     'daily_reports' => 'Daily Reports',
 ];

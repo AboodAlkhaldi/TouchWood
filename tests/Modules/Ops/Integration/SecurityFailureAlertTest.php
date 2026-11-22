@@ -177,11 +177,11 @@ it('says one could not be sent and what to check if it repeats, in both language
         'تعذّر إرسال رسالة أمان بالبريد الإلكتروني',
         'إذا تكرر هذا، فراجع إعدادات البريد الإلكتروني والسجل.',
     ]],
-    'an SMS' => [securityAlertFailSms(...), 'security_sms_failed', [
-        'A security SMS could not be sent',
-        'If this repeats, check the SMS settings and the log.',
-        'تعذّر إرسال رسالة أمان نصية',
-        'إذا تكرر هذا، فراجع إعدادات الرسائل النصية والسجل.',
+    'a WhatsApp code' => [securityAlertFailSms(...), 'security_sms_failed', [
+        'A security code could not be sent by WhatsApp',
+        'If this repeats, check the WhatsApp settings and the log.',
+        'تعذّر إرسال رمز أمان عبر واتساب',
+        'إذا تكرر هذا، فراجع إعدادات واتساب والسجل.',
     ]],
 ]);
 
@@ -274,20 +274,27 @@ it('writes nothing when the email goes out', function () {
     expect(securityAlertEntries())->toBe([]);
 });
 
-describe('a failed SMS', function () {
-    it('gives each Super Admin one bell entry for a burst, and sends no SMS or email about itself', function () {
+describe('a failed code by WhatsApp', function () {
+    it('gives each Super Admin one bell entry and one email for a burst, in their language, and sends nothing by WhatsApp about itself (W3)', function () {
         $super = Fx::staff(superAdmin: true);
         Fx::staffWith(['ops.notice.manage'], ['sa'], RoleLevel::Admin);
+        // WhatsApp is what is down, not email: the alert's email goes.
+        CapturedEmails::installed()->fails = false;
 
         for ($i = 0; $i < 5; $i++) {
             securityAlertFailSms();
         }
 
+        $emails = CapturedEmails::installed()->sent;
+
         expect(securityAlertOwners('security_sms_failed'))->toBe([$super])
             ->and(securityAlertEntries())->toBe([])
             ->and(securityAlertSms()->sent)->toBe([])
-            ->and(CapturedEmails::installed()->sent)->toBe([])
-            ->and(DB::table('ops.sent_messages')->where('kind', 'security')->where('channel', 'SMS')->where('status', 'FAILED')->count())->toBe(5)
+            ->and($emails)->toHaveCount(1)
+            ->and($emails[0]->toEmail)->toBe((string) DB::table('access.staff_users')->where('id', $super)->value('email'))
+            ->and($emails[0]->subject)->toBe('A security code could not be sent by WhatsApp')
+            ->and($emails[0]->text)->not->toContain('482913')
+            ->and(DB::table('ops.sent_messages')->where('kind', 'security')->where('channel', 'WHATSAPP')->where('status', 'FAILED')->count())->toBe(5)
             ->and(DB::table('ops.sent_messages')->count())->toBe(5);
         Queue::assertNothingPushed();
     });

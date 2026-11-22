@@ -38,7 +38,9 @@ final readonly class CompanyMessages
                 return;
             }
 
-            $send($this->messages, $customer);
+            // The decision has committed: an email that cannot go (a provider away, email not set up - ops.md §7) is
+            // reported to the log and never answers the admin with an error.
+            rescue(fn () => $send($this->messages, $customer));
         });
     }
 }

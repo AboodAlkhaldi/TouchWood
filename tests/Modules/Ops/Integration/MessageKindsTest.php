@@ -19,17 +19,19 @@ it('lists every row of §1.5 and §1.6, once', function () {
     expect($codes)->toBe([
         'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C6b', 'C7', 'C8', 'C8', 'C8b', 'C9', 'C9b', 'C10', 'C11', 'C12', 'C13', 'C14', 'C15', 'C16', 'C17', 'C17b', 'C18',
         'S1', 'S2', 'S3', 'S4', 'S5', 'S5b', 'S6', 'S7', 'S7b', 'S8', 'S9', 'S10', 'S10b', 'S10c',
-        '§1.7', '§1.8', '§1.9',
+        '§1.7', '§1.8', '§1.9', '§9.8',
     ]);
 });
 
 it('fixes each kind\'s channels as the spec does', function () {
     foreach (MessageKind::cases() as $kind) {
         $expected = match ($kind) {
-            // Codes by SMS, links by email, no bell entry (§1.5 C18).
-            MessageKind::Security => [MessageChannel::Email, MessageChannel::Sms],
-            // The critical SMS to super admins (§1.6; §9.3 #12).
-            MessageKind::GatewayKeyExpiring, MessageKind::GatewayKeyRejected => [MessageChannel::Bell, MessageChannel::Email, MessageChannel::Sms],
+            // Codes by WhatsApp, links by email, no bell entry (§1.5 C18; §9.8). SMS stays for the rows written before it.
+            MessageKind::Security => [MessageChannel::Email, MessageChannel::Sms, MessageChannel::Whatsapp],
+            // The critical WhatsApp to super admins (§1.6; §9.3 #12; §9.8 point 9).
+            MessageKind::GatewayKeyExpiring, MessageKind::GatewayKeyRejected => [MessageChannel::Bell, MessageChannel::Email, MessageChannel::Sms, MessageChannel::Whatsapp],
+            // The WhatsApp number's reply to a person who writes to it (§9.8 point 5): no bell, no email.
+            MessageKind::AutoReply => [MessageChannel::Whatsapp],
             // A guest's confirmation: no bell (§1.9).
             MessageKind::NewsletterConfirmation => [MessageChannel::Email],
             // A failure never sends a message about itself, and the critical SMS is the gateway key's (§1.6 S10, S10b);
@@ -47,7 +49,8 @@ it('words every kind in Arabic and English, with the same placeholders in both',
     $other = $locale === 'ar' ? 'en' : 'ar';
 
     foreach (MessageKind::cases() as $kind) {
-        if ($kind === MessageKind::Security) {
+        // Words elsewhere: C18's at ops::security, the auto-reply's at ops::security.auto_reply (checked in WhatsAppTest).
+        if ($kind === MessageKind::Security || $kind === MessageKind::AutoReply) {
             continue;
         }
 

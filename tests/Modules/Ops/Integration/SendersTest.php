@@ -2,18 +2,22 @@
 
 declare(strict_types=1);
 
+use Illuminate\Contracts\Translation\Translator;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Modules\Ops\Application\Messages\CodePurpose;
 use Modules\Ops\Application\Messages\EmailAttachment;
 use Modules\Ops\Application\Messages\EmailSender;
 use Modules\Ops\Application\Messages\OutgoingEmail;
 use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Application\Messages\SmsSenders;
+use Modules\Ops\Application\Messages\WhatsAppAlert;
 use Modules\Ops\Infrastructure\External\BrevoEmailSender;
 use Modules\Ops\Infrastructure\External\LogEmailSender;
 use Modules\Ops\Infrastructure\External\LogSmsSender;
+use Modules\Ops\Infrastructure\External\NotSetUpEmailSender;
 use Monolog\Handler\TestHandler;
 use Monolog\Logger;
 use Monolog\LogRecord;
@@ -44,13 +48,21 @@ it('uses the log drivers by default, and writes what would be sent to the log', 
     $logger = new Logger('ops', [$handler]);
 
     expect((new LogEmailSender($logger))->send(sendersEmail()))->toBeNull()
-        ->and((new LogSmsSender($logger))->send('+966500000000', 'TouchWood: the payment key expires.'))->toBeNull();
+        ->and((new LogSmsSender($logger, app(Translator::class)))->sendAlert('+966500000000', 'en', WhatsAppAlert::KeyExpiring, 'TouchWood: the payment key expires.'))->toBeNull();
+
+    $records = array_map(static fn (LogRecord $record): array => [$record->message, $record->context], $handler->getRecords());
+
+    // A code is written in the words it had as an SMS, by its purpose and language (ops.md §9.8 point 1).
+    expect((new LogSmsSender($logger, app(Translator::class)))->sendCode('+966500000000', 'en', CodePurpose::PhoneCheck, '482913'))->toBeNull()
+        ->and((new LogSmsSender($logger, app(Translator::class)))->sendCode('+966500000000', 'ar', CodePurpose::SignIn, '482913'))->toBeNull();
 
     $records = array_map(static fn (LogRecord $record): array => [$record->message, $record->context], $handler->getRecords());
 
     expect($records)->toBe([
         ['Email (log driver)', ['from' => 'shop@touchwood.test', 'to' => 'sara@example.test', 'subject' => 'Your order SA-0001 is approved', 'text' => 'Hello Sara,']],
         ['SMS (log driver)', ['to' => '+966500000000', 'message' => 'TouchWood: the payment key expires.']],
+        ['SMS (log driver)', ['to' => '+966500000000', 'message' => 'Your verification code is 482913. Do not share it with anyone.']],
+        ['SMS (log driver)', ['to' => '+966500000000', 'message' => trans('ops::security.sign_in_code', ['code' => '482913'], 'ar')]],
     ]);
 });
 
@@ -70,7 +82,8 @@ it('refuses a driver it does not have, and the log drivers on a live system', fu
     app()->detectEnvironment(fn (): string => 'production');
 
     try {
-        expect(fn () => app(EmailSender::class))->toThrow(InvalidArgumentException::class, 'never runs in production')
+        // Email on `log` is not written to the log in production: it is the sender that sends nothing (ops.md §9.9).
+        expect(app(EmailSender::class))->toBeInstanceOf(NotSetUpEmailSender::class)
             ->and(fn () => app(SmsSenders::class)->named('log'))->toThrow(ProviderFailed::class, 'never runs in production');
     } finally {
         app()->detectEnvironment(fn (): string => 'testing');

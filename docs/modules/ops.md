@@ -19,12 +19,12 @@ to Brevo, and produces the reports, the daily report among them.
 
 Four rules of the owner's (2026-10-28) shape everything below:
 
-- **SMS is for codes, and the gateway key's critical alerts.** Sign-in and phone-verification codes, and
-  the gateway key expiring in 1 day or refused, to super admins (§1.6) — nothing else goes by SMS. Every other message is the bell and email.
+- **WhatsApp is for codes, and the gateway key's critical alerts** (§9.8; it replaced SMS, which is never built). Sign-in and phone-verification codes, and
+  the gateway key expiring in 1 day or refused, to super admins (§1.6) — nothing else goes by WhatsApp. Every other message is the bell and email.
 - **Marketing reaches only those who agreed.** Service messages (orders, codes, points) always go;
   offers and newsletters go by email only to a customer who ticked the consent box (§1.3).
-- **Providers are adapters.** Email is **Brevo**; the SMS provider is not chosen (the owner is checking
-  Mobily). Either is replaced by changing one binding.
+- **Providers are adapters.** Email is **Brevo**; codes and the critical alerts are **WhatsApp**, direct with Meta's Cloud API (§9.8).
+  Either is replaced by changing one binding.
 - **Revenue is the total without VAT, and nothing else.** There is no cost, no profit, no margin
   (handoff §13.3). A cancelled, rejected or undelivered (came back) order never counts (sales.md:211).
 
@@ -53,7 +53,7 @@ language (the person's `locale`, access.md §1.2 and §1.4), and the **channels*
 |---|---|---|
 | **Bell** | Customers (the shop) and staff (the panel) | An entry in the person's inbox (§1.2) |
 | **Email** | Customers and staff | Through the email adapter — Brevo |
-| **SMS** | Codes to anyone; the gateway key's critical alerts to super admins (§1.6) | Through the SMS adapter. No provider is chosen yet; `log`, the only one built, is for development and tests and is refused in production (§2.2) |
+| **WhatsApp** (channel `WHATSAPP`; `SMS` only on rows written before it) | Codes to anyone; the gateway key's critical alerts to super admins (§1.6) | Through the `CodeSender` adapter of the phone's country (§9.8): Meta's authentication template for a code, two utility templates for the alerts. `log`, for development and tests, is refused in production (§2.2) |
 
 The channels of each kind are **fixed in this spec** (§1.5, §1.6) — not switchable per store (owner,
 round 1 #3). A staff member's own switches (Access) still choose bell and email per topic.
@@ -118,7 +118,7 @@ Access gives this as **one bulk read** (§2.3, Access).
 
 ### 1.5 Messages to customers
 
-Channels: **bell and email** for every row except C18 (SMS never, owner round 2 #4). "New event" means the module
+Channels: **bell and email** for every row except C18 (WhatsApp never, owner round 2 #4, as SMS was). "New event" means the module
 must publish it (§2.3).
 
 | # | Kind | When | Event | Notes |
@@ -144,7 +144,7 @@ must publish it (§2.3).
 | C16 | Question answered | Staff answer a waiting question (a corrected answer sends nothing) | `QuestionAnswered` (feedback.md §2.5, #252) | Read through `FeedbackApi::questionForMessage`; **sent only if the question is still answered** — events are kept in order per order only |
 | C17 | Review not published | Staff reject a review, or take an approved one down, **with a reason** | `ReviewNotPublished` (#252) | **No reason, no message** (feedback.md:75); read through `reviewForMessage`, sent only if it is still not published |
 | C17b | Question not published | Staff reject a question, or take an answered one down, **with a reason** | `QuestionNotPublished` (#252) | Added by the owner, 2026-10-28 (feedback.md §1.3). **No reason, no message**; sent only if it is still not published |
-| C18 | Security messages | Codes, links, B2B decisions | Access's `SecurityMessages` (access.md §2.3) | **Ops binds its own implementation** and the temporary one is deleted (round 1 #26). Codes by SMS; links by email. **No bell entry.** **Sent at once, never queued** — a code or link never reaches a job payload, an event or a record (access.md §2.3); a provider failure is reported to the caller, who already offers "send again"; **one that fails also tells the Super Admins (S10, S10b, §1.6)**. Branded with the store when the request has one, otherwise TouchWood's own (owner, 2026-10-28) |
+| C18 | Security messages | Codes, links, B2B decisions | Access's `SecurityMessages` (access.md §2.3) | **Ops binds its own implementation** and the temporary one is deleted (round 1 #26). Codes by WhatsApp (§9.8); links by email. **No bell entry.** **Sent at once, never queued** — a code or link never reaches a job payload, an event or a record (access.md §2.3); a provider failure is reported to the caller, who already offers "send again"; **one that fails also tells the Super Admins (S10, S10b, §1.6)**. Branded with the store when the request has one, otherwise TouchWood's own (owner, 2026-10-28) |
 
 The B2B decisions (approved, rejected, suspended) stay in `SecurityMessages`; Ops does **not** also
 listen to `CompanyStatusChanged` for them, so nothing is sent twice.
@@ -153,7 +153,7 @@ listen to `CompanyStatusChanged` for them, so nothing is sent twice.
 (2026-11-01)**. Each listener is queued and runs once
 per `eventId` (`ops.handled_events`); it makes the bell entry in the event's store (both languages, the link
 to the customer's page in their own) and queues one email in their language; the email job writes the words
-again from the module's read when it leaves. Each email (and SMS) has its `ops.sent_messages` row written
+again from the module's read when it leaves. Each email (and WhatsApp alert) has its `ops.sent_messages` row written
 QUEUED, and its job written, with the listener's work, in one transaction (`beforeCommit`, 2026-11-01); the job calls the provider outside any transaction, then marks the row SENT
 (FAILED after the queue's last attempt); a retry finds a SENT row and sends nothing - **at least once**: a
 provider that took a message just before its row could be marked may get it again (review, 2026-10-31). A
@@ -212,11 +212,11 @@ decides, on `OrderMessageDto` and `MoneyRecordMessageDto`. The other messages ab
 | S9 | **Returns** (a **new** Access topic) | A customer asks for a return | **new** `ReturnRequested(eventId, returnId, orderId, storeId, customerId, occurredAt)` | `sales.return.manage` | — (bell opens the return; it stays under Waiting in the panel's Returns) |
 | S8 | Campaign expiry | A campaign is about to end, when Content's spec says | `CampaignExpiring(eventId, campaignId, storeId, endsAt, occurredAt)` | **Content's, when it has one.** Until then `ops.message.send_many`, admin-only: Super Admins and the store's admins who hold it (2026-11-03, for the owner to confirm). **Settled 2026-11-10: `content.campaign.manage`, up to two a run, by its length (content.md §1.7 #11; §9.7)** | — |
 | S10 | **None: it cannot be switched off** (owner, 2026-11-01) | A security email (C18) could not be sent: **at most once a clock hour** | None: `SecurityFailureAlert`, called from `OpsSecurityMessages` | `ops.sms_countries.manage`, reserved, used only because it reaches active super admins and no one else | — **The bell alone** |
-| S10b | **None: it cannot be switched off** (owner, 2026-11-01) | A security SMS (C18) could not be sent: **at most once a clock hour, its own hour** | The same | The same | — **The bell alone**: a failed SMS never sends an SMS or an email about itself |
+| S10b | **None: it cannot be switched off** (owner, 2026-11-01) | A security code (C18) could not be sent by WhatsApp: **at most once a clock hour, its own hour**. **Built 2026-11-22 (§9.8 point 3, W3):** covers the `WHATSAPP` channel; **only a setup failure** (a missing setting, a token, a template, Meta away) raises it - **one number without WhatsApp does not**, and that person uses Resend | The same | The same | — **The bell, and an email to the same Super Admins** (WhatsApp is what is down, not email), sent after the claim commits: a failed code never sends a WhatsApp about itself |
 | S10c | **None: it cannot be switched off** (owner, Content round 3 #20; §9.6 #3) | A queued email (an event's, a notice's, a message's, the daily report's) that Brevo refused for everybody (`FailureKind::WaitsForPerson`: the key, the credit, the IP, the sender, **and any other refusal in Brevo's JSON that §7 classes so, a 400 about one message's content included**: the builder's pick, keeping §7's classification, so the words send them to the log for the reason): **at most once a clock hour, its own hour**. The list jobs raise none. A failure resolving or writing it is reported and never replaces the provider's failure | None: `SecurityFailureAlert::queuedEmailRefused`, called from `ProviderFailureRules` | The same as S10 | — **The bell alone**, filed under the first store (the builder's pick: the refusal is the provider's, every store's) |
 
 - Every permission key above exists in code today (`payments.gateway.manage`: `PaymentsPermissions`, reserved).
-- **Critical SMS** (owner, round 3 #13; §9.3 #12): **only S5 at 1 day and S5b (the key refused)**, to **super admins only** (owner,
+- **Critical WhatsApp** (owner, round 3 #13; §9.3 #12; by two utility templates since §9.8 W1): **only S5 at 1 day and S5b (the key refused)**, to **super admins only** (owner,
   2026-10-28: §9.3 #10 — S4, an offer stopped by Odoo's price, is bell and email only; §9.3 #11 — only
   super admins can renew the key). Each super admin may switch it off (access.md amendment 81: a switch
   on the staff account, **on by default**, shown to super admins only).
@@ -227,8 +227,8 @@ decides, on `OrderMessageDto` and `MoneyRecordMessageDto`. The other messages ab
 - **Built (steps 5 and 6, 2026-10-31):** S1, S2, S3, S4, S9 - one queued listener, once per event, recipients
   from `AccessApi::staffToAlert` with each one's bell and email switches; S3 alerts only when a size became low
   or ran out (a recount where sizes only came back alerts no one). **S5 and S5b are built (2026-11-01)**, on Payments'
-  `GatewayKeyExpiring` and `GatewayKeyRejected`, with the critical SMS at 1 day and on every refusal (super admins with
-  `critical_sms` on and a phone, both checked again when the SMS leaves; the provider of the phone's country). **Their
+  `GatewayKeyExpiring` and `GatewayKeyRejected`, with the critical alert at 1 day and on every refusal (super admins with
+  `critical_sms` on and a phone, both checked again when the alert leaves; the provider of the phone's country; **by WhatsApp's two utility templates since §9.8**, in the person's language). **Their
   words say which key, the test or the live one (`mode`), and never that payments stop**: a key of the mode not in use
   stops nothing (2026-11-01). **S7 is built (2026-11-02, on #314's `PaymentNotAccepted`)**: since 2026-11-05 its entry and
   email, and S7b's, open the attempt (`/admin/payments/{id}`, payments.md §4.2) for whoever holds `payments.payment.view`; the
@@ -245,7 +245,7 @@ decides, on `OrderMessageDto` and `MoneyRecordMessageDto`. The other messages ab
   store's zone; no link until Content has a page. Until Content is built the read answers null, and an alert sends nothing.
 - **S10 and S10b are built. The owner's decisions, 2026-11-01:** every active Super Admin always gets the entry, **no switch
   applies** (§1.4's third rule does not hold here), and the Payment problems switch means only payment problems. **A failed security
-  SMS alerts too**, with its own words and its own hour, so an SMS and an email failing in one hour each tell them.
+  WhatsApp codes too** (and an email, §9.8 W3), with its own words and its own hour, so a WhatsApp code and an email failing in one hour each tell them.
 - **Why:** Access PR #317 (open that day) stops showing the person a failed security email, so a broken setup would otherwise show only
   in the log and a `FAILED` row.
 - **The words** fire on any failure, one customer's bad address or a template error included, so they announce no outage and name no
@@ -490,12 +490,14 @@ figures in the totals per currency (`PlatformApi::allStores()`, which returns th
 ### 2.2 Adapters
 
 - `EmailSender` — **Brevo** (transactional email); `log` in development and tests.
-- `SmsSender` — `log` in development and tests, the only one built until the owner names the provider (Mobily is being
-  checked); then its adapter. **Which provider sends an SMS is the phone's country's**, on the SMS countries list (access.md
-  amendment 90). **In production `log` is refused when an SMS would go through it** (`BuiltSmsSenders`), and nothing at boot
-  asks for a provider (corrected 2026-11-05; this said codes go to the log until a provider is chosen). So a server with no SMS
-  provider starts normally, and every code then fails when it is sent: a FAILED row in `ops.sent_messages`, an error to the
-  caller, and S10b to the Super Admins. The owner is deciding whether that stays.
+- `CodeSender` (`SmsSenders` names the provider; **built 2026-11-22, §9.8**) — `whatsapp` and `log`. `sendCode(phone, locale, purpose, code)` for a code, `sendAlert(...)` for the
+  two critical alerts. **Which provider sends is the phone's country's**, on the Code Countries list (access.md amendments 90, 98).
+  `whatsapp` is Meta's Cloud API (`WhatsAppCodeSender`, with `WhatsAppClient`, `WhatsAppAnswers` and `WhatsAppSettings`); its keys are in `.env` only
+  (§9.8 point 2). **A missing setting never stops the site** (W3): the site starts and runs as normal, and only codes and WhatsApp alerts stop - a code is
+  refused with "Codes can't be sent right now. Try again later." (`ops.codes_unavailable`, 503; the spec's "Please" is dropped: the writing rules ban it, `WritingRulesTest`), the Super Admins are told by bell and email at most
+  once an hour (S10b), and the panel shows a red notice, "WhatsApp is not set up: no codes can be sent." (`WhatsAppBanner`). This replaced the plan to refuse to
+  start. **In production `log` is refused when a code would go through it** (`BuiltSmsSenders`), and nothing at boot asks for a provider (corrected 2026-11-05).
+- The webhook `/whatsapp/webhook` and its two jobs (`HandleWhatsAppStatusJob`, `HandleWhatsAppMessageJob`) are §9.8 points 4 and 5.
 - `NewsletterList` — **Brevo** contacts and lists; `log` in development and tests.
 
 Every adapter is chosen by configuration; a new provider is a new class and a binding.
@@ -1020,7 +1022,7 @@ reads the screens needed were added; what stays is what the code cannot give yet
 6. ~~**S7's and S7b's links open a page with no route yet.**~~ Built (#358, 2026-11-08): `/admin/payments/{id}`, opened from the alert's
    own link by `AlertLinksOpenTest`, for whoever holds `payments.payment.view`.
 
-### 4.14 The SMS countries (§3; access.md amendment 90)
+### 4.14 The Code Countries (§3; access.md amendments 90, 98; the page was called SMS Countries until §9.8 W2)
 
 | Route | Method, path | Who | Answers |
 |---|---|---|---|
@@ -1230,13 +1232,13 @@ Columns: Email · Language · Kind (Guest, Customer) · State (Confirmed, Waitin
 - **The menu entry's icon (owner, 2026-11-09)** is a calendar with a clock.
 - **The small choices (owner, 2026-11-09).** Make opens on the first store that's on, All Stores first in the select for a Super Admin, off stores marked. A Past Day opens on the chosen store's yesterday and keeps a day picked while it's still allowed; the calendar has no first day and stops at the last day the server takes, for All Stores the day before the earliest today among its stores. While it's making, Make shows so and a second press does nothing. After Make the new row is on top and the rows loaded with Show More are asked for again; no automatic download; a refusal is in words above the form, choices kept. No toast for the email switch: the "Next:" line appearing or going says it. Saving a time while off keeps it off. A row never set saves nothing until touched. Each row sends one save at a time, the latest waiting its turn. Someone with no store on offer sees one line, "No store to choose. A Super Admin can switch your store on.", and the list.
 
-#### O10 · SMS Countries (Q24)
+#### O10 · Code Countries (Q24; «دول رموز التحقق» in Arabic, §9.8 W2)
 
 `/admin/sms-countries`, Super Admins only. A plain `Note`: "Log writes codes to the server's log and sends nothing. A live system refuses it." **Add Country…** at the top end.
 
 Columns: Country · Code · Calling Code (`+966`, left to right) · Provider · row menu.
 
-- **Add Country…** a dialog: Country (`CountryCombobox`), Calling Code (digits only, `+` shown before the box), Provider (a select; one provider is chosen for you). Taken and overlapping calling codes show under their box in their own words.
+- **Add Country…** a dialog: Country (`CountryCombobox`), Calling Code (digits only, `+` shown before the box), Provider (a select: WhatsApp or Log; one provider is chosen for you when there is only one). Taken and overlapping calling codes show under their box in their own words.
 - **Change Provider…** and **Change Calling Code…:** a dialog each, one field.
 - **Remove…** asks: "Remove :country?" "Phones from this country can't get codes. Staff with one need an admin to change it. A Super Admin with one enters a new number at sign-in. Customers with one can't order until they change it." Keep and Remove.
 - **Empty.** "No countries yet. Without one, no phone number can be entered." with Add Country.
@@ -1294,7 +1296,7 @@ Each job adds feature tests for the page answers, the JSON still answering besid
 | Table | Holds |
 |---|---|
 | `ops.inbox_entries` | person (`customer_id` or `staff_id`, exactly one), `store_id`, kind, title and line (ar, en; at most 200 and 500 characters), link (a path inside the site, at most 2000), read_at, created_at |
-| `ops.sent_messages` | kind, person (`customer_id` or `staff_id`, at most one: a message to an address alone names nobody), `store_id` (none outside a store), channel (`EMAIL`, `SMS`), provider_id, status (`QUEUED`, `SENT`, `FAILED`), created_at — no codes or links ever (access.md §2.3), and no column for a text or an address |
+| `ops.sent_messages` | kind, person (`customer_id` or `staff_id`, at most one: a message to an address alone names nobody), `store_id` (none outside a store), channel (`EMAIL`, `SMS` for rows written before §9.8, `WHATSAPP`), kind also `auto_reply`, provider_id (indexed, for a later status), status (`QUEUED`, `SENT`, `FAILED`), created_at — no codes or links ever (access.md §2.3), and no column for a text or an address |
 | `ops.handled_events` | `event_id` and `listener`, one key (one event may have two listeners: `OrderPlaced`'s C1 and S1), handled_at — every listener runs once per event |
 | `ops.notices` | `store_id`, title and body (ar, en; at most 200 and 500 characters), link (a page of the shop, at most 500), `segment_id` (none: every customer of the store; no foreign key across modules), by_bell, by_email, send_at, status (`SCHEDULED`, `SENDING`, `SENT`, `CANCELLED`, `FAILED`), `cursor_type` (`INDIVIDUAL`, `COMPANY`, `SEGMENT`) and `cursor_after` (where the next batch starts), bell_count, email_count, failed_count, created_by, created_at, updated_at, started_at, finished_at |
 | `ops.staff_messages` | `store_id`, `sender_id`, audience (`ONE`, `STORE`, `SEGMENT`), `customer_id` (set only for `ONE`), `segment_id` (set only for `SEGMENT`; no foreign key across modules), title and body (ar, en), by_bell, by_email, status (`SENDING`, `SENT`, `FAILED`), `cursor_type` (`INDIVIDUAL`, `COMPANY`, `SEGMENT`), `cursor_after`, bell_count, email_count, failed_count, created_at, finished_at |
@@ -1302,6 +1304,7 @@ Each job adds feature tests for the page answers, the JSON still answering besid
 | `ops.newsletter_lists` | `store_id`, locale, `brevo_list_id`, created_at — one Brevo list per store and language, made the first time a contact needs it |
 | `ops.daily_reports` | `store_id` (none: every store's), day, past_day, made_by, made_at, locale, file, bytes, emailed_at, `email_setting_id` and `email_due_at` (the email's report: one per setting and moment; none on the button's) |
 | `ops.daily_report_settings` | `staff_id`, `store_id` (none: all stores; one row per person per store, and one for all), is_on, send_at (`HH:MM`, never 00:00), version, next_due_at (set exactly while on), updated_at |
+| `ops.whatsapp_auto_replies` | `sender_hmac` (PK, `char(64)` lower-case hex: a keyed HMAC-SHA256 of the number, the key from `APP_KEY`; never the number), `replied_at` (indexed) — one row a sender; a claim is taken **before** the auto-reply is sent; deleted after 24 hours by the nightly removal (§6) — **[built 2026-11-22, §9.8 point 5]** |
 | `ops.sms_countries` | `country_code` (ISO), `calling_code` (typed, unique), provider, created_at, updated_at — **[ACCEPTED — stage 8, Ops step 3; owner 2026-10-29]**, access.md amendment 90 |
 
 Deleted after 12 months: inbox entries, sent messages, handled events, daily report files (owner, 2026-10-28), and
@@ -1324,6 +1327,7 @@ customer's subscriber row and Brevo contact are deleted, and their inbox entries
 them are deleted. Also, to keep the Brevo list current (§1.9): **`CustomerRegistered`**, **`GuestBecameCustomer`**,
 **`MarketingConsentChanged`**, **`CustomerLocaleChanged`** (access.md amendment 79), **`CustomerEmailVerified`**,
 **`CustomerBlocked`**, **`CustomerUnblocked`**, **`CustomerDeletionScheduled`** and **`CustomerDeletionCancelled`**.
+**Meta's notices** (§9.8 point 4) are not events: the webhook queues a failed status and a person's message, each idempotent (a status turns a row only from SENT; a message is handled once by its id in `ops.handled_events`), and the nightly removal also deletes the auto-reply's claims older than 24 hours.
 Every listener (not C18) is **queued** and **idempotent by `eventId`**, never writes
 another module's tables, and never blocks the sender (Stage 5's rules for Sync).
 
@@ -1390,6 +1394,15 @@ notice's, a message's and the daily report's email, and the two list jobs; a cal
 | A contact or list gone, when taking away (404; 400 `document_not_found`, `Contact email not found`; a proxy's 404 page is not this) | Nothing | No: done | Nothing |
 | A contact deleted at Brevo by hand | Nothing | No: the next add makes it again | Nothing |
 | A list deleted at Brevo by hand: adding a contact answers `document_not_found` (inferred: Brevo's reference names no code for it) | Nothing | Yes: the kept id is forgotten and the next try makes a new list. Who was on the old one is not put back | The log |
+| Email not set up on a production server (§9.9; `FailureKind::NotSetUp`) | A security email: the caller's usual words for a provider's failure (amendment 93), never an error; a company decision's: the log; the newsletter box: its 503 | Queued: **no**, failed at once (no waits, no S10c) | The row `FAILED`, no address or body; S10 for a security email; the red notice for Super Admins; one critical log line an hour naming the settings |
+| WhatsApp (§9.8): Meta refuses the token, the template or the request (a 4xx in Meta's JSON that is not a per-person code), or a setting is not set | A code: `CodesUnavailable`, "Codes can't be sent right now. Try again later." (503). An alert: its job waits for a person, then the failed jobs | A code is not retried (the person asks again). An alert: `SendEventSmsJob`'s five tries | The row `FAILED`; **S10b: bell and email to the Super Admins, once an hour** (W3); the red panel notice while a setting is missing |
+| WhatsApp: one number refused (the code list in `WhatsAppAnswers` is UNVERIFIED: 131026 and neighbours) | The error to the caller, who offers Resend | No | The row `FAILED`; **no alert** |
+| WhatsApp: Meta away (a 5xx, no connection, a proxy's page), or too many calls | The error to the caller | A code: no. An alert: the job's tries | The row `FAILED`; S10b |
+| WhatsApp's webhook: no or wrong `X-Hub-Signature-256`, a `phone_number_id` that is not ours, no app secret set | Meta keeps trying for 7 days | No | 403, nothing done |
+| WhatsApp's webhook: a body over 1 MB, too many calls from an address | Nothing | No | 413, 429 |
+| WhatsApp's webhook: our side breaks | Nothing | Yes: Meta sends it again | 500, the log |
+| WhatsApp's webhook: the site in maintenance | Nothing | No need: this address alone is still served | Nothing |
+| WhatsApp's webhook: a notice twice (Meta retries; the signature has no timestamp) | Nothing | No | A failed status turns a row only from SENT; a message is handled once by its id |
 | The webhook: wrong or no secret | Brevo throws the call away, by its own rule | No | 401 |
 | The webhook: our side breaks | Nothing | Yes: **429**, the one answer Brevo retries, at about 10 minutes, 1, 2 and 8 hours (any 5xx it throws away) | The log |
 | The webhook: the site in maintenance | Nothing | No need: this address alone is still served | Nothing |
@@ -1398,7 +1411,7 @@ notice's, a message's and the daily report's email, and the two list jobs; a cal
 | The webhook: our app down altogether | Nothing | No answer is retried by Brevo; a proxy's 502 or 503 is **thrown away, and that unsubscribe is lost** to us, until the nightly read finds it (§9.6 #1, once switched on) | Brevo's event log only |
 | The nightly read (§9.6 #1): a page fails (no connection, a 5xx, a refusal, a proxy's page) | Nothing | The list's job, as the list jobs (`ProviderFailureRules`): nothing of that list is taken until every page is read, and its start is not moved. A list gone at Brevo (404) is read no further. At its limit of pages (15 of 500) it takes what it read, keeps the old start and logs an error naming no address | The failed jobs after the last; the log |
 
-**A production server that cannot deliver does not serve:** a web request or a queue worker refuses to boot on a `log` driver, or with no usable key or sender, naming every problem at once. A missing list folder or webhook secret is a critical log line, at most once an hour, until the owner says otherwise (§9.6; `OpsServiceProvider::ONLY_LOGGED` is the one line). No other console command is stopped, or nobody could mend it: `migrate`, `config:clear`, `package:discover`, `ops:brevo:check`. Only `APP_ENV=production` is guarded.
+**A production server whose email is not set up still starts and runs** (owner, 2026-11-22, §9.9; it replaced "does not start"). A web request or a queue worker, on `APP_ENV=production`, with `OPS_EMAIL_DRIVER` not `brevo`, an unusable `BREVO_API_KEY` or no `MAIL_FROM_ADDRESS` of ours, writes **one critical log line, at most once an hour, naming only the settings** and never a value - as it always did for a missing list folder, a missing webhook secret or an `OPS_NEWSLETTER_DRIVER` that is not `brevo` (`OpsServiceProvider::requireRealDelivery`; `ONLY_LOGGED` is gone: every problem is only logged). **Not sent, Super Admins warned:** each email goes to `NotSetUpEmailSender`, which takes it, writes nothing of it anywhere, and refuses it as a setup failure (`FailureKind::NotSetUp`); the message's `ops.sent_messages` row is `FAILED`, with no address or body; a queued email's job fails at once (no day of waiting, no S10c); a security email raises S10 (bell). The callers answer as they do to any provider's failure and never with an error (amendment 93's words; a company decision's email is reported to the log, not thrown at the admin; the newsletter box's 503; the password reset's usual answer). The newsletter's lists are kept by `NoNewsletterList`, which writes nothing, not even to the log. Super Admins see a red notice over every panel page, "Email is not set up: no emails can be sent." («البريد غير مُعدّ: لا يمكن إرسال أي رسالة بريد.», the Arabic the builder's, for the owner's check), shown to them alone and never sent by email (`EmailBanner`). Outside production nothing changes: `log` writes to the log, an unknown driver is refused. No other console command is stopped: `migrate`, `config:clear`, `package:discover`, `ops:brevo:check`.
 
 **After changing the Brevo key, run `php artisan queue:restart`:** running workers hold the old configuration.
 
@@ -1419,7 +1432,8 @@ Each with where it is tested, in `tests/Modules/Ops` unless named.
 | **In the person's language**: an Arabic customer, an Arabic staff member, the bell opening their own page | `Integration/EventMessagesTest` |
 | An email's row: QUEUED, then SENT; a retry of a SENT row sends nothing; a provider's failure keeps it QUEUED, then FAILED; a listener rolled back leaves nothing | `Integration/EventMessagesTest`, "each email and SMS" |
 | C14: one message a day per customer, a week ahead, in every store's own day, whatever runs it again | `Integration/EventMessagesTest`, "the reminder before points expire" |
-| C18: codes by SMS through the phone's country's provider, links by email, no code or link in any record, a failure reported to the caller | `Integration/SecurityMessagesTest` |
+| C18: codes through the phone's country's provider, links by email, no code or link in any record, a failure reported to the caller | `Integration/SecurityMessagesTest` |
+| **WhatsApp (§9.8):** a code as the authentication template in each language and purpose with the code twice; Meta refusing token, template, request, one person, Meta away; QUEUED before the send; a missing setting (site runs, words, bell and email once an hour, red notice); the handshake; the webhook's signature, number, size and rate; a failed status SENT to FAILED once, delivered and read nothing; the auto-reply (once a day, in both languages, keyed HMAC, none to a status or our own number, 100 an hour, no alert); the two alert templates to a Super Admin with the switch on and a phone and to nobody else; the table's rules | `Integration/WhatsAppTest` |
 | S5 on `GatewayKeyExpiring`, S5b on `GatewayKeyRejected`: to super admins alone, once per event, the email by their switch; S5b says which key, in both languages | `Integration/EventMessagesTest`, "the critical SMS" |
 | S8 on `CampaignExpiring`: Super Admins and the store's admins alone, once per event, by their switches, the campaign's name and the store's own day in both languages, no link; **nothing when the read answers null**, names another store, or is gone when the email leaves | `Integration/CampaignEventsTest` |
 | The going-live notice on `CampaignWentLive`: a waiting notice starts by the same batches, once; replay, a second event and its own time send nothing more; **no notice, one gone, cancelled, sending, sent, failed or another store's sends nothing**; both events through the outbox, ids only | `Integration/CampaignEventsTest` |
@@ -1427,7 +1441,7 @@ Each with where it is tested, in `tests/Modules/Ops` unless named.
 | S10, S10b: one bell entry per active Super Admin for a burst, each channel with its own hour, the next in the next hour; a waiter gives up, or takes the claim when the holder rolls back; no email, no SMS; Admins and inactive Super Admins not reached; every switch off and still reached; the failed message's store, else the first, off or on; nothing of the message in the words; a failure writing it reported and not thrown; after the caller's commit, nothing on its rollback | `Integration/SecurityFailureAlertTest`, `Integration/SecurityFailureAlertRaceTest` |
 | S10c: an event's, a notice's and the daily report's email refused for everybody give each active Super Admin one bell entry, whatever their switches, no Admin and nobody inactive; once a clock hour under a burst, its own hour beside S10's; none for a list job, an outage that may pass or one address refused; a failure writing it, or resolving it, reported, the email still waiting; two queries after the first. The list jobs' ten waits, about a day; the email jobs' unchanged | `Integration/BrevoFailuresTest`, "the bell when Brevo refuses a queued email" and "the list jobs" |
 | A form's segments: the store's own, empty ones listed with 0, paged, under each form's permission; the name and member count on a notice and a staff message, null once deleted; the queries each costs | `Feature/SegmentReadsTest` |
-| **Critical SMS only to super admins** with the switch on and a phone, only at 1 day or a refused key, **their switch read again when it leaves**; never for S4 | `Integration/EventMessagesTest`, "the critical SMS" |
+| **Critical WhatsApp only to super admins** with the switch on and a phone, only at 1 day or a refused key, **their switch read again when it leaves**; never for S4 | `Integration/EventMessagesTest`, "the critical SMS"; the templates: `Integration/WhatsAppTest` |
 | **Consent off: no marketing email, the bell entry still made**, for a notice, a segment notice and a message to many; checked again as the email leaves; a message to one ignores consent | `Integration/NoticesTest`, `Integration/NoticeSegmentTest`, `Integration/StaffMessagesTest` |
 | Notices: now and scheduled in the store's zone, changed or cancelled until they start, started within the minute, audited, a failed batch `FAILED` then carried on | `Integration/NoticesTest`; over HTTP `Feature/WrittenRoutesTest` |
 | Staff messages: who may send to one and to many, whom the composer offers, audited; **to a segment** with a notice's refusals; **to one only in their home store** | `Integration/StaffMessagesTest`; over HTTP `Feature/WrittenRoutesTest` |
@@ -1443,7 +1457,7 @@ Each with where it is tested, in `tests/Modules/Ops` unless named.
 | **The daily report's figures against hand-counted orders, a cancelled order excluded, a refund on its day**; net VAT; yesterday and month to date; **all stores totalled per currency**, each in its own day, the off ones marked; **a past day's file unchanged**; who may make and open | `Integration/DailyReportTest`; over HTTP `Feature/DailyReportRoutesTest` |
 | The daily email: off by default, each store's zone, on the person's behalf, one email however often switched on, stopped when changed, a late worker's one report; **00:00 refused; a store whose day has just started shows zeros and the email goes; a retry makes that moment's report once**; logo and name | `Integration/DailyReportEmailTest` |
 | C11 and S6 through the outbox from Stage 7's real flow; C10 on a request's online payment, none on a checkout's; each once, both languages, the refusals, at sending too; a test order's mark on C1, C6b, C9b, C10, C11, and none on a real order's; S6's hours by the store's setting, and no link for whoever cannot open the order; transfers overdue against hand-made orders, a test order left out, in the store's section and the totals | `Integration/PaymentEventsTest` |
-| SMS countries: the start list, add, change, remove, overlaps, Super Admins alone, audited | `Integration/SmsCountriesTest`; over HTTP `Feature/SmsCountryRoutesTest` |
+| Code Countries (SMS Countries until §9.8): the start list, add, change, remove, overlaps, Super Admins alone, audited | `Integration/SmsCountriesTest`; over HTTP `Feature/SmsCountryRoutesTest` |
 | The adapters: Brevo's requests as its reference shows, the log drivers refused on a live system, the newsletter's too, at boot | `Integration/SendersTest`, `Integration/BrevoNewsletterListTest`, `Integration/RealEmailDriverTest` |
 | The tables' last lines, the schema, the permissions, the nightly removal of the three log tables, of what staff wrote (sent, cancelled, failed; not what waits or sends) and of the daily reports | `Integration/OpsTablesTest`, `Integration/OpsSchemaTest`, `Integration/OpsPermissionsTest`, `Integration/PruneTest`, `Integration/NewsletterTest`, `Integration/DailyReportTest` |
 | A whole store's audience: exactly who a message or a notice reaches by bell, the same people as the pages the sender walks, its email going to fewer, 0 for a store with none, either form's permission and anyone else refused, one count however many customers | `Feature/AudienceCountTest` |
@@ -1582,7 +1596,7 @@ Left as they are, each needing the owner's decision; §7's table says what happe
 | 1 | An unsubscribe Brevo threw away (a proxy's 5xx while our app is down) or gave up on leaves the customer's consent on with us; Brevo offers no replay of a lost event (help centre). The contact is blacklisted at Brevo, but a notice goes through the transactional API. Should a nightly job read Brevo's contacts changed since yesterday (`GET /v3/contacts?modifiedSince`, each with `emailBlacklisted`) and withdraw those? | Yes |
 | 2 | In an outage, queued mail and list changes stop after about 36 minutes and wait for a person on the failed jobs screen; a contact who withdrew stays on Brevo's list until then. Should the attempts last longer (say a day), so that a long outage mends itself? | Yes, for the list jobs at least |
 | 3 | A bad key or no credit tells the Super Admins only when a *security* email fails (S10). Queued mail now waits up to a day in silence, its rows `QUEUED`, so nobody may look until it is nearly over. Should a queued email refused the same way raise the bell too? It needs a new kind and words | Yes, more than before |
-| 6 | Should a missing list folder or webhook secret stop a production server, or only log? Today: a critical log line (`OpsServiceProvider::ONLY_LOGGED`, one line to change); the key and the sender refuse | The log line |
+| 6 | Should a missing list folder or webhook secret stop a production server, or only log? Today: a critical log line; **since 2026-11-22 (§9.9) the key and the sender only log too** | The log line |
 | 7 | What is staging's `APP_ENV`? The guard acts only on `production`: on anything else it is silent, and `log` drivers and an empty key start | `production`, so staging proves the guard |
 | 4 | The newsletter's sync holds the subscriber's row while it calls Brevo, so a person's unsubscribe link for that very row, at that very moment, waits up to 10 s in a hung Brevo. Worth rebuilding the sync for it? | No |
 | 5 | Brevo documents an idempotency key for a send, with a TTL of 30 minutes or 15 (its pages differ) and casing that differs too, answering a repeat with an error of no stated status. Taken as "sent", a first attempt that failed but held the key would lose an email, against the rule of at least once. Use it? | No |
@@ -1597,7 +1611,7 @@ Left as they are, each needing the owner's decision; §7's table says what happe
   long waits do; the email jobs are unchanged.
 - **#3 Yes.** A queued email refused for a bad key or no credit raises a bell entry to the active Super Admins, as S10 does: a new kind,
   its words in both languages.
-- **#6 The log line**, as built (`OpsServiceProvider::ONLY_LOGGED`).
+- **#6 The log line**, as built (`OpsServiceProvider::requireRealDelivery`; every problem is a log line since §9.9).
 - #4, #5 and #7 were not asked; still open.
 
 **Built 2026-11-10 (Content's PR 13):** #2, the list jobs at ten failures over about a day (`ProviderFailureRules::LIST_JOB_BACKOFF`,
@@ -1646,7 +1660,7 @@ Content's spec settles §9.5 (content.md §1.7 #10, #13, §2.1, §2.3 O1 to O3, 
    the 24-hour one alone from 24 hours to under 3 days, none under 24 hours), each its own event: "once per event" sends each, and
    "ends on :date" stays true for each. **§9.5 #3 is still open**: the words with `:campaign` wait for the full review of the words.
 
-### 9.8 WhatsApp replaces SMS for codes — **[ANSWERED by the owner 2026-11-15 (W1-W6); for the owner's acceptance; not built — the build waits for the CEO's approval of the cost]**
+### 9.8 WhatsApp replaces SMS for codes — **[accepted 2026-11-15, built 2026-11-22]**
 
 **The owner's decisions (2026-11-15, in chat; the CEO approves the cost first):**
 - **D1.** WhatsApp **replaces** SMS, and no SMS provider is ever built. Access's code rules stay as they are: who gets a code, when, how often, and its length (4-8) and life (1-60 minutes), both settings. **Only the delivery adapter changes.**
@@ -1758,3 +1772,19 @@ The auto-reply's words (W5, **approved by the owner 2026-11-15**, for now as rem
 - en: "This number only sends verification codes and can't read replies. To reach us, message our main number: <link>"
 
 Not covered: Egypt is on the SMS countries' start list. A code to an Egyptian or Emirati phone from a Saudi number may be billed at Meta's international authentication rate (cost report §2). Confirm it on the first invoice.
+
+**Built 2026-11-22.** What the build did, for the owner's check:
+- **Meta's documentation, read 2026-11-22** (developers.facebook.com): the Graph API changelog (latest listed **v26.0**, pinned in `config/services.php`; the send page's own example shows v27.0, so check before the first live send), the Cloud API's send-messages page (endpoint, bearer token, text payload, the answer's `messages[0].id`, the 24-hour window), the templates overview (the template payload), the authentication-templates page (fixed body, `{{1}}`, optional footer and security line), the create-webhook page (the handshake, `X-Hub-Signature-256`, retries for 7 days, duplicates) and the status webhook's reference (`entry[].changes[].value`, `metadata.phone_number_id`, `statuses[]`, `errors[]`).
+- **Not found in those pages, so UNVERIFIED** and to be proved by the first real send and the first real refusals: the authentication template's send payload (the code as the body's one parameter and again as the button's: `type: button`, `sub_type: url`, `index: "0"`; `WhatsAppCodeSender`), the language codes `ar` and `en` of the approved templates, and the numeric error codes that tell one person from the setup (`WhatsAppAnswers`: 131026, 131021 and 131030 one person; 4, 80007, 130429 and 131056 too many calls; every other 4xx in Meta's JSON a setup failure).
+- **The builder's picks:** the auto-reply sends Arabic then English in one message, since nothing is known of the sender's language; the hour's 100 and the day's one are counted on the claims table, and a claim stands even if the send then fails (no retry, no alert); the claims older than 24 hours go in the nightly removal, and a sender's own expired claim goes when they next write; a failed status for a row still QUEUED is not turned (its id is not yet known, and the call that sets it follows within milliseconds); a code's row is QUEUED before the send and the alert's is QUEUED by its listener as before; the webhook's body cap is 1 MB (Meta batches up to 1,000 updates); a notice naming a number that is not ours is refused whole; the red notice is kept for a minute in the banner store, as the gateway's, and forgotten when a Code Countries provider changes; the SMS Countries start list (Saudi Arabia and Egypt) still names `log` until a Super Admin picks WhatsApp on the Code Countries page.
+- **Meta's template words are not ours:** the code template's body, its security line and its copy-code button are Meta's, approved once per language; so are the two alert templates' words (point 9), which are the owner's, entered when the templates are submitted.
+
+### 9.9 Email not set up never stops the site — **[owner's decision, 2026-11-22; built 2026-11-22]**
+
+**The owner's decision:** production must **start and run** even when email (Brevo) is not set up: **"Not sent, Admin warned"**. It replaces §7's "a production server that cannot deliver does not serve" and amendment 90(g)'s guard on `OPS_EMAIL_DRIVER` (access.md amendment 36(d)).
+- **The guard** only logs, loudly and at most once an hour, naming the settings (§7).
+- **Each email is not sent and not written anywhere with its content.** In production with email not set up, `EmailSender` is `NotSetUpEmailSender`; its refusal is a setup failure like a bad Brevo key (`FailureKind::NotSetUp`, failed at once on the queue), and the `ops.sent_messages` row is `FAILED` with no address or body. No caller answers an error because of it (§7).
+- **The newsletter's lists** are `NoNewsletterList` in production when email is not set up: a no-op that records nothing, not even to the log.
+- **Super Admins see a red notice**, "Email is not set up: no emails can be sent." / «البريد غير مُعدّ: لا يمكن إرسال أي رسالة بريد.» (Arabic: the builder's, for the owner's check), on the error-banner mechanism WhatsApp's notice uses (`AdminBannerDto::$error`), to them alone and not by email.
+- **Outside production nothing changes:** `log` keeps writing to the log in development.
+- **Tests:** `Integration/EmailNotSetUpTest` (the binding, the sender, the lists, a security email FAILED with the Super Admins' bell, a queued email failed at once, a company decision, the notice for Super Admins and not for staff), `Integration/RealEmailDriverTest` (a real production boot with no Brevo setting at all), `tests/Modules/Access/Feature/MessageFailureTest` (a registration, an invitation and a password reset return normally with the email FAILED).

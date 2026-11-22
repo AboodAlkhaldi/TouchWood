@@ -223,7 +223,7 @@ describe('codes, by SMS through the provider of the phone\'s country (amendment 
         $rows = securitySentRows();
 
         expect($rows)->toHaveCount(1)
-            ->and($rows[0]['channel'])->toBe('SMS')
+            ->and($rows[0]['channel'])->toBe('WHATSAPP')
             ->and($rows[0]['status'])->toBe('SENT')
             ->and($rows[0]['provider_id'])->toBe('sms-1')
             ->and((string) json_encode($rows[0]))->not->toContain('482913')
@@ -235,7 +235,7 @@ describe('codes, by SMS through the provider of the phone\'s country (amendment 
         DB::table('ops.sent_messages')->delete();
 
         expect(fn () => securityMessages()->phoneCode('+971501234567', 'en', '482913'))
-            ->toThrow(new ProviderFailed('No country on the SMS countries list serves this number.'))
+            ->toThrow(new ProviderFailed('No country on the Code Countries list serves this number.'))
             ->and($sms->sent)->toBe([])
             ->and(array_column(securitySentRows(), 'status'))->toBe(['FAILED']);
     });

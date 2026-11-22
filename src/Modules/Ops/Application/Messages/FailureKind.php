@@ -16,6 +16,13 @@ enum FailureKind
     /** Nothing can go until a person mends the key, the credit, the IP or the sender: a long wait, for up to a day. */
     case WaitsForPerson;
 
+    /**
+     * Email is not set up on this server at all (owner, 2026-11-22): nothing is sent and nothing is waited for, since a
+     * day's waits cannot mend a setting the owner has not made. Failed at once, as one address refused is; no S10c, for the
+     * Super Admins' red notice says it.
+     */
+    case NotSetUp;
+
     /** Too many calls: back after the wait named, no attempt spent. */
     case RateLimited;
 

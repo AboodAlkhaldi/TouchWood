@@ -16,14 +16,16 @@ use Modules\Ops\Application\Messages\MarketingReach;
 use Modules\Ops\Application\Messages\OutgoingEmail;
 use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Application\Messages\SmsSenders;
+use Modules\Ops\Application\Messages\WhatsAppAlert;
 use Modules\Ops\Domain\Model\SendStatus;
 use Modules\Ops\Domain\Repository\SentMessages;
+use Modules\Ops\Public\Enums\MessageKind;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * Sends one queued email or SMS of an event's message, when its job runs (ops.md §1.1, §2.2). Its
+ * Sends one queued email or WhatsApp alert of an event's message, when its job runs (ops.md §1.1, §2.2). Its
  * `ops.sent_messages` row was written QUEUED with the listener's work (§5); here, outside any
  * transaction, the person is read again - an anonymized customer, or a staff member no longer active,
  * gets nothing - and the words are written again from the module's reads, in the person's language;
@@ -31,9 +33,10 @@ use Shared\Domain\ValueObject\StoreId;
  * row with nothing left to send is removed, so only what was sent is recorded. **At least once**: a
  * provider that took a message just before its row could be marked may get it again on the retry.
  *
- * Emails carry the store's logo and name (round 1 #23). The critical SMS goes only to an active super
- * admin whose critical-SMS switch is on **when it leaves** (access.md amendment 81), through the
- * provider of the phone's country on the SMS countries list (amendment 90), as the security codes do.
+ * Emails carry the store's logo and name (round 1 #23). The critical alert goes only to an active super
+ * admin whose critical switch is on **when it leaves** (access.md amendment 81), through the
+ * provider of the phone's country on the Code Countries list (amendment 90), as the security codes do: by
+ * WhatsApp, a utility template of fixed words in the person's language (ops.md §9.8 point 9, W1).
  */
 final readonly class EventSender
 {
@@ -103,7 +106,7 @@ final readonly class EventSender
         $this->sent->markSent($sentId, $providerId);
     }
 
-    /** @throws ProviderFailed for the queue to try again; a phone of no listed country too */
+    /** @throws ProviderFailed for the queue to try again; a phone of no listed country too (the alert goes by WhatsApp) */
     public function smsStaff(EventMessage $message, string $staffId, StaffNotificationTopic $topic, string $permission, string $sentId): void
     {
         if (! $this->due($sentId)) {
@@ -123,8 +126,9 @@ final readonly class EventSender
             return;
         }
 
-        $country = $this->countries->countryOf($phone) ?? throw new ProviderFailed('No country on the SMS countries list serves this number.');
-        $providerId = $this->sms->named($country->provider())->send($phone, $text);
+        $country = $this->countries->countryOf($phone) ?? throw new ProviderFailed('No country on the Code Countries list serves this number.');
+        $alert = $message->kind === MessageKind::GatewayKeyExpiring ? WhatsAppAlert::KeyExpiring : WhatsAppAlert::KeyRefused;
+        $providerId = $this->sms->named($country->provider())->sendAlert($phone, $staff->locale, $alert, $text);
         $this->sent->markSent($sentId, $providerId);
     }
 

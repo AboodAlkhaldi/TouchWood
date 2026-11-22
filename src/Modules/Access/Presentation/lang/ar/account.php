@@ -238,10 +238,10 @@ return [
     'authenticator_on' => 'أُعدّ',
     'authenticator_off' => 'لم يُعدّ بعد.',
     'authenticator_uses_app' => 'تسجّل الدخول برمز من تطبيق المصادقة.',
-    'authenticator_uses_sms' => 'تسجّل الدخول برمز يصل إلى جوالك برسالة SMS.',
+    'authenticator_uses_sms' => 'تسجّل الدخول برمز يصل إلى جوالك عبر واتساب.',
     'sign_in_method' => 'طريقة الدخول',
     'sign_in_method_hint' => 'الطريقتان مفعّلتان، فاختر طريقتك.',
-    'method_sms' => 'رمز SMS',
+    'method_sms' => 'رمز واتساب',
     'method_authenticator' => 'تطبيق المصادقة',
     'method_unchanged_reason' => 'اختر الطريقة الأخرى لحفظها.',
     'save_method' => 'حفظ الطريقة',
@@ -276,7 +276,7 @@ return [
     'download_codes' => 'تنزيل الرموز',
     'codes_file_heading' => 'رموز الاسترداد - كل رمز يعمل مرة واحدة',
     'continue' => 'متابعة',
-    'method_sms_password' => 'أدخل كلمة المرور لتسجّل الدخول برمز SMS بدلًا من التطبيق.',
+    'method_sms_password' => 'أدخل كلمة المرور لتسجّل الدخول برمز واتساب بدلًا من التطبيق.',
     // مفتاح العروض والأخبار في تبويب الملف الشخصي للعميل (التعديل 79؛ ops.md §4.15 O12)، جديدة 2026-11-05، لم تُعتمد بعد.
     'offers' => [
         'title' => 'العروض والأخبار',

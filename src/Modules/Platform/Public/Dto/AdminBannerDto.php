@@ -6,7 +6,8 @@ namespace Modules\Platform\Public\Dto;
 
 /**
  * A banner over the admin panel, in the reader's language: a short label, one sentence, an optional link.
- * `$everywhere`: on every page; otherwise on Home only.
+ * `$everywhere`: on every page; otherwise on Home only. `$error`: red, for something that has stopped working
+ * (ops.md §9.8 W3); otherwise the amber warning.
  */
 final readonly class AdminBannerDto
 {
@@ -16,5 +17,6 @@ final readonly class AdminBannerDto
         public bool $everywhere,
         public ?string $linkText = null,
         public ?string $href = null,
+        public bool $error = false,
     ) {}
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -48,7 +49,7 @@ it('lists, adds, changes and removes a country as JSON, answering the whole list
 
     $list = $browser->get('/admin/sms-countries', $json)->assertOk()->json();
     expect(array_column($list['countries'], 'countryCode'))->toEqualCanonicalizing(['SA', 'EG'])
-        ->and($list['providers'])->toBe(['log'])
+        ->and($list['providers'])->toBe(['whatsapp', 'log'])
         ->and(array_keys($list['countries'][0]))->toBe(['countryCode', 'name', 'callingCode', 'provider']);
 
     $added = $browser->post('/admin/sms-countries', ['country_code' => 'AE', 'calling_code' => '971', 'provider' => 'log'])->assertCreated()->json('countries');
@@ -90,4 +91,14 @@ it('opens to Super Admins alone: an admin holding everything else, and anyone si
     $browser->post('/admin/sms-countries/SA/remove')->assertForbidden();
 
     expect(DB::table('ops.sms_countries')->count())->toBe(2);
+});
+
+it('forgets the WhatsApp notice\'s remembered list when a country\'s provider changes, so the notice follows at once (ops.md §9.8 W3)', function () {
+    $browser = smsRoutesStaff(Fx::staff(superAdmin: true));
+    $store = Cache::store((string) config('cache.banner_store', 'file'));
+    $store->put('ops.whatsapp_banner', false, 60);
+
+    $browser->post('/admin/sms-countries/SA/provider', ['provider' => 'whatsapp'], ['HTTP_ACCEPT' => 'application/json'])->assertOk();
+
+    expect($store->has('ops.whatsapp_banner'))->toBeFalse();
 });
