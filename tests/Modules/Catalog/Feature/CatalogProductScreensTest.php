@@ -740,7 +740,8 @@ describe('the query budget (frontend.md §5, P21)', function () {
         'the list, one store' => ['/admin/products?store=sa&state=ON', 5],
         'details' => ['/admin/products/{product}', 4],
         'variants' => ['/admin/products/{product}?tab=variants', 5],
-        'photos' => ['/admin/products/{product}?tab=photos', 3],
+        // One more since 2026-11-21 (flags-2026-11.md S4.4, amendment 48): the product's videos, one read whatever their number.
+        'photos' => ['/admin/products/{product}?tab=photos', 4],
         'search and filters' => ['/admin/products/{product}?tab=search', 5],
         'related, finding' => ['/admin/products/{product}?tab=related&find={code}', 5],
         'related, finding many' => ['/admin/products/{product}?tab=related&find=drawer', 5],

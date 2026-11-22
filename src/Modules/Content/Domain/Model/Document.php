@@ -9,7 +9,7 @@ use DateTimeImmutable;
 /**
  * A page, a blog post or a project (content.md §1.11-§1.13): per store, Draft or Published, its words per language
  * (Arabic always, English to publish), its share image per language, and what its kind adds - a post's category and
- * cover, a post's or project's products, a project's photos.
+ * cover, a post's or project's products, a project's photos and its YouTube videos (flags-2026-11.md S4.4).
  */
 final readonly class Document
 {
@@ -17,6 +17,7 @@ final readonly class Document
      * @param  array<string, DocumentText>  $texts  by language; `ar` always there
      * @param  list<string>  $products  product ids, in order
      * @param  list<string>  $photos  media ids, in order
+     * @param  list<ProjectVideo>  $videos  a project's, in order
      */
     public function __construct(
         public string $id,
@@ -36,6 +37,7 @@ final readonly class Document
         public ?DateTimeImmutable $updatedAt,
         public ?string $clientLogoMediaId = null,
         public ?string $clientLink = null,
+        public array $videos = [],
     ) {}
 
     public function text(string $locale): ?DocumentText
@@ -80,6 +82,10 @@ final readonly class Document
             'photos' => implode(',', $this->photos),
             'client_logo_media' => $this->clientLogoMediaId,
             'client_link' => $this->clientLink,
+            // A project's videos by value (§1.1 rule 13): their ids in order, then each one's titles in that order.
+            'videos' => $this->videos === [] ? null : implode(',', array_map(static fn (ProjectVideo $video): string => $video->videoId, $this->videos)),
+            'video_titles_ar' => self::titles($this->videos, 'ar'),
+            'video_titles_en' => self::titles($this->videos, 'en'),
         ];
 
         foreach (['ar', 'en'] as $locale) {
@@ -87,5 +93,18 @@ final readonly class Document
         }
 
         return $fields;
+    }
+
+    /**
+     * Each video's title in one language, in the videos' order and joined by " | " (an untitled one empty); null when
+     * no video has one there.
+     *
+     * @param  list<ProjectVideo>  $videos
+     */
+    private static function titles(array $videos, string $locale): ?string
+    {
+        $titles = array_map(static fn (ProjectVideo $video): string => ($locale === 'ar' ? $video->titleAr : $video->titleEn) ?? '', $videos);
+
+        return implode('', $titles) === '' ? null : implode(' | ', $titles);
     }
 }

@@ -8,7 +8,8 @@ namespace Modules\Content\Application\Documents;
  * What a page's, post's or project's form sends (content.md §4.4 W7-W9): a new one (`id` null, in `storeId`) or one
  * that exists, at the `version` the form read. Bodies are the editor's typed marks (§1.2); an address left empty is
  * made from its title; `imagesAr` / `imagesEn` give each `![...](image:N)` of the body its file, ref => media id.
- * A project's client (flags-2026-11.md S4.1): its name per language, its logo (a media id) and its https link. What a kind does not have is left empty: a page's summary, a post's city. `translated`: an English box still carries
+ * A project's client (flags-2026-11.md S4.1): its name per language, its logo (a media id) and its https link. A project's
+ * videos (S4.4): each a pasted YouTube link and its titles, `['link' => …, 'title_ar' => …, 'title_en' => …]`, in order. What a kind does not have is left empty: a page's summary, a post's city. `translated`: an English box still carries
  * Translate's mark; `read`: "I read the translated English." was ticked (§1.3, P14).
  */
 final readonly class DocumentInput
@@ -18,6 +19,7 @@ final readonly class DocumentInput
      * @param  array<int, string>  $imagesEn
      * @param  list<string>  $products
      * @param  list<string>  $photos
+     * @param  array<array-key, mixed>  $videos
      */
     public function __construct(
         public ?string $id,
@@ -53,5 +55,6 @@ final readonly class DocumentInput
         public ?string $clientNameEn = null,
         public ?string $clientLogoMediaId = null,
         public ?string $clientLink = null,
+        public array $videos = [],
     ) {}
 }

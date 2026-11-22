@@ -68,3 +68,51 @@ it('draws right to left in Arabic, in Latin digits, and fits a phone, with the h
         ->and(Cb::latinDigits($page))->toBeTrue();
     $page->assertNoJavaScriptErrors();
 });
+
+it('takes a project\'s videos as pasted links, says "Paste a YouTube link." as one is typed, and saves them in order with their titles, in both languages and on a phone (S4.4)', function () {
+    foreach (['en' => 'Paste a YouTube link.', 'ar' => 'الصق رابطًا من يوتيوب.'] as $locale => $paste) {
+        $run = Cb::run();
+        $page = Cb::signIn([ContentPermissions::PROJECT_MANAGE], $locale);
+        $page->navigate('/admin/content/projects/new?store=ae', BROWSER_SLOW_PAGE_LOAD);
+        // The videos' part is fetched once the form is drawn.
+        expect(browserSoon($page, "document.querySelector('#video-link') !== null"))->toBeTrue("{$locale}: no link box")
+            // A text box: a browser's url box would stop Publish over a link pasted without https:// (the review of 5b).
+            ->and($page->script("document.querySelector('#video-link').type"))->toBe('text');
+        $page->type('#title_ar', "مطبخ بالفيديو {$run}")->type('#body_ar', 'قصة');
+        $page->type('#video-link', 'https://vimeo.com/123456');
+        expect(browserSoon($page, "document.querySelector('#video-link').getAttribute('aria-invalid') === 'true' && document.body.textContent.includes('{$paste}')"))->toBeTrue("{$locale}: the link was not said wrong as it was typed");
+        $page->clear('#video-link')->type('#video-link', 'https://youtu.be/dQw4w9WgXcQ');
+        $page->click('[data-test="video-add"]');
+        expect(browserSoon($page, "document.querySelectorAll('[data-test=\"video-thumb\"]').length === 1 && document.querySelector('#video-link').value === ''"))->toBeTrue("{$locale}: the video was not added");
+        // Pasted with no https:// and sent with Enter: the box is no browser's url box to refuse it, and Enter adds
+        // the video - it neither publishes nor saves the form (the review of 5b).
+        $page->type('#video-link', 'youtube.com/shorts/aqz-KE-bpKQ');
+        $page->keys('#video-link', ['Enter']);
+        expect(browserSoon($page, "document.querySelectorAll('[data-test=\"video-thumb\"]').length === 2 && document.querySelector('#video-link').value === ''"))->toBeTrue("{$locale}: Enter did not add the video")
+            ->and($page->script('window.location.pathname'))->toBe('/admin/content/projects/new')
+            ->and(DB::table('content.project_translations')->where('title', "مطبخ بالفيديو {$run}")->exists())->toBeFalse();
+        // The same video again is refused as typed.
+        $page->type('#video-link', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+        expect(browserSoon($page, "document.querySelector('#video-link').getAttribute('aria-invalid') === 'true'"))->toBeTrue("{$locale}: a video listed already was taken");
+        $page->clear('#video-link');
+        $page->type('[data-test="video-title-ar-1"]', 'جولة');
+        // The second one first: Space picks it up, the up arrow moves it, Space puts it down.
+        foreach (['Space', 'ArrowUp', 'Space'] as $key) {
+            $page->keys('[data-test="video-drag-1"]', [$key]);
+            $page->wait(0.3);
+        }
+        expect(browserSoon($page, "document.querySelector('[data-test=\"video-title-ar-0\"]')?.value === 'جولة'"))->toBeTrue("{$locale}: the drag did not move the video");
+        $page->resize(375, 812);
+        expect(Cb::fitsPhone($page))->toBeTrue(Cb::overflow($page))
+            ->and(Cb::latinDigits($page))->toBeTrue();
+        $page->resize(1280, 900);
+        $page->click('[data-test="save-draft"]');
+        expect(browserSoon($page, "window.location.pathname === '/admin/content/projects'"))->toBeTrue("{$locale}: not saved");
+
+        $id = (string) DB::table('content.project_translations')->where('title', "مطبخ بالفيديو {$run}")->value('project_id');
+
+        expect(DB::table('content.project_videos')->where('project_id', $id)->orderBy('position')->get(['video_id', 'title_ar'])->map(fn ($row): array => [$row->video_id, $row->title_ar])->all())
+            ->toBe([['aqz-KE-bpKQ', 'جولة'], ['dQw4w9WgXcQ', null]]);
+        $page->assertNoJavaScriptErrors();
+    }
+});

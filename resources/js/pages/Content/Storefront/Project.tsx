@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import { ArrowUpRight } from 'lucide-react';
 import { shopHref } from '@/components/content/ContentLink';
@@ -6,9 +6,9 @@ import type { Block } from '@/components/content/marks';
 import { ContentBlocks } from '@/components/shop/ContentBlocks';
 import { ProductCards, useCardFacts } from '@/components/shop/ProductCards';
 import { ShopPhoto, type PhotoSizes } from '@/components/shop/ShopPhoto';
+import { VideoTile, type ShopVideo } from '@/components/shop/VideoTile';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { StorefrontLayout } from '@/layouts/StorefrontLayout';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
@@ -21,7 +21,9 @@ import type { SharedProps } from '@/types/page';
 | has none): the title, then chips - "With <client>", the city, "Client's site" when a link is set; the gallery, the first
 | photo large (two thirds) and the next two stacked beside it, every photo opening in the shop's photo viewer, and on a
 | phone one large photo and a sideways strip; two columns, the story and - when a client is set - the client's box; then
-| Products Used as the shop's cards. A page and a post keep Document.tsx.
+| Products Used as the shop's cards. A page and a post keep Document.tsx. Its YouTube videos follow the photos in the
+| gallery (S4.4): a tile with YouTube's thumbnail, a play mark and the title, which opens the viewer playing it - nothing
+| else from YouTube loads before.
 */
 
 // The viewer is fetched when a first photo is opened, not with the page (the script budget, frontend.md §5).
@@ -38,6 +40,7 @@ export default function Project(props: ShopProjectPageData) {
     const facts = useCardFacts(props.cardFacts, products[0]?.productId);
     const images = props.images as Record<number, { src: string | null; width: number | null; height: number | null }>;
     const photos = props.photos as unknown as PhotoSizes[];
+    const videos = (props.videos ?? []) as ShopVideo[];
     const client = props.client as Client | null;
 
     return (
@@ -78,7 +81,7 @@ export default function Project(props: ShopProjectPageData) {
                     ) : null}
                 </header>
 
-                <Gallery photos={photos} />
+                <Gallery photos={photos} videos={videos} />
 
                 <div className={client === null ? 'grid min-w-0 grid-cols-1' : 'grid min-w-0 grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]'} data-test="project-columns">
                     <div className="max-w-3xl min-w-0" data-test="project-story">
@@ -122,19 +125,20 @@ function ClientBox({ client }: { client: Client }) {
 }
 
 /**
- * The gallery (S4.3): from a tablet up the first photo large, two thirds wide, and the next two stacked beside it, the
- * third carrying how many more there are; on a phone one large photo and a strip to swipe. Every photo opens in the
- * viewer at its own place.
+ * The gallery (S4.3): from a tablet up the first photo or video large, two thirds wide, and the next two stacked beside
+ * it, the third carrying how many more there are; on a phone one large and a strip to swipe. The videos come after the
+ * photos (S4.4), each a tile with YouTube's thumbnail, a play mark and its title. Every photo opens in the viewer at its
+ * own place, and every video plays there.
  */
-function Gallery({ photos }: { photos: PhotoSizes[] }) {
+function Gallery({ photos, videos }: { photos: PhotoSizes[]; videos: ShopVideo[] }) {
     const t = useTranslator();
-    const { direction } = usePage<SharedProps>().props;
-    const [open, setOpen] = useState<number | null>(null);
+    const [open, setOpen] = useState<{ index: number; play: boolean } | null>(null);
     // The tile that opened the viewer: focus goes back to it on close (the viewer unmounts, so Radix cannot).
     const opener = useRef<HTMLElement | null>(null);
+    const total = photos.length + videos.length;
     const show = (index: number, tile: HTMLElement) => {
         opener.current = tile;
-        setOpen(index);
+        setOpen({ index, play: index >= photos.length });
     };
 
     useEffect(() => {
@@ -145,55 +149,64 @@ function Gallery({ photos }: { photos: PhotoSizes[] }) {
         }
     }, [open]);
 
-    if (photos.length === 0) {
+    if (total === 0) {
         return null;
     }
 
-    const total = photos.length;
-    const label = (number: number) => t('content::shop.project.photo_open', { number, total });
-    const stack = photos.slice(1, 3);
     const more = total - 3;
+    // A tile of the gallery: a photo's button, or a video's tile, which opens the viewer playing it.
+    const tile = (index: number, size: 'detail' | 'card' | 'thumb', className: string, test?: string, extra?: ReactNode) => {
+        const video = videos[index - photos.length];
+
+        return video ? (
+            <VideoTile video={video} label={t('content::shop.project.video_play')} onPress={(pressed) => show(index, pressed)} small={size === 'thumb'} className={className} test={test}>
+                {extra}
+            </VideoTile>
+        ) : (
+            <button type="button" aria-label={t('content::shop.project.photo_open', { number: index + 1, total })} onClick={(event) => show(index, event.currentTarget)} className={className} data-test={test}>
+                <ShopPhoto photo={photos[index] ?? null} size={size} alt="" eager={index === 0} className="absolute inset-0 size-full" />
+                {extra}
+            </button>
+        );
+    };
 
     return (
         <section aria-label={t('content::shop.project.photos')} data-test="project-photos">
             <div className={total === 1 ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-1 gap-3 sm:grid-cols-3'}>
-                <button type="button" aria-label={label(1)} onClick={(event) => show(0, event.currentTarget)} className={total === 1 ? 'relative block aspect-[3/2] w-full overflow-hidden rounded-lg sm:aspect-[2/1]' : 'relative block aspect-[3/2] w-full overflow-hidden rounded-lg sm:col-span-2'} data-test="gallery-main">
-                    <ShopPhoto photo={photos[0] ?? null} size="detail" alt="" eager className="absolute inset-0 size-full" />
-                </button>
-                {stack.length > 0 ? (
-                    <ul className={stack.length === 1 ? 'grid grid-rows-1 gap-3 max-sm:hidden' : 'grid grid-rows-2 gap-3 max-sm:hidden'} data-test="gallery-stack">
-                        {stack.map((photo, index) => (
+                {tile(0, 'detail', total === 1 ? 'relative block aspect-[3/2] w-full overflow-hidden rounded-lg sm:aspect-[2/1]' : 'relative block aspect-[3/2] w-full overflow-hidden rounded-lg sm:col-span-2', 'gallery-main')}
+                {total > 1 ? (
+                    <ul className={total === 2 ? 'grid grid-rows-1 gap-3 max-sm:hidden' : 'grid grid-rows-2 gap-3 max-sm:hidden'} data-test="gallery-stack">
+                        {[1, 2].filter((index) => index < total).map((index) => (
                             <li key={index} className="relative min-h-0">
-                                <button type="button" aria-label={label(index + 2)} onClick={(event) => show(index + 1, event.currentTarget)} className="absolute inset-0 block overflow-hidden rounded-lg" data-test="gallery-tile">
-                                    <ShopPhoto photo={photo} size="card" alt="" className="size-full" />
-                                    {index === 1 && more > 0 ? (
+                                {tile(
+                                    index,
+                                    'card',
+                                    'absolute inset-0 block overflow-hidden rounded-lg',
+                                    'gallery-tile',
+                                    index === 2 && more > 0 ? (
                                         <Badge className="tw-figure absolute end-2 bottom-2 bg-black/60 text-white" data-test="gallery-more">
                                             {`+${more}`}
                                         </Badge>
-                                    ) : null}
-                                </button>
+                                    ) : null,
+                                )}
                             </li>
                         ))}
                     </ul>
                 ) : null}
+                {/* A phone's strip: a plain row that scrolls sideways, as the product page's (S4.4 left room for videos this way). */}
                 {total > 1 ? (
-                    <ScrollArea className="w-full sm:hidden" dir={direction}>
-                        <ul className="flex gap-2 pb-3" data-test="gallery-strip">
-                            {photos.slice(1).map((photo, index) => (
-                                <li key={index} className="w-28 shrink-0">
-                                    <button type="button" aria-label={label(index + 2)} onClick={(event) => show(index + 1, event.currentTarget)} className="relative block aspect-[3/2] w-full overflow-hidden rounded-md">
-                                        <ShopPhoto photo={photo} size="thumb" alt="" className="absolute inset-0 size-full" />
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-                        <ScrollBar orientation="horizontal" />
-                    </ScrollArea>
+                    <ul className="flex gap-2 overflow-x-auto pb-3 sm:hidden" data-test="gallery-strip">
+                        {Array.from({ length: total - 1 }, (_, at) => (
+                            <li key={at} className="w-28 shrink-0">
+                                {tile(at + 1, 'thumb', 'relative block aspect-[3/2] w-full overflow-hidden rounded-md', videos[at + 1 - photos.length] ? 'strip-video' : undefined)}
+                            </li>
+                        ))}
+                    </ul>
                 ) : null}
             </div>
             {open === null ? null : (
                 <Suspense fallback={null}>
-                    <PhotoViewer photos={photos} index={open} onIndex={setOpen} title={t('content::shop.project.viewer_title')} />
+                    <PhotoViewer items={[...photos.map((photo) => ({ photo })), ...videos.map((video) => ({ video }))]} index={open.index} play={open.play} onIndex={(index) => setOpen(index === null ? null : { index, play: false })} title={t('content::shop.project.viewer_title')} />
                 </Suspense>
             )}
         </section>

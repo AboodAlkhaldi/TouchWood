@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Catalog\Domain\Repository;
 
 use Modules\Catalog\Domain\Model\Product;
+use Modules\Catalog\Domain\ValueObject\ProductVideo;
 use Modules\Catalog\Public\Enums\ProductStage;
 
 /**
@@ -98,6 +99,18 @@ interface ProductRepository
     public function withPhoto(string $mediaId): array;
 
     public function removePhoto(string $productId, string $mediaId): void;
+
+    /**
+     * @return list<ProductVideo> its YouTube videos, in order (catalog.md amendment 48)
+     */
+    public function videos(string $productId): array;
+
+    /**
+     * Writes its videos as they now are, positions 0, 1, 2 … in this order.
+     *
+     * @param  list<ProductVideo>  $videos
+     */
+    public function replaceVideos(string $productId, array $videos): void;
 
     /**
      * @return list<array{word: string, normalized: string}> in order

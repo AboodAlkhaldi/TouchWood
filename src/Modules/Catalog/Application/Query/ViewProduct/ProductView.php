@@ -11,6 +11,7 @@ use Modules\Catalog\Application\Query\Products\ProductOptions;
 use Modules\Catalog\Application\Query\Products\RelatedRow;
 use Modules\Catalog\Application\Query\Products\StoreListingRow;
 use Modules\Catalog\Application\Query\Products\VariantView;
+use Modules\Catalog\Domain\ValueObject\ProductVideo;
 
 /**
  * One product's page (catalog.md §4.4 S9): the product above its tabs, what it still lacks to be made
@@ -30,6 +31,7 @@ final readonly class ProductView
      * @param  array<string, StoreListingRow>|null  $stores  store id => what it does with the product, for the stores the reader covers that chose it
      * @param  list<LabelChoice>|null  $labels  the labels a store may put on it
      * @param  array<string, list<string>|null>|null  $storeJobs  each listing job => the stores where the reader holds it, null for every store
+     * @param  list<ProductVideo>|null  $videos  its YouTube videos, in order (the Photos tab)
      */
     public function __construct(
         public ProductCore $product,
@@ -49,5 +51,6 @@ final readonly class ProductView
         public ?array $stores = null,
         public ?array $labels = null,
         public ?array $storeJobs = null,
+        public ?array $videos = null,
     ) {}
 }

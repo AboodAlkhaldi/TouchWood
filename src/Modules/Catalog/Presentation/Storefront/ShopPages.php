@@ -193,6 +193,7 @@ final readonly class ShopPages
                 $this->cards($store, $locale, $relations === null ? [] : $relations->mayAlsoLike),
                 new ShopAddressData('', null, null, true),
                 unit: $page->unit,
+                videos: $page->videos,
             ))->toArray(), 'other' => $page->otherSlug, 'category' => $page->categoryId,
                 // A guest's: whether companies may buy it here, so whether its wholesale is shown (amendment 35).
                 // Kept with the page: a change of who sees its category is a Catalog change, a new version.

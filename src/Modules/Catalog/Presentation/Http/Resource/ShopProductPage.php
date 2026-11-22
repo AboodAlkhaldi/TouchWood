@@ -23,6 +23,7 @@ final class ShopProductPage extends Data
      * @param  list<ShopVariantData>  $variants
      * @param  list<ShopCardData>  $goesWith
      * @param  list<ShopCardData>  $mayAlsoLike
+     * @param  list<array{id: string, title: string|null}>  $videos  its YouTube videos, after the photos (flags-2026-11.md S4.4)
      */
     public function __construct(
         public string $productId,
@@ -50,5 +51,6 @@ final class ShopProductPage extends Data
         public bool $newArrival = false,
         /** Its unit of sale, beside the price (shop-design.md §10.1): PIECE, SET, PAIR, METRE, CARTON or BOX. */
         public string $unit = 'PIECE',
+        public array $videos = [],
     ) {}
 }

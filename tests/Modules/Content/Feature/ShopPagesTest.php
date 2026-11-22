@@ -333,13 +333,25 @@ describe('H5 the projects and H6 a project (§1.13)', function () {
             ->and($project['address']['alternate'])->toBe(url('/sa/ar/projects/'.rawurlencode('غرفة-ملابس')));
     });
 
+    it('gives a project its videos after its photos, each with its title in the page\'s language, and none to one that has none (S4.4)', function () {
+        contentShopProject(['videos' => [['link' => 'https://youtu.be/dQw4w9WgXcQ', 'title_ar' => 'جولة', 'title_en' => 'A tour'], ['link' => 'https://www.youtube.com/watch?v=a-B_c1D2e3F']]]);
+
+        $en = contentShopPage('/sa/en/projects/dressing-room', 'Content/Storefront/Project');
+        $ar = contentShopPage('/sa/ar/projects/'.rawurlencode('غرفة-ملابس'), 'Content/Storefront/Project');
+
+        expect($en['videos'])->toBe([['id' => 'dQw4w9WgXcQ', 'title' => 'A tour'], ['id' => 'a-B_c1D2e3F', 'title' => null]])
+            ->and($ar['videos'])->toBe([['id' => 'dQw4w9WgXcQ', 'title' => 'جولة'], ['id' => 'a-B_c1D2e3F', 'title' => null]])
+            ->and($en['photos'])->toHaveCount(1);
+    });
+
     it('gives a project with no client no client name and no box', function () {
         contentShopProject();
 
         $project = contentShopPage('/sa/en/projects/dressing-room', 'Content/Storefront/Project');
 
         expect($project['clientName'])->toBeNull()
-            ->and($project['client'])->toBeNull();
+            ->and($project['client'])->toBeNull()
+            ->and($project['videos'])->toBe([]);
     });
 
     it('gives a project its client in the language of the page: the name on the card and the page, the logo and link in the box (S4.1)', function () {
@@ -496,8 +508,9 @@ describe('the queries (owner, 2026-10-19: 8 a shop page is a target, not a cap)'
         contentShopSection('CATEGORIES', ['heading' => ['ar' => 'الفئات', 'en' => 'Categories'], 'count' => 4]);
         contentShopPublishedPage();
         $post = contentShopPost(products: [$p['product']]);
-        // With a client and its logo, the most a project card and page read (S4.1): the client rides the queries the page already asks.
-        contentShopProject(['clientNameAr' => 'شركة الأفق', 'clientNameEn' => 'Horizon Co', 'clientLogoMediaId' => Cx::image(), 'clientLink' => 'https://horizon.example']);
+        // With a client and its logo, the most a project card and page read (S4.1): the client rides the queries the page already asks;
+        // and with videos (S4.4), which ride the read of its files, products and photos.
+        contentShopProject(['clientNameAr' => 'شركة الأفق', 'clientNameEn' => 'Horizon Co', 'clientLogoMediaId' => Cx::image(), 'clientLink' => 'https://horizon.example', 'videos' => [['link' => 'https://youtu.be/dQw4w9WgXcQ', 'title_ar' => 'جولة', 'title_en' => 'A tour']]]);
         ['run' => $run] = contentShopCampaign($p['product']);
         Cx::clockOn(2);
         Fx::asSystem(fn (): int => app(AdvanceCampaignsHandler::class)->handle(new AdvanceCampaigns));
@@ -519,7 +532,7 @@ describe('the queries (owner, 2026-10-19: 8 a shop page is a target, not a cap)'
         // again) and the best sellers' cards 1 - a tile's photos 1 more once a category has one; a page 2 (the item, then its
         // files, products and photos in one); the blog 3 (its categories, its posts, the covers' addresses); a post 4 (its
         // 2, the files' addresses, the products' cards); the projects 3 (whether any is published, the list, the photos); a
-        // project 3 (its client's name, logo and link ride the item's own read and the files' addresses: no query more, S4.1, build 5a); a campaign 5 (the run, Pricing's three reads of the run's products, the cards). Over the target of 8:
+        // project 3 (its client's name, logo and link ride the item's own read and the files' addresses: no query more, S4.1, build 5a; its videos the read of its parts, S4.4, build 5b); a campaign 5 (the run, Pricing's three reads of the run's products, the cards). Over the target of 8:
         // recorded, not hidden (owner, 2026-10-19).
         expect($counts)->toBe(['home' => 9, 'page' => 8, 'blog' => 9, 'post' => 10, 'projects' => 9, 'project' => 9, 'campaign' => 11]);
     });

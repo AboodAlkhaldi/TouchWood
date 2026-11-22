@@ -93,6 +93,9 @@ return [
         'returns_warranty' => 'Returns & Warranty',
         'no_warranty' => 'No warranty is given with this product.',
         'photo_count' => ':number / :total',
+        // flags-2026-11.md S4.4: a video after the photos, YouTube's player loaded only once Play is pressed.
+        'video' => 'Video :number of :total',
+        'video_play' => 'Play Video',
     ],
     'search' => [
         'title' => 'Search',

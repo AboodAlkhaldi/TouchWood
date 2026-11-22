@@ -186,7 +186,7 @@ it('lays a project\'s page out as the gallery, the story and the client box, and
 
         // The first photo about two thirds of the gallery's width, the next two stacked in the third that is left, the
         // client box beside the story in the other column; in Arabic everything the other way round.
-        $layout = json_decode((string) $page->script("(() => { const r = (s) => { const e = document.querySelector(s); const b = e.getBoundingClientRect(); return { left: b.left, right: b.right, top: b.top, bottom: b.bottom, width: b.width }; }; const tiles = [...document.querySelectorAll('[data-test=\"gallery-tile\"]')].map((e) => { const b = e.getBoundingClientRect(); return { left: b.left, top: b.top, bottom: b.bottom, width: b.width }; }); return JSON.stringify({ main: r('[data-test=\"gallery-main\"]'), section: r('[data-test=\"project-photos\"]'), tiles, story: r('[data-test=\"project-story\"]'), box: r('[data-test=\"client-box\"]'), strip: getComputedStyle(document.querySelector('[data-test=\"gallery-strip\"]').closest('[data-slot=\"scroll-area\"]')).display, more: document.querySelector('[data-test=\"gallery-more\"]')?.textContent }); })()"), true, 512, JSON_THROW_ON_ERROR);
+        $layout = json_decode((string) $page->script("(() => { const r = (s) => { const e = document.querySelector(s); const b = e.getBoundingClientRect(); return { left: b.left, right: b.right, top: b.top, bottom: b.bottom, width: b.width }; }; const tiles = [...document.querySelectorAll('[data-test=\"gallery-tile\"]')].map((e) => { const b = e.getBoundingClientRect(); return { left: b.left, top: b.top, bottom: b.bottom, width: b.width }; }); return JSON.stringify({ main: r('[data-test=\"gallery-main\"]'), section: r('[data-test=\"project-photos\"]'), tiles, story: r('[data-test=\"project-story\"]'), box: r('[data-test=\"client-box\"]'), strip: getComputedStyle(document.querySelector('[data-test=\"gallery-strip\"]')).display, more: document.querySelector('[data-test=\"gallery-more\"]')?.textContent }); })()"), true, 512, JSON_THROW_ON_ERROR);
         $share = $layout['main']['width'] / $layout['section']['width'];
 
         expect($share)->toBeGreaterThan(0.6)->toBeLessThan(0.72)
@@ -225,6 +225,62 @@ it('lays a project\'s page out as the gallery, the story and the client box, and
         $page->click('[data-test="gallery-stack"] li:first-child button');
         expect(browserSoon($page, "document.querySelector('[data-test=\"viewer-count\"]')?.textContent.trim() === '".($locale === 'en' ? '2 of 5' : '2 من 5')."'"))->toBeTrue("{$locale}: a stacked photo did not open at its own place");
 
+        $page->assertNoJavaScriptErrors();
+    }
+});
+
+it('shows a project\'s videos after its photos as YouTube\'s thumbnails, loads nothing else of YouTube before Play, and plays them in the viewer (S4.4)', function () {
+    $paths = contentShopBrowserItems();
+    $slug = substr($paths['project'], strlen('/projects/'));
+    $id = (string) DB::table('content.project_translations')->where('slug', $slug)->value('project_id');
+    // One photo, then two videos: the videos are the two stacked beside it, and the phone's strip.
+    DB::table('content.project_photos')->where('project_id', $id)->where('position', '>', 0)->delete();
+    DB::table('content.project_videos')->insert([
+        ['project_id' => $id, 'position' => 0, 'video_id' => 'dQw4w9WgXcQ', 'title_ar' => 'جولة في الغرفة', 'title_en' => 'A tour of the room'],
+        ['project_id' => $id, 'position' => 1, 'video_id' => 'aqz-KE-bpKQ', 'title_ar' => null, 'title_en' => null],
+    ]);
+    app(ContentCache::class)->invalidate();
+    // Every address the page asked for that is YouTube's player, not its images.
+    $player = "performance.getEntriesByType('resource').map((entry) => entry.name).filter((name) => /youtube(-nocookie)?\\.com/.test(new URL(name).hostname)).length";
+
+    foreach (['en' => 'Play Video', 'ar' => 'تشغيل الفيديو'] as $locale => $play) {
+        $title = $locale === 'en' ? 'A tour of the room' : 'جولة في الغرفة';
+        $page = visit("/eg/{$locale}");
+        $page->resize(1280, 900);
+        $page->navigate("/eg/{$locale}{$paths['project']}", BROWSER_PAGE_LOAD);
+        expect(browserSoon($page, "document.querySelectorAll('[data-test=\"gallery-stack\"] [data-test=\"video-thumbnail\"]').length === 2"))->toBeTrue("{$locale}: the videos are not the stacked tiles");
+
+        $tiles = json_decode((string) $page->script("JSON.stringify([...document.querySelectorAll('[data-test=\"gallery-stack\"] button')].map((tile) => ({ label: tile.getAttribute('aria-label'), src: tile.querySelector('img').getAttribute('src'), title: tile.querySelector('[data-test=\"video-title\"]')?.textContent ?? null, mark: tile.querySelector('svg') !== null })))"), true, 512, JSON_THROW_ON_ERROR);
+
+        expect($tiles)->toBe([
+            ['label' => "{$play}: {$title}", 'src' => 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg', 'title' => $title, 'mark' => true],
+            ['label' => $play, 'src' => 'https://i.ytimg.com/vi/aqz-KE-bpKQ/hqdefault.jpg', 'title' => null, 'mark' => true],
+        ])
+            ->and($page->script('document.querySelectorAll("iframe").length'))->toBe(0)
+            ->and($page->script($player))->toBe(0);
+
+        // Pressed, the video plays in the viewer, from the address without cookies, with its own referrer policy.
+        $page->click('[data-test="gallery-stack"] li:first-child button');
+        expect(browserSoon($page, "document.querySelector('[data-test=\"photo-viewer\"] [data-test=\"video-player\"]') !== null"))->toBeTrue("{$locale}: the viewer did not play the video")
+            ->and($page->script("document.querySelector('[data-test=\"video-player\"]').getAttribute('src')"))->toBe('https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0')
+            ->and($page->script("document.querySelector('[data-test=\"video-player\"]').getAttribute('referrerpolicy')"))->toBe('strict-origin-when-cross-origin')
+            ->and($page->script("document.querySelector('[data-test=\"viewer-count\"]').textContent.trim()"))->toBe($locale === 'en' ? '2 of 3' : '2 من 3');
+
+        // The next video waits for its own Play; the one left stops: its player goes.
+        $page->click('[data-test="viewer-next"]');
+        expect(browserSoon($page, "document.querySelector('[data-test=\"viewer-count\"]')?.textContent.trim() === '".($locale === 'en' ? '3 of 3' : '3 من 3')."' && document.querySelector('[data-test=\"viewer-video\"]') !== null"))->toBeTrue("{$locale}: Next did not reach the second video")
+            ->and($page->script('document.querySelectorAll("iframe").length'))->toBe(0);
+        $page->click('[data-test="viewer-video"]');
+        expect(browserSoon($page, "document.querySelector('[data-test=\"video-player\"]')?.getAttribute('src') === 'https://www.youtube-nocookie.com/embed/aqz-KE-bpKQ?autoplay=1&rel=0'"))->toBeTrue("{$locale}: Play did not start the second video");
+        $page->keys('[data-test="photo-viewer"]', 'Escape');
+        expect(browserSoon($page, "document.querySelector('[data-test=\"photo-viewer\"]') === null"))->toBeTrue();
+
+        // A phone: the photo large, the videos in the strip under it, nothing wider than the screen.
+        $page->resize(375, 812);
+        $page->navigate("/eg/{$locale}{$paths['project']}", BROWSER_PAGE_LOAD);
+        expect(browserSoon($page, "document.querySelectorAll('[data-test=\"gallery-strip\"] [data-test=\"strip-video\"]').length === 2"))->toBeTrue("{$locale}: the strip has no videos")
+            ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue(Cb::overflow($page))
+            ->and(Cb::latinDigits($page))->toBeTrue();
         $page->assertNoJavaScriptErrors();
     }
 });

@@ -21,6 +21,7 @@ final readonly class ProductPage
      * @param  list<ShopVariant>  $variants  those on sale here for this viewer; none on a page that is not available
      * @param  string|null  $categoryId  its own category, whose path the shop draws from the viewer's menu
      * @param  list<ShopChoice>  $choices  none on a page that is not available
+     * @param  list<array{id: string, title: string|null}>  $videos  its YouTube videos, after the photos (flags-2026-11.md S4.4)
      */
     public function __construct(
         public string $productId,
@@ -43,6 +44,7 @@ final readonly class ProductPage
         public ?string $listedAt = null,
         /** Its unit of sale, beside the price (shop-design.md §10.1). */
         public string $unit = 'PIECE',
+        public array $videos = [],
     ) {}
 
     /** Kept out of search engines: a page with nothing to order, unless only stock or a price is missing (§1.4). */

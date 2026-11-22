@@ -7,6 +7,11 @@ return [
     'invalid_catalog_attribute' => [
         'title' => 'راجع البيانات',
         'detail' => 'قيمة :attribute غير صالحة.',
+        // flags-2026-11.md S4.4: فيديوهات المنتج.
+        'rules' => [
+            'youtube_link' => 'الصق رابطًا من يوتيوب.',
+            'video_once' => 'هذا الفيديو في القائمة من قبل.',
+        ],
     ],
     'brand_not_found' => [
         'title' => 'الماركة غير موجودة',
@@ -168,6 +173,9 @@ return [
         'length_mm' => 'الطول',
         'number' => 'الرقم',
         'photos' => 'الصور',
+        'videos' => 'الفيديوهات',
+        'video_title_ar' => 'عنوان الفيديو بالعربية',
+        'video_title_en' => 'عنوان الفيديو بالإنجليزية',
         'relations' => 'المنتجات المرتبطة',
         'search_words' => 'كلمات البحث',
         'text_ar' => 'النص العربي',

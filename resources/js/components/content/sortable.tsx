@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useState, type ComponentProps } from 'react';
+import { lazy, Suspense, useEffect, useState, type ComponentProps, type ComponentType } from 'react';
+import type { MoveItems as Move, SortableList as Sortable } from '@/pages/Catalog/Admin/SortableList';
 
 /*
 | Content's lists put in order by dragging (content.md §4.2): Catalog's `SortableList`, its @dnd-kit loaded only once
@@ -9,11 +10,13 @@ import { lazy, Suspense, useEffect, useState, type ComponentProps } from 'react'
 */
 
 const sortable = () => import('@/pages/Catalog/Admin/SortableList');
-const Draggable = lazy(() => sortable().then((module) => ({ default: module.SortableList })));
-const Moves = lazy(() => sortable().then((module) => ({ default: module.MoveItems })));
+// A dragging that cannot be fetched - a deploy replaced its file, the network dropped - leaves the plain list, and no
+// Move items, never an empty page (the review of 5b): React has no boundary here to catch a failed import.
+const Draggable = lazy<ComponentType<ComponentProps<typeof Sortable>>>(() => sortable().then((module) => ({ default: module.SortableList })).catch(() => ({ default: PlainList })));
+const Moves = lazy<ComponentType<ComponentProps<typeof Move>>>(() => sortable().then((module) => ({ default: module.MoveItems })).catch(() => ({ default: () => null })));
 
 /** Move to Top and Move to Bottom, for a row's ⋯ menu: loaded as the menu opens. */
-export function MoveItems(props: ComponentProps<typeof Moves>) {
+export function MoveItems(props: ComponentProps<typeof Move>) {
     return (
         <Suspense fallback={null}>
             <Moves {...props} />
@@ -21,7 +24,7 @@ export function MoveItems(props: ComponentProps<typeof Moves>) {
     );
 }
 
-type Props = ComponentProps<typeof Draggable>;
+type Props = ComponentProps<typeof Sortable>;
 
 export function SortableList(props: Props) {
     const [mounted, setMounted] = useState(false);

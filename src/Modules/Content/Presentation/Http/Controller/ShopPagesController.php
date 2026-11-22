@@ -493,6 +493,7 @@ final readonly class ShopPagesController
                 $products['cardFacts'],
                 $address,
                 $head,
+                $found['videos'],
             ))->toArray(), self::WORDS)->toResponse($request);
         }
 

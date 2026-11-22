@@ -278,7 +278,7 @@ final readonly class ShopCatalog
         $variants = $available ? $this->reader->variantsOnSale($store->value, $locale, $viewer, $productId) : [];
         // What can be ordered now (amendment 39): a sold-out or unpriced size is drawn greyed, its value not on sale, its photos never shown.
         $variantIds = array_values(array_map(static fn (ShopVariant $variant): string => $variant->variantId, array_filter($variants, static fn (ShopVariant $variant): bool => $variant->orderable)));
-        $gallery = $this->reader->gallery($productId);
+        ['photos' => $gallery, 'videos' => $videos] = $this->reader->gallery($productId, $locale);
         $own = $variantIds === [] ? [] : $this->reader->variantPhotos($variantIds);
         $urls = $this->photos([...$gallery, ...array_merge(...array_values($own))]);
         $photosOf = static fn (array $mediaIds): array => array_values(array_filter(array_map(static fn (string $id): ?array => $urls[$id] ?? null, $mediaIds)));
@@ -319,6 +319,8 @@ final readonly class ShopCatalog
             $listed['sales_rank'] ?? null,
             $listed['listed_at'] ?? null,
             $product['unit'],
+            // The product's videos, a size's photos or not (F22): on a page not available now too, as its photos are.
+            $videos,
         );
     }
 

@@ -24,7 +24,7 @@ import type { ContentImageData, DocumentFormPageData, ProductChoiceData } from '
 | address made from the title until typed, the whole of it shown), the body in the text editor with Translate under its
 | English, Search and Sharing in a `Collapsible` (title 70, description 160, each with its count, the default as its
 | placeholder; a share image per language), and what the kind adds (a post's summary, cover and category, a project's
-| city, client and photos, their products), drawn by the page. **Publish** or **Save Draft**; once published, **Save Changes**;
+| city, client, photos and YouTube videos, their products), drawn by the page. **Publish** or **Save Draft**; once published, **Save Changes**;
 | ⋯ Unpublish… while published, Delete… while a draft, each naming first where Content's links point at it.
 |
 | Publish and a published item's Save Changes ask the one tick while Translate's mark stays on (§1.3), and the mark
@@ -97,6 +97,8 @@ function useDocumentData(page: DocumentFormPageData) {
         client_name_en: words('clientName', 'en'),
         client_link: document?.clientLink ?? '',
         category_id: document?.categoryId ?? '',
+        // A project's YouTube videos (flags-2026-11.md S4.4), in order, each with its titles.
+        videos: (document?.videos ?? []).map((video) => ({ videoId: video.videoId, titleAr: video.titleAr ?? '', titleEn: video.titleEn ?? '' })),
     });
 }
 
@@ -176,6 +178,8 @@ export function DocumentForm({ page, words, children, extraChecks }: { page: Doc
             client_logo_media_id: clientLogo?.id ?? '',
             photos: photos.map((photo) => photo.id),
             products: products.map((product) => product.id),
+            // Each video sent back as its link (lib/youtube.ts's youTubeLink, written out: the three forms pay for no module more).
+            videos: data.videos.map((video) => ({ link: `https://www.youtube.com/watch?v=${video.videoId}`, title_ar: video.titleAr, title_en: video.titleEn })),
             intent,
         }));
         form.post(document === null ? base : `${base}/${document.id}`, { preserveScroll: 'errors', onSuccess: () => setTouched(false) });

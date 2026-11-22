@@ -294,6 +294,7 @@ related: RelatedData[] | null,
 found: ProductRowData[] | null,
 stores: StoreCardData[] | null,
 labels: LabelChoiceData[] | null,
+videos: VideoData[] | null,
 };
 export type ProductRowData = {
 id: string,
@@ -493,6 +494,10 @@ returnDays: number,
 bestSeller: boolean,
 newArrival: boolean,
 unit: string,
+videos: {
+id: string,
+title: string | null,
+}[],
 };
 export type ShopSearchPage = {
 query: string,
@@ -642,6 +647,11 @@ valueId: string,
 nameAr: string,
 nameEn: string,
 swatch: string | null,
+};
+export type VideoData = {
+videoId: string,
+titleAr: string | null,
+titleEn: string | null,
 };
 export type WarrantiesPage = {
 warranties: WarrantyData[],

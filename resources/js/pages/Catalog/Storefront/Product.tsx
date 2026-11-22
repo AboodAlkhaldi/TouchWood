@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react';
+import { type ComponentProps, type ComponentType, lazy, type ReactNode, Suspense, useEffect, useState } from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import { cn } from 'cn';
 import { ChevronLeft, RotateCcw, Truck } from 'lucide-react';
@@ -12,6 +12,7 @@ import { RichText } from '@/components/shop/RichText';
 import { ShopPhoto, type PhotoSizes } from '@/components/shop/ShopPhoto';
 import { percentOff } from '@/components/shop/ShopPrice';
 import { ShopTrail } from '@/components/shop/ShopTrail';
+import type { ShopVideo, VideoPicture as Picture, VideoTile as Tile } from '@/components/shop/VideoTile';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -46,6 +47,29 @@ import type { SharedProps } from '@/types/page';
 | heart in the buy row - alone on a "Not available now" page (amendment 34) - its reviews and answered questions after
 | Goes With (feedback.md §4.1 F5, Q11).
 */
+
+// A video's tile and picture are fetched once the page is drawn (flags-2026-11.md S4.4; the page's 68 KB, JavaScriptBudgetTest):
+// on first paint each video has its place, empty, and nothing of YouTube's. A file that cannot be fetched leaves a plain link
+// to the video on YouTube, and an empty thumbnail: the page itself keeps working (the review of 5b).
+const VideoTile = lazy<ComponentType<ComponentProps<typeof Tile>>>(() =>
+    import('@/components/shop/VideoTile')
+        .then((module) => ({ default: module.VideoTile }))
+        .catch(() => ({ default: VideoLink })),
+);
+const VideoPicture = lazy<ComponentType<ComponentProps<typeof Picture>>>(() =>
+    import('@/components/shop/VideoTile')
+        .then((module) => ({ default: module.VideoPicture }))
+        .catch(() => ({ default: () => null })),
+);
+
+/** A video whose tile could not be fetched: its title, or Play, as a link to it on YouTube. */
+function VideoLink({ video, label, className }: { video: ShopVideo; label: string; className?: string }) {
+    return (
+        <a href={`https://www.youtube.com/watch?v=${video.id}`} target="_blank" rel="noopener noreferrer" className={cn('grid place-items-center p-4 text-label-14 text-ink underline', className)}>
+            {video.title ?? label}
+        </a>
+    );
+}
 
 /** The variant these choices make, or none. */
 function variantOf(variants: ShopVariantData[], choices: ShopChoiceData[], chosen: Record<string, string>): ShopVariantData | null {
@@ -108,7 +132,7 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
 
                 <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_460px] lg:gap-11">
                     {/* A new set of photos starts at its first. */}
-                    <Gallery key={variant?.id ?? 'product'} photos={photos} name={name} reduced={reduced} back={back} heart={<SaveHeart wishlist={sections['feedback.wishlist']} productId={page.productId} name={name} className="size-10 rounded-full border-0 bg-white text-on-photo-ink shadow-sm hover:bg-white/90" test="gallery-heart" />} />
+                    <Gallery key={variant?.id ?? 'product'} photos={photos} videos={(page.videos ?? []) as ShopVideo[]} name={name} reduced={reduced} back={back} heart={<SaveHeart wishlist={sections['feedback.wishlist']} productId={page.productId} name={name} className="size-10 rounded-full border-0 bg-white text-on-photo-ink shadow-sm hover:bg-white/90" test="gallery-heart" />} />
 
                     <div className="grid content-start gap-4">
                         <div className="flex flex-wrap items-center gap-2">
@@ -289,30 +313,58 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
 /**
  * A 4:3 photo showing the whole product and four thumbnails under it; a live theme's ribbon on it while the chosen size
  * shows a reduced price (its flag is in the details' flags, §6.2). On a phone a swipe gallery with «1/4», back and the
- * heart over it (§6.6, P22).
+ * heart over it (§6.6, P22). The product's YouTube videos follow the photos (flags-2026-11.md S4.4), whichever size is
+ * chosen: a tile with YouTube's thumbnail, a play mark and the title, whose player opens in its place once pressed.
  */
-function Gallery({ photos, name, reduced, back, heart }: { photos: PhotoSizes[]; name: string; reduced: boolean; back: string; heart: ReactNode }) {
+function Gallery({ photos, videos, name, reduced, back, heart }: { photos: PhotoSizes[]; videos: ShopVideo[]; name: string; reduced: boolean; back: string; heart: ReactNode }) {
     const t = useTranslator();
     const [shown, setShown] = useState(0);
-    const all = photos.length > 0 ? photos : [null];
+    const [drawn, setDrawn] = useState(false);
+    // No photo yet shows a quiet empty frame - unless there are videos to show instead.
+    const all: (PhotoSizes | null)[] = photos.length > 0 || videos.length > 0 ? photos : [null];
+    const total = all.length + videos.length;
+    const video = videos[shown - all.length];
+    const play = t('catalog::shop.product.video_play');
+    // A video in its place: drawn once the page is, so the server's page and the first paint agree (lesson 180).
+    // A slide swiped out of view loses its player, so a video left playing stops (the review of 5b): its tile is drawn anew.
+    const slot = (each: ShopVideo, className: string, test: string, here = true) => (
+        <span key={each.id} className={className}>
+            {drawn ? (
+                <Suspense fallback={null}>
+                    <VideoTile key={here ? 'here' : 'away'} video={each} label={play} className="absolute inset-0" test={test} />
+                </Suspense>
+            ) : null}
+        </span>
+    );
+    const thumb = (index: number) => cn('relative aspect-[4/3] w-[calc((100%-1.5rem)/4)] shrink-0 overflow-hidden rounded-lg bg-surface-sunken', index === shown ? 'shadow-[0_0_0_2px_var(--tw-brand)]' : 'shadow-[0_0_0_1px_var(--tw-line)]');
+
+    useEffect(() => setDrawn(true), []);
 
     return (
         <div className="grid min-w-0 content-start gap-3 max-sm:-mx-4" data-test="gallery">
             <div className="relative overflow-hidden bg-surface-sunken sm:rounded-xl">
-                {/* A computer's and a tablet's: the photo the thumbnails choose. */}
-                <ShopPhoto photo={all[shown] ?? null} size="detail" alt={name} eager className="aspect-[4/3] w-full object-contain max-sm:hidden" />
-                {/* A phone's: the photos side by side, swiped. */}
+                {/* A computer's and a tablet's: the photo or video the thumbnails choose. */}
+                {video ? (
+                    slot(video, 'relative block aspect-[4/3] w-full max-sm:hidden', 'gallery-video')
+                ) : (
+                    <ShopPhoto photo={all[shown] ?? null} size="detail" alt={name} eager className="aspect-[4/3] w-full object-contain max-sm:hidden" />
+                )}
+                {/* A phone's: the photos and videos side by side, swiped. */}
                 <div
                     className="flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] sm:hidden"
                     onScroll={(event) => {
                         const box = event.currentTarget;
-                        setShown(Math.min(all.length - 1, Math.max(0, Math.round(Math.abs(box.scrollLeft) / box.clientWidth))));
+                        setShown(Math.min(total - 1, Math.max(0, Math.round(Math.abs(box.scrollLeft) / box.clientWidth))));
                     }}
                     data-test="gallery-swipe"
                 >
+                    {/* Each slide the swipe's width: a bare <picture> took its image's own, and the count read the wrong slide. */}
                     {all.map((photo, index) => (
-                        <ShopPhoto key={index} photo={photo} size="detail" alt={index === 0 ? name : ''} eager={index === 0} className="aspect-[4/3] w-full shrink-0 snap-center object-contain" />
+                        <span key={index} className="w-full shrink-0 snap-center">
+                            <ShopPhoto photo={photo} size="detail" alt={index === 0 ? name : ''} eager={index === 0} className="aspect-[4/3] w-full object-contain" />
+                        </span>
                     ))}
+                    {videos.map((each, index) => slot(each, 'relative aspect-[4/3] w-full shrink-0 snap-center', 'swipe-video', shown === all.length + index))}
                 </div>
                 <ThemeRibbon reduced={reduced} />
                 <span className="absolute inset-x-3 top-3 flex items-center justify-between sm:hidden">
@@ -321,24 +373,26 @@ function Gallery({ photos, name, reduced, back, heart }: { photos: PhotoSizes[];
                     </Link>
                     {heart}
                 </span>
-                {all.length > 1 ? (
+                {total > 1 ? (
                     <span className="tw-figure absolute end-3 bottom-3 rounded-full bg-black/60 px-2.5 py-0.5 text-label-12 text-white sm:hidden" data-test="gallery-count">
-                        {t('catalog::shop.product.photo_count', { number: shown + 1, total: all.length })}
+                        {t('catalog::shop.product.photo_count', { number: shown + 1, total })}
                     </span>
                 ) : null}
             </div>
-            {photos.length > 1 ? (
+            {total > 1 ? (
                 <div className="flex gap-2 overflow-x-auto max-sm:hidden">
-                    {photos.map((photo, index) => (
-                        <button
-                            key={index}
-                            type="button"
-                            onClick={() => setShown(index)}
-                            aria-label={t('catalog::shop.product.photo', { number: index + 1, total: photos.length })}
-                            aria-pressed={index === shown}
-                            className={cn('w-[calc((100%-1.5rem)/4)] shrink-0 overflow-hidden rounded-lg bg-surface-sunken', index === shown ? 'shadow-[0_0_0_2px_var(--tw-brand)]' : 'shadow-[0_0_0_1px_var(--tw-line)]')}
-                        >
+                    {all.map((photo, index) => (
+                        <button key={index} type="button" onClick={() => setShown(index)} aria-label={t('catalog::shop.product.photo', { number: index + 1, total: all.length })} aria-pressed={index === shown} className={thumb(index)}>
                             <ShopPhoto photo={photo} size="thumb" alt="" className="aspect-[4/3] w-full object-contain" />
+                        </button>
+                    ))}
+                    {videos.map((each, index) => (
+                        <button key={each.id} type="button" onClick={() => setShown(all.length + index)} aria-label={t('catalog::shop.product.video', { number: index + 1, total: videos.length })} aria-pressed={all.length + index === shown} className={thumb(all.length + index)} data-test="gallery-video-thumb">
+                            {drawn ? (
+                                <Suspense fallback={null}>
+                                    <VideoPicture video={each} small />
+                                </Suspense>
+                            ) : null}
                         </button>
                     ))}
                 </div>

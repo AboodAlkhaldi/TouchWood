@@ -42,6 +42,8 @@ return [
         'viewer_previous' => 'Previous photo',
         'viewer_next' => 'Next photo',
         'viewer_count' => ':number of :total',
+        // flags-2026-11.md S4.4: a project's videos, after its photos; YouTube's player is loaded only once Play is pressed.
+        'video_play' => 'Play Video',
         'products' => 'Products Used',
         'back' => 'Projects',
     ],

@@ -288,6 +288,28 @@ it('keeps a project\'s client from its form, shows it again on the form, and ref
         ->where("images.{$logo}.id", $logo));
 });
 
+it('keeps a project\'s videos from its form, in order, shows them again on the form, and refuses a link not YouTube\'s on the videos (S4.4)', function () {
+    $browser = documentsScreenEditor();
+    $fields = documentsScreenFields(['city_ar' => 'الرياض', 'city_en' => 'Riyadh', 'photos' => [Cx::image()], 'videos' => [
+        ['link' => 'https://youtu.be/dQw4w9WgXcQ', 'title_ar' => 'جولة', 'title_en' => 'A tour'],
+        ['link' => 'https://www.youtube.com/shorts/a-B_c1D2e3F', 'title_ar' => '', 'title_en' => ''],
+    ]]);
+
+    expect(Screen::errors($browser->post('/admin/content/projects', [...$fields, 'videos' => [['link' => 'https://vimeo.com/1']]], Screen::fromPage('/admin/content/projects/new'))))->toMatchArray(['videos' => 'Paste a YouTube link.'])
+        ->and(Screen::errors($browser->post('/admin/content/projects', [...$fields, 'videos' => [['link' => 'https://youtu.be/dQw4w9WgXcQ', 'title_ar' => str_repeat('ع', 101)]]], Screen::fromPage('/admin/content/projects/new'))))->toHaveKey('video_title_ar')
+        ->and(DB::table('content.projects')->exists())->toBeFalse();
+
+    $browser->post('/admin/content/projects', $fields, Screen::fromPage('/admin/content/projects/new'));
+    $project = documentsScreenId('content.projects');
+
+    $browser->get("/admin/content/projects/{$project}")->assertInertia(fn (AssertableInertia $screen) => $screen
+        ->component('Content/Admin/Projects/Form')
+        ->where('document.videos', [
+            ['videoId' => 'dQw4w9WgXcQ', 'titleAr' => 'جولة', 'titleEn' => 'A tour'],
+            ['videoId' => 'a-B_c1D2e3F', 'titleAr' => null, 'titleEn' => null],
+        ]));
+});
+
 it('uploads an image under the kind\'s own permission only', function () {
     Storage::fake('local');
     Storage::fake('public');

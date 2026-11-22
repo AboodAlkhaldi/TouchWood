@@ -63,6 +63,7 @@ return [
     'variant.archived' => 'أُرشف نوع منتج',
     'variant.restored' => 'أُعيد نوع منتج من الأرشيف',
     'product.gallery_changed' => 'تغيّرت صور منتج',
+    'product.videos_changed' => 'تغيّرت فيديوهات منتج',
     'product.photo_detached' => 'أُزيلت صورة منتج مع ملفها',
     'product.search_words_changed' => 'تغيّرت كلمات بحث منتج',
     'product.filter_values_changed' => 'تغيّرت قيم تصفية منتج',

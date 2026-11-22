@@ -63,6 +63,7 @@ return [
     'variant.archived' => 'Variant archived',
     'variant.restored' => 'Variant restored',
     'product.gallery_changed' => 'Product photos changed',
+    'product.videos_changed' => 'Product videos changed',
     'product.photo_detached' => 'Product photo removed with its file',
     'product.search_words_changed' => 'Product search words changed',
     'product.filter_values_changed' => 'Product filter values changed',

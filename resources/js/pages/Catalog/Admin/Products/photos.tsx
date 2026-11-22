@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import { ImageOff } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
+import { SortableList } from '@/components/content/sortable';
 import { Attachment, AttachmentContent, AttachmentMedia, AttachmentTitle } from '@/components/ui/attachment';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,13 +11,13 @@ import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import type { PhotoData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
-import { SortableList } from '../SortableList';
 
 /*
 | A product's or a variant's photos (catalog.md §4.4 S9, P5, P8): tiles as the media library's grid
 | (shadcn's Attachment), each with its sizes' state - Waiting, Ready, Failed - put in order by dragging,
 | removed, or added by uploading here; each change saved at once, the order as shown. The gallery's
-| first is the card's photo.
+| first is the card's photo. The dragging is fetched once the page is drawn, as Content's lists' (components/content/
+| sortable.tsx): the Photos tab, with its videos (flags-2026-11.md S4.4), pays for no @dnd-kit on first paint.
 */
 
 const STATE_TONES: Record<string, Parameters<typeof tone>[0]> = { PENDING: 'gray-subtle', READY: 'green-subtle', FAILED: 'red-subtle' };

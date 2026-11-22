@@ -12,7 +12,7 @@ use stdClass;
 
 /**
  * `ShopDocuments` in SQL (content.md §4.5): an item's page is **two reads** - the item with its words in both languages,
- * then its body's files, products and photos together - and a list one. Only `PUBLISHED` rows answer. A language is
+ * then its body's files, products, photos and a project's videos together - and a list one. Only `PUBLISHED` rows answer. A language is
  * only ever `ar` or `en` when it names a column.
  */
 final readonly class DatabaseShopDocuments implements ShopDocuments
@@ -60,6 +60,12 @@ final readonly class DatabaseShopDocuments implements ShopDocuments
             $bindings[] = $id;
         }
 
+        // A project's videos (flags-2026-11.md S4.4) in the same read: each one's id and its title in this language.
+        if ($kind === DocumentKind::Project) {
+            $parts[] = "SELECT 'video', NULL, video_id, title_{$locale}, position FROM content.project_videos WHERE project_id = ?";
+            $bindings[] = $id;
+        }
+
         /** @var list<stdClass> $rows */
         $rows = $this->db->select('SELECT * FROM ('.implode(' UNION ALL ', $parts).') parts ORDER BY what, position, ref', $bindings);
         $of = static fn (string $what): array => array_values(array_filter($rows, static fn (stdClass $part): bool => $part->what === $what));
@@ -85,6 +91,8 @@ final readonly class DatabaseShopDocuments implements ShopDocuments
             'images' => array_map(static fn (stdClass $image): array => ['ref' => (int) $image->ref, 'mediaId' => strtolower((string) $image->id), 'alt' => Rows::text($image->alt)], $of('image')),
             'products' => array_map(static fn (stdClass $product): string => strtolower((string) $product->id), $of('product')),
             'photos' => array_map(static fn (stdClass $photo): string => strtolower((string) $photo->id), $of('photo')),
+            // A video's id keeps its case: YouTube's ids are not lower-cased.
+            'videos' => array_map(static fn (stdClass $video): array => ['id' => (string) $video->id, 'title' => Rows::text($video->alt)], $of('video')),
         ];
     }
 

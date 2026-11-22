@@ -265,6 +265,11 @@ photos: string[],
 translationUnread: boolean,
 clientLogoMediaId: string | null,
 clientLink: string | null,
+videos: {
+videoId: string,
+titleAr: string | null,
+titleEn: string | null,
+}[],
 };
 export type DocumentFormPageData = {
 store: ContentStoreData,
@@ -606,6 +611,10 @@ products: Record<string, any>[],
 cardFacts: Record<string, any>,
 address: ContentAddressData,
 head: ContentHeadData,
+videos: {
+id: string,
+title: string | null,
+}[],
 };
 export type ShopProjectsPageData = {
 projects: Record<string, any>[],

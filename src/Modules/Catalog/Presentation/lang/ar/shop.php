@@ -92,6 +92,9 @@ return [
         'returns_warranty' => 'الإرجاع والضمان',
         'no_warranty' => 'لا يشمل هذا المنتج ضمانًا.',
         'photo_count' => ':number / :total',
+        // flags-2026-11.md S4.4: فيديو بعد الصور، ولا يُحمَّل مشغّل يوتيوب إلا عند الضغط على التشغيل.
+        'video' => 'الفيديو :number من :total',
+        'video_play' => 'تشغيل الفيديو',
     ],
     'search' => [
         'title' => 'البحث',

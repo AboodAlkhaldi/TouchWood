@@ -398,3 +398,46 @@ it('reads right to left in Arabic, at a phone\'s width, with nothing wider than 
 
     $page->assertNoJavaScriptErrors();
 });
+
+it('gives the Photos tab its videos: a link said wrong as it is typed, each added, titled, dragged and removed, saved at once, in both languages and on a phone (S4.4)', function () {
+    foreach (['en' => 'Paste a YouTube link.', 'ar' => 'الصق رابطًا من يوتيوب.'] as $locale => $paste) {
+        $product = catalogProductBrowserDraft(catalogProductBrowserFresh());
+        $kept = fn (): array => DB::table('catalog.product_videos')->where('product_id', $product)->orderBy('position')->get(['video_id', 'title_en'])->map(fn ($row): array => [$row->video_id, $row->title_en])->all();
+        $page = catalogProductBrowser([P::PRODUCT_VIEW, P::PRODUCT_UPDATE], $locale);
+        $page->navigate("/admin/products/{$product}?tab=photos", BROWSER_PAGE_LOAD);
+        expect(browserUntil($page, "document.querySelector('#video-link') !== null"))->toBeTrue("{$locale}: no link box");
+
+        $page->type('#video-link', 'https://www.youtube.com/@touchwood');
+        expect(browserSoon($page, "document.querySelector('#video-link').getAttribute('aria-invalid') === 'true' && document.body.textContent.includes('{$paste}')"))->toBeTrue("{$locale}: the link was not said wrong as it was typed")
+            ->and($kept())->toBe([]);
+        $page->clear('#video-link')->type('#video-link', 'https://youtu.be/dQw4w9WgXcQ');
+        $page->click('[data-test="video-add"]');
+        expect(catalogProductBrowserSoon($page, $kept, fn (array $found): bool => count($found) === 1))->toBe([['dQw4w9WgXcQ', null]]);
+        // Add Video is busy while the list is saved, and takes no press then: the next is pressed once it is free.
+        expect(browserSoon($page, "document.querySelector('[data-test=\"video-thumb\"]')?.getAttribute('src') === 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg' && document.querySelector('[data-test=\"video-add\"]')?.getAttribute('aria-busy') === null"))->toBeTrue();
+        // No https:// typed, and Enter in the box: added, as by Add Video (the review of 5b).
+        $page->type('#video-link', 'www.youtube.com/watch?v=aqz-KE-bpKQ&t=3');
+        $page->keys('#video-link', ['Enter']);
+        expect(catalogProductBrowserSoon($page, $kept, fn (array $found): bool => count($found) === 2))->toBe([['dQw4w9WgXcQ', null], ['aqz-KE-bpKQ', null]]);
+
+        // A title is saved once its box is left.
+        expect(browserSoon($page, "document.querySelector('[data-test=\"video-title-en-1\"]') !== null && document.querySelector('[data-test=\"video-add\"]')?.getAttribute('aria-busy') === null"))->toBeTrue();
+        $page->type('[data-test="video-title-en-1"]', 'Big Buck Bunny');
+        $page->click('[data-test="video-link"]');
+        expect(catalogProductBrowserSoon($page, $kept, fn (array $found): bool => ($found[1][1] ?? null) === 'Big Buck Bunny'))->toBe([['dQw4w9WgXcQ', null], ['aqz-KE-bpKQ', 'Big Buck Bunny']]);
+
+        // Dragged from the keyboard, the order saved; removed, gone.
+        expect(browserSoon($page, "document.querySelector('[data-test=\"video-drag-1\"]') !== null && document.querySelector('[data-test=\"video-add\"]')?.getAttribute('aria-busy') === null"))->toBeTrue();
+        catalogProductBrowserKeys($page, '[data-test="video-drag-1"]', ['Space', 'ArrowUp', 'Space']);
+        expect(catalogProductBrowserSoon($page, $kept, fn (array $found): bool => ($found[0][0] ?? null) === 'aqz-KE-bpKQ'))->toBe([['aqz-KE-bpKQ', 'Big Buck Bunny'], ['dQw4w9WgXcQ', null]]);
+        // A title box is named by its video, not its place, so its check moves with it (the review of 5b).
+        expect(browserSoon($page, "document.querySelector('#video_title_en_aqz-KE-bpKQ')?.value === 'Big Buck Bunny'"))->toBeTrue("{$locale}: the title box is not named by its video");
+        expect(browserSoon($page, "document.querySelector('[data-test=\"video-remove-1\"]') !== null && document.querySelector('[data-test=\"video-add\"]')?.getAttribute('aria-busy') === null"))->toBeTrue();
+        $page->click('[data-test="video-remove-1"]');
+        expect(catalogProductBrowserSoon($page, $kept, fn (array $found): bool => count($found) === 1))->toBe([['aqz-KE-bpKQ', 'Big Buck Bunny']]);
+
+        $page->resize(375, 812);
+        expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue("{$locale}: the Photos tab scrolls sideways");
+        $page->assertNoJavaScriptErrors();
+    }
+});

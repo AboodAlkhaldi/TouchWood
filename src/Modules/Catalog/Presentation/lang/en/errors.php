@@ -7,6 +7,11 @@ return [
     'invalid_catalog_attribute' => [
         'title' => 'Check the details',
         'detail' => 'The :attribute is not valid.',
+        // flags-2026-11.md S4.4: a product's videos.
+        'rules' => [
+            'youtube_link' => 'Paste a YouTube link.',
+            'video_once' => 'This video is already in the list.',
+        ],
     ],
     'brand_not_found' => [
         'title' => 'Brand not found',
@@ -168,6 +173,9 @@ return [
         'length_mm' => 'length',
         'number' => 'number',
         'photos' => 'photos',
+        'videos' => 'videos',
+        'video_title_ar' => 'Arabic video title',
+        'video_title_en' => 'English video title',
         'relations' => 'related products',
         'search_words' => 'search words',
         'text_ar' => 'Arabic text',

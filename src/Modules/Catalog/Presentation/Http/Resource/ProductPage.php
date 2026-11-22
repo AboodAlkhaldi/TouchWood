@@ -28,6 +28,7 @@ final class ProductPage extends Data
      * @param  list<ProductRowData>|null  $found  the ready products a search for a related product found
      * @param  list<StoreCardData>|null  $stores  a card for each store the reader covers (the Stores tab)
      * @param  list<LabelChoiceData>|null  $labels  the labels a store may put on it (the Stores tab)
+     * @param  list<VideoData>|null  $videos  its YouTube videos, in order (the Photos tab; amendment 48)
      */
     public function __construct(
         public ProductHeadData $product,
@@ -49,5 +50,6 @@ final class ProductPage extends Data
         public ?array $found,
         public ?array $stores,
         public ?array $labels,
+        public ?array $videos = null,
     ) {}
 }

@@ -34,6 +34,9 @@ final class InvalidContentInput extends ContentError
     /** A link that is not a full https:// address, where only one is taken (a project's client site, flags-2026-11.md S4.1). */
     public const string HTTPS_LINK = 'https_link';
 
+    /** A pasted link that is not a YouTube video's (a project's video, flags-2026-11.md S4.4): "Paste a YouTube link." */
+    public const string YOUTUBE_LINK = 'youtube_link';
+
     /** A heading of a level other than 2 or 3. */
     public const string HEADING_LEVEL = 'heading_level';
 

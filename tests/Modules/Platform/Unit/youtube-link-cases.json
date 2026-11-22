@@ -1,0 +1,197 @@
+{
+    "about": "flags-2026-11.md S4.4: what a pasted YouTube link keeps - the video's id - or null where it is refused. Read by tests/Modules/Platform/Unit/YouTubeLinkTest.php (Platform's YouTubeLink) and tests/Frontend/youtube.test.ts (resources/js/lib/youtube-id.ts), so the page and the server agree.",
+    "cases": [
+        {
+            "pasted": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "id": "dQw4w9WgXcQ"
+        },
+        {
+            "pasted": "https://www.youtube.com/watch?list=PL1&v=dQw4w9WgXcQ&t=42s",
+            "id": "dQw4w9WgXcQ"
+        },
+        {
+            "pasted": "https://m.youtube.com/watch?v=dQw4w9WgXcQ",
+            "id": "dQw4w9WgXcQ"
+        },
+        {
+            "pasted": "https://youtube.com/watch?v=dQw4w9WgXcQ",
+            "id": "dQw4w9WgXcQ"
+        },
+        {
+            "pasted": "http://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "id": "dQw4w9WgXcQ"
+        },
+        {
+            "pasted": "www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "id": "dQw4w9WgXcQ"
+        },
+        {
+            "pasted": "HTTPS://WWW.YouTube.com/watch?v=dQw4w9WgXcQ",
+            "id": "dQw4w9WgXcQ"
+        },
+        {
+            "pasted": "https://youtu.be/dQw4w9WgXcQ",
+            "id": "dQw4w9WgXcQ"
+        },
+        {
+            "pasted": "https://youtu.be/dQw4w9WgXcQ?si=abc123&t=10",
+            "id": "dQw4w9WgXcQ"
+        },
+        {
+            "pasted": "youtu.be/dQw4w9WgXcQ",
+            "id": "dQw4w9WgXcQ"
+        },
+        {
+            "pasted": "https://www.youtube.com/shorts/dQw4w9WgXcQ",
+            "id": "dQw4w9WgXcQ"
+        },
+        {
+            "pasted": "https://youtube.com/shorts/dQw4w9WgXcQ/",
+            "id": "dQw4w9WgXcQ"
+        },
+        {
+            "pasted": "https://www.youtube.com/embed/dQw4w9WgXcQ?start=5",
+            "id": "dQw4w9WgXcQ"
+        },
+        {
+            "pasted": "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+            "id": "dQw4w9WgXcQ"
+        },
+        {
+            "pasted": "  https://youtu.be/dQw4w9WgXcQ \n",
+            "id": "dQw4w9WgXcQ"
+        },
+        {
+            "pasted": "https://youtu.be/a-B_c1D2e3F",
+            "id": "a-B_c1D2e3F"
+        },
+        {
+            "pasted": "",
+            "id": null
+        },
+        {
+            "pasted": "dQw4w9WgXcQ",
+            "id": null
+        },
+        {
+            "pasted": "https://vimeo.com/123456789",
+            "id": null
+        },
+        {
+            "pasted": "https://youtube.com.evil.example/watch?v=dQw4w9WgXcQ",
+            "id": null
+        },
+        {
+            "pasted": "https://notyoutube.com/watch?v=dQw4w9WgXcQ",
+            "id": null
+        },
+        {
+            "pasted": "https://www.youtube.com/@touchwood",
+            "id": null
+        },
+        {
+            "pasted": "https://www.youtube.com/playlist?list=PL1234567890",
+            "id": null
+        },
+        {
+            "pasted": "https://www.youtube.com/watch?t=42",
+            "id": null
+        },
+        {
+            "pasted": "https://www.youtube.com/watch?v=dQw4w9WgXcQ&v=aaaaaaaaaaa",
+            "id": null
+        },
+        {
+            "pasted": "https://youtu.be/dQw4w9WgXc",
+            "id": null
+        },
+        {
+            "pasted": "https://youtu.be/dQw4w9WgXcQQ",
+            "id": null
+        },
+        {
+            "pasted": "https://youtu.be/dQw4w9WgX.Q",
+            "id": null
+        },
+        {
+            "pasted": "https://youtu.be/dQw4w9WgXcQ/more",
+            "id": null
+        },
+        {
+            "pasted": "https://youtu.be/shorts/dQw4w9WgXcQ",
+            "id": null
+        },
+        {
+            "pasted": "https://www.youtube-nocookie.com/watch?v=dQw4w9WgXcQ",
+            "id": null
+        },
+        {
+            "pasted": "javascript://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "id": null
+        },
+        {
+            "pasted": "ftp://youtu.be/dQw4w9WgXcQ",
+            "id": null
+        },
+        {
+            "pasted": "https://user:pass@www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "id": null
+        },
+        {
+            "pasted": "https://www.youtube.com:8443/watch?v=dQw4w9WgXcQ",
+            "id": null
+        },
+        {
+            "pasted": "https://youtu.be/dQw4w9 WgXcQ",
+            "id": null
+        },
+        {
+            "pasted": "https://youtu.be/\ndQw4w9WgXcQ",
+            "id": null
+        },
+        {
+            "pasted": "https://vimeo.com/shorts/dQw4w9WgXcQ",
+            "id": null
+        },
+        {
+            "pasted": "https://player.example/embed/dQw4w9WgXcQ",
+            "id": null
+        },
+        {
+            "pasted": "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1 2",
+            "id": null
+        },
+        {
+            "pasted": "https://youtu.be/dQw4w9WgXcQ?si=a\tb",
+            "id": null
+        },
+        {
+            "pasted": "https://www.youtube.com/watch?v=dQw4w9WgXc%51",
+            "id": null
+        },
+        {
+            "pasted": "https://youtu.be\\dQw4w9WgXcQ",
+            "id": null
+        },
+        {
+            "pasted": "https://www.youtube.com\\watch?v=dQw4w9WgXcQ",
+            "id": null
+        },
+        {
+            "pasted": "https://www.youtube.com/embed/../shorts/dQw4w9WgXcQ",
+            "id": null
+        },
+        {
+            "pasted": "https://youtu.be/dQw4w9WgX%63Q",
+            "id": null
+        },
+        {
+            "pasted": "https://youtu.be/dQw4w9WgXcQ#t=5",
+            "id": "dQw4w9WgXcQ"
+        },
+        {
+            "pasted": "https://www.youtube.com/watch?v=dQw4w9WgXcQ#comments",
+            "id": "dQw4w9WgXcQ"
+        }
+    ]
+}

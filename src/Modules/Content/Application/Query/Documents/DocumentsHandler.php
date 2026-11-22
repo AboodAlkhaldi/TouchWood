@@ -15,6 +15,7 @@ use Modules\Content\Application\Text\MarkText;
 use Modules\Content\Domain\Exception\ContentError;
 use Modules\Content\Domain\Model\DocumentKind;
 use Modules\Content\Domain\Model\DocumentText;
+use Modules\Content\Domain\Model\ProjectVideo;
 use Modules\Content\Domain\Model\Publication;
 use Modules\Content\Domain\Repository\Documents;
 use Modules\Content\Domain\Repository\SlugHistory;
@@ -108,6 +109,8 @@ final readonly class DocumentsHandler
             ], $document->texts),
             'products' => $document->products,
             'photos' => $document->photos,
+            // A project's videos (flags-2026-11.md S4.4), in place of their audited summary.
+            'videos' => array_map(static fn (ProjectVideo $video): array => ['videoId' => $video->videoId, 'titleAr' => $video->titleAr, 'titleEn' => $video->titleEn], $document->videos),
         ];
     }
 

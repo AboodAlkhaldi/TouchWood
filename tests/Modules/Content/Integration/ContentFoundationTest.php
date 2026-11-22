@@ -168,7 +168,7 @@ describe('the schema', function () {
             // The policies (flags-2026-11.md S3, build 4 step 1).
             'policies', 'policy_images', 'policy_periods', 'policy_stores', 'policy_translations', 'policy_version_images', 'policy_versions',
             'popups', 'post_images',
-            'project_images', 'project_photos', 'project_products', 'project_translations', 'projects', 'redirect_uploads', 'redirects',
+            'project_images', 'project_photos', 'project_products', 'project_translations', 'project_videos', 'projects', 'redirect_uploads', 'redirects',
             'seo_defaults', 'sitemaps', 'slug_history', 'smart_bars', 'theme_part_images', 'theme_parts', 'theme_stores', 'themes', 'unread_translations', 'waiting_jobs',
         ]);
     });

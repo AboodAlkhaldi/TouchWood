@@ -24,6 +24,7 @@ use Modules\Content\Domain\Exception\NotDeletable;
 use Modules\Content\Domain\Model\Document;
 use Modules\Content\Domain\Model\DocumentKind;
 use Modules\Content\Domain\Model\DocumentText;
+use Modules\Content\Domain\Model\ProjectVideo;
 use Modules\Content\Domain\Model\Publication;
 use Modules\Content\Domain\Repository\BlogCategories;
 use Modules\Content\Domain\Repository\Documents;
@@ -34,6 +35,7 @@ use Modules\Content\Domain\ValueObject\Words;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\StoreDto;
+use Modules\Platform\Public\YouTubeLink;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -52,7 +54,11 @@ use Shared\Domain\ValueObject\StoreId;
  * - **Two people**: a save over a newer version is refused with who and when (§1.1 rule 12, `StaleEdit`).
  * - Audited by value; a body as changed with its length (§1.1 rule 13).
  *
- * Lengths that are the build's picks: title 150, summary 200, cover description 200, city 100, client name 100; SEO 70 and 160 (W7).
+ * - **A project's videos** (flags-2026-11.md S4.4): at most 10 YouTube links, each once, only each video's id kept, a
+ *   title per language as every pair (Arabic first, English to publish).
+ *
+ * Lengths that are the build's picks: title 150, summary 200, cover description 200, city 100, client name 100, video
+ * title 100; SEO 70 and 160 (W7).
  */
 final readonly class DocumentWriter
 {
@@ -219,13 +225,17 @@ final readonly class DocumentWriter
             throw new InvalidContentInput('photos', InvalidContentInput::TOO_FEW, values: ['min' => 1]);
         }
 
+        foreach ($document->videos as $video) {
+            Words::requireEnglish('video_title', $video->titleAr, $video->titleEn);
+        }
+
         $this->images->requireReady($document->images());
     }
 
     /**
      * What the form sent, read and checked before anything is locked.
      *
-     * @return array{texts: array<string, DocumentText>, share: array{ar: string|null, en: string|null}, category: string|null, cover: string|null, products: list<string>, photos: list<string>, clientLogo: string|null, clientLink: string|null}
+     * @return array{texts: array<string, DocumentText>, share: array{ar: string|null, en: string|null}, category: string|null, cover: string|null, products: list<string>, photos: list<string>, clientLogo: string|null, clientLink: string|null, videos: list<ProjectVideo>}
      *
      * @throws ContentError
      */
@@ -283,7 +293,42 @@ final readonly class DocumentWriter
             'photos' => $kind === DocumentKind::Project ? $this->photos($input->photos) : [],
             'clientLogo' => $clientLogo,
             'clientLink' => $clientLink,
+            'videos' => $kind === DocumentKind::Project ? self::videos($input->videos) : [],
         ];
+    }
+
+    /**
+     * A project's videos, in order (flags-2026-11.md S4.4): at most 10, each a YouTube link - only the video's id is kept -
+     * each once, with a title per language as every pair (`Words::pair`: English with no Arabic is refused on the Arabic).
+     *
+     * @param  array<array-key, mixed>  $sent
+     * @return list<ProjectVideo>
+     *
+     * @throws InvalidContentInput
+     */
+    private static function videos(array $sent): array
+    {
+        if (count($sent) > 10) {
+            throw new InvalidContentInput('videos', InvalidContentInput::TOO_MANY, values: ['max' => 10]);
+        }
+
+        $videos = [];
+
+        foreach (array_values($sent) as $video) {
+            $field = static fn (string $key): ?string => is_array($video) && is_string($video[$key] ?? null) ? $video[$key] : null;
+            $id = YouTubeLink::id($field('link') ?? '') ?? throw new InvalidContentInput('videos', InvalidContentInput::YOUTUBE_LINK);
+
+            foreach ($videos as $kept) {
+                if ($kept->videoId === $id) {
+                    throw new InvalidContentInput('videos', InvalidContentInput::DUPLICATE);
+                }
+            }
+
+            $title = Words::pair('video_title', $field('title_ar'), $field('title_en'), 100);
+            $videos[] = new ProjectVideo($id, $title['ar'], $title['en']);
+        }
+
+        return $videos;
     }
 
     /**
@@ -419,16 +464,16 @@ final readonly class DocumentWriter
     }
 
     /**
-     * @param  array{texts: array<string, DocumentText>, share: array{ar: string|null, en: string|null}, category: string|null, cover: string|null, products: list<string>, photos: list<string>, clientLogo: string|null, clientLink: string|null}  $read
+     * @param  array{texts: array<string, DocumentText>, share: array{ar: string|null, en: string|null}, category: string|null, cover: string|null, products: list<string>, photos: list<string>, clientLogo: string|null, clientLink: string|null, videos: list<ProjectVideo>}  $read
      */
     private function document(string $id, DocumentKind $kind, StoreDto $store, Publication $status, ?DateTimeImmutable $publishedAt, array $read, int $version, ?string $staffId, DateTimeImmutable $now): Document
     {
-        return new Document($id, $kind, $store->id, $status, $publishedAt, $read['share']['ar'], $read['share']['en'], $read['category'], $read['cover'], $read['texts'], $read['products'], $read['photos'], $version, $staffId, $now, $read['clientLogo'], $read['clientLink']);
+        return new Document($id, $kind, $store->id, $status, $publishedAt, $read['share']['ar'], $read['share']['en'], $read['category'], $read['cover'], $read['texts'], $read['products'], $read['photos'], $version, $staffId, $now, $read['clientLogo'], $read['clientLink'], $read['videos']);
     }
 
     private function with(Document $was, Publication $status, ?DateTimeImmutable $publishedAt, ?string $staffId, DateTimeImmutable $now): Document
     {
-        return new Document($was->id, $was->kind, $was->storeId, $status, $publishedAt, $was->shareAr, $was->shareEn, $was->categoryId, $was->coverMediaId, $was->texts, $was->products, $was->photos, $was->version + 1, $staffId, $now, $was->clientLogoMediaId, $was->clientLink);
+        return new Document($was->id, $was->kind, $was->storeId, $status, $publishedAt, $was->shareAr, $was->shareEn, $was->categoryId, $was->coverMediaId, $was->texts, $was->products, $was->photos, $was->version + 1, $staffId, $now, $was->clientLogoMediaId, $was->clientLink, $was->videos);
     }
 
     /**

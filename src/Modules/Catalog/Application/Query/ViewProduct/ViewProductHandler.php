@@ -10,6 +10,7 @@ use Modules\Catalog\Application\Query\Products\ProductMissing;
 use Modules\Catalog\Application\Query\Products\ProductReaders;
 use Modules\Catalog\Application\Query\Products\StoreListingRow;
 use Modules\Catalog\Domain\Exception\ProductNotFound;
+use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Enums\MediaVariantsStatus;
@@ -39,6 +40,7 @@ final readonly class ViewProductHandler
         private ProductReaders $readers,
         private CatalogProductReads $reads,
         private PlatformApi $platform,
+        private ProductRepository $products,
     ) {}
 
     /**
@@ -87,6 +89,8 @@ final readonly class ViewProductHandler
             stores: $stores,
             labels: $tab === ViewProduct::STORES ? $this->reads->labelChoices($product->id) : null,
             storeJobs: $tab === ViewProduct::STORES ? array_combine(self::STORE_JOBS, array_map($this->readers->heldIn(...), self::STORE_JOBS)) : null,
+            // The Photos tab's videos (flags-2026-11.md S4.4, amendment 48).
+            videos: $tab === ViewProduct::PHOTOS ? $this->products->videos($product->id) : null,
         );
     }
 

@@ -41,6 +41,8 @@ use Modules\Catalog\Application\Command\SetFilterValues\SetFilterValues;
 use Modules\Catalog\Application\Command\SetFilterValues\SetFilterValuesHandler;
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGallery;
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGalleryHandler;
+use Modules\Catalog\Application\Command\SetProductVideos\SetProductVideos;
+use Modules\Catalog\Application\Command\SetProductVideos\SetProductVideosHandler;
 use Modules\Catalog\Application\Command\SetRelations\SetRelations;
 use Modules\Catalog\Application\Command\SetRelations\SetRelationsHandler;
 use Modules\Catalog\Application\Command\SetSearchWords\SetSearchWords;
@@ -191,6 +193,14 @@ final readonly class ProductChangesController
             $product,
             [...$request->texts('media_ids'), ...ProductPhotos::upload($request, $product, $upload)],
         )), 'catalog::admin_products.toast.gallery', ['photos']);
+    }
+
+    /** The videos (flags-2026-11.md S4.4): each a YouTube link and its titles, in their order, sent whole. */
+    public function videos(CatalogFormRequest $request, string $product, SetProductVideosHandler $handler): RedirectResponse
+    {
+        $videos = $request->input('videos');
+
+        return CatalogRefusals::act($request, fn () => $handler->handle(new SetProductVideos($product, is_array($videos) ? $videos : [])), 'catalog::admin_products.toast.videos', ['videos', 'video_title_ar', 'video_title_en']);
     }
 
     public function searchWords(CatalogFormRequest $request, string $product, SetSearchWordsHandler $handler): RedirectResponse

@@ -8,6 +8,7 @@ use Illuminate\Database\ConnectionInterface;
 use Modules\Content\Domain\Model\Document;
 use Modules\Content\Domain\Model\DocumentKind;
 use Modules\Content\Domain\Model\DocumentText;
+use Modules\Content\Domain\Model\ProjectVideo;
 use Modules\Content\Domain\Model\Publication;
 use Modules\Content\Domain\Repository\Documents;
 use Modules\Content\Domain\ValueObject\RichText;
@@ -153,6 +154,16 @@ final readonly class DatabaseDocuments implements Documents
                 $this->db->table($tables->photos)->insert([...$owner, 'position' => $position, 'media_id' => $photo]);
             }
         }
+
+        // A project's videos (flags-2026-11.md S4.4), rewritten whole as its photos are.
+        if ($document->kind === DocumentKind::Project) {
+            $this->db->table('content.project_videos')->where($owner)->delete();
+            $rows = array_map(static fn (ProjectVideo $video, int $position): array => [...$owner, 'position' => $position, 'video_id' => $video->videoId, 'title_ar' => $video->titleAr, 'title_en' => $video->titleEn], $document->videos, array_keys($document->videos));
+
+            if ($rows !== []) {
+                $this->db->table('content.project_videos')->insert($rows);
+            }
+        }
     }
 
     private function read(DocumentKind $kind, string $id, bool $lock): ?Document
@@ -195,10 +206,24 @@ final readonly class DatabaseDocuments implements Documents
             static fn (stdClass $product): string => (string) $product->product_id,
             $this->db->select("SELECT product_id FROM {$tables->products} WHERE {$tables->owner} = ? ORDER BY position", [$id]),
         );
-        $photos = $tables->photos === null ? [] : array_map(
-            static fn (stdClass $photo): string => (string) $photo->media_id,
-            $this->db->select("SELECT media_id FROM {$tables->photos} WHERE {$tables->owner} = ? ORDER BY position", [$id]),
-        );
+        $photos = [];
+        $videos = [];
+
+        if ($tables->photos !== null) {
+            // A project's photos and its videos (flags-2026-11.md S4.4) in one read, so its form asks no more than before.
+            $videoRows = $this->db->table('content.project_videos')->where('project_id', $id)->select(['position', 'video_id as id', 'title_ar', 'title_en'])->selectRaw("'video' as what");
+            $parts = $this->db->table($tables->photos)->where($tables->owner, $id)->select(['position', 'media_id as id'])->selectRaw("NULL as title_ar, NULL as title_en, 'photo' as what")
+                ->unionAll($videoRows)->orderBy('what')->orderBy('position')->get();
+
+            foreach ($parts as $part) {
+                /** @var stdClass $part */
+                if ($part->what === 'photo') {
+                    $photos[] = (string) $part->id;
+                } else {
+                    $videos[] = new ProjectVideo((string) $part->id, Rows::text($part->title_ar), Rows::text($part->title_en));
+                }
+            }
+        }
 
         return new Document(
             $id,
@@ -212,12 +237,13 @@ final readonly class DatabaseDocuments implements Documents
             Rows::text($row->cover_media_id ?? null),
             $texts,
             array_values($products),
-            array_values($photos),
+            $photos,
             (int) $row->version,
             Rows::text($row->updated_by),
             Rows::moment($row->updated_at),
             Rows::text($row->client_logo_media ?? null),
             Rows::text($row->client_link ?? null),
+            $videos,
         );
     }
 }

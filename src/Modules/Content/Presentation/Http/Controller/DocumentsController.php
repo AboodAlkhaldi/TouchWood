@@ -63,6 +63,7 @@ final readonly class DocumentsController
     private const array BOXES = [
         'title_ar', 'title_en', 'slug_ar', 'slug_en', 'body_ar', 'body_en', 'seo_title_ar', 'seo_title_en', 'seo_description_ar', 'seo_description_en',
         'share_image_ar', 'share_image_en', 'summary_ar', 'summary_en', 'cover', 'cover_alt_ar', 'cover_alt_en', 'category', 'city_ar', 'city_en', 'client_name_ar', 'client_name_en', 'client_logo', 'client_link', 'products', 'photos',
+        'videos', 'video_title_ar', 'video_title_en',
     ];
 
     public function __construct(
@@ -283,6 +284,7 @@ final readonly class DocumentsController
             Inputs::typed($request, 'client_name_en'),
             Inputs::text($request, 'client_logo_media_id'),
             Inputs::typed($request, 'client_link'),
+            is_array($request->input('videos')) ? $request->input('videos') : [],
         );
     }
 

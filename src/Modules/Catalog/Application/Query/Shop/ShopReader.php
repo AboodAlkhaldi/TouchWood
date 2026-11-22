@@ -149,9 +149,12 @@ interface ShopReader
     public function listedFacts(string $storeId, string $locale, ShopperKind $viewer, string $productId): ?array;
 
     /**
-     * @return list<string> the gallery's media ids, in order
+     * The gallery's media ids, in order, and in the same read the product's YouTube videos (flags-2026-11.md S4.4,
+     * amendment 48): each video's id and its title in this language, null when it has none there.
+     *
+     * @return array{photos: list<string>, videos: list<array{id: string, title: string|null}>}
      */
-    public function gallery(string $productId): array;
+    public function gallery(string $productId, string $locale): array;
 
     /**
      * Each variant's own photos (§1.2), in order.

@@ -421,9 +421,25 @@ final readonly class DatabaseShopReader implements ShopReader
         return $found instanceof stdClass && (bool) $found->found;
     }
 
-    public function gallery(string $productId): array
+    public function gallery(string $productId, string $locale): array
     {
-        return array_values(array_map('strval', $this->db->table('catalog.product_photos')->where('product_id', $productId)->orderBy('position')->pluck('media_id')->all()));
+        $title = $locale === 'en' ? 'title_en' : 'title_ar';
+        // The photos and the videos in one read, as the gallery's photos alone were read before the videos came.
+        $videos = $this->db->table('catalog.product_videos')->where('product_id', $productId)->select(['position', 'video_id as id', "{$title} as title"])->selectRaw("'video' as what");
+        $parts = $this->db->table('catalog.product_photos')->where('product_id', $productId)->select(['position', 'media_id as id'])->selectRaw("NULL as title, 'photo' as what")
+            ->unionAll($videos)->orderBy('what')->orderBy('position')->get();
+        $gallery = ['photos' => [], 'videos' => []];
+
+        foreach ($parts as $part) {
+            /** @var stdClass $part */
+            if ($part->what === 'photo') {
+                $gallery['photos'][] = (string) $part->id;
+            } else {
+                $gallery['videos'][] = ['id' => (string) $part->id, 'title' => $part->title === null ? null : (string) $part->title];
+            }
+        }
+
+        return $gallery;
     }
 
     public function variantPhotos(array $variantIds): array

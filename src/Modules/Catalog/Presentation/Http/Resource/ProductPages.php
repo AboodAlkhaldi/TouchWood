@@ -21,6 +21,7 @@ use Modules\Catalog\Application\Query\Products\VariantView;
 use Modules\Catalog\Application\Query\ViewProduct\ProductView;
 use Modules\Catalog\Application\Query\ViewProduct\ViewProduct;
 use Modules\Catalog\Application\Query\ViewProduct\ViewProductHandler;
+use Modules\Catalog\Domain\ValueObject\ProductVideo;
 use Modules\Platform\Public\Contracts\StoreChoices;
 use Modules\Platform\Public\Dto\MoneyData;
 use Modules\Platform\Public\Dto\StoreDto;
@@ -150,6 +151,7 @@ final readonly class ProductPages
             $view->labels === null ? null : array_map(static fn (LabelChoice $label): LabelChoiceData => new LabelChoiceData(
                 $label->id, $label->nameAr, $label->nameEn, $label->tone, $label->active,
             ), $view->labels),
+            $view->videos === null ? null : array_map(static fn (ProductVideo $video): VideoData => new VideoData($video->videoId, $video->titleAr, $video->titleEn), $view->videos),
         );
     }
 

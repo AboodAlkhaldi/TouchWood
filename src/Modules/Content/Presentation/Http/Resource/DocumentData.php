@@ -10,7 +10,8 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 /**
  * A page, post or project as its form shows it (content.md §1.11-§1.13, W7-W9): its state, the version it saves at, its
  * words per language (English none until typed), its share images, a post's category and cover, a project's photos, a
- * post's or project's products, and whether Translate's English on it is still unread (§1.3, P14).
+ * post's or project's products, a project's YouTube videos (flags-2026-11.md S4.4), and whether Translate's English on it
+ * is still unread (§1.3, P14).
  */
 #[TypeScript]
 final class DocumentData extends Data
@@ -18,6 +19,7 @@ final class DocumentData extends Data
     /**
      * @param  list<string>  $products
      * @param  list<string>  $photos
+     * @param  list<array{videoId: string, titleAr: string|null, titleEn: string|null}>  $videos
      */
     public function __construct(
         public string $id,
@@ -35,6 +37,7 @@ final class DocumentData extends Data
         public bool $translationUnread,
         public ?string $clientLogoMediaId = null,
         public ?string $clientLink = null,
+        public array $videos = [],
     ) {}
 
     /**
@@ -62,7 +65,25 @@ final class DocumentData extends Data
             ($read['translationUnread'] ?? false) === true,
             $text('client_logo_media'),
             $text('client_link'),
+            self::videos($read['videos'] ?? []),
         );
+    }
+
+    /**
+     * @return list<array{videoId: string, titleAr: string|null, titleEn: string|null}>
+     */
+    private static function videos(mixed $read): array
+    {
+        $videos = [];
+
+        foreach (is_array($read) ? $read : [] as $video) {
+            if (is_array($video) && is_string($video['videoId'] ?? null)) {
+                $title = static fn (string $key): ?string => is_string($video[$key] ?? null) ? $video[$key] : null;
+                $videos[] = ['videoId' => $video['videoId'], 'titleAr' => $title('titleAr'), 'titleEn' => $title('titleEn')];
+            }
+        }
+
+        return $videos;
     }
 
     /**

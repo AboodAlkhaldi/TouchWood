@@ -12,6 +12,7 @@ use Modules\Catalog\Domain\Model\Product;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\ValueObject\ProductName;
 use Modules\Catalog\Domain\ValueObject\ProductSlugs;
+use Modules\Catalog\Domain\ValueObject\ProductVideo;
 use Modules\Catalog\Domain\ValueObject\StructuredText;
 use Modules\Catalog\Public\Enums\CatalogItem;
 use Modules\Catalog\Public\Enums\ProductStage;
@@ -204,6 +205,28 @@ final readonly class DatabaseProductRepository implements ProductRepository
     public function removePhoto(string $productId, string $mediaId): void
     {
         $this->db->table('catalog.product_photos')->where('product_id', $productId)->where('media_id', strtolower($mediaId))->delete();
+    }
+
+    public function videos(string $productId): array
+    {
+        if (! Ulids::valid($productId)) {
+            return [];
+        }
+
+        return array_values(array_map(
+            static fn (stdClass $row): ProductVideo => ProductVideo::reconstitute((string) $row->video_id, $row->title_ar === null ? null : (string) $row->title_ar, $row->title_en === null ? null : (string) $row->title_en),
+            $this->db->table('catalog.product_videos')->where('product_id', strtolower($productId))->orderBy('position')->get(['video_id', 'title_ar', 'title_en'])->all(),
+        ));
+    }
+
+    public function replaceVideos(string $productId, array $videos): void
+    {
+        $this->db->table('catalog.product_videos')->where('product_id', $productId)->delete();
+        $rows = array_map(static fn (ProductVideo $video, int $position): array => ['product_id' => $productId, 'position' => $position, 'video_id' => $video->videoId, 'title_ar' => $video->titleAr, 'title_en' => $video->titleEn], $videos, array_keys($videos));
+
+        if ($rows !== []) {
+            $this->db->table('catalog.product_videos')->insert($rows);
+        }
     }
 
     public function searchWords(string $productId): array
