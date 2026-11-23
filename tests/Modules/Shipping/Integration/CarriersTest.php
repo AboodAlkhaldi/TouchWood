@@ -168,7 +168,7 @@ describe('creating a carrier', function () {
     })->with([
         'no Arabic name' => [['ar' => '  '], 'name_ar', '1-100 characters'],
         'a long English name' => [['en' => str_repeat('a', 101)], 'name_en', '1-100 characters'],
-        'a phone with no country' => [['phone' => '0501234567'], 'phone', 'an international number such as +966501234567'],
+        'a phone with no country' => [['phone' => '0501234567'], 'phone', 'an international number such as +966551112233'],
         'a plain http website' => [['website' => 'http://carrier.example'], 'website', 'https'],
         'a website that is not a link' => [['website' => 'carrier dot com'], 'website', 'https'],
         'a long website' => [['website' => 'https://carrier.example/'.str_repeat('a', 480)], 'website', 'at most 500 characters'],

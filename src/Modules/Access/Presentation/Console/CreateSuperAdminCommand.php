@@ -24,7 +24,7 @@ final class CreateSuperAdminCommand extends Command
         {--job-title= : Job title (new accounts)}
         {--date-of-birth= : YYYY-MM-DD (new accounts)}
         {--country= : ISO 3166-1 alpha-2 country code, e.g. SA (new accounts)}
-        {--phone= : International phone number, e.g. +966501234567 (new accounts)}
+        {--phone= : International phone number, e.g. +966551112233 (new accounts)}
         {--locale= : Communication language, ar or en (new accounts)}
         {--address= : Address (optional, new accounts)}';
 

@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { Award, BadgeCheck, Clock, createLucideIcon, Headset, Leaf, Package, RotateCcw, Wrench } from 'lucide-react';
+import { ArrowLeftRight, Award, BadgeCheck, Clock, createLucideIcon, Headset, Layers, Leaf, Package, RotateCcw, Wrench } from 'lucide-react';
 
 /*
 | The home's promise icons (content.md §1.4 PROMISES): the fixed list staff pick from (HomeSectionSettings::ICONS).
@@ -57,6 +57,9 @@ export const PROMISE_ICONS: Record<string, PromiseIcon> = {
     clock: Clock,
     award: Award,
     leaf: Leaf,
+    // The owner's promise artwork (2026-11-24): the aluminium profiles' layers and the exchange's two arrows.
+    layers: Layers,
+    'arrow-left-right': ArrowLeftRight,
 };
 
 /** A promise's icon, the badge's for one not on the list. */

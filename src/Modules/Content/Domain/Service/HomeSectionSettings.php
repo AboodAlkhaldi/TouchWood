@@ -33,7 +33,7 @@ use Modules\Content\Domain\ValueObject\Words;
 final class HomeSectionSettings
 {
     /** The Lucide icons a promise may wear (§1.4: "a fixed list"). */
-    public const array ICONS = ['truck', 'shield-check', 'badge-check', 'headset', 'wrench', 'package', 'credit-card', 'rotate-ccw', 'store', 'clock', 'award', 'leaf'];
+    public const array ICONS = ['truck', 'shield-check', 'badge-check', 'headset', 'wrench', 'package', 'credit-card', 'rotate-ccw', 'store', 'clock', 'award', 'leaf', 'layers', 'arrow-left-right'];
 
     public const int MIN_PROMISES = 2;
 

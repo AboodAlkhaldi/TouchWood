@@ -69,7 +69,7 @@ return [
     'phone_dialog_title' => 'Change Phone Number',
     'phone_dialog_body' => 'Your sign-in codes go to this number, so we ask for your password first. The number you have now keeps working until you enter the code we send to the new one.',
     'new_phone' => 'New Number',
-    'new_phone_hint' => 'With its country code, such as +966501234567.',
+    'new_phone_hint' => 'With its country code, such as +966551112233.',
     'current_password' => 'Current Password',
     'send_code' => 'Send Code',
     'phone_code_sent' => 'Code sent to the new number',

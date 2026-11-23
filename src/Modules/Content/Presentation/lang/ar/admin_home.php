@@ -98,6 +98,8 @@ return [
         'clock' => 'ساعة',
         'award' => 'جائزة',
         'leaf' => 'ورقة',
+        'layers' => 'طبقات',
+        'arrow-left-right' => 'سهمان متعاكسان',
     ],
     'footer' => [
         'about_ar' => 'نبذة عن المتجر (بالعربية)',

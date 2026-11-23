@@ -33,7 +33,7 @@ return [
     'phone_title' => 'Your Phone Number',
     'phone_subtitle' => 'We will send a code to it to finish signing in.',
     'phone' => 'Phone Number',
-    'phone_hint' => 'With its country code, for example +966501234567.',
+    'phone_hint' => 'With its country code, for example +966551112233.',
     'send_code' => 'Send Code',
 
     'code_title' => 'Enter the Code',

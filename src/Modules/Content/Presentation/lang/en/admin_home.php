@@ -98,6 +98,8 @@ return [
         'clock' => 'Clock',
         'award' => 'Award',
         'leaf' => 'Leaf',
+        'layers' => 'Layers',
+        'arrow-left-right' => 'Two arrows',
     ],
     'footer' => [
         'about_ar' => 'About the Store (Arabic)',

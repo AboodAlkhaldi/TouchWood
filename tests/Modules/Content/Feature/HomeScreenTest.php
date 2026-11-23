@@ -70,7 +70,7 @@ it('gives the sections in order with nothing to add, their JSON, and a section\'
         ->component('Content/Admin/Home/Section')
         ->where('section.type', 'PROMISES')
         ->where('store.code', 'sa')
-        ->has('icons', 12));
+        ->has('icons', 14));
 });
 
 it('fills a section, refuses showing it without English, then shows it', function () {

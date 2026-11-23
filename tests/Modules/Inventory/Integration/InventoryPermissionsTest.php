@@ -113,5 +113,5 @@ it('names the settings section and the setting on the settings screen, in Arabic
     app('translator')->setFallback('ar');
 
     expect(trans('inventory::settings.module', [], 'ar'))->toBe('المخزون')
-        ->and(trans($label, [], 'ar'))->toBe('حدّ المخزون المنخفض الافتراضي');
+        ->and(trans($label, [], 'ar'))->toBe('حدّ «على وشك النفاد» الافتراضي');
 });

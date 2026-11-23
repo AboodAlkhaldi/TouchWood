@@ -6,5 +6,5 @@ declare(strict_types=1);
 return [
     'module' => 'المخزون',
 
-    'low_stock.default' => 'حدّ المخزون المنخفض الافتراضي',
+    'low_stock.default' => 'حدّ «على وشك النفاد» الافتراضي',
 ];

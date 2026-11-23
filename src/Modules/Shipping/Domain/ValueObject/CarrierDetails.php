@@ -70,7 +70,7 @@ final readonly class CarrierDetails
             return null;
         }
 
-        return PhoneNumbers::normalize($value) ?? throw new InvalidShippingInput('phone', 'an international number such as +966501234567');
+        return PhoneNumbers::normalize($value) ?? throw new InvalidShippingInput('phone', 'an international number such as +966551112233');
     }
 
     private static function website(?string $value): ?string

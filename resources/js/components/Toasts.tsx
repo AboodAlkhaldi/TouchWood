@@ -17,13 +17,28 @@ import type { SharedProps } from '@/types/page';
 | draws in the browser, so the first page's message appears as the page comes to life.
 */
 
+/*
+| The server's answer last said, by identity: every answer is a new props object, a repeat of the same one is not. Every
+| layout draws its own Toasts, so an action that lands on another page builds a new one, which spoke as it was built
+| and again when the visit finished - "Signed out" twice (the owner's report, 2026-11-24; ToastsOnceTest). Kept outside
+| the component, so the new one knows what the old one said.
+*/
+let said: object | null = null;
+
 export function Toasts() {
-    const { flash, errors, locale } = usePage<SharedProps>().props;
+    const { props } = usePage<SharedProps>();
+    const { flash, errors, locale } = props;
     const [visit, setVisit] = useState(0);
 
     useEffect(() => router.on('finish', () => setVisit((count) => count + 1)), []);
 
     useEffect(() => {
+        if (said === props) {
+            return;
+        }
+
+        said = props;
+
         if (flash.status) {
             toast.success(flash.status);
         }

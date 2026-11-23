@@ -83,7 +83,7 @@ return [
         'available' => 'المتاح',
         'threshold' => 'حد انخفاض المخزون',
         'limited_by_stock' => 'مقيّد بالمخزون',
-        'low' => 'منخفض',
+        'low' => 'على وشك النفاد',
         'out' => 'نفد',
         'archived' => 'مؤرشف',
         'language' => 'اللغة',

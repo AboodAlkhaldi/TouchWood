@@ -13,12 +13,33 @@
 @custom-variant dark (&:where([data-mode='dark'], [data-mode='dark'] *));
 
 /*
+| The Saudi riyal sign, U+20C1 (Unicode 17): IBM Plex Sans Arabic has no glyph for it, so each device drew it
+| with its own font, or as an empty box. This face holds that one sign (about 1.3 KB), in SAMA's official shape,
+| and `unicode-range` makes the browser fetch it only for a page that shows the sign; every other character
+| stays IBM Plex's. "Saudi Riyal Font" by Emran Alhaddad, SIL Open Font License 1.1 (resources/fonts/saudi-riyal/OFL.txt).
+*/
+@font-face {
+    font-family: 'TouchWood Riyal';
+    src: url('../fonts/saudi-riyal/saudi-riyal-regular.woff2') format('woff2');
+    font-weight: 100 500;
+    font-display: swap;
+    unicode-range: U+20C1;
+}
+@font-face {
+    font-family: 'TouchWood Riyal';
+    src: url('../fonts/saudi-riyal/saudi-riyal-bold.woff2') format('woff2');
+    font-weight: 600 900;
+    font-display: swap;
+    unicode-range: U+20C1;
+}
+
+/*
 | Tailwind's own names are pointed at the theme tokens, so a utility class and a custom property can
 | never drift apart: bg-surface is --tw-surface, whatever theme is on. Nothing here holds a colour.
 */
 @theme inline {
-    --font-sans: 'IBM Plex Sans Arabic', ui-sans-serif, system-ui, sans-serif;
-    --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+    --font-sans: 'TouchWood Riyal', 'IBM Plex Sans Arabic', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'TouchWood Riyal', 'IBM Plex Mono', ui-monospace, monospace;
 
     --color-page: var(--tw-page);
     /* The shop's background: a colour, a gradient, a photograph, or several layered together. */

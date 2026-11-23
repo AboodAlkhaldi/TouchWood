@@ -158,7 +158,8 @@ function Promises({ words, theme }: { words: Words; theme: ShopHomePageData['the
     }
 
     // The design's service strip: edge to edge, a line under it; one look for every item (flags-2026-11.md S1.7: the
-    // hero's facts became promises): 2 columns up to 820 px, then 4, and 5 from 1025 px when there are 5.
+    // hero's facts became promises): 2 columns up to 820 px, then 4, and 5 from 1025 px when there are 5. Each centred in
+    // its column, as the owner's promise artwork (2026-11-24).
     return (
         <section className={`border-b border-line ${theme.promisesArt ? 'bg-cover bg-center [background-image:var(--tw-theme-promises)]' : ''}`} data-test="home-promises">
             {promises.length > 0 ? (
@@ -169,7 +170,7 @@ function Promises({ words, theme }: { words: Words; theme: ShopHomePageData['the
                         const title = theme.promises[`promise_${index + 1}`] ?? promise.title;
 
                         return (
-                            <li key={index} className="flex items-center gap-3 sm:p-4">
+                            <li key={index} className="flex items-center justify-center gap-3 sm:p-4">
                                 <Icon aria-hidden className="size-5 shrink-0 text-accent" />
                                 <span className="grid">
                                     <span className="text-label-13 text-ink sm:text-label-14">{title}</span>

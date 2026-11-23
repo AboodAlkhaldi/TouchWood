@@ -21,7 +21,7 @@ final readonly class PhoneNumber
     public static function of(string $value): self
     {
         return new self(PhoneNumbers::normalize($value)
-            ?? throw new InvalidAccessAttribute('phone', 'expected an international number such as +966501234567'));
+            ?? throw new InvalidAccessAttribute('phone', 'expected an international number such as +966551112233'));
     }
 
     public function equals(self $other): bool

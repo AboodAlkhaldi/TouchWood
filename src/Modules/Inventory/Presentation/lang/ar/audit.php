@@ -8,7 +8,7 @@ return [
     'stock.counted' => 'جُرد المخزون',
     'stock.adjusted' => 'أُضيف إلى المخزون أو خُصم منه',
     'stock.filed' => 'حُدّد المخزون من ملف المتجر',
-    'stock.threshold_set' => 'حُدّد حدّ المخزون المنخفض',
+    'stock.threshold_set' => 'حُدّد حدّ «على وشك النفاد»',
     'stock.stock_dependent_set' => 'غُيّر ارتباط المقاس بالمخزون',
     'store_product.ending_soon_set' => 'غُيّرت «آخر القطع»',
 ];
