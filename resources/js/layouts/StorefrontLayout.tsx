@@ -256,10 +256,10 @@ export function StorefrontLayout({ title, children, address, head, bands = false
                     {/* Ops' part of the frame (ops.md §4.15 O11): the newsletter box, for a guest only. */}
                     {drawn && newsletter ? (
                         <Suspense fallback={null}>
-                            {/* The newsletter as a navy card at the footer's top (flags-2026-11.md S1.5, option A): the
-                                logo's navy and a copper button, the same in both modes. */}
-                            <div className="shop-box pt-8">
-                                <div className="rounded-xl bg-logo-navy p-5 text-white sm:p-6" data-test="newsletter-card">
+                            {/* The newsletter as a quiet line at the footer's top, no card (owner's shape D, 2026-11-25):
+                                a copper mail mark, the words, the box and a copper button, a hairline under it. */}
+                            <div className="shop-box">
+                                <div className="border-b border-sidebar-line py-8" data-test="newsletter-card">
                                     <NewsletterBox words={newsletter} />
                                 </div>
                             </div>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Mail } from 'lucide-react';
 import { Link, router, usePage } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { checked, describedBy, Messages } from '@/components/Fields';
@@ -123,26 +124,29 @@ export default function NewsletterBox({ words }: { words: NewsletterWords }) {
     }
 
     return (
-        <section aria-labelledby="newsletter-title" className="grid gap-3" data-test="newsletter-box">
-            <div className="grid gap-1">
-                {/* On the footer's navy card (flags-2026-11.md S1.5): white words, the form on a light panel. */}
-                <h2 id="newsletter-title" className="text-heading-16 text-white">
-                    {words.title}
-                </h2>
-                <p className="text-copy-14 text-white/80">{words.text}</p>
+        <section aria-labelledby="newsletter-title" className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-8" data-test="newsletter-box">
+            {/* Part of the dark footer (owner's shape D, 2026-11-25): the copper mail mark, the footer's own inks. */}
+            <div className="flex items-start gap-3">
+                <Mail aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-logo-copper-light" />
+                <div className="grid gap-1">
+                    <h2 id="newsletter-title" className="text-heading-16 text-sidebar-ink">
+                        {words.title}
+                    </h2>
+                    <p className="text-copy-14 text-sidebar-ink-muted">{words.text}</p>
+                </div>
             </div>
 
             {sent ? (
-                <p ref={sentLine} tabIndex={-1} role="status" className="text-copy-14 text-white outline-none" data-test="newsletter-sent">
+                <p ref={sentLine} tabIndex={-1} role="status" className="text-copy-14 text-sidebar-ink outline-none sm:max-w-md" data-test="newsletter-sent">
                     {words.sent}
                 </p>
             ) : (
                 <form
                     ref={form}
                     noValidate
-                    // Light words and errors whatever the mode: the panel is white on the navy card.
-                    data-mode="light"
-                    className="grid gap-2 rounded-lg bg-white p-3 text-ink [color-scheme:light]"
+                    // The footer is dark whatever the page's mode, so the box, its words and its errors take the dark tokens.
+                    data-mode="dark"
+                    className="grid w-full gap-2 text-ink sm:max-w-md"
                     onSubmit={(event) => {
                         event.preventDefault();
 
@@ -152,7 +156,7 @@ export default function NewsletterBox({ words }: { words: NewsletterWords }) {
                     }}
                 >
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
-                        <Field className="sm:max-w-sm sm:flex-1">
+                        <Field className="sm:flex-1">
                             {/* The title already says what the box is for; the label is for a screen reader. */}
                             <FieldLabel htmlFor="newsletter-email" className="sr-only">
                                 {words.email}
@@ -162,6 +166,7 @@ export default function NewsletterBox({ words }: { words: NewsletterWords }) {
                                 id="newsletter-email"
                                 name="email"
                                 autoComplete="email"
+                                placeholder="name@example.com"
                                 dir="ltr"
                                 value={email}
                                 onChange={(event) => {
