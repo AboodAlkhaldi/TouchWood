@@ -35,11 +35,13 @@ it('writes three decimals for a currency that has three', function () {
         ->and(MoneyData::of(Money::of(1_234_567, 'KWD'), $store, 'ar')->text)->toBe('1,234.567 د.ك');
 });
 
-it('writes the currency\'s sign where it has one, the same in both languages', function () {
+it('writes the currency\'s sign left of the number where it has one, the same in both languages', function () {
     $store = moneyDataStore(sign: "\u{20C1}");
 
-    expect(MoneyData::of(Money::of(14_950, 'SAR'), $store, 'en')->text)->toBe("149.50 \u{20C1}")
-        ->and(MoneyData::of(Money::of(14_950, 'SAR'), $store, 'ar')->text)->toBe("149.50 \u{20C1}");
+    expect(MoneyData::of(Money::of(14_950, 'SAR'), $store, 'en')->text)->toBe("\u{20C1} 149.50")
+        ->and(MoneyData::of(Money::of(14_950, 'SAR'), $store, 'ar')->text)->toBe("\u{20C1} 149.50")
+        ->and(MoneyData::of(Money::of(123_456_789, 'SAR'), $store, 'en')->text)->toBe("\u{20C1} 1,234,567.89")
+        ->and(MoneyData::of(Money::of(-1_250, 'SAR'), $store, 'ar')->text)->toBe("-\u{20C1} 12.50");
 });
 
 it('writes only Latin digits, an Arabic page included', function () {

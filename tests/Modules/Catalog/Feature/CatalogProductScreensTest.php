@@ -296,7 +296,7 @@ describe('the products list', function () {
                 $other = $row($products, $elsewhere);
 
                 return ($priced['priceFrom']['minor'] ?? null) === 12_000
-                    && preg_match('/^120\.00 \S/u', (string) ($priced['priceFrom']['text'] ?? '')) === 1
+                    && preg_match('/^(\S+ 120\.00|120\.00 \S+)$/u', (string) ($priced['priceFrom']['text'] ?? '')) === 1
                     // 2 sizes on: 80 cm out of stock; 90 cm orderable.
                     && in_array($priced['cantOrder'] ?? null, ['1 of 2 sizes', '1 من صنفين'], true)
                     // On, with no price: it can't be ordered.

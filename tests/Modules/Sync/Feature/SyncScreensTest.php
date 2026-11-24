@@ -495,7 +495,7 @@ describe('a read\'s lines on an Arabic page', function () {
         $prices = syncScreensProps($browser->get("/admin/sync/reads/{$read}"), 'Sync/Admin/Read');
         $stock = syncScreensProps($browser->get("/admin/sync/reads/{$read}?section=stock"), 'Sync/Admin/Read');
 
-        expect([$prices['lines'][0]['before'], $prices['lines'][0]['after']])->toBe([null, "120.50 \u{20C1}"])
+        expect([$prices['lines'][0]['before'], $prices['lines'][0]['after']])->toBe([null, "\u{20C1} 120.50"])
             ->and([$stock['lines'][0]['before'], $stock['lines'][0]['after']])->toBe(['0', '7'])
             ->and($prices['translations']['sync::admin_report.read.sections.PRICES'])->toBe('الأسعار المتغيّرة');
     });

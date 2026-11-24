@@ -126,7 +126,7 @@ describe('the page of reads (§9.3 #19)', function () {
         $code = (string) DB::table('catalog.variants')->where('id', $first)->value('code');
 
         // A price written as Pricing writes money (the store's decimals and sign), a stock number as it is.
-        expect(array_map(static fn ($line): array => [$line->variantId, $line->code, $line->productId, $line->before, $line->after], $prices->lines))->toBe([[$first, $code, $product, null, "120.50 \u{20C1}"]])
+        expect(array_map(static fn ($line): array => [$line->variantId, $line->code, $line->productId, $line->before, $line->after], $prices->lines))->toBe([[$first, $code, $product, null, "\u{20C1} 120.50"]])
             ->and($prices->sections)->toBe(['prices' => 1, 'stock' => 1, 'reported' => 2, 'codes' => 0])
             ->and(array_map(static fn ($line): array => [$line->variantId, $line->before, $line->after], $stock->lines))->toBe([[$first, '0', '7']])
             ->and($prices->lines[0]->productNameEn)->not->toBeNull()

@@ -141,7 +141,7 @@ describe('a card', function () {
         $url = '/sa/en/categories/'.shopPricesSlug('category', $p['category']);
         $card = static fn (?int $wholesaleFrom) => static fn (AssertableInertia $page) => $page
             ->where('products.0.price.now.minor', 30_00)
-            ->where('products.0.price.now.text', fn (string $text): bool => str_starts_with($text, '30.00 '))
+            ->where('products.0.price.now.text', fn (string $text): bool => preg_match('/^(\S+ 30\.00|30\.00 \S+)$/u', $text) === 1)
             ->where('products.0.price.before', null)
             ->where('products.0.price.from.minor', 25_00)
             ->where($wholesaleFrom === null ? 'products.0.price.wholesaleFrom' : 'products.0.price.wholesaleFrom.minor', $wholesaleFrom)

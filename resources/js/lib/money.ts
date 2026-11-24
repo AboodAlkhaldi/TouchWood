@@ -30,17 +30,18 @@ export function formatMoney(money: Money, locale: string): string {
 }
 
 /**
- * An amount of minor units written as the server writes `template` (Shared Money::format): the same decimals and sign or
- * letters after it, the whole part grouped with commas. A BigInt, so a large amount keeps its last digits.
+ * An amount of minor units written as the server writes `template` (Shared Money::format): the same decimals, a sign before
+ * the number or letters after it, the whole part grouped with commas. A BigInt, so a large amount keeps its last digits.
  */
 export function moneyAs(template: { text: string }, minor: bigint): { text: string; minor: number } {
-    const match = /^(-?[\d,]+)(?:\.(\d+))?(.*)$/.exec(template.text);
-    const decimals = match?.[2]?.length ?? 0;
+    // A sign stands before the number ("⃁ 149.50", "-⃁ 12.50"), letters after it ("149.50 ر.س"): both kept where they were.
+    const match = /^(-?)([^\d,-]*?\s)?([\d,]+)(?:\.(\d+))?(.*)$/.exec(template.text);
+    const decimals = match?.[4]?.length ?? 0;
     const digits = (minor < 0n ? -minor : minor).toString().padStart(decimals + 1, '0');
     const whole = digits.slice(0, digits.length - decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
     const fraction = decimals > 0 ? `.${digits.slice(-decimals)}` : '';
 
-    return { text: `${minor < 0n ? '-' : ''}${whole}${fraction}${match?.[3] ?? ''}`, minor: Number(minor) };
+    return { text: `${minor < 0n ? '-' : ''}${match?.[2] ?? ''}${whole}${fraction}${match?.[5] ?? ''}`, minor: Number(minor) };
 }
 
 /** A server-written amount times a count: the buy box's total (shop-design.md §6.3). */

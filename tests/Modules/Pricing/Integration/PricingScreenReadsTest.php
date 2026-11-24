@@ -20,6 +20,7 @@ use Modules\Catalog\Public\Contracts\ProductStoreSection;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Dto\MoneyData;
 use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscount;
 use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscountHandler;
 use Modules\Pricing\Application\Command\AddSale\AddSale;
@@ -70,6 +71,7 @@ use Modules\Pricing\Infrastructure\Catalog\ProductPricesSection;
 use Modules\Pricing\Public\Contracts\PricingApi;
 use Modules\Pricing\Public\Contracts\StoreWiring;
 use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
@@ -200,6 +202,14 @@ function screenSign(): string
     return (app(PlatformApi::class)->store(StoreId::fromString(Rx::storeId('sa'))) ?? throw new LogicException('No store.'))->currencySymbol('en');
 }
 
+/** An amount as the screens write it: a sign left of the number, letters after it (owner, 2026-11-25). */
+function screenMoney(string $amount): string
+{
+    $sign = (app(PlatformApi::class)->store(StoreId::fromString(Rx::storeId('sa'))) ?? throw new LogicException('No store.'))->currencySign;
+
+    return $sign !== null && $sign !== '' ? $sign.' '.$amount : $amount.' '.screenSign();
+}
+
 /**
  * How many queries a read asks, once warm - Pricing's and Catalog's own, never the cache's.
  */
@@ -230,7 +240,7 @@ describe('the Prices list (P1)', function () {
         expect(array_map(static fn (PriceRow $row): string => $row->size->variantId, $list->rows))->toBe([$a['variants'][0], $b['variants'][0], $b['variants'][1], $off['variants'][0]])
             ->and($list->total)->toBe(4)
             ->and($list->next)->toBeNull()
-            ->and([$priced->retail?->price->minor, $priced->retail?->source, $priced->retail?->price->text])->toBe([10000, 'STAFF', '100.00 '.screenSign()])
+            ->and([$priced->retail?->price->minor, $priced->retail?->source, $priced->retail?->price->text])->toBe([10000, 'STAFF', screenMoney('100.00')])
             ->and([$priced->today?->price->minor, $priced->today?->before?->minor, $priced->today?->why, $priced->today?->alwaysWins])->toBe([9000, 10000, 'SALE', true])
             ->and($priced->today?->endsAt)->toBe('2026-10-30T00:00:00+00:00')
             ->and([$priced->bands, $priced->keptNotSoldWholesale, $priced->wholesaleOnly])->toBe([2, false, false])
@@ -480,7 +490,7 @@ describe('the category discounts (P3) and their preview', function () {
 
         expect(array_keys($rows))->toBe([$running, $scheduled])
             ->and([$rows[$running]->categoryPath, $rows[$running]->leftOut, $rows[$running]->leftOutNames])->toBe([['Kitchens', 'Cabinets'], [$out['product']], ['Left']])
-            ->and([$rows[$scheduled]->state, $rows[$scheduled]->amountOff?->text, $rows[$scheduled]->lines])->toBe(['SCHEDULED', '5.00 '.screenSign(), 'RETAIL'])
+            ->and([$rows[$scheduled]->state, $rows[$scheduled]->amountOff?->text, $rows[$scheduled]->lines])->toBe(['SCHEDULED', screenMoney('5.00'), 'RETAIL'])
             ->and(array_map(static fn ($row): string => $row->id, app(ListCategoryDiscountsHandler::class)->handle(new ListCategoryDiscounts(Rx::storeId('sa'), 'RUNNING'))->discounts))->toBe([$running])
             ->and($list->total)->toBe(2);
     });
@@ -536,7 +546,7 @@ describe('the note before saving a sale', function () {
             ->and([$deep[$a]->depthBasisPoints, $deep[$a]->overCeiling, $deep[$b]->wins])->toBe([4000, true, true])
             ->and([$sizes[$b]->wins, $sizes[$b]->notWinning])->toBe([false, 'lower_price'])
             ->and([$now->atStart, $now->ceilingPercent])->toBe([false, 30])
-            ->and(array_map(static fn ($sale): ?string => $sale->description, $now->sales))->toBe(['75.00 '.screenSign().' · 80 cm'])
+            ->and(array_map(static fn ($sale): ?string => $sale->description, $now->sales))->toBe([screenMoney('75.00').' · 80 cm'])
             ->and(array_map(static fn ($sale): string => $sale->id, $now->sales))->toBe([$cheaper])
             ->and(array_map(static fn ($discount): ?string => $discount->description, $now->discounts))->toBe(['Kitchens: 20% off']);
 
@@ -655,7 +665,7 @@ describe('the Wholesale Prices list (P4)', function () {
             [$kept['variants'][0], true, false, false],
             [$unpriced['variants'][0], false, true, false],
         ])
-            ->and(array_map(static fn ($band): string => $band->price->text, $list->rows[0]->bands))->toBe(['90.00 '.screenSign(), '80.00 '.screenSign()])
+            ->and(array_map(static fn ($band): string => $band->price->text, $list->rows[0]->bands))->toBe([screenMoney('90.00'), screenMoney('80.00')])
             ->and([$list->rows[0]->minimum, $list->rows[0]->maximum, $list->total])->toBe([5, 100, 3]);
     });
 });
@@ -714,16 +724,16 @@ describe('sales and discounts named for Sync\'s report', function () {
         expect(array_map(static fn ($name): array => [$name->exists, $name->description], $sales))->toBe([
             [true, '−12.5% · 60 cm, 80 cm'],
             [false, null],
-            [true, '90.00 '.screenSign().' · 60 cm'],
+            [true, screenMoney('90.00').' · 60 cm'],
         ])
             ->and($sales[0]->id)->toBe(strtoupper($percent))
             ->and(count($queries))->toBeLessThanOrEqual(5)
-            ->and(array_map(static fn ($name): ?string => $name->description, $api->discountsNamed([$discount, $gone])))->toBe(['Kitchens: 20.00 '.screenSign().' off', null]);
+            ->and(array_map(static fn ($name): ?string => $name->description, $api->discountsNamed([$discount, $gone])))->toBe(['Kitchens: '.screenMoney('20.00').' off', null]);
 
         app()->setLocale('ar');
         $arabic = (string) DB::table('catalog.categories')->where('id', $category)->value('name_ar');
 
-        expect($api->discountsNamed([$discount])[0]->description)->toBe("{$arabic}: خصم 20.00 ".(app(PlatformApi::class)->store(StoreId::fromString(Rx::storeId('sa')))?->currencySymbol('ar') ?? ''))
+        expect($api->discountsNamed([$discount])[0]->description)->toBe("{$arabic}: خصم ".MoneyData::of(Money::of(2_000, 'SAR'), app(PlatformApi::class)->store(StoreId::fromString(Rx::storeId('sa'))) ?? throw new LogicException('No store.'), 'ar')->text)
             ->and($api->salesNamed([$percent])[0]->description)->toStartWith('−12.5% · ');
     });
 });

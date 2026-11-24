@@ -140,7 +140,7 @@ it('reads Sales, Orders and Average Order over the period against the one before
     expect($now)->toBeGreaterThan(0)
         ->and($sales->value?->value)->toBe($now)
         // The riyal's own sign, as the panel writes money (frontend.md §1.8).
-        ->and($sales->value?->money?->text)->toEndWith("\u{20C1}")
+        ->and($sales->value?->money?->text)->toStartWith("\u{20C1}")
         ->and($sales->change?->percent)->toBe(round(($now - $before) / $before * 100, 1))
         // One point a day of the period, the 1st and the 2nd: everything on the 2nd.
         ->and($sales->trend)->toBe([0, $now])
@@ -303,7 +303,7 @@ it('lists every store for All Stores, the base store first, each in its own curr
     $panels = salesHomeRead(SalesByDayCard::class, null)->panels ?? [];
 
     expect(array_map(static fn ($line): ?string => $line->store, $sales->lines))->toBe(['Saudi Arabia', 'Egypt', 'United Arab Emirates'])
-        ->and($sales->lines[0]->value?->money?->text)->toEndWith("\u{20C1}")
+        ->and($sales->lines[0]->value?->money?->text)->toStartWith("\u{20C1}")
         ->and($sales->lines[1]->value?->money?->text)->toEndWith('EGP')
         ->and($sales->total)->toBeNull()
         ->and($orders->total?->value?->value)->toBe(2)
@@ -363,7 +363,7 @@ it('shows the refunds under Sales, not taken off it', function () {
 
     expect($line->value?->value)->toBe($sold)
         ->and($line->note)->toStartWith('Refunds ')
-        ->and($line->note)->toEndWith("\u{20C1}");
+        ->and($line->note)->toContain("Refunds \u{20C1} ");
 });
 
 it('reads the store\'s own day: an order at 22:00 UTC on 1 November is the 2nd in Riyadh', function () {

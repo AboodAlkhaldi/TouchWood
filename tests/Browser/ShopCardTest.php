@@ -72,7 +72,7 @@ it('draws a reduced price in red with the old one and what it saves, the percent
 
     // The one-size card on sale: red now, the old price struck and readable, «Save», −20% on the photo, Add to cart.
     $sale = "[...document.querySelectorAll('[data-test=\"card\"]')].find((card) => card.querySelector('[data-test=\"price-before\"]') !== null)";
-    expect($page->script("{$sale}.querySelector('[data-test=\"price-now\"] bdi').textContent"))->toStartWith('24.00')
+    expect($page->script("{$sale}.querySelector('[data-test=\"price-now\"] bdi').textContent"))->toBe("\u{20C1} 24.00")
         // Red: our error colour, #982b24 in light mode.
         ->and($page->script("getComputedStyle({$sale}.querySelector('[data-test=\"price-now\"] bdi')).color"))->toBe('rgb(152, 43, 36)')
         ->and($page->script("parseFloat(getComputedStyle({$sale}.querySelector('[data-test=\"price-before\"]')).fontSize)"))->toBe(15)
@@ -137,14 +137,14 @@ it('lays the category page out to the design: the count, the price sort, the lis
         ->and($page->script("document.querySelector('[data-test=\"category-showing\"]').textContent"))->toBe('Showing 1–2 of 2')
         ->and($page->script("getComputedStyle(document.querySelector('h1')).fontSize"))->toBe('34px')
         ->and($page->script("Math.round(document.querySelector('aside').getBoundingClientRect().width)"))->toBe(248)
-        ->and($page->script("document.querySelector('[data-test=\"card\"] [data-test=\"price-now\"] bdi').textContent"))->toStartWith('24.00');
+        ->and($page->script("document.querySelector('[data-test=\"card\"] [data-test=\"price-now\"] bdi').textContent"))->toBe("\u{20C1} 24.00");
 
     // The technical list, kept for the next page.
     $page->script("document.querySelector('[data-test=\"view-list\"]').click()");
     expect(browserSoon($page, "document.querySelectorAll('[data-test=\"card-row\"]').length === 2"))->toBeTrue();
     $page->navigate('/sa/en/categories/'.$items['slug'].'?sort=price-high', BROWSER_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelectorAll('[data-test=\"card-row\"]').length === 2"))->toBeTrue('the list was not remembered')
-        ->and($page->script("document.querySelector('[data-test=\"card-row\"] [data-test=\"price-now\"] bdi').textContent"))->toStartWith('30.00');
+        ->and($page->script("document.querySelector('[data-test=\"card-row\"] [data-test=\"price-now\"] bdi').textContent"))->toBe("\u{20C1} 30.00");
 
     // A phone: the compact bar, the sticky Sort and Filter bar, the sort as a bottom sheet.
     $page->resize(375, 812);
