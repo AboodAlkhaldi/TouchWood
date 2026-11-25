@@ -32,6 +32,8 @@ it('fixes each kind\'s channels as the spec does', function () {
             MessageKind::GatewayKeyExpiring, MessageKind::GatewayKeyRejected => [MessageChannel::Bell, MessageChannel::Email, MessageChannel::Sms, MessageChannel::Whatsapp],
             // The WhatsApp number's reply to a person who writes to it (§9.8 point 5): no bell, no email.
             MessageKind::AutoReply => [MessageChannel::Whatsapp],
+            // The order updates by WhatsApp beside the bell and the email, to a verified phone (§9.10).
+            MessageKind::OrderTaken, MessageKind::OrderShipped, MessageKind::OrderDelivered => [MessageChannel::Bell, MessageChannel::Email, MessageChannel::Whatsapp],
             // A guest's confirmation: no bell (§1.9).
             MessageKind::NewsletterConfirmation => [MessageChannel::Email],
             // A failure never sends a message about itself, and the critical SMS is the gateway key's (§1.6 S10, S10b);

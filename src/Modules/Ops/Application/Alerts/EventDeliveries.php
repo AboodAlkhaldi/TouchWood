@@ -19,6 +19,9 @@ interface EventDeliveries
 
     public function emailStaff(EventMessage $message, string $staffId): void;
 
+    /** An order update by WhatsApp to a customer (§9.10: C1, C4, C5), beside the email. */
+    public function whatsAppCustomer(EventMessage $message, string $customerId): void;
+
     /**
      * The critical SMS (§1.6: the gateway key at 1 day, or refused), to a super admin. The alert's topic
      * and permission go with it: the person's critical-SMS switch is read again when it leaves.

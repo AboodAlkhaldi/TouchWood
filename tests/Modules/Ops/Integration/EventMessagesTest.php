@@ -1229,6 +1229,8 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
 
             public function emailStaff(EventMessage $message, string $staffId): void {}
 
+            public function whatsAppCustomer(EventMessage $message, string $customerId): void {}
+
             public function smsStaff(EventMessage $message, string $staffId, StaffNotificationTopic $topic, string $permission): void
             {
                 $this->sms[] = $message->kind->value.' '.$message->int('days').' '.$staffId;
