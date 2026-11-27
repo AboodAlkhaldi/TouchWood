@@ -316,7 +316,8 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
                         <ActionButton
                             data-test="send"
                             loading={sending}
-                            disabledReason={blocked}
+                            // Grayed until the Company Terms are ticked (owner, 2026-11-27), the reason read on a press.
+                            disabledReason={blocked ?? (page.companyTerms !== null && !termsTicked ? t('b2b::company.company_terms_needed') : undefined)}
                             onClick={() => {
                                 if (page.companyTerms !== null && !termsTicked) {
                                     setUntickedPress(true);

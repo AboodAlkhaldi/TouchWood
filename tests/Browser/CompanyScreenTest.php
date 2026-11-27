@@ -259,10 +259,11 @@ it('asks a tick of the store\'s Company Terms above Send, its link in a new tab,
             ->and($page->script("document.querySelector('[data-test=\"company-terms-link\"]').getAttribute('href')"))->toContain('/sa/en/policies/')
             ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the form scrolls sideways');
 
-        // Send unticked: said under the tick, nothing sent.
-        $page->click('[data-test="send"]');
-        expect(browserSoon($page, "document.querySelector('[data-test=\"company-terms-error\"]')?.textContent === 'Tick the box to agree to the Company Terms.'"))->toBeTrue()
-            ->and(DB::table('b2b.applications')->where('customer_id', $customerId)->value('state'))->toBe('DRAFT');
+        // Send unticked: grayed with the reason (owner, 2026-11-27); a press sends nothing.
+        expect(browserSoon($page, "document.querySelector('[data-test=\"send\"]')?.getAttribute('aria-disabled') === 'true'"))->toBeTrue('Send is not grayed unticked');
+        // A grayed button the driver will not press: pressed as a person's tap reaches it.
+        $page->script("document.querySelector('[data-test=\"send\"]').click()");
+        expect(DB::table('b2b.applications')->where('customer_id', $customerId)->value('state'))->toBe('DRAFT');
 
         // In Arabic, ticked and sent: the application keeps the version ticked.
         $page->navigate('/sa/ar/account/company', BROWSER_PAGE_LOAD)->assertPresent('[data-test="company-form"]');

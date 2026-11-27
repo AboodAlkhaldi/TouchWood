@@ -32,6 +32,9 @@ import type { ContentFrame, SharedProps, ShopperLine } from '@/types/page';
 const NewsletterBox = lazy(() => import('@/components/ops/NewsletterBox'));
 // What the phone's drawer holds: drawn only once it opens, never on the first paint (lesson 180).
 const ShopDrawer = lazy(() => import('@/components/content/ShopDrawer'));
+// The phone's country chip (owner, 2026-11-27, option A), in the drawer's file: loaded once the page has drawn, as the
+// newsletter box is, so no shop page carries it and the build's chunks stay as they were (the page budget).
+const CountryChip = lazy(() => import('@/components/content/ShopDrawer').then((drawer) => ({ default: drawer.CountryChip })));
 const TabBar = lazy(() => import('@/components/content/TabBar'));
 
 /** Whether this tab has drawn a page once: only then may the box draw at once (the server never draws it). */
@@ -217,6 +220,13 @@ export function StorefrontLayout({ title, children, address, head, bands = false
                         ) : null}
 
                         <div className="flex items-center gap-1 sm:ms-auto sm:gap-2">
+                            {/* A phone's country (owner, 2026-11-27, option A): a chip beside the heart, its list the phone's own;
+                                from 640 px up the header's own switch, the drawer keeps its own too. */}
+                            {inStore && !compact && drawn && shop.available.length > 1 ? (
+                                <Suspense fallback={null}>
+                                    <CountryChip shop={shop} locale={locale} />
+                                </Suspense>
+                            ) : null}
                             {inStore ? (
                                 <span className="hidden items-center gap-1 sm:flex">
                                     <CountrySwitch shop={shop} locale={locale} />

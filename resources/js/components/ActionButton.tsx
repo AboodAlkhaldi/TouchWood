@@ -40,8 +40,13 @@ export function ActionButton({ loading = false, disabledReason, disabled = false
             className={unavailable ? `${rest.className ?? ''} cursor-not-allowed opacity-50` : rest.className}
             onClick={(event: MouseEvent<HTMLButtonElement>) => {
                 if (inert) {
-                    // Still focusable, so the busy state and the reason can be read; never acting.
+                    // Still focusable, so the busy state and the reason can be read; never acting. A press opens the
+                    // reason too: a phone has no hover, and a tap would otherwise show a dimmed button and nothing more.
                     event.preventDefault();
+
+                    if (disabledReason !== undefined) {
+                        setTip(true);
+                    }
 
                     return;
                 }

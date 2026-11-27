@@ -103,15 +103,19 @@ it('adds a piece in the cart, checks out and places the order at a phone\'s widt
         ->and(salesShopWide($page))->toBe('', 'checkout scrolls sideways');
 
     // The terms' tick above Place Order (flags-2026-11.md S3.3): the Terms and Conditions a link to its page in a new tab;
-    // pressed unticked, it says so under the tick and nothing is placed.
+    // unticked, Place Order is grayed with the reason (owner, 2026-11-27) and a press places nothing.
     expect(browserSoon($page, "document.querySelector('[data-test=\"terms-link\"]')?.target === '_blank'"))->toBeTrue()
         ->and($page->script("document.querySelector('[data-test=\"terms-link\"]').getAttribute('href')"))->toContain('/sa/en/policies/')
         ->and($page->script("document.querySelector('[data-test=\"terms-link\"]').textContent"))->toBe('Terms and Conditions')
         ->and($page->script("document.querySelector('[data-test=\"terms-sentence\"]').textContent.startsWith('I have read and agree to the Terms and Conditions')"))->toBeTrue();
-    $page->click('[data-test="place-order"]');
-    expect(browserSoon($page, "document.querySelector('[data-test=\"terms-error\"]')?.textContent === 'Tick the box to agree to the terms.'"))->toBeTrue()
-        ->and($page->script('location.pathname'))->toBe('/sa/en/checkout')
-        ->and(salesShopWide($page))->toBe('', 'checkout with the tick\'s message scrolls sideways');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"place-order\"]')?.getAttribute('aria-disabled') === 'true'"))->toBeTrue('Place Order is not grayed unticked');
+    // A grayed button the driver will not press: pressed as a person's tap reaches it.
+    $page->script("document.querySelector('[data-test=\"place-order\"]').click()");
+    expect($page->script('location.pathname'))->toBe('/sa/en/checkout')
+        ->and(salesShopWide($page))->toBe('', 'checkout with Place Order grayed scrolls sideways');
+    $page->click('[data-test="terms"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"place-order\"]')?.getAttribute('aria-disabled') === null"))->toBeTrue('Place Order stays grayed once ticked');
+    $page->click('[data-test="terms"]');
 
     // In Arabic: the same sentence in its words, the link to the Arabic page.
     $page->navigate('/sa/ar/checkout', BROWSER_PAGE_LOAD);

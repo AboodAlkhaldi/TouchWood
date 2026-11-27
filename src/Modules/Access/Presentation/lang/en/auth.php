@@ -89,6 +89,8 @@ return [
     // The store's published policies by their names, each a link opening its page (flags-2026-11.md S3.4); a policy
     // the store has not published is its plain name.
     'terms_accept' => 'I accept the :terms and the :privacy.',
+    // Why Create Account is grayed until the box is ticked (owner, 2026-11-27).
+    'terms_needed' => 'Tick the box to agree to the terms.',
     'terms_name' => 'Terms and Conditions',
     'privacy_name' => 'Privacy Policy',
     // The offers box (amendment 79; ops.md §4.15 O12), new 2026-11-05, not yet approved.

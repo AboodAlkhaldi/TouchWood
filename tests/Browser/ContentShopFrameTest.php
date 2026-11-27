@@ -6,6 +6,7 @@ use Carbon\CarbonImmutable;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Content\Application\Command\SaveBar\SaveBar;
@@ -156,6 +157,43 @@ it('opens the drawer of option C3: categories, then account and settings with th
     $page->click('[data-test="tab-explore"]');
     expect(browserUntil($page, "document.activeElement?.getAttribute('data-test') === 'search-input'"))->toBeTrue();
     $page->assertNoJavaScriptErrors();
+});
+
+it('puts the country on a phone\'s header: a chip beside the heart whose list the phone draws, a choice going to that store\'s home', function () {
+    // The owner's option A (2026-11-27): the country select styled as a pill, the phone's own picker its sheet.
+    $other = (string) DB::table('platform.stores')->where('is_active', true)->where('code', '!=', 'ae')->orderBy('code')->value('code');
+    $count = DB::table('platform.stores')->where('is_active', true)->count();
+    $page = visit('/ae/ar');
+    $page->resize(375, 812);
+    $page->navigate('/ae/ar', BROWSER_PAGE_LOAD);
+
+    expect(browserSoon($page, "(() => { const c = document.querySelector('[data-test=\"country-chip\"]'); return c !== null && c.getBoundingClientRect().height > 0; })()"))->toBeTrue('no country chip on a phone')
+        ->and((bool) $page->script("document.querySelector('[data-test=\"header-row\"]').contains(document.querySelector('[data-test=\"country-chip\"]'))"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=\"country-chip\"]').value"))->toBe('ae')
+        ->and($page->script("document.querySelector('[data-test=\"country-chip\"]').options.length"))->toBe($count);
+    shopFrameBrowserFits($page);
+
+    $page->select('[data-test="country-chip"]', $other);
+    expect(browserUntil($page, "location.pathname === '/{$other}/ar'"))->toBeTrue('the choice did not go to that store\'s home');
+
+    // Signed in, with the bell beside the heart: the chip and the logo share the row, neither under the other, in both
+    // languages (the review's point: the row's tightest case).
+    $email = 'chip.'.strtolower((string) Str::random(8)).'@example.test';
+    Fx::customer($email, 'ae');
+    $page->navigate('/ae/en/sign-in', BROWSER_PAGE_LOAD)->type('#email', $email)->type('#password', Fx::CUSTOMER_PASSWORD)->click('button[type="submit"]');
+    expect(browserUntil($page, "location.pathname === '/ae/en'"))->toBeTrue('the customer was not signed in');
+
+    foreach (['en', 'ar'] as $language) {
+        $page->navigate("/ae/{$language}", BROWSER_PAGE_LOAD);
+        expect(browserSoon($page, "document.querySelector('[data-test=\"header-row\"] [data-test=\"bell\"]') !== null"))->toBeTrue("no bell signed in ({$language})")
+            ->and((bool) $page->script("(() => { const a = document.querySelector('[data-test=\"header-logo\"]').getBoundingClientRect(), w = document.querySelector('[data-test=\"header-logo\"] span[lang=en] > span'), b = document.querySelector('[data-test=\"country-chip\"]').getBoundingClientRect(), t = w.getBoundingClientRect(); return (a.right <= b.left + 1 || b.right <= a.left + 1) && (t.right <= b.left + 1 || b.right <= t.left + 1) && Math.abs(a.top + a.height / 2 - (b.top + b.height / 2)) < 12; })()"))->toBeTrue("the chip and the logo overlap or leave the row ({$language})");
+        shopFrameBrowserFits($page);
+    }
+
+    // From 640 px up the header's own switch, no chip.
+    $page->resize(1280, 900);
+    expect(browserSoon($page, "document.querySelector('[data-test=\"country-chip\"]').getBoundingClientRect().height === 0"))->toBeTrue('the chip shows on a computer')
+        ->and(browserSoon($page, "document.querySelector('[data-test=\"country-switch\"]').getBoundingClientRect().height > 0"))->toBeTrue();
 });
 
 it('shows the pop-up once per visitor after its delay: a Dialog at a computer\'s width, a short Sheet with no image on a phone', function () {
