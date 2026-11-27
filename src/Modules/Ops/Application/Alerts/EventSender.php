@@ -13,15 +13,18 @@ use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Ops\Application\Messages\EmailSender;
 use Modules\Ops\Application\Messages\ListedPhoneCountries;
 use Modules\Ops\Application\Messages\MarketingReach;
+use Modules\Ops\Application\Messages\OrderUpdates;
 use Modules\Ops\Application\Messages\OutgoingEmail;
 use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Application\Messages\SmsSenders;
 use Modules\Ops\Application\Messages\WhatsAppAlert;
+use Modules\Ops\Application\OpsSettings;
 use Modules\Ops\Domain\Model\SendStatus;
 use Modules\Ops\Domain\Repository\SentMessages;
 use Modules\Ops\Public\Enums\MessageKind;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
+use Modules\Sales\Public\Contracts\SalesReports;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -54,6 +57,8 @@ final readonly class EventSender
         private Views $views,
         private Config $config,
         private AlertLinks $links,
+        private SalesReports $sales,
+        private OrderUpdates $orderUpdates,
     ) {}
 
     /** @throws ProviderFailed for the queue to try again */
@@ -132,6 +137,52 @@ final readonly class EventSender
         $this->sent->markSent($sentId, $providerId);
     }
 
+    /**
+     * An order update by WhatsApp (§9.10): the customer and the order read again now. Nobody to send to any more - the
+     * customer gone or anonymized, the phone no longer verified, the order not theirs or not this store's - removes the
+     * row, as an email's is. The shipped message with no working days set for its store is FAILED at once: a person
+     * must write them, and the queue's tries would not.
+     *
+     * @throws ProviderFailed for the queue to try again
+     */
+    public function whatsAppCustomer(EventMessage $message, string $customerId, string $sentId): void
+    {
+        if (! $this->due($sentId)) {
+            return;
+        }
+
+        $customer = $this->access->customer($customerId);
+        $phone = $customer?->phone;
+        $locale = $customer?->locale === 'ar' ? 'ar' : 'en';
+        $order = $customer === null ? null : $this->sales->orderForMessage($message->string('orderId'), $locale);
+
+        if ($customer === null || $customer->anonymized || ! $customer->phoneVerified || $phone === null || $order === null
+            || strtolower($order->customerId) !== strtolower($customer->id) || strtolower($order->storeId) !== strtolower($message->storeId)
+            || ! in_array($message->kind, OrderUpdates::KINDS, true)) {
+            $this->sent->forget($sentId);
+
+            return;
+        }
+
+        $parameters = [$customer->firstName, $order->number];
+
+        if ($message->kind === MessageKind::OrderShipped) {
+            $days = trim($this->platform->setting(OpsSettings::DELIVERY_DAYS, StoreId::fromString($message->storeId))->string());
+
+            if ($days === '') {
+                $this->sent->markFailed($sentId);
+
+                return;
+            }
+
+            // Meta refuses an empty parameter: "—" where there is no carrier or no tracking number (§9.10 point 3).
+            $parameters = [...$parameters, self::orDash($order->carrier), self::orDash($order->trackingNumber), $days];
+        }
+
+        $providerId = $this->orderUpdates->send($phone, $locale, $message->kind, $parameters);
+        $this->sent->markSent($sentId, $providerId);
+    }
+
     /** The queue gave up on it (its last attempt failed): marked failed - never lost silently (§7). */
     public function failed(string $sentId): void
     {
@@ -189,6 +240,11 @@ final readonly class EventSender
                 ...($link === null ? [] : ["{$text->action}: {$link}"]),
             ]),
         );
+    }
+
+    private static function orDash(?string $text): string
+    {
+        return $text === null || trim($text) === '' ? '—' : trim($text);
     }
 
     private function store(EventMessage $message): ?StoreDto

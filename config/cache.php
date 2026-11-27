@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Str;
+use Modules\Platform\Public\Dto\MoneyData;
 
 return [
 
@@ -134,8 +135,16 @@ return [
     | storage. By default, no PHP classes will be unserialized from your
     | cache to prevent gadget chain attacks if your APP_KEY is leaked.
     |
+    | Only the price as a screen shows it, `MoneyData`, may come back: the shop's
+    | cached pages and cards keep it (Catalog's ShopPages), and without it a kept
+    | price returned as `__PHP_Incomplete_Class`, read by JSON only and an Error
+    | to any code reading it as an object. A final readonly DTO of a string and
+    | an int, with no magic methods, it gives an attacker nothing to chain.
+    |
     */
 
-    'serializable_classes' => false,
+    'serializable_classes' => [
+        MoneyData::class,
+    ],
 
 ];
