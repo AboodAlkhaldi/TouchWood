@@ -59,6 +59,11 @@ return [
         'main_number' => env('WHATSAPP_MAIN_NUMBER', ''),
         'alert_key_expiring' => env('WHATSAPP_ALERT_KEY_EXPIRING', ''),
         'alert_key_refused' => env('WHATSAPP_ALERT_KEY_REFUSED', ''),
+        // The order updates to customers (ops.md §9.10): utility templates of the owner's words. A name not set: that
+        // message is not sent, the email still goes.
+        'order_placed' => env('WHATSAPP_ORDER_PLACED_TEMPLATE', ''),
+        'order_shipped' => env('WHATSAPP_ORDER_SHIPPED_TEMPLATE', ''),
+        'order_delivered' => env('WHATSAPP_ORDER_DELIVERED_TEMPLATE', ''),
     ],
 
     // Platform's machine translation (content.md §2.2): "deepl" sends staff text to DeepL with DEEPL_API_KEY,

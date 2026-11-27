@@ -50,10 +50,12 @@ use Modules\Ops\Application\Messages\CodeSender;
 use Modules\Ops\Application\Messages\EmailSender;
 use Modules\Ops\Application\Messages\ListedPhoneCountries;
 use Modules\Ops\Application\Messages\NewsletterList;
+use Modules\Ops\Application\Messages\OrderUpdates;
 use Modules\Ops\Application\Messages\SmsSenders;
 use Modules\Ops\Application\Newsletter\CustomerSubscriptions;
 use Modules\Ops\Application\Newsletter\NewsletterQueue;
 use Modules\Ops\Application\OpsPermissions;
+use Modules\Ops\Application\OpsSettings;
 use Modules\Ops\Application\Query\ListStaffMessages\StaffMessageQueries;
 use Modules\Ops\Application\Reports\ReportWriter;
 use Modules\Ops\Domain\Repository\AutoReplies;
@@ -90,6 +92,7 @@ use Modules\Ops\Infrastructure\External\LogSmsSender;
 use Modules\Ops\Infrastructure\External\NoNewsletterList;
 use Modules\Ops\Infrastructure\External\NotSetUpEmailSender;
 use Modules\Ops\Infrastructure\External\WhatsAppCodeSender;
+use Modules\Ops\Infrastructure\External\WhatsAppOrderUpdates;
 use Modules\Ops\Infrastructure\Files\LocalReportFiles;
 use Modules\Ops\Infrastructure\Listener\AlertStaff;
 use Modules\Ops\Infrastructure\Listener\ForgetAnonymizedCustomer;
@@ -130,6 +133,7 @@ use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\HomeCards;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\ReservedPaths;
+use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Contracts\ShopFrameParts;
 use Modules\Platform\Public\Dto\HomeCardDto;
 use Modules\Platform\Public\Dto\MenuEntryDto;
@@ -196,6 +200,7 @@ final class OpsServiceProvider extends ServiceProvider
         $this->app->bind(DailyReportEmailQueue::class, QueuedDailyReportEmails::class);
         $this->app->bind(DailyReportMailer::class, DailyReportEmailMailer::class);
         $this->app->bind(EventDeliveries::class, QueuedEventDeliveries::class);
+        $this->app->bind(OrderUpdates::class, WhatsAppOrderUpdates::class);
 
         // The providers are adapters chosen by configuration (§2.2): a new one is a new class and a
         // line here. "log" writes what would be sent to the log, never on a live system.
@@ -240,6 +245,9 @@ final class OpsServiceProvider extends ServiceProvider
         $this->loadViewsFrom(dirname(__DIR__).'/Presentation/views', 'ops');
 
         $this->app->make(PermissionCatalog::class)->declare('ops', ...OpsPermissions::definitions());
+
+        // The shipped message's working days by WhatsApp (§9.10), on Platform's settings screen.
+        $this->app->make(SettingsRegistry::class)->define('ops', ...OpsSettings::definitions());
 
         // Today's Report in the admin home's greeting row (dashboard.md §2.1), for the daily report's makers.
         $this->app->make(HomeCards::class)->register(

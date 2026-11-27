@@ -40,6 +40,11 @@ final readonly class QueuedEventDeliveries implements EventDeliveries
         $this->jobs->dispatch((new SendEventEmailJob($message, null, strtolower($staffId), $this->queued($message, MessageChannel::Email, null, $staffId)))->beforeCommit());
     }
 
+    public function whatsAppCustomer(EventMessage $message, string $customerId): void
+    {
+        $this->jobs->dispatch((new SendEventWhatsAppJob($message, strtolower($customerId), $this->queued($message, MessageChannel::Whatsapp, $customerId, null)))->beforeCommit());
+    }
+
     public function smsStaff(EventMessage $message, string $staffId, StaffNotificationTopic $topic, string $permission): void
     {
         $this->jobs->dispatch((new SendEventSmsJob($message, strtolower($staffId), $topic, $permission, $this->queued($message, MessageChannel::Whatsapp, null, $staffId)))->beforeCommit());

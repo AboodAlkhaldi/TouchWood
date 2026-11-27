@@ -133,6 +133,7 @@ enum MessageKind: string
      * - S10, S10b: the bell alone. A failure of one channel never sends a message about itself, and the
      *   critical SMS is the gateway key's (owner, 2026-11-01).
      * - S10c, a queued email refused for everybody: the bell alone, as S10, for the email is what fails.
+     * - C1, C4, C5: the customer's WhatsApp beside the bell and the email, to a verified phone (§9.10).
      *
      * @return list<MessageChannel>
      */
@@ -142,6 +143,7 @@ enum MessageKind: string
             self::Security => [MessageChannel::Email, MessageChannel::Sms, MessageChannel::Whatsapp],
             self::NewsletterConfirmation => [MessageChannel::Email],
             self::AutoReply => [MessageChannel::Whatsapp],
+            self::OrderTaken, self::OrderShipped, self::OrderDelivered => [MessageChannel::Bell, MessageChannel::Email, MessageChannel::Whatsapp],
             self::SecurityEmailFailed, self::SecuritySmsFailed, self::QueuedEmailRefused => [MessageChannel::Bell],
             self::GatewayKeyExpiring, self::GatewayKeyRejected => [MessageChannel::Bell, MessageChannel::Email, MessageChannel::Sms, MessageChannel::Whatsapp],
             default => [MessageChannel::Bell, MessageChannel::Email],
