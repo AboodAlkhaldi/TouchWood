@@ -1788,3 +1788,37 @@ Not covered: Egypt is on the SMS countries' start list. A code to an Egyptian or
 - **Super Admins see a red notice**, "Email is not set up: no emails can be sent." / «البريد غير مُعدّ: لا يمكن إرسال أي رسالة بريد.» (Arabic: the builder's, for the owner's check), on the error-banner mechanism WhatsApp's notice uses (`AdminBannerDto::$error`), to them alone and not by email.
 - **Outside production nothing changes:** `log` keeps writing to the log in development.
 - **Tests:** `Integration/EmailNotSetUpTest` (the binding, the sender, the lists, a security email FAILED with the Super Admins' bell, a queued email failed at once, a company decision, the notice for Super Admins and not for staff), `Integration/RealEmailDriverTest` (a real production boot with no Brevo setting at all), `tests/Modules/Access/Feature/MessageFailureTest` (a registration, an invitation and a password reset return normally with the email FAILED).
+
+### 9.10 Order updates by WhatsApp — **[owner's answers, 2026-11-25]**
+
+The owner (2026-11-24): customers get WhatsApp messages when their order is placed, shipped and delivered. Answers of
+2026-11-25 to the seven questions of the draft: (1) **every customer with a verified phone, no setting and no tick**;
+(2) **only these three moments**; (3) **no guests**; (4) the owner's own words; (5) **one store setting** for the shipped
+message's expected working days; (6) **"—" for a missing tracking number**; (7) the delivered message's "next order" line
+**removed**, and its feedback line **tied to the order** (Meta: a utility template with marketing material is
+re-categorized as marketing, and a generic request for feedback is not approved as utility).
+
+1. **Three messages beside the emails**, never instead of them: **C1** order taken, **C4** shipped, **C5** delivered
+   (§1.5). The bell and the email go exactly as before.
+2. **Who:** a customer whose phone is set and **verified** (`phone_verified_at`), not anonymized. A guest, or a customer
+   with no verified phone, gets none. In the **customer's language** (`ar`, else `en`): one approved translation each.
+3. **The templates** are Meta utility templates approved under the names in `.env`: `WHATSAPP_ORDER_PLACED_TEMPLATE`,
+   `WHATSAPP_ORDER_SHIPPED_TEMPLATE`, `WHATSAPP_ORDER_DELIVERED_TEMPLATE` (`services.whatsapp.order_placed|order_shipped|
+   order_delivered`). **A name not set: that message is simply not sent** - no row, no warning; the feature is off until
+   the owner sets it. The body's parameters, in this order:
+   - placed: `{{1}}` the customer's first name · `{{2}}` the order's number (`SA-0001`);
+   - shipped: `{{1}}` · `{{2}}` · `{{3}}` the carrier's name in the customer's language · `{{4}}` the tracking number,
+     **"—" when there is none** (Meta refuses an empty parameter) · `{{5}}` the store's expected working days;
+   - delivered: `{{1}}` · `{{2}}`.
+   No button (the owner's words have none).
+4. **The store setting** `ops.whatsapp.delivery_days` (Text, per store, may be empty; one or two numbers of one or two
+   digits joined by a dash: `4-7`, `3`), on Platform's Settings page under Ops, edited by those holding
+   `ops.message.send_many` **[builder's pick]**. **Empty: the shipped message is not sent** and its row is `FAILED` at
+   once, so it shows in Sent messages.
+5. **Queued like the email** (§5-§7): written `QUEUED` in the listener's transaction (`ops.sent_messages`, channel
+   `WHATSAPP`, the customer named), its own job reading the customer and the order again when it runs
+   (`SalesReports::orderForMessage`); an order that names another store or customer than the event sends nothing and
+   its row is removed, as an email's is. Sent then marked `SENT` with Meta's id; Meta's later "failed" status marks it
+   `FAILED` (§9.8, the status webhook). **A failure never stops the order or the email**: five tries over about 36
+   minutes, then `FAILED`. A test order is sent as any other **[builder's pick]**: it lets the owner see the messages.
+6. **Not part of it:** a setting per customer, a checkout tick, cancelled/rejected messages, guests, a button.

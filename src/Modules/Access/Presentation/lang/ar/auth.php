@@ -88,6 +88,8 @@ return [
     // The store's published policies by their names, each a link opening its page (flags-2026-11.md S3.4); a policy
     // the store has not published is its plain name.
     'terms_accept' => 'أوافق على :terms و:privacy.',
+    // Why Create Account is grayed until the box is ticked (owner, 2026-11-27).
+    'terms_needed' => 'ضع علامة في المربع للموافقة على الشروط.',
     'terms_name' => 'الشروط والأحكام',
     'privacy_name' => 'سياسة الخصوصية',
     // مربع العروض (التعديل 79؛ ops.md §4.15 O12)، جديدة 2026-11-05، لم تُعتمد بعد.

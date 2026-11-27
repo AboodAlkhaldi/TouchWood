@@ -126,10 +126,11 @@ it('pays on a phone: the page locked, a forged message ignored, closing the fram
         ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('checkout scrolls sideways')
         ->and((string) $page->script("document.querySelector('[data-test=\"pay\"]').textContent"))->toContain('Pay ·');
 
-    // Pay unticked (flags-2026-11.md S3.3): said under the tick, the form never asked to collect, no try.
-    $page->click('[data-test="pay"]');
-    expect(browserSoon($page, "document.querySelector('[data-test=\"terms-error\"]')?.textContent === 'Tick the box to agree to the terms.'"))->toBeTrue()
-        ->and(DB::table('sales.checkout_tries')->count())->toBe(0);
+    // Pay unticked (flags-2026-11.md S3.3): grayed with the reason (owner, 2026-11-27); a press asks the form for nothing, no try.
+    expect(browserSoon($page, "document.querySelector('[data-test=\"pay\"]')?.getAttribute('aria-disabled') === 'true'"))->toBeTrue('Pay is not grayed unticked');
+    // A grayed button the driver will not press: pressed as a person's tap reaches it.
+    $page->script("document.querySelector('[data-test=\"pay\"]').click()");
+    expect(DB::table('sales.checkout_tries')->count())->toBe(0);
 
     salesPaymentPay($page);
     expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the frame scrolls the page sideways')

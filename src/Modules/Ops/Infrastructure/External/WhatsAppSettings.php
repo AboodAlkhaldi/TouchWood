@@ -62,6 +62,28 @@ final readonly class WhatsAppSettings
     }
 
     /**
+     * The approved name of an order update's template (ops.md §9.10): `placed`, `shipped` or `delivered`; empty when not set.
+     */
+    public function orderTemplate(string $which): string
+    {
+        return $this->value('order_'.$which);
+    }
+
+    /**
+     * The settings an order update cannot go without: the number, the token and its template's name.
+     *
+     * @return list<string>
+     */
+    public function missingForOrder(string $which): array
+    {
+        return $this->missing([
+            'WHATSAPP_PHONE_NUMBER_ID' => $this->phoneNumberId(),
+            'WHATSAPP_ACCESS_TOKEN' => $this->accessToken(),
+            'WHATSAPP_ORDER_'.strtoupper($which).'_TEMPLATE' => $this->orderTemplate($which),
+        ]);
+    }
+
+    /**
      * The settings a code cannot go without, by their `.env` names. Never a value.
      *
      * @return list<string>

@@ -168,7 +168,7 @@ export function StorefrontLayout({ title, children, address, head, bands = false
                 {inStore && content?.bar ? <TopBar bar={content.bar} store={shop.code} locale={locale} /> : null}
 
                 <header className="sticky top-0 z-40 border-b border-line bg-surface">
-                    <div className="shop-box flex flex-wrap items-center gap-x-1 max-sm:px-2! sm:h-[78px] sm:flex-nowrap sm:gap-4 lg:gap-9" data-test="header-row">
+                    <div className="shop-box flex flex-wrap items-center gap-x-1 max-sm:px-2! sm:gap-x-2 lg:h-[78px] lg:flex-nowrap lg:gap-4 xl:gap-9" data-test="header-row">
                         {/* The menu: the drawer on a phone and a tablet (Catalog's category row takes over from 768). */}
                         {inStore ? (
                             <Button
@@ -200,7 +200,7 @@ export function StorefrontLayout({ title, children, address, head, bands = false
                                 ) : null}
                             </>
                         ) : null}
-                        <Link href={home} className={`flex h-13 min-w-0 flex-1 items-center gap-2 sm:h-auto sm:flex-none sm:gap-3 ${compact ? 'max-sm:hidden' : ''}`} data-test="header-logo">
+                        <Link href={home} className={`flex h-13 min-w-0 flex-1 items-center gap-2 sm:gap-3 lg:h-auto lg:flex-none ${compact ? 'max-sm:hidden' : ''}`} data-test="header-logo">
                             <Logo tone="auto" decorative className="sm:size-[46px]" />
                             {/* The design's wordmark (H8): the name in Latin capitals, the Arabic under it. */}
                             <span className="grid leading-none" lang="en">
@@ -211,15 +211,21 @@ export function StorefrontLayout({ title, children, address, head, bands = false
 
                         {/* The search box, between the logo and the shopper's own things; on a phone, its own row under them. */}
                         {catalog ? (
-                            <div className={`order-last w-full px-1 pb-2 sm:order-none sm:w-auto sm:min-w-0 sm:flex-1 sm:px-0 sm:pb-0 ${compact && !searching ? 'max-sm:hidden' : ''}`} data-test="search-row">
+                            <div className={`order-last w-full px-1 pb-2 lg:order-none lg:w-auto lg:min-w-0 lg:flex-1 lg:px-0 lg:pb-0 ${compact && !searching ? 'max-sm:hidden' : ''}`} data-test="search-row">
                                 <SearchBox words={catalog.words} />
                             </div>
                         ) : null}
 
                         <div className="flex items-center gap-1 sm:ms-auto sm:gap-2">
+                            {/* A phone's country (owner, 2026-11-27, option A): a chip beside the heart, its list the phone's own;
+                                from 640 px up the header's own switch, the drawer keeps its own too. */}
+                            {inStore && !compact && shop.available.length > 1 ? <CountryChip shop={shop} locale={locale} /> : null}
                             {inStore ? (
-                                <span className="hidden items-center gap-1 sm:flex">
-                                    <CountrySwitch shop={shop} locale={locale} />
+                                // The language from 768 px (the drawer holds it below), the country's select from 1024 (the chip below).
+                                <span className="hidden items-center gap-1 md:flex">
+                                    <span className="hidden lg:block">
+                                        <CountrySwitch shop={shop} locale={locale} />
+                                    </span>
                                     {/* The other language beside the country (flags-2026-11.md S1.2, F2); the drawer keeps its own. */}
                                     <LanguageSwitch shop={shop} locale={locale} url={page.url} alternate={address?.alternate ?? null} />
                                 </span>
@@ -344,10 +350,12 @@ function CartButton({ shop, locale, sales, test }: { shop: string; locale: strin
     const label = sales.products > 0 ? `${sales.words.cart}${locale === 'ar' ? '، ' : ', '}${(sales.words.products[new Intl.PluralRules(intlLocale(locale)).select(sales.products)] ?? '').replace(':count', figure(locale, sales.products))}` : sales.words.cart;
 
     return (
-        <Button asChild className="h-[42px] gap-2 px-4">
+        <Button asChild className="h-[42px] gap-2 px-3 xl:px-4">
             <Link href={`/${shop}/${locale}/cart`} aria-label={label} className="relative" data-test={test}>
                 <ShoppingCart aria-hidden="true" />
-                <span aria-hidden="true">{sales.words.cart}</span>
+                <span aria-hidden="true" className="hidden xl:inline">
+                    {sales.words.cart}
+                </span>
                 {sales.products > 0 ? (
                     <Badge className="tw-figure h-5 min-w-5 rounded-full bg-surface px-1 text-[11px] leading-none text-ink" aria-hidden="true" data-test={`${test}-count`}>
                         {sales.products > 99 ? '99+' : figure(locale, sales.products)}
@@ -462,8 +470,9 @@ function Shopper({ shopper, themeWord }: { shopper: SharedProps['shopper']; them
 
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" data-test="shopper-menu">
-                        {shopper.name}
+                    <Button variant="ghost" size="sm" aria-label={shopper.name} data-test="shopper-menu">
+                        <UserRound aria-hidden="true" className="lg:hidden" />
+                        <span className="hidden max-w-40 truncate lg:inline">{shopper.name}</span>
                         <ChevronDown aria-hidden="true" />
                     </Button>
                 </DropdownMenuTrigger>
@@ -590,6 +599,39 @@ function ShopperLines({ lines }: { lines: ShopperLine[] }) {
 }
 
 /**
+ * The phone's country chip (owner, 2026-11-27, option A of three drawn): beside the heart, a short label - the store's
+ * name in Arabic, its code in English ("Saudi Arabia" leaves no room for the logo at 375 px) - over the country select
+ * itself, see-through, so a tap opens the phone's own list of the full names. Another country is another shop: a choice
+ * goes to that store's home in the same language, as the header's switch from 1024 px and the drawer's do. Shown
+ * below 1024 px: phones, tablets and half-screen windows (owner, 2026-11-27); drawn with the page.
+ */
+function CountryChip({ shop, locale }: { shop: NonNullable<SharedProps['shop']>; locale: string }) {
+    const t = useTranslator();
+
+    return (
+        <span className="relative flex h-8 shrink-0 items-center gap-1 rounded-full border border-line px-3 text-label-12 text-ink lg:hidden">
+            {locale === 'ar' ? shop.name : shop.code.toUpperCase()}
+            <ChevronDown aria-hidden="true" className="size-3.5" />
+            <select
+                data-test="country-chip"
+                value={shop.code}
+                aria-label={t('platform::stores.choose_title')}
+                onChange={(event) => router.visit(`/${event.target.value}/${locale}`)}
+                className="absolute inset-0 cursor-pointer opacity-0"
+            >
+                {/* An off store is listed only during a staff view that covers it, and says so. */}
+                {shop.available.map((store) => (
+                    // The list is the phone's or the browser's own: given the site's colours so it follows light and dark.
+                    <option key={store.code} value={store.code} className="bg-surface text-ink">
+                        {store.isActive ? store.name : `${store.name} (${t('admin.store.off')})`}
+                    </option>
+                ))}
+            </select>
+        </span>
+    );
+}
+
+/**
  * The country somebody is shopping in. Changing it is a different shop: different prices, stock and
  * delivery, so it goes to that store's home rather than to the same page under another store.
  */
@@ -604,7 +646,7 @@ function CountrySwitch({ shop, locale }: { shop: NonNullable<SharedProps['shop']
             value={shop.code}
             aria-label={t('platform::stores.choose_title')}
             onChange={(event) => router.visit(`/${event.target.value}/${locale}`)}
-            className="w-40"
+            className="w-32"
         >
             {/* An off store is listed only during a staff view that covers it, and says so. */}
             {shop.available.map((store) => (

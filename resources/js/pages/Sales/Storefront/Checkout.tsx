@@ -515,7 +515,9 @@ function Summary({
                         <ActionButton
                             size="lg"
                             loading={placing || busy || online.locked}
-                            disabledReason={reason}
+                            // Grayed until the terms are ticked (owner, 2026-11-27), the reason read on a press; the step's own
+                            // reason first. The online form's wallet buttons, its own, still read the tick when pressed.
+                            disabledReason={reason ?? (agreed ? undefined : t(`${W}.terms.needed`))}
                             onClick={() => {
                                 if (!agreed) {
                                     setUntickedPress(true);

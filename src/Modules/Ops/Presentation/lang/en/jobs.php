@@ -30,6 +30,7 @@ return [
     'start_campaign_notice' => 'Starting the offer notice of a campaign that went live',
     'send_event_email' => 'Emailing one person a message or an alert',
     'send_event_sms' => 'Sending a super admin the urgent WhatsApp alert about the payment key',
+    'send_event_whats_app' => 'Sending a customer an order update by WhatsApp',
     'handle_whats_app_status' => 'Marking a WhatsApp message failed when WhatsApp says it did not arrive',
     'handle_whats_app_message' => 'Answering a person who wrote to the WhatsApp number',
     'remind_expiring_points' => 'Reminding the customers whose points expire in 7 days',

@@ -202,7 +202,7 @@ export default function Register({ minimumLength, terms, privacy }: Props) {
                         />
 
                         {/* An acknowledgment, so a checkbox with a whole sentence beside it (Geist's
-                            Checkbox rules); it is checked when the form is sent, not as it is ticked. */}
+                            Checkbox rules); Create Account stays grayed until it is ticked (owner, 2026-11-27). */}
                         <Field orientation="horizontal" data-invalid={form.errors.terms ? true : undefined}>
                             <Checkbox
                                 id="terms"
@@ -244,7 +244,8 @@ export default function Register({ minimumLength, terms, privacy }: Props) {
                         </Field>
 
                         <Field>
-                            <ActionButton type="submit" loading={form.processing} disabledReason={checks.reason} className="w-full">
+                            {/* Grayed until the terms are ticked (owner, 2026-11-27), the reason read on a press; a box's own reason first. */}
+                            <ActionButton type="submit" loading={form.processing} disabledReason={checks.reason ?? (ticked ? undefined : t('access::auth.terms_needed'))} className="w-full" data-test="create-account">
                                 {t('access::auth.create_account')}
                             </ActionButton>
                             <FieldDescription className="text-center">

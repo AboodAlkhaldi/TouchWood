@@ -48,7 +48,11 @@ const PAGE_BUDGET_EXCEPTIONS = [
     // Just over once icons shared with the shop's pages were split into files of their own (owner, 2026-11-17).
     // 62 KB from 2026-11-20 (owner): 61.2 KB once the panel's header search button joined every admin page (S7).
     'resources/js/pages/Shipping/Admin/Carriers/Index.tsx' => 62_000,
-    'resources/js/pages/Access/Storefront/Account/Account.tsx' => 61_000,
+    // 61.5 KB from 2026-11-27 (owner: a little over is accepted): exactly 61.0 KB with the header's middle size and the chip.
+    'resources/js/pages/Access/Storefront/Account/Account.tsx' => 61_500,
+    // 60.1 KB once the shop's header gained its middle size (640-1023 px: the search on its own row, icons for the cart
+    // and the account) and the phone's country chip; the owner accepted going a little over 60 KB (owner, 2026-11-27).
+    'resources/js/pages/Catalog/Storefront/Category.tsx' => 60_500,
     // Already 59.3-59.9 KB when the panel's header search button joined every admin page (about 0.84 KB: the button,
     // shadcn's Kbd and the shortcut's rules; its dialog loads on first use) (owner, 2026-11-20; flags-2026-11.md S7).
     'resources/js/pages/Catalog/Admin/Products/VariantsTab.tsx' => 61_000,
