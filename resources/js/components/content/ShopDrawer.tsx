@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { ChevronDown, LayoutDashboard, LogOut, UserRound } from 'lucide-react';
+import { LayoutDashboard, LogOut, UserRound } from 'lucide-react';
 import { ThemeToggle } from '@/components/Preferences';
 import { CategoryTree } from '@/components/shop/CategoryTree';
 import { Badge } from '@/components/ui/badge';
@@ -170,37 +170,5 @@ export default function ShopDrawer({ alternate }: Props) {
                     </span>
                 </div>
         </>
-    );
-}
-
-/*
-| The phone's country chip (owner, 2026-11-27, option A of three drawn): beside the heart, a short label - the store's
-| name in Arabic, its code in English ("Saudi Arabia" leaves no room for the logo at 375 px) - over the country select
-| itself, see-through, so a tap opens the phone's own list of the full names. Another country is another shop: a choice
-| goes to that store's home in the same language, as the header's switch from 640 px and the drawer's do. Its own file,
-| loaded once the page has drawn (StorefrontLayout), so no shop page carries it: the page budget.
-*/
-export function CountryChip({ shop, locale }: { shop: NonNullable<SharedProps['shop']>; locale: string }) {
-    const t = useTranslator();
-
-    return (
-        <span className="relative flex h-8 shrink-0 items-center gap-1 rounded-full border border-line px-3 text-label-12 text-ink sm:hidden">
-            {locale === 'ar' ? shop.name : shop.code.toUpperCase()}
-            <ChevronDown aria-hidden="true" className="size-3.5" />
-            <select
-                data-test="country-chip"
-                value={shop.code}
-                aria-label={t('platform::stores.choose_title')}
-                onChange={(event) => router.visit(`/${event.target.value}/${locale}`)}
-                className="absolute inset-0 cursor-pointer opacity-0"
-            >
-                {/* An off store is listed only during a staff view that covers it, and says so. */}
-                {shop.available.map((store) => (
-                    <option key={store.code} value={store.code}>
-                        {store.isActive ? store.name : `${store.name} (${t('admin.store.off')})`}
-                    </option>
-                ))}
-            </select>
-        </span>
     );
 }
